@@ -1,0 +1,759 @@
+/* ============================================================
+   GLOBAL
+============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #f2c94c 0, #1f2933 55%);
+  color: #111827;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(17, 24, 39, 0.9);
+  color: #f9fafb;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
+.app-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f2c94c, #f59e0b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-right: 10px;
+}
+
+.app-title .app-name {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.app-title .app-subtitle {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* ============================================================
+   LAYOUT
+============================================================ */
+
+.app-main {
+  padding: 12px;
+  max-width: 960px;
+  margin: 0 auto 56px;
+}
+
+.card {
+  background: rgba(249, 250, 251, 0.95);
+  border-radius: 14px;
+  padding: 12px 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.28);
+}
+
+.card h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+.block-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 4px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+/* ============================================================
+   FORM FIELDS
+============================================================ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.field input {
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  padding: 7px 9px;
+  font-size: 14px;
+  outline: none;
+  background: #f9fafb;
+  transition: 0.12s;
+}
+
+.field input:focus {
+  border-color: #f2c94c;
+  box-shadow: 0 0 0 1px rgba(242, 201, 76, 0.5);
+}
+
+/* ============================================================
+   ROWS
+============================================================ */
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.field.full {
+  flex: 1 1 auto;
+}
+
+.field.qty-field {
+  width: 80px;
+}
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: 0.15s ease;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #111827;
+  box-shadow: 0 6px 14px rgba(245, 158, 11, 0.5);
+}
+
+.btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.6);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.btn.ghost:hover {
+  background: #f3f4f6;
+}
+
+.btn.wide {
+  width: 100%;
+}
+
+/* + / add buttons */
+#add-part,
+#add-service {
+  padding-inline: 10px;
+  min-width: 34px;
+}
+
+/* ============================================================
+   FLOATING REFRESH BUTTON
+============================================================ */
+
+#refresh-db-btn {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: 46px;
+  height: 46px;
+
+  border-radius: 50%;
+  border: none;
+  outline: none;
+
+  background: linear-gradient(135deg, #facc15, #f59e0b);
+  color: #1f2937;
+
+  font-size: 22px;
+  font-weight: 700;
+
+  cursor: pointer;
+  z-index: 999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.45);
+  transition: 0.15s ease;
+}
+
+#refresh-db-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.55);
+}
+
+#refresh-db-btn:active {
+  transform: scale(0.93);
+}
+
+#refresh-db-btn.spin {
+  animation: rotate-refresh 0.6s linear infinite;
+}
+
+@keyframes rotate-refresh {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   TABLE
+============================================================ */
+
+.table-wrapper {
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+th {
+  background: #facc15;
+  padding: 6px;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+td {
+  padding: 5px 4px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+td:nth-child(2) {
+  text-align: left;
+}
+
+td:nth-child(3),
+td:nth-child(4),
+td:nth-child(5),
+td:nth-child(6),
+th:nth-child(3),
+th:nth-child(4),
+th:nth-child(5),
+th:nth-child(6) {
+  text-align: center;
+}
+
+.total-line {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ============================================================
+   DELETE BUTTON
+============================================================ */
+
+.del-btn {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.del-btn:hover {
+  background: #b91c1c;
+}
+
+/* ============================================================
+   SUGGESTIONS
+============================================================ */
+
+.suggest-block {
+  position: relative;
+  display: block;
+}
+
+.suggest {
+  position: relative;
+}
+
+.suggest ul {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.suggest li {
+  padding: 6px 9px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.suggest li span.code {
+  font-weight: 600;
+}
+
+.suggest li span.name {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.suggest li span.price {
+  font-size: 12px;
+  color: #374151;
+}
+
+.suggest li:hover {
+  background: #fef3c7;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  font-size: 11px;
+  text-align: center;
+  padding: 4px;
+  color: #e5e7eb;
+  background: linear-gradient(to right, rgba(15,23,42,0.9), rgba(15,23,42,0));
+}
+
+/* ============================================================
+   ACTION BUTTONS
+============================================================ */
+
+.actions-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.actions-card .btn {
+  flex: 1 1 calc(33% - 12px);
+  text-align: center;
+}
+
+.actions-card .btn.wide {
+  flex: 1 1 100%;
+}
+
+/* ===== Инфо-блок склада и ячейки ===== */
+/* ===== Инфо-блок склада и ячейки — простой, без фона ===== */
+
+#parts-info {
+  margin-top: 6px;
+  font-size: 15px;
+  color: #352d2c;   /* ярко-белый текст */
+  opacity: 1 !important; /* принудительно убрать прозрачность */
+  font-weight: 600;
+}
+
+#parts-info span {
+  margin-right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #352d2c !important; /* чтобы точно было видно */
+}
+
+#parts-info .icon {
+  font-size: 18px;
+}
+.engineer-row {
+  margin-bottom: 10px;
+}
+
+.engineer-row .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.engineer-row input {
+  flex: 1;
+}
+
+.btn.small {
+  padding: 6px 10px;
+  font-size: 16px;
+}
+
+.draggable-table .drag-handle {
+  cursor: grab;
+  color: #999;
+  user-select: none;
+  width: 20px;
+  text-align: center;
+}
+
+.draggable-table tr.dragging {
+  opacity: 0.5;
+}
+/* ============================================
+   DRAG HANDLE — аккуратный, в стиле старого UI
+   ============================================ */
+.drag-handle {
+  cursor: grab;
+  color: #666;
+  font-size: 18px;
+  user-select: none;
+  text-align: center;
+  width: 28px;
+  padding: 0;
+  margin: 0;
+}
+
+/* при перетаскивании строка чуть прозрачнее */
+tr.dragging {
+  opacity: 0.45;
+}
+
+
+/* ============================================
+   INLINE QTY — как в старом UI
+   ============================================ */
+td.editable-qty {
+  cursor: pointer;
+  position: relative;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* отображаемый текст */
+td.editable-qty .qty-text {
+  display: inline-block;
+  padding: 2px 4px;
+  min-width: 22px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* скрытый input */
+td.editable-qty .qty-input {
+  display: none;
+  width: 42px;
+  padding: 4px 6px;
+  font-size: 14px;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  outline: none;
+  text-align: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* когда активен — скрываем текст */
+td.editable-qty.editing .qty-text {
+  display: none;
+}
+
+/* когда активен — показываем input */
+td.editable-qty.editing .qty-input {
+  display: inline-block;
+}
+.login-screen {
+  position: fixed;
+  inset: 0;
+  background: #000000aa;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.login-box {
+  background: #fff;
+  padding: 25px;
+  border-radius: 14px;
+  width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 20px #0004;
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.login-error {
+  margin-top: 10px;
+  color: #d00;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none !important;
+}
+/* NAV BAR */
+.nav-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  justify-content: flex-start;
+}
+
+/* MINI NAV BUTTON */
+.nav-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid #ffffff44;
+  color: #f9fafb;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: 0.15s ease;
+  font-weight: 500;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.nav-btn:active {
+  transform: scale(0.95);
+}
+body {
+    margin: 0;
+    padding: 0;
+
+    /* Фирменный темный фон */
+    background-color: #1f2933;
+
+    /* Мягкое золотое свечение */
+    background-image:
+        radial-gradient(
+            circle at center,
+            rgba(255, 201, 76, 0.35) 0%,   /* яркое золото */
+            rgba(255, 201, 76, 0.12) 30%, /* мягкий переход */
+            rgba(31, 41, 51, 1) 70%       /* плавно уходит в темный */
+        );
+
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+.field select {
+    width: 100%;
+    box-sizing: border-box;
+}
+/* Контейнер */
+.select-ios {
+    position: relative;
+    width: 100%;
+}
+
+/* Сам select */
+.select-ios select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    width: 100%;
+    padding: 12px 14px;
+    padding-right: 36px;
+
+    border: 1px solid #d7d7d7;
+    border-radius: 12px;
+
+    background: #ffffff;
+    font-size: 16px;
+    color: #111;
+
+    outline: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+
+    transition: 0.2s;
+}
+
+/* Фокус ― как в iOS */
+.select-ios select:focus {
+    border-color: #f2c94c;
+    box-shadow: 0 0 0 3px rgba(242, 201, 76, 0.35);
+}
+
+/* Стрелка */
+.select-ios::after {
+    content: "▾";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: #777;
+    pointer-events: none;
+}
+/* ---------- ОСНОВНАЯ КНОПКА SURPRESSO ---------- */
+.btn-surpresso {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    width: 100%;
+    padding: 8px 14px;
+
+    background: linear-gradient(90deg, #ffd86d, #ff8c22);
+    border: none;
+    border-radius: 30px;
+
+    font-size: 14px;
+    font-weight: 500;
+    color: #222;
+
+    cursor: pointer;
+    transition: 0.2s ease;
+    box-shadow: 0 4px 14px rgba(255, 140, 0, 0.35);
+}
+
+/* Hover */
+.btn-surpresso:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(255, 140, 0, 0.45);
+}
+
+/* Active press */
+.btn-surpresso:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(255, 140, 0, 0.30);
+}
+
+/* ---------- РЯД КНОПОК ---------- */
+.btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.btn-row .btn-surpresso {
+    flex: 1;
+    min-width: 220px;
+}
+/* ==== iOS style checkbox (договір обслуговування) ==== */
+
+.checkbox-field {
+  margin-top: 10px;
+}
+
+.checkbox-ios {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-ios input {
+  display: none;
+}
+
+.checkbox-ios-slider {
+  width: 40px;
+  height: 22px;
+  background: #ccc;
+  border-radius: 20px;
+  position: relative;
+  transition: 0.2s ease;
+}
+
+.checkbox-ios-slider::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Checked */
+.checkbox-ios input:checked + .checkbox-ios-slider {
+  background: #4cd964; /* iOS green */
+}
+
+.checkbox-ios input:checked + .checkbox-ios-slider::before {
+  transform: translateX(18px);
+}
+.shake {
+    animation: shake 0.2s;
+    border-color: #ff4444 !important;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    50% { transform: translateX(3px); }
+    75% { transform: translateX(-3px); }
+    100% { transform: translateX(0); }
+}

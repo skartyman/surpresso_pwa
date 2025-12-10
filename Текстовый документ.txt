@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Добавить оборудование</title>
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-logo">☕</div>
+
+  <div class="app-title">
+    <div class="app-name">Surpresso Service</div>
+    <div class="app-subtitle">Карточка оборудования</div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="goBack()">⬅ Назад</button>
+    <button class="nav-btn" onclick="goHome()">🏠 Домой</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="app-main">
+
+<!-- TEMPLATE FOR PNG -->
+<div id="posterTemplate" style="display:none; padding:24px; width:760px; background:white; font-family:'Segoe UI',sans-serif;">
+  
+  <div style="font-size:28px; font-weight:700;">Surpresso Service</div>
+  <div style="font-size:18px; margin-top:4px; color:#444;">Карточка оборудования</div>
+
+  <hr style="margin:16px 0; border:0; border-top:2px solid #f2c94c;">
+
+  <div id="posterFields" style="font-size:16px; line-height:1.6;"></div>
+
+  <hr style="margin:16px 0; border:0; border-top:2px solid #f2c94c;">
+
+  <div id="posterPhotos" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
+
+  <hr style="margin:16px 0; border:0; border-top:2px solid #f2c94c;">
+
+  <div style="font-size:14px; color:#555;">
+    ID заявки: <span id="posterID"></span>
+  </div>
+
+</div>
+
+<!-- STEP 1 -->
+<div id="step1" class="card">
+    <h2>Выберите тип оборудования</h2>
+
+   <div class="field select-ios">
+  <label>Тип оборудования</label>
+  <select id="equipmentType">
+    <option value="">— выберите —</option>
+    <option value="grinder">Гриндер</option>
+    <option value="pro-coffee">Профессиональная кофемашина</option>
+    <option value="auto-coffee">Автомат кофемашина</option>
+  </select>
+</div>
+
+
+    <button class="btn primary wide" onclick="goToStep2()">Далее</button>
+</div>
+
+<!-- STEP 2 -->
+<div id="step2" class="card" style="display:none;">
+    <h2>Кому принадлежит оборудование?</h2>
+
+    <button class="btn primary wide" onclick="selectOwner('client')">Оборудование клиента</button>
+    <button class="btn ghost wide" onclick="selectOwner('company')" style="margin-top:10px;">Оборудование компании</button>
+</div>
+
+<!-- CLIENT FORM -->
+<div id="form-client" class="card" style="display:none;">
+  <h2 id="clientTitle">Карточка (Клиент)</h2>
+
+  <div class="field"><label>Имя клиента</label><input id="clientName"></div>
+  <div class="field"><label>Телефон</label><input id="clientPhone"></div>
+  <div class="field"><label>Адрес / Локация</label><input id="clientLocation"></div>
+  <div class="field"><label>Модель</label><input id="model"></div>
+  <div class="field"><label>Серийный номер</label><input id="serial"></div>
+  <div class="field"><label>Описание проблемы</label><input id="problem"></div>
+  <div class="field"><label>Внешние повреждения</label><input id="condition"></div>
+  <div class="field"><label>Дата приёма</label><input type="date" id="receivedDate"></div>
+  
+  <div class="actions-stack">
+  <div class="btn-row">
+
+  <button class="btn-surpresso" onclick="generatePNG()">
+    🖼 Скачать карту
+  </button>
+
+  <button class="btn-surpresso" onclick="sendToTelegram()">
+    📤 Отправить в Telegram
+  </button>
+
+  <button class="btn-surpresso" onclick="openPrintPage()">
+    🖨 Печать
+  </button>
+
+</div>
+
+
+  </div>
+</div>
+
+<!-- COMPANY FORM -->
+<div id="form-company" class="card" style="display:none;">
+  <h2 id="companyTitle">Карточка (Компания)</h2>
+
+  <div class="field">
+    <label>Локация (кафе/цех)</label>
+    <input id="companyLocation">
+  </div>
+
+  <div class="field">
+    <label>Название оборудования</label>
+    <input id="equipmentName">
+  </div>
+
+  <div class="field">
+    <label>Внутренний номер</label>
+    <input id="internalNumber">
+  </div>
+
+  <div class="field">
+    <label>Задача / проблема</label>
+    <input id="task">
+  </div>
+
+  <div class="field">
+    <label>Комментарий</label>
+    <input id="comment">
+  </div>
+
+  <div class="field">
+    <label>Дата</label>
+    <input type="date" id="companyDate">
+  </div>
+
+  <div class="actions-stack">
+    <div class="btn-row">
+
+  <button class="btn-surpresso" onclick="generatePNG()">
+    🖼 Скачать карту
+  </button>
+
+  <button class="btn-surpresso" onclick="sendToTelegram()">
+    📤 Отправить в Telegram
+  </button>
+
+  <button class="btn-surpresso" onclick="openPrintPage()">
+    🖨 Печать
+  </button>
+
+</div>
+
+
+  </div>
+</div>
+
+
+<!-- LIVE CAMERA -->
+<div id="cameraCard" class="card" style="display:none; margin-top:12px;">
+    <h2>Камера (Live)</h2>
+
+    <video id="cameraVideo" autoplay playsinline style="width:100%; border-radius:12px; background:#000; max-height:260px; object-fit:cover;"></video>
+    <canvas id="cameraCanvas" style="display:none;"></canvas>
+
+    <div class="row" style="margin-top:10px; gap:8px;">
+      <button class="btn primary" onclick="startCamera()">▶️ Включить</button>
+      <button class="btn ghost" onclick="capturePhoto()">📸 Сфоткать</button>
+      <button class="btn ghost" onclick="stopCamera()">⏹ Стоп</button>
+    </div>
+
+    <div id="capturedPhotos" style="margin-top:10px; display:none;"></div>
+</div>
+
+</div> <!-- end main -->
+
+<script>
+function openPrintPage() {
+  const owner = localStorage.getItem("equip_owner");
+  const type = localStorage.getItem("equip_type");
+
+  // Читаем значения полей
+  const v = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : "";
+  };
+
+  // человеко-понятный текст типа
+  const typeMap = {
+    "grinder": "Гріндер",
+    "pro-coffee": "Професійна кавомашина",
+    "auto-coffee": "Автоматична кавомашина"
+  };
+
+  const card = {
+    id: "SURP-" + Date.now().toString().slice(-6),
+    owner,
+    type,
+    typeText: typeMap[type] || type
+  };
+
+  if (owner === "client") {
+    card.clientName      = v("clientName");
+    card.clientPhone     = v("clientPhone");
+    card.clientLocation  = v("clientLocation");
+    card.model           = v("model");
+    card.serial          = v("serial");
+    card.problem         = v("problem");
+    card.condition       = v("condition");
+    card.receivedDate    = v("receivedDate");
+
+  } else {
+    card.companyLocation = v("companyLocation");
+    card.name            = v("equipmentName");
+    card.internalNumber  = v("internalNumber");
+    card.task            = v("task");
+    card.comment         = v("comment");
+    card.companyDate     = v("companyDate");
+  }
+
+  // сохраняем карточку для печати
+  localStorage.setItem("last_equipment_card", JSON.stringify(card));
+
+  // 👉 Определяем, какой файл печати открывать
+  const file = (owner === "company")
+      ? "company-print.html"
+      : "print.html";
+
+  // открываем страницу бланка
+  window.open(file, "_blank");
+}
+
+/* ===================================================================
+   UTIL
+=================================================================== */
+const value = (id) => document.getElementById(id)?.value?.trim() || "";
+
+/* ===================================================================
+   NAVIGATION
+=================================================================== */
+const stepHistory = [];
+
+function showStep(id) {
+    ["step1","step2","form-client","form-company"].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = "none";
+    });
+
+    document.getElementById(id).style.display = "block";
+
+    if (stepHistory.at(-1) !== id) stepHistory.push(id);
+}
+
+function goBack() {
+    if (stepHistory.length <= 1) return goHome();
+    stepHistory.pop();
+    showStep(stepHistory.at(-1));
+}
+
+function goHome() {
+    window.location.href = "index.html";
+}
+
+/* ===================================================================
+   STEPS
+=================================================================== */
+function goToStep2() {
+    const type = value("equipmentType");
+    if (!type) return alert("Выберите тип");
+
+    localStorage.setItem("equip_type", type);
+    showStep("step2");
+}
+
+function selectOwner(owner) {
+    localStorage.setItem("equip_owner", owner);
+
+    const eqType = localStorage.getItem("equip_type");
+    const eqName = mapEquipmentType(eqType);
+
+    // Обновляем заголовки
+    const clientTitle = document.getElementById("clientTitle");
+    if (clientTitle) {
+        clientTitle.textContent = `Карточка (${mapOwner("client")}) — ${eqName}`;
+    }
+
+    const companyTitle = document.getElementById("companyTitle");
+    if (companyTitle) {
+        companyTitle.textContent = `Карточка (${mapOwner("company")}) — ${eqName}`;
+    }
+
+    if (owner === "client") showStep("form-client");
+    else showStep("form-company");
+
+    document.getElementById("cameraCard").style.display = "block";
+}
+
+/* ===================================================================
+   CAMERA — HIGH QUALITY CAPTURE (без Blob)
+=================================================================== */
+let cameraStream = null;
+let capturedPhotos = [];
+
+// Запуск камеры с высоким разрешением
+async function startCamera() {
+    if (cameraStream) return;
+
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920 },      // FullHD
+                height: { ideal: 1080 }      // можно 4096 × 2160 для 4K
+            }
+        });
+
+        const video = document.getElementById("cameraVideo");
+        video.srcObject = cameraStream;
+        await video.play();
+
+    } catch (e) {
+        console.error(e);
+        alert("Помилка доступу до камери");
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+}
+
+/* ===================================================================
+   СЪЕМКА ФОТО В МАКС. КАЧЕСТВЕ (JPEG 100%, dataURL)
+=================================================================== */
+function capturePhoto() {
+    const video = document.getElementById("cameraVideo");
+    const canvas = document.getElementById("cameraCanvas");
+
+    // ❗ Берём реальное максимальное разрешение камеры
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    // ❗ JPEG 100% качества, без потерь
+    const dataURL = canvas.toDataURL("image/jpeg", 1.0);
+
+    capturedPhotos.push(dataURL);
+    renderCapturedPhotos();
+}
+
+/* ===================================================================
+   ОТОБРАЖЕНИЕ ФОТО (без уменьшения качества)
+=================================================================== */
+function renderCapturedPhotos() {
+    const block = document.getElementById("capturedPhotos");
+    block.innerHTML = "";
+
+    if (!capturedPhotos.length) {
+        block.style.display = "none";
+        return;
+    }
+
+    block.style.display = "block";
+
+    capturedPhotos.forEach((src, idx) => {
+        const wrap = document.createElement("div");
+        wrap.style.position = "relative";
+        wrap.style.marginBottom = "10px";
+
+        const img = document.createElement("img");
+        img.src = src;
+        img.style.width = "100%";        // отображение
+        img.style.borderRadius = "12px";
+        img.style.objectFit = "contain"; // ❗ не режем фото
+
+        const del = document.createElement("button");
+        del.className = "btn ghost";
+        del.textContent = "Удалить";
+        del.style.position = "absolute";
+        del.style.bottom = "8px";
+        del.style.right = "8px";
+        del.style.fontSize = "11px";
+
+        del.onclick = () => {
+            capturedPhotos.splice(idx, 1);
+            renderCapturedPhotos();
+        };
+
+        wrap.appendChild(img);
+        wrap.appendChild(del);
+        block.appendChild(wrap);
+    });
+}
+
+/* ===================================================================
+   SEND TO TELEGRAM — JSON + base64 (совместимо с твоим backend)
+=================================================================== */
+async function sendToTelegram() {
+    const owner = localStorage.getItem("equip_owner");
+    const type  = localStorage.getItem("equip_type");
+
+    // Собираем карточку
+    let card = { owner, type };
+
+    if (owner === "client") {
+        card.clientName     = value("clientName");
+        card.clientPhone    = value("clientPhone");
+        card.clientLocation = value("clientLocation");
+        card.model          = value("model");
+        card.serial         = value("serial");
+        card.problem        = value("problem");
+        card.condition      = value("condition");
+        card.receivedDate   = value("receivedDate");
+
+    } else {
+        card.companyLocation = value("companyLocation");
+        card.name            = value("equipmentName");
+        card.internalNumber  = value("internalNumber");
+        card.task            = value("task");
+        card.comment         = value("comment");
+        card.companyDate     = value("companyDate");
+    }
+
+    // Фото в base64 — совместимо с твоим сервером
+    const photos = [...capturedPhotos];
+
+    if (photos.length === 0) {
+        if (!confirm("Нет фото! Отправить только текст?")) return;
+    }
+
+    try {
+        const resp = await fetch("/send-equipment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card, photos })
+        });
+
+        if (!resp.ok) throw new Error("Ошибка ответа от backend");
+
+        alert("Отправлено в Telegram! ✅");
+
+        stopCamera();
+        window.location.href = "index.html";
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка отправки в Telegram ❌");
+    }
+}
+
+//Функция преобразования названий сompany - Surpresso
+function mapEquipmentType(code) {
+  switch (code) {
+    case "grinder": return "Гриндер";
+    case "pro-coffee": return "Профессиональная кофемашина";
+    case "auto-coffee": return "Автомат кофемашина";
+    default: return code;
+  }
+}
+
+function mapOwner(code) {
+  switch (code) {
+    case "client": return "Клиент";
+    case "company": return "Компания Surpresso";
+    default: return code;
+  }
+}
+
+/* ===================================================================
+   PNG GENERATION
+=================================================================== */
+async function generatePNG() {
+
+    const owner = localStorage.getItem("equip_owner");
+    const type  = localStorage.getItem("equip_type");
+
+    const fields = [];
+    const add = (label,val)=>fields.push(`<div><b>${label}</b> ${val||"-"}</div>`);
+
+    add("Тип оборудования:", mapEquipmentType(type));
+	add("Владелец:", mapOwner(owner));
+
+
+    if (owner === "client") {
+
+        add("Имя клиента:", value("clientName"));
+        add("Телефон:", value("clientPhone"));
+        add("Адрес:", value("clientLocation"));
+        add("Модель:", value("model"));
+        add("Серийный номер:", value("serial"));
+        add("Проблема:", value("problem"));
+        add("Повреждения:", value("condition"));
+        add("Дата приёма:", value("receivedDate"));
+
+    } else {
+
+        add("Локация:", value("companyLocation"));
+        add("Название оборудования:", value("equipmentName"));
+        add("Внутренний номер:", value("internalNumber"));
+        add("Задача / проблема:", value("task"));
+        add("Комментарий:", value("comment"));
+        add("Дата:", value("companyDate"));
+    }
+
+    document.getElementById("posterFields").innerHTML = fields.join("");
+
+    /* PHOTOS */
+    const photoBox = document.getElementById("posterPhotos");
+    photoBox.innerHTML = "";
+
+    capturedPhotos.forEach(src=>{
+        const img=document.createElement("img");
+        img.src=src;
+        img.style.width="180px";
+        img.style.borderRadius="12px";
+        img.style.border="2px solid #f2c94c";
+        img.style.objectFit="cover";
+        photoBox.appendChild(img);
+    });
+
+    /* ID */
+    const id = "SURP-" + Date.now().toString().slice(-6);
+    document.getElementById("posterID").textContent=id;
+
+    /* RENDER */
+    const tmpl=document.getElementById("posterTemplate");
+    tmpl.style.display="block";
+
+    const canvas=await html2canvas(tmpl,{scale:2});
+    tmpl.style.display="none";
+
+    const url=canvas.toDataURL("image/png");
+
+    /* NAME */
+    function sanitize(s){
+        return s.trim()
+                .replace(/\s+/g,"-")
+                .replace(/[^a-zA-Z0-9А-Яа-яЁёІіЇїЄєҐґ\-]/g,"");
+    }
+
+    let fn="Surpresso_Equipment";
+
+    if (owner==="client") fn=`${sanitize(value("clientName"))}_${sanitize(value("model"))}`;
+    else fn=`${sanitize(value("companyLocation"))}_${sanitize(value("equipmentName"))}`;
+
+    /* DOWNLOAD */
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=fn+".png";
+    a.click();
+}
+/* ===================================================================
+   SEND TO TELEGRAM — JSON + base64 (совместимо с твоим backend)
+=================================================================== */
+async function sendToTelegram() {
+    const owner = localStorage.getItem("equip_owner");
+    const type  = localStorage.getItem("equip_type");
+
+    // Собираем карточку
+    let card = { owner, type };
+
+    if (owner === "client") {
+        card.clientName     = value("clientName");
+        card.clientPhone    = value("clientPhone");
+        card.clientLocation = value("clientLocation");
+        card.model          = value("model");
+        card.serial         = value("serial");
+        card.problem        = value("problem");
+        card.condition      = value("condition");
+        card.receivedDate   = value("receivedDate");
+
+    } else {
+        card.companyLocation = value("companyLocation");
+        card.name            = value("equipmentName");
+        card.internalNumber  = value("internalNumber");
+        card.task            = value("task");
+        card.comment         = value("comment");
+        card.companyDate     = value("companyDate");
+    }
+
+    // Фото в base64 — совместимо с твоим сервером
+    const photos = [...capturedPhotos];
+
+    if (photos.length === 0) {
+        if (!confirm("Нет фото! Отправить только текст?")) return;
+    }
+
+    try {
+        const resp = await fetch("/send-equipment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card, photos })
+        });
+
+        if (!resp.ok) throw new Error("Ошибка ответа от backend");
+
+        alert("Отправлено в Telegram! ✅");
+
+        stopCamera();
+        window.location.href = "index.html";
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка отправки в Telegram ❌");
+    }
+}
+
+/* ===================================================================
+   COLLECT EQUIPMENT DATA
+=================================================================== */
+function collectEquipmentData() {
+    const get = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : "";
+    };
+
+    const owner = localStorage.getItem("equip_owner");
+
+    let data = {
+        type: localStorage.getItem("equip_type"),
+        owner
+    };
+
+    if (owner === "client") {
+        data.clientName     = get("clientName");
+        data.clientPhone    = get("clientPhone");
+        data.clientLocation = get("clientLocation");
+        data.model          = get("model");
+        data.serial         = get("serial");
+        data.problem        = get("problem");
+        data.condition      = get("condition");
+        data.receivedDate   = get("receivedDate");
+    } else {
+        data.companyLocation = get("companyLocation");
+        data.name            = get("equipmentName");
+        data.internalNumber  = get("internalNumber");
+        data.task            = get("task");
+        data.comment         = get("comment");
+        data.companyDate     = get("companyDate");
+    }
+
+    return data;
+}
+
+/* ===================================================================
+   PRINT FORM
+=================================================================== */
+function printForm() {
+    const card = collectEquipmentData();
+    const photos = [...capturedPhotos];
+
+    const data = { ...card, photos };
+
+    const url = "print.html?data=" + encodeURIComponent(JSON.stringify(data));
+    window.open(url, "_blank");
+}
+
+
+/* ===================================================================
+   INIT
+=================================================================== */
+window.addEventListener("load", () => {
+
+    const today = new Date().toISOString().split("T")[0];
+    const companyDate = document.getElementById("companyDate");
+    const receivedDate = document.getElementById("receivedDate");
+
+    if (companyDate) companyDate.value = today;
+    if (receivedDate) receivedDate.value = today;
+
+    showStep("step1");
+});
+
+</script>
+
+</body>
+</html>

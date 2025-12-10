@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#f2c94c" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- ExcelJS (обязательно перед app.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+
+  <style>
+    /* Drag handle */
+    .drag-handle {
+      cursor: grab;
+      color: #777;
+      font-size: 18px;
+      user-select: none;
+      width: 20px;
+      text-align: center;
+    }
+    tr.dragging { opacity: 0.4; }
+
+    /* Editable qty */
+    td.editable-qty { cursor: pointer; position: relative; }
+    td.editable-qty .qty-input { display: none; width: 50px; }
+
+    /* Floating refresh button */
+    #refresh-db-btn {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.75);
+      color: #ffd900;
+      border: none;
+      font-size: 22px;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      transition: transform .15s ease, background .15s ease;
+    }
+    #refresh-db-btn:hover {
+      background: rgba(0,0,0,0.9);
+      transform: scale(1.05);
+    }
+    #refresh-db-btn.spin { animation: spin-refresh 0.6s linear infinite; }
+    @keyframes spin-refresh { from{transform:rotate(0);} to{transform:rotate(360deg);} }
+  </style>
+</head>
+
+<body>
+  <!-- Refresh Button -->
+  <button id="refresh-db-btn" title="Обновить базу">⟳</button>
+
+  <header class="app-header">
+    <div class="app-logo">☕</div>
+    <div class="app-title">
+      <div class="app-name">Surpresso Check</div>
+      <div class="app-subtitle">Чеки на ремонт / сервис</div>
+    </div>
+  </header>
+	<!-- ==========================
+      LOGIN SCREEN
+=========================== -->
+	<div id="login-screen" class="login-screen">
+	<div class="login-box">
+		<h2>Вход в систему</h2>
+
+		<input id="login-user" type="text" placeholder="Логин" class="login-input">
+		<input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+
+		<button id="login-btn" class="btn primary wide">Войти</button>
+
+		<div id="login-error" class="login-error"></div>
+	</div>
+	</div>
+
+
+  <main class="app-main">
+
+    <!-- Клиент / оборудование -->
+    <section class="card">
+      <h2>Клиент / оборудование</h2>
+
+      <div class="field">
+        <label>Клиент / заведение</label>
+        <input id="client-input" type="text" placeholder="Название заведения или ФИО" />
+      </div>
+
+      <div class="field">
+        <label>Код оборудования</label>
+        <input id="equip-input" type="text" placeholder="Например: LM-AV/001" />
+      </div>
+    </section>
+
+    <!-- Инженеры -->
+    <section class="card">
+      <h2>Сервис-инженеры</h2>
+      <div id="engineers-container">
+        <div class="field engineer-row">
+          <div class="row">
+            <input type="text" class="engineer-input" placeholder="Фамилия инженера" />
+            <button class="btn primary" onclick="addEngineerField()">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Позиции -->
+    <section class="card">
+      <h2>Позиции</h2>
+
+      <!-- Запчасти -->
+      <div class="block-label">Запчасти</div>
+      <div class="row">
+        <div class="field full">
+          <label>Код / название</label>
+          <div class="suggest-block">
+            <input id="parts-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
+            <div id="parts-suggest" class="suggest"></div>
+          </div>
+        </div>
+
+        <div class="field qty-field">
+          <label>Кол-во</label>
+          <input id="parts-qty" type="text" value="1" inputmode="decimal" />
+        </div>
+
+        <button id="add-part" class="btn primary">+</button>
+      </div>
+
+      <div id="parts-info" class="info-line"></div>
+
+      <!-- Услуги -->
+      <div class="block-label mt-16">Услуги</div>
+      <div class="row">
+        <div class="field full">
+          <label>Код / название</label>
+          <div class="suggest-block">
+            <input id="services-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
+            <div id="services-suggest" class="suggest"></div>
+          </div>
+        </div>
+
+        <div class="field qty-field">
+          <label>Кол-во</label>
+          <input id="services-qty" type="text" value="1" inputmode="decimal" />
+        </div>
+
+        <button id="add-service" class="btn primary">+</button>
+      </div>
+    </section>
+
+    <!-- Таблица -->
+    <section class="card">
+      <h2>Чек</h2>
+
+      <div class="table-wrapper">
+        <table id="items-table" class="draggable-table">
+          <thead>
+            <tr>
+              <th style="width:28px;"></th>
+              <th>Код</th>
+              <th>Название</th>
+              <th>Кол-во</th>
+              <th>Цена</th>
+              <th>Сумма</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="total-line">
+        <span>Итого:</span>
+        <span id="total">0.00</span>
+      </div>
+    </section>
+
+    <!-- Кнопки -->
+    <section class="card actions-card">
+      <button id="new-btn" class="btn ghost">Новый чек</button>
+      <button id="save-btn" class="btn primary wide">Сохранить в Excel</button>
+	  <button id="share-text-btn" class="btn primary wide">Поделиться</button>
+	  <button class="btn" onclick="openEquipmentPage()">
+  ➕ Добавить оборудование
+</button>
+
+
+      <input id="open-file" type="file" accept=".xlsx" style="display:none" />
+      <button id="open-btn" class="btn ghost">Открыть чек</button>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">Surpresso Service · офлайн PWA</footer>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js");
+    }
+
+    const btn = document.getElementById("refresh-db-btn");
+    btn.addEventListener("click", async () => {
+      btn.classList.add("spin");
+      try {
+        if (typeof refreshDatabase === "function") {
+          await refreshDatabase();
+          alert("Прайсы обновлены из Google Sheets 🎉");
+        } else alert("Ошибка: функция обновления не найдена.");
+      } catch (err) {
+        alert("Не удалось обновить прайсы.");
+      }
+      btn.classList.remove("spin");
+    });
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
