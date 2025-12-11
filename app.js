@@ -904,7 +904,7 @@ items.forEach(it => {
 
   const icon = it.type === "part" ? "📦" : "🛠";
 
-  txt += `${icon}${it.qty} | ${it.code} | ${it.name}: ${sum} грн\n`;
+  txt += `${icon} ${it.qty} | ${it.code} | ${it.name}: ${sum} грн\n`;
 });
 
   txt += "____________________________\n";
