@@ -431,13 +431,15 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
-  items.push({
-    code: found.code || "",
-    name: found.name,
-    qty,
-    price: found.price,
-    sum: qty * found.price
-  });
+items.push({
+  code: found.code || "",
+  name: found.name,
+  qty,
+  price: found.price,
+  sum: qty * found.price,
+  type: sourceList === parts ? "part" : "service"   // ← добавили тип
+});
+
 
   inputEl.value = "";
   document.getElementById(qtyId).value = "1";
@@ -602,7 +604,7 @@ function addEngineerField() {
   div.innerHTML = `
     <div class="row">
       <input type="text" class="engineer-input" placeholder="Фамилия инженера" />
-      <button class="btn small" onclick="addEngineerField()">+</button>
+      <button class="btn primary" onclick="addEngineerField()">+</button>
     </div>
   `;
   cont.appendChild(div);
@@ -897,10 +899,13 @@ function generateShareText() {
   txt += "____________________________\n";
 
   // ==== Позиции (компактный вид) ====
-  items.forEach(it => {
-    const sum = (it.qty * it.price).toFixed(2);
-    txt += `🛠${it.qty} | ${it.code} | ${it.name}: ${sum} грн\n`;
-  });
+items.forEach(it => {
+  const sum = (it.qty * it.price).toFixed(2);
+
+  const icon = it.type === "part" ? "📦" : "🛠";
+
+  txt += `${icon}${it.qty} | ${it.code} | ${it.name}: ${sum} грн\n`;
+});
 
   txt += "____________________________\n";
   txt += `ИТОГО: ${document.getElementById("total").innerText} грн\n`;
