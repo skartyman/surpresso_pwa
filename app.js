@@ -916,6 +916,32 @@ function openEquipmentPage() {
   window.location.href = "equipment.html";
 }
 
+async function hardRefreshApp() {
+  if (!confirm("Обновить приложение?\nБудет загружена новая версия.")) return;
+
+  try {
+    // 1. Очистка Cache Storage
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+
+    // 2. Удаление Service Worker
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        await reg.unregister();
+      }
+    }
+
+    // 3. Перезагрузка
+    location.reload();
+
+  } catch (e) {
+    alert("Ошибка обновления приложения");
+    console.error(e);
+  }
+}
 
 // ======================
 // Инициализация
