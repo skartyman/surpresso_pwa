@@ -1,3 +1,13 @@
+const SAVED_VERSION = localStorage.getItem("surp_version");
+
+if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
+  console.log("Версия изменилась:", SAVED_VERSION, "→", APP_VERSION);
+  localStorage.setItem("surp_version", APP_VERSION);
+  location.reload(true);
+} else {
+  localStorage.setItem("surp_version", APP_VERSION);
+}
+
 const APP_VERSION = "1.1.0"; // ← меняешь вручную при обновлениях
 // ======================
 //  Surpresso Check PWA — обновлённая версия
