@@ -1,3 +1,4 @@
+const APP_VERSION = "1.1.0"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -7,8 +8,6 @@ if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
 } else {
   localStorage.setItem("surp_version", APP_VERSION);
 }
-
-const APP_VERSION = "1.1.0"; // ← меняешь вручную при обновлениях
 // ======================
 //  Surpresso Check PWA — обновлённая версия
 //  Поддержка: Drag & Drop, inline qty, Excel в формате макета
