@@ -1,4 +1,4 @@
-
+const APP_VERSION = "1.1.0"; // ← меняешь вручную при обновлениях
 // ======================
 //  Surpresso Check PWA — обновлённая версия
 //  Поддержка: Drag & Drop, inline qty, Excel в формате макета
@@ -946,6 +946,8 @@ async function hardRefreshApp() {
 // ======================
 // Инициализация
 // ======================
+const v = document.getElementById("app-version");
+if (v) v.textContent = APP_VERSION;
 window.addEventListener("DOMContentLoaded", async () => {
   await initLogin();     // ← авторизация
 
