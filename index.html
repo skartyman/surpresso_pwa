@@ -210,10 +210,18 @@
     </section>
 
   </main>
-  <button id="hard-refresh-btn" class="btn danger">
-    ♻ Обновить приложение
-  </button>
-  <footer class="app-footer">Surpresso Service · офлайн PWA</footer>
+ <footer class="app-footer">
+  <div class="footer-left">
+    Surpresso Service · офлайн PWA
+  </div>
+
+  <div class="footer-right">
+    <button id="hard-refresh-btn" class="footer-btn">
+      ♻ Обновить приложение
+    </button>
+  </div>
+</footer>
+
 
   <script>
     if ("serviceWorker" in navigator) {
