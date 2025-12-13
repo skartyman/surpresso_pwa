@@ -958,6 +958,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   attachSuggest("services-input", "services-suggest", services);
 
   renderTable();
+	
+  const refreshBtn = document.getElementById("hard-refresh-btn");
+if (refreshBtn) {
+  refreshBtn.onclick = hardRefreshApp;
+}
 
   document.getElementById("add-part").onclick =
     () => addItemFromInput("parts-input","parts-qty",parts);
