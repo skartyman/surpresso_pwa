@@ -962,11 +962,17 @@ function updateFooterTicker() {
 // ======================
 // Инициализация
 // ======================
-const v = document.getElementById("app-version");
-if (v) v.textContent = APP_VERSION;
 window.addEventListener("DOMContentLoaded", async () => {
+
+  // версия (если используешь отдельный span)
+  const v = document.getElementById("app-version");
+  if (v) v.textContent = APP_VERSION;
+
+  // бегущая строка
+  updateFooterTicker();
+
   await initLogin();     // ← авторизация
-document.addEventListener("DOMContentLoaded", updateFooterTicker);
+
   // Если пользователь НЕ авторизован — дальше не запускаем
   if (!CURRENT_USER) return;
 
@@ -976,11 +982,11 @@ document.addEventListener("DOMContentLoaded", updateFooterTicker);
   attachSuggest("services-input", "services-suggest", services);
 
   renderTable();
-	
+
   const refreshBtn = document.getElementById("hard-refresh-btn");
-if (refreshBtn) {
-  refreshBtn.onclick = hardRefreshApp;
-}
+  if (refreshBtn) {
+    refreshBtn.onclick = hardRefreshApp;
+  }
 
   document.getElementById("add-part").onclick =
     () => addItemFromInput("parts-input","parts-qty",parts);
