@@ -951,7 +951,14 @@ async function hardRefreshApp() {
     console.error(e);
   }
 }
+function updateFooterTicker() {
+  const el = document.getElementById("footer-ticker");
+  if (!el) return;
 
+  el.textContent =
+    `Surpresso Service • офлайн PWA • версия ${APP_VERSION} • ` +
+    `обновлено ${new Date().toLocaleDateString()} • `;
+}
 // ======================
 // Инициализация
 // ======================
@@ -959,7 +966,7 @@ const v = document.getElementById("app-version");
 if (v) v.textContent = APP_VERSION;
 window.addEventListener("DOMContentLoaded", async () => {
   await initLogin();     // ← авторизация
-
+document.addEventListener("DOMContentLoaded", updateFooterTicker);
   // Если пользователь НЕ авторизован — дальше не запускаем
   if (!CURRENT_USER) return;
 
