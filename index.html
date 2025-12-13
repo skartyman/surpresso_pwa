@@ -202,21 +202,20 @@
 	  <button id="share-text-btn" class="btn primary wide">Поделиться</button>
 	  <button class="btn" onclick="openEquipmentPage()">
   ➕ Добавить оборудование
-</button>
 
+<footer class="app-footer">
+  <div class="footer-left">
+    <div class="ticker">
+      <div class="ticker-track" id="footer-ticker">
+        Surpresso Service • офлайн PWA • версия 1.1.0 • 
+      </div>
+    </div>
+  </div>
 
-      <input id="open-file" type="file" accept=".xlsx" style="display:none" />
-      <button id="open-btn" class="btn ghost">Открыть чек</button>
-    </section>
-
-  </main>
- <footer class="app-footer">
-  Surpresso Service · офлайн PWA · v<span id="app-version"></span>
-  <button id="hard-refresh-btn" class="footer-btn">♻ Обновить</button>
+  <button id="hard-refresh-btn" class="footer-refresh">
+    ♻ Обновить
+  </button>
 </footer>
-
-
-
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js");
