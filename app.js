@@ -589,6 +589,8 @@ function newInvoice() {
   document.getElementById("client-input").value = "";
   document.getElementById("equip-input").value = "";
   document.getElementById("parts-info").innerHTML = "";
+  document.getElementById("comment-input").value = "";
+
 
   // Сброс списка инженеров (оставляем одно поле)
   document.getElementById("engineers-container").innerHTML = `
@@ -843,6 +845,16 @@ document.getElementById("save-btn").addEventListener("click", async () => {
     cell.font = { bold: true };
     Object.assign(cell, cellBorder);
   });
+  
+  //Комментарий
+  const comment = document.getElementById("comment-input").value.trim();
+
+  if (comment) {
+    ws.addRow([]);
+    const commentRow = ws.addRow([`Комментарий: ${comment}`]);
+    ws.mergeCells(`A${commentRow.number}:E${commentRow.number}`);
+    ws.getCell(`A${commentRow.number}`).alignment = leftWrap;
+}
 
   // ============================
   // ИНЖЕНЕРЫ
@@ -891,6 +903,7 @@ function generateShareText() {
 
   const client = document.getElementById("client-input").value || "—";
   const equip  = document.getElementById("equip-input").value || "—";
+  const comment = document.getElementById("comment-input").value.trim();
 
   // ==== Инженеры ====
   const engineers = [...document.querySelectorAll(".engineer-input")]
@@ -904,6 +917,10 @@ function generateShareText() {
   txt += `☕ Оборудование: ${equip}\n`;
   txt += `🛠 Инженер: ${engineerLine}\n`;
   txt += `📅 Дата: ${new Date().toLocaleString()}\n\n`;
+
+  if (comment) {
+    txt += `📝 Комментарий: ${comment}\n`;
+  }
 
   txt += "____________________________\n";
 
