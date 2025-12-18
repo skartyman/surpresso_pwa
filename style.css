@@ -840,7 +840,7 @@ body {
 }
 
 .logo-holiday img {
-  height: 55px;
+  height: 70px;
   animation: logoBreath 6s ease-in-out infinite;
   filter: drop-shadow(0 0 0 rgba(255,200,80,0));
 }
