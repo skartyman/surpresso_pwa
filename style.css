@@ -44,11 +44,11 @@ body {
 
 .app-title .app-name {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 24px;
 }
 
 .app-title .app-subtitle {
-  font-size: 12px;
+  font-size: 16px;
   opacity: 0.8;
 }
 
