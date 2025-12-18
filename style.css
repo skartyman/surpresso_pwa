@@ -183,65 +183,6 @@ body {
   min-width: 34px;
 }
 
-/* ============================================================
-   FLOATING REFRESH BUTTON
-============================================================ */
-
-#refresh-db-btn {
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  width: 46px;
-  height: 46px;
-
-  border-radius: 50%;
-  border: none;
-  outline: none;
-
-  background: linear-gradient(135deg, #facc15, #f59e0b);
-  color: #1f2937;
-
-  font-size: 22px;
-  font-weight: 700;
-
-  cursor: pointer;
-  z-index: 999;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.45);
-  transition: 0.15s ease;
-}
-
-#refresh-db-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.55);
-}
-
-#refresh-db-btn:active {
-  transform: scale(0.93);
-}
-
-#refresh-db-btn.spin {
-  animation: rotate-refresh 0.6s linear infinite;
-}
-textarea {
-  width: 100%;
-  resize: vertical;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-
-@keyframes rotate-refresh {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
 
 /* ============================================================
    TABLE
@@ -836,7 +777,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
 .logo-holiday img {
