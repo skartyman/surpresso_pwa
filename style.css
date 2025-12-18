@@ -861,3 +861,12 @@ body {
   }
 }
 
+/* Микро-свечение бейджа */
+@keyframes badgeGlow {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(255,255,255,255.1);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(255,180,60,0.6);
+  }
+}
