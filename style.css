@@ -836,11 +836,11 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .logo-holiday img {
-  height: 44px;
+  height: 55px;
   animation: logoBreath 6s ease-in-out infinite;
   filter: drop-shadow(0 0 0 rgba(255,200,80,0));
 }
@@ -861,25 +861,3 @@ body {
   }
 }
 
-/* 🎁 Бейдж */
-.holiday-badge {
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ffcc66, #ff9900);
-  color: #1b1b1b;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  animation: badgeGlow 4s ease-in-out infinite;
-}
-
-/* Микро-свечение бейджа */
-@keyframes badgeGlow {
-  0%, 100% {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  }
-  50% {
-    box-shadow: 0 0 14px rgba(255,180,60,0.6);
-  }
-}
