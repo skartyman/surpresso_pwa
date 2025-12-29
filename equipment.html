@@ -10,15 +10,16 @@
 
 </head>
 <body>
-
+<canvas id="snow-canvas"></canvas>
 <!-- HEADER -->
-<header class="app-header">
-  <div class="app-logo">☕</div>
-
-  <div class="app-title">
-    <div class="app-name">Surpresso Service</div>
-    <div class="app-subtitle">Карточка оборудования</div>
-  </div>
+<canvas id="snow-canvas"></canvas>
+  <header class="app-header">
+  <div class="header-decor">
+  <img src="icons/spruce-branch.png" class="spruce-branch" alt="">
+</div>
+        <div class="logo-holiday">
+  <img src="icons/Logo_New_Year.png" alt="Surpresso Holiday" />
+</div>
 
   <div class="nav-bar">
     <button class="nav-btn" onclick="goBack()">⬅ Назад</button>
@@ -414,7 +415,7 @@ function renderCapturedPhotos() {
         img.style.objectFit = "contain"; // ❗ не режем фото
 
         const del = document.createElement("button");
-        del.className = "btn ghost";
+        del.className = "btn primary";
         del.textContent = "Удалить";
         del.style.position = "absolute";
         del.style.bottom = "8px";
@@ -583,9 +584,10 @@ async function sendToTelegram() {
         if (!resp.ok) throw new Error("Ошибка ответа от backend");
 
         alert("Отправлено в Telegram и создана карточка в trello ✅");
-
+		capturedPhotos.length = 0;
+		//renderPhotoPreview();
         stopCamera();
-        window.location.href = "index.html";
+        
 
     } catch (err) {
         console.error(err);
@@ -629,6 +631,102 @@ function collectEquipmentData() {
 
     return data;
 }
+// ============================================
+// 🎄 NEW YEAR SNOW EFFECT + CLICK BLAST
+// ============================================
+
+(function startSnow() {
+  const canvas = document.getElementById("snow-canvas");
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  let w, h;
+  let flakes = [];
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+
+  const FLAKE_COUNT = Math.min(160, Math.floor(w / 7));
+
+  function createFlake(x = Math.random() * w, y = Math.random() * h) {
+    return {
+      x,
+      y,
+      r: Math.random() * 3 + 1,
+      vy: Math.random() * 0.8 + 0.4,
+      vx: Math.random() * 0.6 - 0.3
+    };
+  }
+
+  for (let i = 0; i < FLAKE_COUNT; i++) {
+    flakes.push(createFlake());
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+
+    flakes.forEach(f => {
+      ctx.moveTo(f.x, f.y);
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+    });
+
+    ctx.fill();
+    update();
+  }
+
+  function update() {
+    flakes.forEach(f => {
+      f.y += f.vy;
+      f.x += f.vx;
+
+      // лёгкое торможение после взрыва
+      f.vx *= 0.98;
+      f.vy = Math.min(f.vy + 0.01, 1.6);
+
+      if (f.y > h) {
+        f.y = -5;
+        f.x = Math.random() * w;
+        f.vx = Math.random() * 0.6 - 0.3;
+        f.vy = Math.random() * 0.8 + 0.4;
+      }
+    });
+  }
+
+  function blast(x, y) {
+    flakes.forEach(f => {
+      const dx = f.x - x;
+      const dy = f.y - y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 120) {
+        const force = (120 - dist) / 120;
+        f.vx += dx * 0.04 * force;
+        f.vy += dy * 0.04 * force;
+      }
+    });
+  }
+
+  canvas.addEventListener("click", e => blast(e.clientX, e.clientY));
+  canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    blast(t.clientX, t.clientY);
+  });
+
+  function loop() {
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
 
 /* ===================================================================
    PRINT FORM

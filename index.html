@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PWA manifest -->
-  <link rel="manifest" href="manifest.json" />
+ <link rel="manifest" href="/manifest.json?v=1.1.3">
   <meta name="theme-color" content="#f2c94c" />
 
   <!-- Styles -->
@@ -66,16 +66,25 @@
 </head>
 
 <body>
+<<<<<<< HEAD
   <header class="app-header">
     <div class="logo-holiday">
+=======
+<canvas id="snow-canvas"></canvas>
+  <header class="app-header">
+  <div class="header-decor">
+  <img src="icons/spruce-branch.png" class="spruce-branch" alt="">
+</div>
+        <div class="logo-holiday">
+>>>>>>> 72007c6 (new yearversion)
   <img src="icons/Logo_New_Year.png" alt="Surpresso Holiday" />
 </div>
     <div class="app-title">
       <div class="app-name">Surpresso Service</div>
       <div class="app-subtitle">Чеки на ремонт / сервис</div>
     </div>
-  </header>
-	<!-- ==========================
+	  </header>
+	  	<!-- ==========================
       LOGIN SCREEN
 =========================== -->
 	<div id="login-screen" class="login-screen">
@@ -93,7 +102,6 @@
 
 
   <main class="app-main">
-
     <!-- Клиент / оборудование -->
     <section class="card">
       <h2>Клиент / оборудование</h2>
@@ -122,50 +130,138 @@
       </div>
     </section>
 
-    <!-- Позиции -->
-    <section class="card">
-      <h2>Позиции</h2>
+<!-- Позиции -->
+<section class="card">
+  <div class="positions-header">
+    <h2>Позиции</h2>
 
-      <!-- Запчасти -->
-      <div class="block-label">Запчасти</div>
-      <div class="row">
-        <div class="field full">
-          <label>Код / название</label>
-          <div class="suggest-block">
-            <input id="parts-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
-            <div id="parts-suggest" class="suggest"></div>
-          </div>
+    <button class="warehouse-toggle" onclick="toggleWarehouse()">
+      📦 Набрать со склада
+    </button>
+  </div>
+
+  <!-- ===== СКЛАД ===== -->
+  <div id="warehouse-panel" class="warehouse-panel" style="display:none">
+
+    <div class="block-label">Набор запчастей со склада</div>
+
+    <!-- режимы -->
+    <div class="warehouse-modes">
+      <button id="wm-manual" class="active" onclick="setWarehouseMode('manual')">🔍 Ввод</button>
+      <button id="wm-qr" onclick="setWarehouseMode('qr')">📷 QR</button>
+      <button id="wm-ocr" onclick="setWarehouseMode('ocr')">👁 OCR</button>
+    </div>
+
+    <!-- live OCR / QR -->
+    <div id="ocr-live" style="display:none; position:relative; margin-bottom:12px">
+      <video id="ocr-video" autoplay playsinline muted></video>
+      <div id="ocr-frame"></div>
+      <div id="ocr-hint"></div>
+    </div>
+    <!-- ВВОД КАК У ЗАПЧАСТЕЙ -->
+    <div class="row">
+      <div class="field full">
+        <label>Код / название</label>
+        <div class="suggest-block">
+          <input
+            id="warehouse-input"
+            autocomplete="off"
+            placeholder="Начните вводить артикул или название"
+          />
+		            <div id="warehouse-suggest" class="suggest"></div>
         </div>
-
-        <div class="field qty-field">
-          <label>Кол-во</label>
-          <input id="parts-qty" type="text" value="1" inputmode="decimal" />
-        </div>
-
-        <button id="add-part" class="btn primary">+</button>
       </div>
 
-      <div id="parts-info" class="info-line"></div>
-
-      <!-- Услуги -->
-      <div class="block-label mt-16">Услуги</div>
-      <div class="row">
-        <div class="field full">
-          <label>Код / название</label>
-          <div class="suggest-block">
-            <input id="services-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
-            <div id="services-suggest" class="suggest"></div>
-          </div>
-        </div>
-
-        <div class="field qty-field">
-          <label>Кол-во</label>
-          <input id="services-qty" type="text" value="1" inputmode="decimal" />
-        </div>
-
-        <button id="add-service" class="btn primary">+</button>
+      <div class="field qty-field">
+        <label>Кол-во</label>
+        <input
+          id="warehouse-qty"
+          type="text"
+          value="1"
+          inputmode="decimal"
+        />
       </div>
-    </section>
+
+      <button class="btn primary add-btn" onclick="addWarehouseItem()">+</button>
+    </div>
+
+    <!-- список набора -->
+    <div id="warehouse-list"></div>
+
+    <!-- действия -->
+    <div class="row mt-12">
+      <button
+        id="apply-kit-btn"
+        class="btn primary wide"
+        onclick="applyKitToCheck()"
+        disabled
+      >
+        🧾 Добавить в чек
+      </button>
+
+      <button
+        id="clear-kit-btn"
+        class="btn ghost wide"
+        disabled
+      >
+        🗑 Очистить
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== ЗАПЧАСТИ ===== -->
+  <div class="block-label">Запчасти</div>
+
+  <div class="row">
+    <div class="field full">
+      <label>Код / название</label>
+      <div class="suggest-block">
+        <input
+          id="parts-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Начните вводить артикул или название"
+        />
+        <div id="parts-suggest" class="suggest"></div>
+      </div>
+    </div>
+
+    <div class="field qty-field">
+      <label>Кол-во</label>
+      <input id="parts-qty" type="text" value="1" inputmode="decimal" />
+    </div>
+
+    <button id="add-part" class="btn primary">+</button>
+  </div>
+
+  <div id="parts-info" class="info-line"></div>
+
+  <!-- ===== УСЛУГИ ===== -->
+  <div class="block-label mt-16">Услуги</div>
+
+  <div class="row">
+    <div class="field full">
+      <label>Код / название</label>
+      <div class="suggest-block">
+        <input
+          id="services-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Начните вводить артикул или название"
+        />
+        <div id="services-suggest" class="suggest"></div>
+      </div>
+    </div>
+
+    <div class="field qty-field">
+      <label>Кол-во</label>
+      <input id="services-qty" type="text" value="1" inputmode="decimal" />
+    </div>
+
+    <button id="add-service" class="btn primary">+</button>
+  </div>
+</section>
+
 
     <!-- Таблица -->
     <section class="card">
@@ -230,26 +326,8 @@
   <button id="hard-refresh-btn" class="footer-refresh">
     ♻ Обновить
   </button>
+  <div id="warehouse-alert"></div>
 </footer>
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("service-worker.js");
-    }
-
-    const btn = document.getElementById("refresh-db-btn");
-    btn.addEventListener("click", async () => {
-      btn.classList.add("spin");
-      try {
-        if (typeof refreshDatabase === "function") {
-          await refreshDatabase();
-          alert("Прайсы обновлены из Google Sheets 🎉");
-        } else alert("Ошибка: функция обновления не найдена.");
-      } catch (err) {
-        alert("Не удалось обновить прайсы.");
-      }
-      btn.classList.remove("spin");
-    });
-  </script>
 
   <script src="app.js"></script>
 </body>
