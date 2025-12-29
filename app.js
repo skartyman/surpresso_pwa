@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
 =======
 const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
@@ -1773,5 +1772,6 @@ if (clearBtn) {
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
