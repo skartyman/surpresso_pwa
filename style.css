@@ -222,9 +222,6 @@ body {
   padding-inline: 10px;
   min-width: 34px;
 }
-<<<<<<< HEAD
-
-=======
 .add-btn {
   flex: 0 0 34px;   /* ← фиксированная ширина в ряду */
   min-width: 34px;
@@ -296,7 +293,6 @@ textarea {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
->>>>>>> 72007c6 (new yearversion)
 
 /* ============================================================
    TABLE
@@ -895,49 +891,6 @@ body {
 .footer-refresh:active {
   transform: scale(0.96);
 }
-<<<<<<< HEAD
-/* =========================
-   🎄 Holiday Edition 2026
-   ========================= */
-
-.logo-holiday {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.logo-holiday img {
-  height: 70px;
-  animation: logoBreath 6s ease-in-out infinite;
-  filter: drop-shadow(0 0 0 rgba(255,200,80,0));
-}
-
-/* Мягкое "дыхание" логотипа */
-@keyframes logoBreath {
-  0% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
-  }
-  50% {
-    transform: scale(1.03);
-    filter: drop-shadow(0 0 10px rgba(255,200,80,0.35));
-  }
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
-  }
-}
-
-/* Микро-свечение бейджа */
-@keyframes badgeGlow {
-  0%, 100% {
-    box-shadow: 0 2px 8px rgba(255,255,255,255.1);
-  }
-  75% {
-    box-shadow: 0 0 14px rgba(255,180,60,0.6);
-  }
-=======
 /* 🎄 NEW YEAR SNOW CANVAS */
 #snow-canvas {
   position: fixed;
@@ -1220,4 +1173,3 @@ body {
   background: #8a1f1f;
   color: #fff;
 }
-
