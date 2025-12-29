@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-const APP_VERSION = "1.1.2"; // ← меняешь вручную при обновлениях
-=======
 const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
->>>>>>> 72007c6 (new yearversion)
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
