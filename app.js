@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.0"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -8,6 +8,37 @@ if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
 } else {
   localStorage.setItem("surp_version", APP_VERSION);
 }
+let TESSERACT_LOADING = false;
+
+async function loadTesseract() {
+  if (window.Tesseract) return;
+
+  if (TESSERACT_LOADING) {
+    // ждём пока догрузится
+    return new Promise(resolve => {
+      const i = setInterval(() => {
+        if (window.Tesseract) {
+          clearInterval(i);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+
+  TESSERACT_LOADING = true;
+
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    s.onload = () => {
+      TESSERACT_LOADING = false;
+      resolve();
+    };
+    s.onerror = reject;
+    document.body.appendChild(s);
+  });
+}
+
 // ======================
 //  Surpresso Check PWA — обновлённая версия
 //  Поддержка: Drag & Drop, inline qty, Excel в формате макета
@@ -38,6 +69,7 @@ let CURRENT_USER = null;
 let parts = [];
 let services = [];
 let items = []; // {code,name,qty,price,sum}
+let kit = []; // набор со склада
 // ======================
 // Загрузка пользователей
 // ======================
@@ -57,7 +89,7 @@ async function loadUsers() {
       role:  (r.role  || "").trim()
     }));
 
-    console.log("Пользователи загружены:", USERS);
+   // console.log("Пользователи загружены:", USERS);
 
   } catch (e) {
     console.error("Ошибка загрузки пользователей:", e);
@@ -166,19 +198,40 @@ function normalizeRows(rows) {
       return "";
     };
 
-    const code  = pick(["артикул","код","art","article"]);
-    const name  = pick(["наименование","найменування","название","описание","name"]);
-    const price = cleanPrice(pick(["цена","ціна","стоимость","price","грн"]));
+    const rawCode  = pick(["артикул", "код", "art", "article"]);
+    const rawName  = pick(["наименование", "найменування", "название", "описание", "name"]);
+    const rawPrice = pick(["цена", "ціна", "стоимость", "price", "грн"]);
 
-    const stock = pick(["залишок","налич","stock","остат"]);
-    const cell  = pick(["комірка","ячейк","cell","shelf"]);
+    const code  = String(rawCode || "").trim();
+    const name  = String(rawName || "").trim();
+    const price = cleanPrice(rawPrice);
 
-    // услуги могут быть без кода → но имя обязательно
-    if (!code && !name) return;
+    const stock = pick(["залишок", "налич", "stock", "остат"]);
+    const cell  = pick(["комірка", "ячейк", "cell", "shelf"]);
 
+    const hasCode  = code.length > 0;
+    const hasName  = name.length > 0;
+    const hasPrice = price > 0;
+
+    // ❌ пустая строка
+    if (!hasCode && !hasName) return;
+
+    // ❌ заголовки разделов
+    // 1) нет кода и нет цены
+    // 2) ИЛИ заканчивается двоеточием
+    // 3) ИЛИ ВСЕ ЗАГЛАВНЫЕ и цена 0
+    if (
+      (!hasCode && !hasPrice) ||
+      name.endsWith(":") ||
+      (name === name.toUpperCase() && !hasPrice)
+    ) {
+      return;
+    }
+
+    // ✅ валидная позиция
     out.push({
-      code: String(code || "").trim(),
-      name: String(name || "").trim(),
+      code,
+      name,
       price,
       stock: stock || "",
       cell:  cell  || ""
@@ -187,6 +240,7 @@ function normalizeRows(rows) {
 
   return out;
 }
+
 // ======================
 // CSV → массив (всегда свежий запрос)
 // ======================
@@ -257,11 +311,7 @@ async function loadPrices() {
 // ======================
 // Обновление базы (кнопка ⟳)
 // ======================
-async function refreshDatabase() {
-  localStorage.removeItem("surp_parts");
-  localStorage.removeItem("surp_services");
-  await loadPrices();
-}
+
 // ======================
 // Фильтрация списка
 // ======================
@@ -343,8 +393,9 @@ function attachSuggest(inputId, suggestId, sourceList) {
   input.addEventListener("input", () => {
     suggest.innerHTML = "";
 
-    if (inputId === "parts-input")
+    if (inputId === "parts-input") {
       document.getElementById("parts-info").innerHTML = "";
+    }
 
     const text = input.value.trim().toLowerCase();
     if (!text) return;
@@ -367,7 +418,7 @@ function attachSuggest(inputId, suggestId, sourceList) {
       }
 
       li.innerHTML = `
-        <div class="code">${item.code || ""}</div>
+        <div class="code">${item.code}</div>
         <div class="name">${item.name}</div>
         <div class="price">${item.price.toFixed(2)} грн</div>
         ${extraHTML}
@@ -380,7 +431,7 @@ function attachSuggest(inputId, suggestId, sourceList) {
         if (inputId === "parts-input") {
           document.getElementById("parts-info").innerHTML = `
             <span><span class="icon">📦</span> ${item.stock || "—"}</span>
-            <span><span class="icon">🗄</span> ${item.cell  || "—"}</span>
+            <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
           `;
         }
       });
@@ -392,8 +443,9 @@ function attachSuggest(inputId, suggestId, sourceList) {
   });
 
   document.addEventListener("click", e => {
-    if (!suggest.contains(e.target) && e.target !== input)
+    if (!suggest.contains(e.target) && e.target !== input) {
       suggest.innerHTML = "";
+    }
   });
 }
 
@@ -458,8 +510,603 @@ items.push({
 
   renderTable();
 }
+// ======================
+// 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR + LIVE OCR)
+// ======================
+function warehouseAlert(text, type = "info", timeout = 2500) {
+  const el = document.getElementById("warehouse-alert");
+  if (!el) return;
+
+  el.className = "warehouse-alert " + type;
+  el.textContent = text;
+  el.style.display = "block";
+
+  if (timeout) {
+    clearTimeout(el._t);
+    el._t = setTimeout(() => {
+      el.style.display = "none";
+    }, timeout);
+  }
+}
+
+let WAREHOUSE_MODE = "manual";
+const QTY_STEP = 0.5;
+
+function normalizeOCR(text) {
+  return text
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[ОO]/g, "0")
+    .replace(/[ІI]/g, "1")
+    .replace(/[ЅS]/g, "5")
+    .replace(/[ВB]/g, "8");
+}
+
+// ---- shared camera state (one camera for QR/OCR) ----
+let CAM_STREAM = null;
+let QR_RAF = null;
+
+let OCR_TIMER = null;
+let LAST_OCR_CODE = null;
+
+// ---------- UI helpers ----------
+function updateWarehouseActions() {
+  const applyBtn = document.getElementById("apply-kit-btn");
+  const clearBtn = document.getElementById("clear-kit-btn");
+
+  if (applyBtn) {
+    applyBtn.disabled = kit.length === 0;
+    applyBtn.classList.toggle("primary", kit.length > 0);
+  }
+  if (clearBtn) {
+    clearBtn.disabled = kit.length === 0;
+  }
+  updateWarehouseToggle();
+}
+
+function updateWarehouseToggle() {
+  const btn = document.querySelector(".warehouse-toggle");
+  if (!btn) return;
+  btn.classList.toggle("has-items", kit.length > 0);
+}
+
+function toggleWarehouse() {
+  const panel = document.getElementById("warehouse-panel");
+  if (!panel) return;
+
+  const willOpen = (panel.style.display === "none" || !panel.style.display);
+  panel.style.display = willOpen ? "block" : "none";
+
+  // если закрываем панель — стопим камеру и уходим в manual
+  if (!willOpen) {
+    stopLiveAll();
+    setWarehouseMode("manual", { silent: true });
+  }
+}
+function normalizeCode(s) {
+  return String(s || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, ""); // убираем всё кроме букв и цифр
+}
+
+// ---------- storage ----------
+function saveKit() {
+  localStorage.setItem("surp_kit", JSON.stringify(kit));
+}
+function loadKit() {
+  const s = localStorage.getItem("surp_kit");
+  if (s) {
+    try { kit = JSON.parse(s) || []; } catch(e) { kit = []; }
+    renderWarehouseList();
+  }
+}
+function clearWarehouseKit() {
+  if (!kit.length) return;
+  if (!confirm("Очистить набор со склада?")) return;
+  kit = [];
+  saveKit();
+  renderWarehouseList();
+}
+
+// ---------- add/apply ----------
+function applyKitToCheck() {
+  kit.forEach(k => {
+    const p = parts.find(x => x.code === k.code);
+    if (!p) return;
+
+    items.push({
+      code: p.code,
+      name: p.name,
+      qty: k.qty,
+      price: p.price,
+      sum: p.price * k.qty,
+      type: "part"
+    });
+  });
+
+  kit = [];
+  saveKit();
+  renderWarehouseList();
+  renderTable();
+  toggleWarehouse();
+}
+//Utilits for scanners
+function existsInPrice(code) {
+  const raw = normalizeCode(code);
+  if (!raw) return false;
+
+  return parts.some(p =>
+    normalizeCode(p.code) === raw
+  );
+}
+function normalizeCode(str) {
+  return String(str || "")
+    .toUpperCase()
+    .replace(/[\u00A0\u202F]/g, "") // невидимые пробелы
+    .replace(/[^A-Z0-9]/g, "")
+    .trim();
+}
+
+function addWarehouseItemByCode(code, qty = 1) {
+  if (!code) return false;
+
+  const raw = normalizeCode(code);
+  if (!raw) return false;
+
+  // 1️⃣ точное совпадение
+  let found = parts.find(p =>
+    normalizeCode(p.code) === raw
+  );
+
+  // 2️⃣ совпадение по хвосту
+  if (!found) {
+    found = parts.find(p =>
+      normalizeCode(p.code).endsWith(raw) ||
+      raw.endsWith(normalizeCode(p.code))
+    );
+  }
+
+  // 3️⃣ совпадение по включению
+  if (!found) {
+    found = parts.find(p =>
+      normalizeCode(p.code).includes(raw) ||
+      raw.includes(normalizeCode(p.code))
+    );
+  }
+
+  // ⛔ КЛЮЧЕВОЕ МЕСТО (ТО, ЧТО ТЫ ПРОПУСТИЛ)
+  if (!found) {
+    console.warn("❌ Не найдено в прайсе:", code);
+    warehouseAlert(`❌ Не найдено в прайсе: ${code}`, "error", 4000);
+    return false;
+  }
+
+  // ✅ добавление / увеличение
+  const ex = kit.find(i => i.code === found.code);
+  if (ex) {
+    ex.qty = +(ex.qty + qty).toFixed(2);
+  } else {
+    kit.push({
+      code: found.code,
+      name: found.name,
+      cell: found.cell || "",
+      qty: +qty.toFixed(2)
+    });
+  }
+
+  saveKit();
+  renderWarehouseList();
+  updateWarehouseActions();
+
+  console.log("✅ Добавлено со склада:", found.code, qty);
+  return true;
+}
 
 
+  
+function addWarehouseItem() {
+  const input = document.getElementById("warehouse-input");
+  const qtyInput = document.getElementById("warehouse-qty");
+
+  const text = (input?.value || "").trim().toLowerCase();
+  const qty = parseFloat((qtyInput?.value || "1").replace(",", ".")) || 1;
+  if (!text) return;
+
+  const found =
+    parts.find(p => String(p.code || "").toLowerCase() === text) ||
+    parts.find(p => String(p.code || "").toLowerCase().includes(text)) ||
+    parts.find(p => String(p.name || "").toLowerCase().includes(text));
+
+  if (!found) return;
+
+  addWarehouseItemByCode(found.code, qty);
+
+  input.value = "";
+  qtyInput.value = "1";
+}
+
+// ---------- list render ----------
+function changeKitQty(i, delta) {
+  if (!kit[i]) return;
+  kit[i].qty = Math.max(0.01, +(kit[i].qty + delta * QTY_STEP).toFixed(2));
+  saveKit();
+  renderWarehouseList();
+}
+
+function removeKitItem(i) {
+  kit.splice(i, 1);
+  saveKit();
+  renderWarehouseList();
+}
+
+function renderWarehouseList() {
+  const box = document.getElementById("warehouse-list");
+  if (!box) return;
+
+  box.innerHTML = "";
+
+  kit.forEach((it, idx) => {
+    const div = document.createElement("div");
+    div.className = "warehouse-item";
+
+    div.innerHTML = `
+      <div class="top">
+        <span>${it.code}</span>
+        <span>🗄 ${it.cell || "—"}</span>
+      </div>
+      <div class="bottom">
+        <div class="qty-controls">
+          <button type="button" onclick="changeKitQty(${idx}, -1)">−</button>
+          <span>${it.qty}</span>
+          <button type="button" onclick="changeKitQty(${idx}, 1)">+</button>
+        </div>
+        <button type="button" onclick="removeKitItem(${idx})">❌</button>
+      </div>
+    `;
+    box.appendChild(div);
+  });
+
+  updateWarehouseActions();
+}
+
+// ======================
+// 🎛 MODE SWITCH (с корректной остановкой камеры)
+// ======================
+
+function setWarehouseMode(mode, opts = {}) {
+  // повторное нажатие по текущему режиму QR/OCR => выключить и уйти в manual
+  if (!opts.silent && mode === WAREHOUSE_MODE && (mode === "qr" || mode === "ocr")) {
+    stopLiveAll();
+    WAREHOUSE_MODE = "manual";
+    mode = "manual";
+  } else {
+    stopLiveAll(); // ✅ всегда стоп перед стартом нового режима
+    WAREHOUSE_MODE = mode;
+  }
+
+  ["manual","qr","ocr"].forEach(m => {
+    document.getElementById("wm-" + m)?.classList.toggle("active", m === mode);
+  });
+
+  const live = document.getElementById("ocr-live");
+  if (live) live.style.display = (mode === "qr" || mode === "ocr") ? "block" : "none";
+
+  if (mode === "qr") startQRScan();
+  if (mode === "ocr") startLiveOCR();
+}
+
+// ======================
+// 🎥 Camera stop helpers
+// ======================
+
+function stopCamera() {
+  const video = document.getElementById("ocr-video");
+  if (video) {
+    try { video.pause(); } catch(e) {}
+    video.srcObject = null;
+  }
+
+  if (CAM_STREAM) {
+    CAM_STREAM.getTracks().forEach(t => t.stop());
+    CAM_STREAM = null;
+  }
+}
+
+function stopLiveQR() {
+  if (QR_RAF) {
+    cancelAnimationFrame(QR_RAF);
+    QR_RAF = null;
+  }
+  stopCamera();
+}
+
+function stopLiveOCR() {
+  if (OCR_TIMER) {
+    clearInterval(OCR_TIMER);
+    OCR_TIMER = null;
+  }
+  LAST_OCR_CODE = null;
+
+  const hint = document.getElementById("ocr-hint");
+  if (hint) hint.textContent = "";
+
+  stopCamera();
+
+  const live = document.getElementById("ocr-live");
+  if (live) live.style.display = "none";
+}
+
+function stopLiveAll() {
+  stopLiveQR();
+  stopLiveOCR();
+}
+
+
+// ======================
+// 📷 LIVE QR / BARCODE SCAN
+// ======================
+
+// ======================
+// 📷 QR / BARCODE SCAN — FINAL
+// ======================
+
+let QR_HITS = {};       // защита от галлюцинаций
+let LAST_QR_CODE = null;
+
+async function startQRScan() {
+  if (!("BarcodeDetector" in window)) {
+    warehouseAlert(
+      "❌ Сканер QR/штрихкодов не поддерживается этим браузером",
+      "error",
+      4000
+    );
+    setWarehouseMode("manual", { silent: true });
+    return;
+  }
+
+  const live = document.getElementById("ocr-live");
+  const video = document.getElementById("ocr-video");
+  const hint  = document.getElementById("ocr-hint");
+
+  if (!live || !video) return;
+
+  live.style.display = "block";
+  if (hint) hint.textContent = "Наведи камеру на QR или штрихкод";
+
+  CAM_STREAM = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
+
+  video.srcObject = CAM_STREAM;
+  await video.play();
+
+  const detector = new BarcodeDetector({
+    formats: [
+      "qr_code",
+      "code_128",
+      "code_39",
+      "ean_13",
+      "ean_8"
+    ]
+  });
+
+  const scan = async () => {
+    if (WAREHOUSE_MODE !== "qr") return;
+
+    try {
+      const codes = await detector.detect(video);
+      if (!codes || !codes.length) {
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      const raw = String(codes[0].rawValue || "");
+      const candidate = normalizeCode(raw);
+
+      if (!candidate) {
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      // 🔁 защита от повторов
+      if (candidate === LAST_QR_CODE) {
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      LAST_QR_CODE = candidate;
+
+      // 🔢 антигаллюцинация: 2 одинаковых подряд
+      QR_HITS[candidate] = (QR_HITS[candidate] || 0) + 1;
+
+      if (QR_HITS[candidate] < 2) {
+        warehouseAlert(`📷 Видим: ${candidate} (подтвердите)`, "info", 800);
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      QR_HITS = {}; // сброс
+
+      // ⛔ НЕ ИЗ ПРАЙСА — СРАЗУ СТОП
+      if (!existsInPrice(candidate)) {
+        warehouseAlert(
+          `❌ Нет в прайсе: ${candidate}`,
+          "error",
+          3000
+        );
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      // вибрация
+      if (navigator.vibrate) navigator.vibrate(60);
+
+      warehouseAlert(`🔎 Найден код: ${candidate}`, "info", 3000);
+
+      setTimeout(() => {
+        if (confirm(`Добавить запчасть?\n\n${candidate}`)) {
+          const ok = addWarehouseItemByCode(candidate, 1);
+
+          if (ok) {
+            warehouseAlert(
+              `✅ Добавлено: ${candidate}`,
+              "success",
+              2500
+            );
+          } else {
+            warehouseAlert(
+              `❌ Ошибка добавления: ${candidate}`,
+              "error",
+              4000
+            );
+          }
+        } else {
+          warehouseAlert("⏭ Пропущено", "warn", 1200);
+        }
+      }, 200);
+
+    } catch (e) {
+      console.warn("QR detect error:", e);
+    }
+
+    QR_RAF = requestAnimationFrame(scan);
+  };
+
+  scan();
+}
+
+// ======================
+// 👁 LIVE OCR (Tesseract)
+// ===== OCR STATE =====
+let OCR_HITS = {};
+//let LAST_OCR_CODE = null;
+//let OCR_TIMER = null;
+
+async function startLiveOCR() {
+  if (typeof loadTesseract !== "function") {
+    alert("Tesseract не подключён");
+    setWarehouseMode("manual", { silent: true });
+    return;
+  }
+
+  await loadTesseract();
+  if (!window.Tesseract) {
+    alert("OCR недоступен");
+    setWarehouseMode("manual", { silent: true });
+    return;
+  }
+
+  const live  = document.getElementById("ocr-live");
+  const video = document.getElementById("ocr-video");
+  const hint  = document.getElementById("ocr-hint");
+
+  live.style.display = "block";
+  if (hint) hint.textContent = "Наведи камеру на артикул";
+
+  CAM_STREAM = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  });
+
+  video.srcObject = CAM_STREAM;
+  await video.play();
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  OCR_TIMER = setInterval(async () => {
+    if (WAREHOUSE_MODE !== "ocr") return;
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return;
+
+    // 🔲 область считывания (ТОЧНО В РАМКЕ)
+    const cropX = vw * 0.1;
+    const cropY = vh * 0.35;
+    const cropW = vw * 0.8;
+    const cropH = vh * 0.18;
+
+    canvas.width  = Math.floor(cropW);
+    canvas.height = Math.floor(cropH);
+
+    ctx.filter = "grayscale(1) contrast(1.8)";
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+    ctx.filter = "none";
+
+    try {
+      const { data } = await Tesseract.recognize(canvas, "eng", {
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        preserve_interword_spaces: 0
+      });
+
+      const raw = data.text.toUpperCase().replace(/\s+/g, "");
+      console.log("OCR RAW:", raw);
+
+      const candidate = extractBestCode(raw);
+      if (!candidate) {
+        warehouseAlert("👁 Ищу артикул…", "info", 800);
+        return;
+      }
+
+      // ===== стабилизация =====
+      OCR_HITS[candidate] = (OCR_HITS[candidate] || 0) + 1;
+
+      if (OCR_HITS[candidate] < 2) {
+        warehouseAlert(`👁 Видим: ${candidate}`, "info", 800);
+        return;
+      }
+
+      OCR_HITS = {}; // сброс
+
+      if (candidate === LAST_OCR_CODE) return;
+      LAST_OCR_CODE = candidate;
+
+      if (navigator.vibrate) navigator.vibrate(80);
+
+      warehouseAlert(`🔎 Найден код: ${candidate}`, "info", 3000);
+
+      if (confirm(`Добавить запчасть?\n\n${candidate}`)) {
+        const ok = addWarehouseItemByCode(candidate, 1);
+        if (ok) {
+          warehouseAlert(`✅ Добавлено: ${candidate}`, "success", 2000);
+        } else {
+          warehouseAlert(`❌ Нет в прайсе: ${candidate}`, "error", 3000);
+        }
+      } else {
+        warehouseAlert("⏭ Пропущено", "warn", 1000);
+      }
+
+    } catch (e) {
+      console.warn("OCR error:", e);
+    }
+
+  }, 1200);
+}
+
+// ======================
+// 🔎 Extract best code
+// ======================
+
+function extractBestCode(text) {
+  if (!text) return null;
+  text = String(text).toUpperCase();
+
+  // кандидаты 6–24 символа
+  const matches = text.match(/[A-Z0-9]{3,20}/g);
+  if (!matches) return null;
+
+  // ищем точное совпадение с прайсом
+  for (const m of matches) {
+    if (parts.some(p => String(p.code || "").toUpperCase() === m)) {
+      return m;
+    }
+  }
+
+  // если точного нет — вернём самый "похожий" (первый длинный)
+  matches.sort((a,b) => b.length - a.length);
+  return matches[0] || null;
+}
 
 // ======================
 // Рендер таблицы + поддержка Drag&Drop + inline edit
@@ -976,6 +1623,102 @@ function updateFooterTicker() {
     `Surpresso Service • офлайн PWA • версия ${APP_VERSION} • ` +
     `обновлено ${new Date().toLocaleDateString()} • `;
 }
+// ============================================
+// 🎄 NEW YEAR SNOW EFFECT + CLICK BLAST
+// ============================================
+
+(function startSnow() {
+  const canvas = document.getElementById("snow-canvas");
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  let w, h;
+  let flakes = [];
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+
+  const FLAKE_COUNT = Math.min(160, Math.floor(w / 7));
+
+  function createFlake(x = Math.random() * w, y = Math.random() * h) {
+    return {
+      x,
+      y,
+      r: Math.random() * 3 + 1,
+      vy: Math.random() * 0.8 + 0.4,
+      vx: Math.random() * 0.6 - 0.3
+    };
+  }
+
+  for (let i = 0; i < FLAKE_COUNT; i++) {
+    flakes.push(createFlake());
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+
+    flakes.forEach(f => {
+      ctx.moveTo(f.x, f.y);
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+    });
+
+    ctx.fill();
+    update();
+  }
+
+  function update() {
+    flakes.forEach(f => {
+      f.y += f.vy;
+      f.x += f.vx;
+
+      // лёгкое торможение после взрыва
+      f.vx *= 0.98;
+      f.vy = Math.min(f.vy + 0.01, 1.6);
+
+      if (f.y > h) {
+        f.y = -5;
+        f.x = Math.random() * w;
+        f.vx = Math.random() * 0.6 - 0.3;
+        f.vy = Math.random() * 0.8 + 0.4;
+      }
+    });
+  }
+
+  function blast(x, y) {
+    flakes.forEach(f => {
+      const dx = f.x - x;
+      const dy = f.y - y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 120) {
+        const force = (120 - dist) / 120;
+        f.vx += dx * 0.04 * force;
+        f.vy += dy * 0.04 * force;
+      }
+    });
+  }
+
+  canvas.addEventListener("click", e => blast(e.clientX, e.clientY));
+  canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    blast(t.clientX, t.clientY);
+  });
+
+  function loop() {
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
 // ======================
 // Инициализация
 // ======================
@@ -994,11 +1737,24 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (!CURRENT_USER) return;
 
   await loadPrices();
+  loadKit();
+
 
   attachSuggest("parts-input", "parts-suggest", parts);
   attachSuggest("services-input", "services-suggest", services);
-
+  // === склад: ручной ввод ===
+attachSuggest(
+  "warehouse-input",
+  "warehouse-suggest",
+  parts
+);
+  
   renderTable();
+  
+  const clearBtn = document.getElementById("clear-kit-btn");
+if (clearBtn) {
+  clearBtn.onclick = clearWarehouseKit;
+}
 
   const refreshBtn = document.getElementById("hard-refresh-btn");
   if (refreshBtn) {

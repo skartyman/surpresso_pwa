@@ -31,8 +31,8 @@ body {
 }
 
 .app-logo {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
   background: linear-gradient(135deg, #f2c94c, #f59e0b);
   display: flex;
@@ -44,12 +44,50 @@ body {
 
 .app-title .app-name {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 24px;
 }
 
 .app-title .app-subtitle {
-  font-size: 12px;
+  font-size: 16px;
   opacity: 0.8;
+}
+.logo-holiday {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-holiday img {
+  height: 75px;
+  animation: logoBreath 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 0 rgba(255,200,80,0));
+}
+
+/* Мягкое "дыхание" логотипа */
+@keyframes logoBreath {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
+  }
+  50% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 10px rgba(255,200,80,0.35));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
+  }
+}
+
+/* Микро-свечение бейджа */
+@keyframes badgeGlow {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(255,255,255,255.1);
+  }
+  75% {
+    box-shadow: 0 0 14px rgba(255,180,60,0.6);
+  }
 }
 
 /* ============================================================
@@ -130,9 +168,11 @@ body {
 
 .field.full {
   flex: 1 1 auto;
+  min-width: 0;   /* ← КЛЮЧ */
 }
 
 .field.qty-field {
+  flex: 0 0 80px;   /* вместо width */
   width: 80px;
 }
 
@@ -182,7 +222,18 @@ body {
   padding-inline: 10px;
   min-width: 34px;
 }
-
+.add-btn {
+  flex: 0 0 34px;   /* ← фиксированная ширина в ряду */
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 /* ============================================================
    FLOATING REFRESH BUTTON
 ============================================================ */
@@ -323,9 +374,21 @@ th:nth-child(6) {
    SUGGESTIONS
 ============================================================ */
 
+/* важно для flex-строк: разрешаем full-полю сжиматься */
+.field.full {
+  flex: 1 1 auto;
+  min-width: 0;   /* ← КЛЮЧ */
+}
+
+/* чтобы сам инпут/блок подсказок не раздувал строку */
 .suggest-block {
-  position: relative;
-  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.suggest-block input {
+  width: 100%;
+  min-width: 0;
 }
 
 .suggest {
@@ -827,4 +890,286 @@ body {
 
 .footer-refresh:active {
   transform: scale(0.96);
+}
+/* 🎄 NEW YEAR SNOW CANVAS */
+#snow-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* не мешает кликам */
+  z-index: 5;
+}
+/* =========================
+   🎄 NEW YEAR HEADER DECOR
+   ========================= */
+
+.app-header {
+  position: relative;
+  overflow: visible;
+}
+
+/* контейнер декора */
+.header-decor {
+  position: absolute;
+  top: -6px;
+  right: 0;
+  width: 180px;
+  height: 120px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* еловая ветка */
+.spruce-branch {
+  position: absolute;
+  top: 0;
+  right: 0px;
+  width: 180px;
+  transform: rotate(-2deg);
+}
+/* 📱 мобильная адаптация */
+@media (max-width: 480px) {
+  .header-decor {
+    width: 140px;
+    height: 90px;
+  }
+
+  .spruce-branch {
+    width: 140px;
+  }
+
+ 
+.warehouse-panel {
+  background: #f7f7f7;
+  border-radius: 16px;
+  padding: 12px;
+  margin: 12px 0;
+  box-shadow: inset 0 0 0 1px #e0e0e0;
+}
+
+.warehouse-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.warehouse-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.warehouse-modes button {
+  flex: 1;
+  border-radius: 14px;
+  border: none;
+  padding: 6px;
+  background: #ddd;
+  font-weight: 600;
+}
+
+.warehouse-placeholder {
+  font-size: 13px;
+  color: #777;
+  padding: 12px;
+  text-align: center;
+  border: 1px dashed #ccc;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.warehouse-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.warehouse-footer button {
+  flex: 1;
+  border-radius: 16px;
+  border: none;
+  padding: 8px;
+  background: #ccc;
+  font-weight: 600;
+}
+.positions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.warehouse-toggle {
+  background: #f2c94c;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,.15);
+}
+
+.warehouse-toggle:active {
+  transform: scale(0.97);
+}
+.warehouse-input label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.warehouse-add-row {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+
+.warehouse-add-row input {
+  width: 70px;
+}
+
+#warehouse-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.warehouse-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.warehouse-item .top {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.warehouse-item .bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.qty-controls button {
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-weight: 700;
+}
+.warehouse-modes button.active {
+  background: #f2c94c;
+  color: #000;
+  box-shadow: 0 4px 10px rgba(0,0,0,.15);
+}
+
+.warehouse-add-row button {
+  background: #f2c94c;
+  border: none;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  font-size: 22px;
+}
+.warehouse-footer button.primary {
+  background: #f2c94c;
+  color: #000;
+}
+.warehouse-modes button.active {
+  background: #f2c94c;
+  color: #000;
+  box-shadow: 0 4px 10px rgba(0,0,0,.15);
+}
+.warehouse-add-row button {
+  background: #f2c94c;
+  border: none;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  font-size: 22px;
+}
+.warehouse-toggle.has-items {
+  background: #f2c94c;
+  box-shadow: 0 0 0 2px rgba(242,201,76,.35);
+}
+/* Контейнер live OCR */
+#ocr-live {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Видео обрезаем до области сканирования */
+#ocr-video {
+  width: 100%;
+  height: 90px;              /* ← ВЫСОТА КАМЕРЫ */
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+/* OCR-рамка = 100% высоты видео */
+#ocr-frame {
+  position: absolute;
+  left: 10%;
+  top: 10%;
+  width: 80%;
+  height: 50%;
+  border: 2px solid #f2c94c;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.35);
+  pointer-events: none;
+}
+
+
+/* Подсказка */
+#ocr-hint {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}
+
+
+#warehouse-alert {
+  position: fixed;
+  bottom: 96px;            /* над футером */
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 99999;
+  display: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+
+.warehouse-alert.info {
+  background: #111;
+  color: #f2c94c;
+}
+
+.warehouse-alert.success {
+  background: #1f7a3f;
+  color: #fff;
+}
+
+.warehouse-alert.warn {
+  background: #9a6b00;
+  color: #fff;
+}
+
+.warehouse-alert.error {
+  background: #8a1f1f;
+  color: #fff;
 }
