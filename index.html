@@ -201,21 +201,26 @@
         <label>Узел</label>
         <input id="template-node" placeholder="Например: бойлер" />
       </div>
+    </div>
 
+    <div class="row template-actions-row">
       <button id="save-template-btn" class="btn primary" type="button">💾 Сохранить</button>
+      <button id="toggle-templates-btn" class="btn ghost" type="button">Все шаблоны ▾</button>
     </div>
 
-    <div class="row align-center">
-      <div class="field full">
-        <label>Поиск по шаблонам</label>
-        <input id="template-filter" placeholder="Начните вводить название, модель или узел" />
+    <div id="templates-panel" class="templates-panel" style="display:none">
+      <div class="row align-center">
+        <div class="field full">
+          <label>Поиск по шаблонам</label>
+          <input id="template-filter" placeholder="Начните вводить название, модель или узел" />
+        </div>
       </div>
-    </div>
 
-    <div id="warehouse-templates-empty" class="muted" style="display:none">
-      Шаблоны пока не созданы.
+      <div id="warehouse-templates-empty" class="muted" style="display:none">
+        Шаблоны пока не созданы.
+      </div>
+      <div id="warehouse-templates"></div>
     </div>
-    <div id="warehouse-templates"></div>
 
     <!-- действия -->
     <div class="row mt-12">

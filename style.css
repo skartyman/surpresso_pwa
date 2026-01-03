@@ -212,6 +212,17 @@ body {
   background: #f3f4f6;
 }
 
+.btn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.btn.danger:hover {
+  background: #ffe4e6;
+  color: #991b1b;
+}
+
 .btn.wide {
   width: 100%;
 }
@@ -1055,8 +1066,25 @@ body {
   gap: 8px;
 }
 
-#save-template-btn {
-  align-self: flex-end;
+.template-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.template-actions-row .btn {
+  min-width: 160px;
+}
+
+.templates-panel {
+  margin-top: 8px;
+}
+
+.templates-panel.collapsed {
+  display: none !important;
 }
 
 .template-row {
@@ -1068,6 +1096,14 @@ body {
   border-radius: 12px;
   padding: 10px;
   box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.template-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .template-meta {
