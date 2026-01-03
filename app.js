@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.4"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -62,6 +62,10 @@ const SERVICE_SHEETS = [
 const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
 const USER_SHEET_GID = 0;
 
+// Шаблоны наборов
+const TEMPLATES_FILE_ID = "1w45rHNyS3qcoyy1fdDO55N0p-Yg3ViQb"; // JSON на Google Drive (чтение)
+const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
+
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
 
@@ -70,6 +74,7 @@ let parts = [];
 let services = [];
 let items = []; // {code,name,qty,price,sum}
 let kit = []; // набор со склада
+let warehouseTemplates = [];
 // ======================
 // Загрузка пользователей
 // ======================
@@ -767,6 +772,127 @@ function renderWarehouseList() {
   });
 
   updateWarehouseActions();
+}
+
+// ---------- шаблоны ----------
+function renderWarehouseTemplates(filter = "") {
+  const box = document.getElementById("warehouse-templates");
+  const empty = document.getElementById("warehouse-templates-empty");
+  if (!box || !empty) return;
+
+  box.innerHTML = "";
+
+  const norm = filter.trim().toLowerCase();
+  const list = warehouseTemplates.filter(t => {
+    if (!norm) return true;
+    return [t.name, t.machine, t.node]
+      .filter(Boolean)
+      .some(v => v.toLowerCase().includes(norm));
+  });
+
+  empty.style.display = list.length ? "none" : "block";
+
+  list.forEach((tpl, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "template-row";
+
+    const meta = document.createElement("div");
+    meta.className = "template-meta";
+    meta.innerHTML = `
+      <div class="template-title">${tpl.name || "Без названия"}</div>
+      <div class="template-sub">${tpl.machine || "—"} • ${tpl.node || "—"}</div>
+      <div class="template-sub">${tpl.createdBy || "неизвестно"} • ${tpl.createdAt || ""}</div>
+    `;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn ghost";
+    btn.textContent = "📦 В набор";
+    btn.onclick = () => applyTemplateToKit(tpl);
+
+    wrap.appendChild(meta);
+    wrap.appendChild(btn);
+    box.appendChild(wrap);
+  });
+}
+
+function applyTemplateToKit(tpl) {
+  if (!tpl || !Array.isArray(tpl.items)) return;
+  if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
+
+  kit = tpl.items.map(it => ({
+    code: it.code,
+    name: it.name,
+    cell: it.cell || "",
+    qty: +(+it.qty || 1).toFixed(2)
+  }));
+
+  saveKit();
+  renderWarehouseList();
+  updateWarehouseActions();
+  warehouseAlert(`Шаблон \"${tpl.name}\" загружен`, "success", 2000);
+}
+
+async function loadWarehouseTemplates() {
+  try {
+    const url = `/warehouse-templates?file=${TEMPLATES_FILE_ID}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    warehouseTemplates = Array.isArray(data.items) ? data.items : [];
+    renderWarehouseTemplates();
+  } catch (e) {
+    console.error("Ошибка загрузки шаблонов", e);
+    warehouseAlert("Не удалось загрузить шаблоны", "error", 3000);
+  }
+}
+
+async function saveWarehouseTemplate() {
+  const name = (document.getElementById("template-name")?.value || "").trim();
+  const machine = (document.getElementById("template-machine")?.value || "").trim();
+  const node = (document.getElementById("template-node")?.value || "").trim();
+
+  if (!kit.length) {
+    warehouseAlert("Набор пустой", "error", 2000);
+    return;
+  }
+
+  if (!name) {
+    warehouseAlert("Название шаблона обязательно", "error", 2000);
+    return;
+  }
+
+  const payload = {
+    name,
+    machine,
+    node,
+    createdBy: CURRENT_USER?.name || CURRENT_USER?.login || "неизвестно",
+    createdAt: new Date().toISOString(),
+    items: kit.map(i => ({
+      code: i.code,
+      name: i.name,
+      cell: i.cell || "",
+      qty: i.qty
+    }))
+  };
+
+  try {
+    const resp = await fetch("/warehouse-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    warehouseAlert("Шаблон сохранён", "success", 2000);
+    await loadWarehouseTemplates();
+  } catch (e) {
+    console.error("Ошибка сохранения шаблона", e);
+    warehouseAlert("Не удалось сохранить шаблон", "error", 3000);
+  }
 }
 
 // ======================
@@ -1738,6 +1864,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   await loadPrices();
   loadKit();
+  loadWarehouseTemplates();
 
 
   attachSuggest("parts-input", "parts-suggest", parts);
@@ -1752,9 +1879,21 @@ attachSuggest(
   renderTable();
   
   const clearBtn = document.getElementById("clear-kit-btn");
-if (clearBtn) {
-  clearBtn.onclick = clearWarehouseKit;
-}
+  if (clearBtn) {
+    clearBtn.onclick = clearWarehouseKit;
+  }
+
+  const saveTplBtn = document.getElementById("save-template-btn");
+  if (saveTplBtn) {
+    saveTplBtn.onclick = saveWarehouseTemplate;
+  }
+
+  const tplFilter = document.getElementById("template-filter");
+  if (tplFilter) {
+    tplFilter.addEventListener("input", e => {
+      renderWarehouseTemplates(e.target.value);
+    });
+  }
 
   const refreshBtn = document.getElementById("hard-refresh-btn");
   if (refreshBtn) {

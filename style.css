@@ -1038,6 +1038,44 @@ body {
   box-shadow: 0 2px 6px rgba(0,0,0,.08);
 }
 
+#warehouse-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.template-row-form .field {
+  min-width: 160px;
+}
+
+.template-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.template-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.template-sub {
+  color: #666;
+  font-size: 13px;
+}
+
 .warehouse-item .top {
   display: flex;
   justify-content: space-between;
