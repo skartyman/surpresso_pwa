@@ -1049,16 +1049,6 @@ body {
   min-width: 160px;
 }
 
-.template-row-form {
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-#save-template-btn {
-  align-self: flex-end;
-}
-
 .template-row {
   display: flex;
   gap: 10px;
