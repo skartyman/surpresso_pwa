@@ -66,10 +66,6 @@ const USER_SHEET_GID = 0;
 const TEMPLATES_FILE_ID = "1w45rHNyS3qcoyy1fdDO55N0p-Yg3ViQb"; // JSON на Google Drive (чтение)
 const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
 
-// Шаблоны наборов
-const TEMPLATES_FILE_ID = "1w45rHNyS3qcoyy1fdDO55N0p-Yg3ViQb"; // JSON на Google Drive (чтение)
-const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
-
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
 
@@ -2157,4 +2153,5 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
