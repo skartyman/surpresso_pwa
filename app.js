@@ -63,7 +63,7 @@ const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
 const USER_SHEET_GID = 0;
 
 // Шаблоны наборов
-const TEMPLATES_FILE_ID = "1VwYf_Gy1iK1k6G7wi93FnpIZMHXAH8xjEmS1bsihh4E/edit?usp=sharing"; // JSON на Google Drive (чтение)
+const TEMPLATES_FILE_ID = "1VwYf_Gy1iK1k6G7wi93FnpIZMHXAH8xjEmS1bsihh4E"; // JSON на Google Drive (чтение)
 const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwK8g6vrhko8aXgSs46aJ_NJuSgxnLuhYX15i0Zqnj4Vo7iE43G4XHn5iD_s-3e5H_3/exec";
 
 let USERS = [];   // загруженные пользователи
@@ -2025,6 +2025,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
