@@ -372,6 +372,10 @@ th:nth-child(6) {
   border: none;
   cursor: pointer;
 }
+#apply-kit-btn,
+#clear-kit-btn {
+  margin-top: 6px;
+}
 
 /* ============================================================
    SUGGESTIONS (layout only)
@@ -1000,3 +1004,4 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
