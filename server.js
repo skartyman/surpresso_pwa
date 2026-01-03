@@ -19,6 +19,8 @@ const TRELLO_LIST_ID = "65895fe3788e6f790d29e806";
 const LABEL_OUR = "65895fe3788e6f790d29e8b0";       // НАШЕ Майстерня
 const LABEL_CLIENT = "65895fe3788e6f790d29e8ad";     // КЛ Майстерня
 const LABEL_CONTRACT = "65a69d546560f1050990998d";   // ОБСЛ Майстерня
+const TEMPLATE_SAVE_URL = process.env.TEMPLATE_SAVE_WEBHOOK ||
+  "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
 
 function pickLabel(card) {
     if (card.owner === "company") return LABEL_OUR;
@@ -151,6 +153,55 @@ app.post("/send-equipment", async (req, res) => {
   } catch (err) {
     console.error("SERVER ERROR:", err);
     res.status(500).send({ error: true });
+  }
+});
+
+// === 📦 Templates proxy ===
+app.get("/warehouse-templates", async (req, res) => {
+  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
+
+  if (!fileId) {
+    res.send({ items: [] });
+    return;
+  }
+
+  try {
+    const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+
+    let items = [];
+    try { items = JSON.parse(text); } catch (e) { console.error("Parse templates", e); }
+    if (!Array.isArray(items)) items = [];
+
+    res.send({ items });
+  } catch (err) {
+    console.error("TEMPLATE LOAD ERROR", err);
+    res.status(500).send({ error: "load_failed" });
+  }
+});
+
+app.post("/warehouse-templates", async (req, res) => {
+  if (!TEMPLATE_SAVE_URL) {
+    res.status(500).send({ error: "not_configured" });
+    return;
+  }
+
+  try {
+    const forward = await fetch(TEMPLATE_SAVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body)
+    });
+
+    const data = await forward.json().catch(() => ({}));
+    if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+    res.send({ ok: true, ...data });
+  } catch (err) {
+    console.error("TEMPLATE SAVE ERROR", err);
+    res.status(500).send({ error: "save_failed" });
   }
 });
 

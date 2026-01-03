@@ -183,6 +183,40 @@
     <!-- список набора -->
     <div id="warehouse-list"></div>
 
+    <!-- шаблоны -->
+    <div class="block-label mt-12">Шаблоны наборов</div>
+
+    <div class="row template-row-form">
+      <div class="field full">
+        <label>Название шаблона *</label>
+        <input id="template-name" placeholder="Например: DeLonghi ECAM — гидросистема" />
+      </div>
+
+      <div class="field">
+        <label>Модель</label>
+        <input id="template-machine" placeholder="Модель машинки" />
+      </div>
+
+      <div class="field">
+        <label>Узел</label>
+        <input id="template-node" placeholder="Например: бойлер" />
+      </div>
+
+      <button id="save-template-btn" class="btn primary" type="button">💾 Сохранить</button>
+    </div>
+
+    <div class="row align-center">
+      <div class="field full">
+        <label>Поиск по шаблонам</label>
+        <input id="template-filter" placeholder="Начните вводить название, модель или узел" />
+      </div>
+    </div>
+
+    <div id="warehouse-templates-empty" class="muted" style="display:none">
+      Шаблоны пока не созданы.
+    </div>
+    <div id="warehouse-templates"></div>
+
     <!-- действия -->
     <div class="row mt-12">
       <button
