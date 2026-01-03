@@ -59,7 +59,7 @@ const USER_SHEET_GID = 0;
 
 // Шаблоны наборов
 const TEMPLATES_FILE_ID = "1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3"; // JSON на Google Drive (чтение)https://drive.google.com/file/d/1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3/view?usp=sharing
-const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwK8g6vrhko8aXgSs46aJ_NJuSgxnLuhYX15i0Zqnj4Vo7iE43G4XHn5iD_s-3e5H_3/exec";
+const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwtsXXhRM104adebpAl50eMULdaUlCpBitmQNeDdJA3SVfzyRR7R1ibRql0JKJKUC6aCQ/exec";
 
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
@@ -2079,6 +2079,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
