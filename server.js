@@ -3,6 +3,7 @@ import path from "path";
 import fetch from "node-fetch";
 import bodyParser from "body-parser";
 import FormData from "form-data";
+import fs from "fs/promises";
 
 const app = express();
 const __dirname = path.resolve();
@@ -19,6 +20,9 @@ const TRELLO_LIST_ID = "65895fe3788e6f790d29e806";
 const LABEL_OUR = "65895fe3788e6f790d29e8b0";       // НАШЕ Майстерня
 const LABEL_CLIENT = "65895fe3788e6f790d29e8ad";     // КЛ Майстерня
 const LABEL_CONTRACT = "65a69d546560f1050990998d";   // ОБСЛ Майстерня
+const TEMPLATE_SAVE_URL = process.env.TEMPLATE_SAVE_WEBHOOK ||
+  "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
+const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 
 function pickLabel(card) {
     if (card.owner === "company") return LABEL_OUR;
@@ -151,6 +155,94 @@ app.post("/send-equipment", async (req, res) => {
   } catch (err) {
     console.error("SERVER ERROR:", err);
     res.status(500).send({ error: true });
+  }
+});
+
+// === 📦 Templates proxy ===
+async function loadTemplatesFromDrive(fileId) {
+  if (!fileId) return null;
+
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const text = await resp.text();
+
+  let items = [];
+  try { items = JSON.parse(text); } catch (e) { console.error("Parse templates", e); }
+  if (!Array.isArray(items)) items = [];
+
+  return items;
+}
+
+async function loadTemplatesLocal() {
+  try {
+    const raw = await fs.readFile(TEMPLATES_STORE, "utf8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveTemplatesLocal(items) {
+  await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
+}
+
+app.get("/warehouse-templates", async (req, res) => {
+  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
+
+  try {
+    // 1. Пытаемся прочитать с Google Drive (если доступен)
+    if (fileId) {
+      const items = await loadTemplatesFromDrive(fileId);
+      if (items) {
+        res.send({ items, source: "drive" });
+        return;
+      }
+    }
+
+    // 2. Фолбэк на локальный файл, чтобы шаблоны работали даже без интернета
+    const fallback = await loadTemplatesLocal();
+    res.send({ items: fallback, source: "local" });
+  } catch (err) {
+    console.error("TEMPLATE LOAD ERROR", err);
+    const fallback = await loadTemplatesLocal();
+    res.status(200).send({ items: fallback, source: "local", warning: "drive_failed" });
+  }
+});
+
+app.post("/warehouse-templates", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+
+  // 1. Основной путь — Apps Script webhook (Google Sheets/Drive)
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...req.body, file: fileId })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", ...data });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE SAVE ERROR (webhook)", err);
+    }
+  }
+
+  // 2. Фолбэк — локальный json на сервере (общий для всех пользователей сервера)
+  try {
+    const current = await loadTemplatesLocal();
+    const updated = [req.body, ...current].slice(0, 200); // ограничение по объему
+    await saveTemplatesLocal(updated);
+
+    res.send({ ok: true, source: "local" });
+  } catch (err) {
+    console.error("TEMPLATE SAVE ERROR (local)", err);
+    res.status(500).send({ error: "save_failed" });
   }
 });
 
