@@ -39,11 +39,6 @@ async function loadTesseract() {
   });
 }
 
-// ======================
-//  Surpresso Check PWA — обновлённая версия
-//  Поддержка: Drag & Drop, inline qty, Excel в формате макета
-// ======================
-
 // IDs Google Sheets
 const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
 const PARTS_GID = 1099059228;
@@ -77,6 +72,39 @@ let kit = []; // набор со склада
 let warehouseTemplates = [];
 let templatesPanelOpen = false;
 let editingTemplateId = null;
+// ===== Templates: ID + local cache =====
+const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
+
+function genTemplateId() {
+  // modern browsers
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  // fallback
+  return "tpl-" + Date.now() + "-" + Math.random().toString(16).slice(2, 10);
+}
+
+function saveTemplatesCache(items) {
+  try {
+    localStorage.setItem(TEMPLATES_CACHE_KEY, JSON.stringify(items || []));
+  } catch (e) {
+    console.warn("saveTemplatesCache failed", e);
+  }
+}
+
+function loadTemplatesCache() {
+  try {
+    return JSON.parse(localStorage.getItem(TEMPLATES_CACHE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTemplate(tpl, idx = 0) {
+  if (!tpl) return null;
+  return {
+    ...tpl,
+    id: tpl.id || tpl.templateId || tpl.createdAt || `tpl-${idx}-${Date.now()}`
+  };
+}
 // ======================
 // Загрузка пользователей
 // ======================
@@ -772,11 +800,23 @@ function renderWarehouseList() {
   updateWarehouseActions();
 }
 
-// ---------- шаблоны ----------
-function normalizeTemplate(tpl, idx = 0) {
-  const id = tpl.id || tpl.templateId || tpl.createdAt || `tpl-${idx}-${Date.now()}`;
-  return { ...tpl, id };
+function applyTemplateToKit(tpl) {
+  if (!tpl || !Array.isArray(tpl.items)) return;
+  if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
+
+  kit = tpl.items.map(it => ({
+    code: it.code,
+    name: it.name,
+    cell: it.cell || "",
+    qty: +(+it.qty || 1).toFixed(2)
+  }));
+
+  saveKit();
+  renderWarehouseList();
+  updateWarehouseActions();
+  warehouseAlert(`Шаблон \"${tpl.name}\" загружен`, "success", 2000);
 }
+// ---------- шаблоны ----------
 
 function renderWarehouseTemplates(filter = "") {
   const box = document.getElementById("warehouse-templates");
@@ -837,24 +877,6 @@ function renderWarehouseTemplates(filter = "") {
     box.appendChild(wrap);
   });
 }
-
-function applyTemplateToKit(tpl) {
-  if (!tpl || !Array.isArray(tpl.items)) return;
-  if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
-
-  kit = tpl.items.map(it => ({
-    code: it.code,
-    name: it.name,
-    cell: it.cell || "",
-    qty: +(+it.qty || 1).toFixed(2)
-  }));
-
-  saveKit();
-  renderWarehouseList();
-  updateWarehouseActions();
-  warehouseAlert(`Шаблон \"${tpl.name}\" загружен`, "success", 2000);
-}
-
 function resetTemplateForm() {
   const name = document.getElementById("template-name");
   const machine = document.getElementById("template-machine");
@@ -927,22 +949,40 @@ function toggleTemplatesVisibility(force) {
 }
 
 async function loadWarehouseTemplates() {
+  const filterVal = document.getElementById("template-filter")?.value || "";
+
   try {
-    const url = `/warehouse-templates?file=${TEMPLATES_FILE_ID}`;
-    const resp = await fetch(url);
+    const url = `/warehouse-templates?file=${encodeURIComponent(TEMPLATES_FILE_ID)}`;
+    const resp = await fetch(url, { cache: "no-store" });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
+
     const data = await resp.json();
+
     warehouseTemplates = Array.isArray(data.items)
-      ? data.items.map((tpl, idx) => normalizeTemplate(tpl, idx))
+      ? data.items.map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean)
       : [];
+
+    // ✅ сохраняем кэш в браузере
+    saveTemplatesCache(warehouseTemplates);
+
     if (data.warning === "drive_failed") {
-      warehouseAlert("Не удалось обратиться к Google, показаны локальные шаблоны", "warning", 4000);
+      warehouseAlert("Google недоступен — показаны шаблоны с сервера/кэша", "warning", 4000);
     }
-    const filterVal = document.getElementById("template-filter")?.value || "";
+
     renderWarehouseTemplates(filterVal);
   } catch (e) {
     console.error("Ошибка загрузки шаблонов", e);
-    warehouseAlert("Не удалось загрузить шаблоны", "error", 3000);
+
+    // ✅ фолбэк на локальный кэш в браузере
+    warehouseTemplates = loadTemplatesCache().map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean);
+
+    if (warehouseTemplates.length) {
+      warehouseAlert("Сервер недоступен — показаны шаблоны из кэша (localStorage)", "warning", 4500);
+    } else {
+      warehouseAlert("Не удалось загрузить шаблоны (нет кэша)", "error", 3500);
+    }
+
+    renderWarehouseTemplates(filterVal);
   }
 }
 
@@ -950,23 +990,24 @@ async function saveWarehouseTemplate() {
   const name = (document.getElementById("template-name")?.value || "").trim();
   const machine = (document.getElementById("template-machine")?.value || "").trim();
   const node = (document.getElementById("template-node")?.value || "").trim();
-  const isEdit = Boolean(editingTemplateId);
-  const existingTpl = isEdit
-    ? warehouseTemplates.find(t => t.id === editingTemplateId) || {}
-    : {};
 
   if (!kit.length) {
     warehouseAlert("Набор пустой", "error", 2000);
     return;
   }
-
   if (!name) {
     warehouseAlert("Название шаблона обязательно", "error", 2000);
     return;
   }
 
+  const isEdit = Boolean(editingTemplateId);
+  const existingTpl = isEdit ? (warehouseTemplates.find(t => t.id === editingTemplateId) || {}) : {};
+
+  // ✅ ВАЖНО: id всегда есть
+  const id = editingTemplateId || genTemplateId();
+
   const payload = {
-    id: editingTemplateId,
+    id,
     name,
     machine,
     node,
@@ -983,7 +1024,7 @@ async function saveWarehouseTemplate() {
 
   try {
     const endpoint = isEdit
-      ? `/warehouse-templates/${encodeURIComponent(editingTemplateId)}`
+      ? `/warehouse-templates/${encodeURIComponent(id)}`
       : "/warehouse-templates";
 
     const resp = await fetch(endpoint, {
@@ -993,20 +1034,39 @@ async function saveWarehouseTemplate() {
     });
 
     if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (data.error) throw new Error(data.error);
 
-    warehouseAlert(isEdit ? "Шаблон обновлён" : "Шаблон сохранён", "success", 2000);
-    if (data.source === "local") {
-      warehouseAlert("Сохранили локально: проверьте доступ к Google", "warning", 3000);
-    }
+    warehouseAlert(isEdit ? "Шаблон обновлён" : "Шаблон добавлен", "success", 2000);
+
+    // ✅ сброс формы и режима редактирования
     resetTemplateForm();
+    editingTemplateId = null;
+
+    // ✅ перезагрузим список
     await loadWarehouseTemplates();
   } catch (e) {
     console.error("Ошибка сохранения шаблона", e);
-    warehouseAlert("Не удалось сохранить шаблон", "error", 3000);
+    warehouseAlert("Не удалось сохранить шаблон", "error", 3500);
+
+    // ✅ локальный фолбэк: добавим/обновим в кэше браузера
+    try {
+      const cached = loadTemplatesCache();
+      const idx = cached.findIndex(t => t.id === id);
+      const next = idx === -1
+        ? [payload, ...cached]
+        : cached.map(t => (t.id === id ? { ...t, ...payload } : t));
+
+      saveTemplatesCache(next);
+
+      warehouseTemplates = next.map((tpl, i) => normalizeTemplate(tpl, i)).filter(Boolean);
+      renderWarehouseTemplates(document.getElementById("template-filter")?.value || "");
+
+      warehouseAlert("Сохранил в кэш (localStorage). Позже синхронизируем с сервером.", "warning", 4500);
+    } catch {}
   }
 }
+
 
 // ======================
 // 🎛 MODE SWITCH (с корректной остановкой камеры)
@@ -2025,6 +2085,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
