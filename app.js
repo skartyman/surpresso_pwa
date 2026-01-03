@@ -840,6 +840,9 @@ async function loadWarehouseTemplates() {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     warehouseTemplates = Array.isArray(data.items) ? data.items : [];
+    if (data.warning === "drive_failed") {
+      warehouseAlert("Не удалось обратиться к Google, показаны локальные шаблоны", "warning", 4000);
+    }
     renderWarehouseTemplates();
   } catch (e) {
     console.error("Ошибка загрузки шаблонов", e);
@@ -868,6 +871,7 @@ async function saveWarehouseTemplate() {
     node,
     createdBy: CURRENT_USER?.name || CURRENT_USER?.login || "неизвестно",
     createdAt: new Date().toISOString(),
+    file: TEMPLATES_FILE_ID,
     items: kit.map(i => ({
       code: i.code,
       name: i.name,
@@ -888,6 +892,9 @@ async function saveWarehouseTemplate() {
     if (data.error) throw new Error(data.error);
 
     warehouseAlert("Шаблон сохранён", "success", 2000);
+    if (data.source === "local") {
+      warehouseAlert("Сохранили локально: проверьте доступ к Google", "warning", 3000);
+    }
     await loadWarehouseTemplates();
   } catch (e) {
     console.error("Ошибка сохранения шаблона", e);
@@ -967,10 +974,6 @@ function stopLiveAll() {
   stopLiveOCR();
 }
 
-
-// ======================
-// 📷 LIVE QR / BARCODE SCAN
-// ======================
 
 // ======================
 // 📷 QR / BARCODE SCAN — FINAL
