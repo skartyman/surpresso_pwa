@@ -1,40 +1,42 @@
 /* ============================================================
-   GLOBAL
+   GLOBAL (SKELETON)
 ============================================================ */
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont,
-               "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top, #f2c94c 0, #1f2933 55%);
-  color: #111827;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* textarea базовая геометрия */
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
 }
 
 /* ============================================================
-   HEADER
+   HEADER (layout only)
 ============================================================ */
 
 .app-header {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  background: rgba(17, 24, 39, 0.9);
-  color: #f9fafb;
   position: sticky;
   top: 0;
   z-index: 20;
-  backdrop-filter: blur(8px);
 }
 
 .app-logo {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #f2c94c, #f59e0b);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -49,8 +51,9 @@ body {
 
 .app-title .app-subtitle {
   font-size: 16px;
-  opacity: 0.8;
 }
+
+/* Holiday logo layout */
 .logo-holiday {
   position: relative;
   display: inline-flex;
@@ -61,33 +64,13 @@ body {
 .logo-holiday img {
   height: 75px;
   animation: logoBreath 6s ease-in-out infinite;
-  filter: drop-shadow(0 0 0 rgba(255,200,80,0));
 }
 
-/* Мягкое "дыхание" логотипа */
+/* Анимации — ок оставлять тут */
 @keyframes logoBreath {
-  0% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
-  }
-  50% {
-    transform: scale(1.03);
-    filter: drop-shadow(0 0 10px rgba(255,200,80,0.35));
-  }
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255,200,80,0));
-  }
-}
-
-/* Микро-свечение бейджа */
-@keyframes badgeGlow {
-  0%, 100% {
-    box-shadow: 0 2px 8px rgba(255,255,255,255.1);
-  }
-  75% {
-    box-shadow: 0 0 14px rgba(255,180,60,0.6);
-  }
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
 }
 
 /* ============================================================
@@ -101,11 +84,9 @@ body {
 }
 
 .card {
-  background: rgba(249, 250, 251, 0.95);
   border-radius: 14px;
   padding: 12px 12px 14px;
   margin-bottom: 12px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.28);
 }
 
 .card h2 {
@@ -116,16 +97,13 @@ body {
 .block-label {
   font-size: 13px;
   font-weight: 600;
-  color: #4b5563;
   margin-bottom: 4px;
 }
 
-.mt-16 {
-  margin-top: 16px;
-}
+.mt-16 { margin-top: 16px; }
 
 /* ============================================================
-   FORM FIELDS
+   FORM FIELDS (no theme)
 ============================================================ */
 
 .field {
@@ -136,23 +114,58 @@ body {
 
 .field label {
   font-size: 12px;
-  color: #6b7280;
   margin-bottom: 2px;
 }
 
 .field input {
   border-radius: 10px;
-  border: 1px solid #d1d5db;
+  border-width: 1px;
+  border-style: solid;
   padding: 7px 9px;
   font-size: 14px;
   outline: none;
-  background: #f9fafb;
   transition: 0.12s;
 }
 
 .field input:focus {
-  border-color: #f2c94c;
-  box-shadow: 0 0 0 1px rgba(242, 201, 76, 0.5);
+  /* цвета/тени вынесем в gradient.css */
+}
+
+/* select wrapper + arrow */
+.field select { width: 100%; box-sizing: border-box; }
+
+.select-ios { position: relative; width: 100%; }
+
+.select-ios select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  width: 100%;
+  padding: 12px 14px;
+  padding-right: 36px;
+
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 12px;
+
+  font-size: 16px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.select-ios select:focus {
+  /* цвета/тени вынесем в gradient.css */
+}
+
+.select-ios::after {
+  content: "▾";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
 }
 
 /* ============================================================
@@ -166,18 +179,19 @@ body {
   flex-wrap: nowrap;
 }
 
+/* важно для flex-строк: разрешаем full-полю сжиматься */
 .field.full {
   flex: 1 1 auto;
-  min-width: 0;   /* ← КЛЮЧ */
+  min-width: 0;
 }
 
 .field.qty-field {
-  flex: 0 0 80px;   /* вместо width */
+  flex: 0 0 80px;
   width: 80px;
 }
 
 /* ============================================================
-   BUTTONS
+   BUTTONS (structure only)
 ============================================================ */
 
 .btn {
@@ -191,41 +205,11 @@ body {
   transition: 0.15s ease;
 }
 
-.btn.primary {
-  background: linear-gradient(135deg, #facc15, #f97316);
-  color: #111827;
-  box-shadow: 0 6px 14px rgba(245, 158, 11, 0.5);
-}
-
-.btn.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.6);
-}
-
-.btn.ghost {
-  background: transparent;
-  color: #374151;
-  border: 1px solid #e5e7eb;
-}
-
-.btn.ghost:hover {
-  background: #f3f4f6;
-}
-
-.btn.danger {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fff1f2;
-}
-
-.btn.danger:hover {
-  background: #ffe4e6;
-  color: #991b1b;
-}
-
-.btn.wide {
-  width: 100%;
-}
+.btn.primary { /* theme in gradient.css */ }
+.btn.primary:hover { transform: translateY(-1px); }
+.btn.ghost { border-width: 1px; border-style: solid; background: transparent; }
+.btn.danger { border-width: 1px; border-style: solid; }
+.btn.wide { width: 100%; }
 
 /* + / add buttons */
 #add-part,
@@ -233,8 +217,9 @@ body {
   padding-inline: 10px;
   min-width: 34px;
 }
+
 .add-btn {
-  flex: 0 0 34px;   /* ← фиксированная ширина в ряду */
+  flex: 0 0 34px;
   min-width: 34px;
   height: 34px;
   padding: 0;
@@ -245,8 +230,44 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/* Surpresso main button layout */
+.btn-surpresso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  width: 100%;
+  padding: 8px 14px;
+
+  border: none;
+  border-radius: 30px;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-surpresso:hover { transform: translateY(-2px); }
+.btn-surpresso:active { transform: translateY(0); }
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.btn-row .btn-surpresso {
+  flex: 1;
+  min-width: 220px;
+}
+
 /* ============================================================
-   FLOATING REFRESH BUTTON
+   FLOATING REFRESH BUTTON (structure only)
 ============================================================ */
 
 #refresh-db-btn {
@@ -260,9 +281,6 @@ body {
   border: none;
   outline: none;
 
-  background: linear-gradient(135deg, #facc15, #f59e0b);
-  color: #1f2937;
-
   font-size: 22px;
   font-weight: 700;
 
@@ -273,32 +291,15 @@ body {
   align-items: center;
   justify-content: center;
 
-  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.45);
   transition: 0.15s ease;
 }
 
-#refresh-db-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.55);
-}
-
-#refresh-db-btn:active {
-  transform: scale(0.93);
-}
+#refresh-db-btn:hover { transform: translateY(-2px); }
+#refresh-db-btn:active { transform: scale(0.93); }
 
 #refresh-db-btn.spin {
   animation: rotate-refresh 0.6s linear infinite;
 }
-textarea {
-  width: 100%;
-  resize: vertical;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  font-size: 14px;
-  font-family: inherit;
-}
-
 
 @keyframes rotate-refresh {
   from { transform: rotate(0deg); }
@@ -306,14 +307,15 @@ textarea {
 }
 
 /* ============================================================
-   TABLE
+   TABLE (no theme)
 ============================================================ */
 
 .table-wrapper {
   max-height: 260px;
   overflow: auto;
   border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  border-width: 1px;
+  border-style: solid;
 }
 
 table {
@@ -329,20 +331,19 @@ thead {
 }
 
 th {
-  background: #facc15;
   padding: 6px;
   text-align: center;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
 }
 
 td {
   padding: 5px 4px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
 }
 
-td:nth-child(2) {
-  text-align: left;
-}
+td:nth-child(2) { text-align: left; }
 
 td:nth-child(3),
 td:nth-child(4),
@@ -363,35 +364,19 @@ th:nth-child(6) {
   font-size: 14px;
 }
 
-/* ============================================================
-   DELETE BUTTON
-============================================================ */
-
+/* delete button geometry */
 .del-btn {
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
-  background: #ef4444;
-  color: white;
   border: none;
   cursor: pointer;
 }
 
-.del-btn:hover {
-  background: #b91c1c;
-}
-
 /* ============================================================
-   SUGGESTIONS
+   SUGGESTIONS (layout only)
 ============================================================ */
 
-/* важно для flex-строк: разрешаем full-полю сжиматься */
-.field.full {
-  flex: 1 1 auto;
-  min-width: 0;   /* ← КЛЮЧ */
-}
-
-/* чтобы сам инпут/блок подсказок не раздувал строку */
 .suggest-block {
   width: 100%;
   min-width: 0;
@@ -402,9 +387,7 @@ th:nth-child(6) {
   min-width: 0;
 }
 
-.suggest {
-  position: relative;
-}
+.suggest { position: relative; }
 
 .suggest ul {
   position: absolute;
@@ -414,9 +397,7 @@ th:nth-child(6) {
   margin: 0;
   padding: 4px 0;
   list-style: none;
-  background: #ffffff;
   border-radius: 10px;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
   max-height: 220px;
   overflow-y: auto;
   z-index: 30;
@@ -430,26 +411,16 @@ th:nth-child(6) {
   flex-direction: column;
 }
 
-.suggest li span.code {
-  font-weight: 600;
-}
+/* у тебя в разметке .code/.name/.price не span, а div — делаем универсально */
+.suggest li .code { font-weight: 600; }
+.suggest li .name { font-size: 12px; }
+.suggest li .price { font-size: 12px; }
 
-.suggest li span.name {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.suggest li span.price {
-  font-size: 12px;
-  color: #374151;
-}
-
-.suggest li:hover {
-  background: #fef3c7;
-}
+/* hover-цвет перенесем в gradient.css */
+.suggest li:hover {}
 
 /* ============================================================
-   FOOTER
+   FOOTER (layout only)
 ============================================================ */
 
 .app-footer {
@@ -460,409 +431,18 @@ th:nth-child(6) {
   font-size: 11px;
   text-align: center;
   padding: 4px;
-  color: #e5e7eb;
-  background: linear-gradient(to right, rgba(15,23,42,0.9), rgba(15,23,42,0));
-}
-
-/* ============================================================
-   ACTION BUTTONS
-============================================================ */
-
-.actions-card {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: space-between;
-}
-
-.actions-card .btn {
-  flex: 1 1 calc(33% - 12px);
-  text-align: center;
-}
-
-.actions-card .btn.wide {
-  flex: 1 1 100%;
-}
-
-/* ===== Инфо-блок склада и ячейки ===== */
-/* ===== Инфо-блок склада и ячейки — простой, без фона ===== */
-
-#parts-info {
-  margin-top: 6px;
-  font-size: 15px;
-  color: #352d2c;   /* ярко-белый текст */
-  opacity: 1 !important; /* принудительно убрать прозрачность */
-  font-weight: 600;
-}
-
-#parts-info span {
-  margin-right: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #352d2c !important; /* чтобы точно было видно */
-}
-
-#parts-info .icon {
-  font-size: 18px;
-}
-.engineer-row {
-  margin-bottom: 10px;
-}
-
-.engineer-row .row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.engineer-row input {
-  flex: 1;
-}
-
-.btn.small {
-  padding: 6px 10px;
-  font-size: 16px;
-}
-
-.draggable-table .drag-handle {
-  cursor: grab;
-  color: #999;
-  user-select: none;
-  width: 20px;
-  text-align: center;
-}
-
-.draggable-table tr.dragging {
-  opacity: 0.5;
-}
-/* ============================================
-   DRAG HANDLE — аккуратный, в стиле старого UI
-   ============================================ */
-.drag-handle {
-  cursor: grab;
-  color: #666;
-  font-size: 18px;
-  user-select: none;
-  text-align: center;
-  width: 28px;
-  padding: 0;
-  margin: 0;
-}
-
-/* при перетаскивании строка чуть прозрачнее */
-tr.dragging {
-  opacity: 0.45;
-}
-
-
-/* ============================================
-   INLINE QTY — как в старом UI
-   ============================================ */
-td.editable-qty {
-  cursor: pointer;
-  position: relative;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-
-/* отображаемый текст */
-td.editable-qty .qty-text {
-  display: inline-block;
-  padding: 2px 4px;
-  min-width: 22px;
-  text-align: center;
-  font-weight: 500;
-}
-
-/* скрытый input */
-td.editable-qty .qty-input {
-  display: none;
-  width: 42px;
-  padding: 4px 6px;
-  font-size: 14px;
-  border: 1px solid #bbb;
-  border-radius: 6px;
-  outline: none;
-  text-align: center;
-  background: #fff;
-  box-sizing: border-box;
-}
-
-/* когда активен — скрываем текст */
-td.editable-qty.editing .qty-text {
-  display: none;
-}
-
-/* когда активен — показываем input */
-td.editable-qty.editing .qty-input {
-  display: inline-block;
-}
-.login-screen {
-  position: fixed;
-  inset: 0;
-  background: #000000aa;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.login-box {
-  background: #fff;
-  padding: 25px;
-  border-radius: 14px;
-  width: 320px;
-  text-align: center;
-  box-shadow: 0 4px 20px #0004;
-}
-
-.login-input {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-.login-error {
-  margin-top: 10px;
-  color: #d00;
-  font-weight: bold;
-}
-
-.hidden {
-  display: none !important;
-}
-/* NAV BAR */
-.nav-bar {
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-  justify-content: flex-start;
-}
-
-/* MINI NAV BUTTON */
-.nav-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid #ffffff44;
-  color: #f9fafb;
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 8px;
-  backdrop-filter: blur(6px);
-  cursor: pointer;
-  transition: 0.15s ease;
-  font-weight: 500;
-}
-
-.nav-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.nav-btn:active {
-  transform: scale(0.95);
-}
-body {
-    margin: 0;
-    padding: 0;
-
-    /* Фирменный темный фон */
-    background-color: #1f2933;
-
-    /* Мягкое золотое свечение */
-    background-image:
-        radial-gradient(
-            circle at center,
-            rgba(255, 201, 76, 0.35) 0%,   /* яркое золото */
-            rgba(255, 201, 76, 0.12) 30%, /* мягкий переход */
-            rgba(31, 41, 51, 1) 70%       /* плавно уходит в темный */
-        );
-
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-    background-size: cover;
-}
-.field select {
-    width: 100%;
-    box-sizing: border-box;
-}
-/* Контейнер */
-.select-ios {
-    position: relative;
-    width: 100%;
-}
-
-/* Сам select */
-.select-ios select {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-
-    width: 100%;
-    padding: 12px 14px;
-    padding-right: 36px;
-
-    border: 1px solid #d7d7d7;
-    border-radius: 12px;
-
-    background: #ffffff;
-    font-size: 16px;
-    color: #111;
-
-    outline: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-
-    transition: 0.2s;
-}
-
-/* Фокус ― как в iOS */
-.select-ios select:focus {
-    border-color: #f2c94c;
-    box-shadow: 0 0 0 3px rgba(242, 201, 76, 0.35);
-}
-
-/* Стрелка */
-.select-ios::after {
-    content: "▾";
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 16px;
-    color: #777;
-    pointer-events: none;
-}
-/* ---------- ОСНОВНАЯ КНОПКА SURPRESSO ---------- */
-.btn-surpresso {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-
-    width: 100%;
-    padding: 8px 14px;
-
-    background: linear-gradient(90deg, #ffd86d, #ff8c22);
-    border: none;
-    border-radius: 30px;
-
-    font-size: 14px;
-    font-weight: 500;
-    color: #222;
-
-    cursor: pointer;
-    transition: 0.2s ease;
-    box-shadow: 0 4px 14px rgba(255, 140, 0, 0.35);
-}
-
-/* Hover */
-.btn-surpresso:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(255, 140, 0, 0.45);
-}
-
-/* Active press */
-.btn-surpresso:active {
-    transform: translateY(0);
-    box-shadow: 0 3px 10px rgba(255, 140, 0, 0.30);
-}
-
-/* ---------- РЯД КНОПОК ---------- */
-.btn-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-top: 18px;
-}
-
-.btn-row .btn-surpresso {
-    flex: 1;
-    min-width: 220px;
-}
-/* ==== iOS style checkbox (договір обслуговування) ==== */
-
-.checkbox-field {
-  margin-top: 10px;
-}
-
-.checkbox-ios {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 15px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox-ios input {
-  display: none;
-}
-
-.checkbox-ios-slider {
-  width: 40px;
-  height: 22px;
-  background: #ccc;
-  border-radius: 20px;
-  position: relative;
-  transition: 0.2s ease;
-}
-
-.checkbox-ios-slider::before {
-  content: "";
-  width: 18px;
-  height: 18px;
-  background: #fff;
-  border-radius: 50%;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  transition: 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-/* Checked */
-.checkbox-ios input:checked + .checkbox-ios-slider {
-  background: #4cd964; /* iOS green */
-}
-
-.checkbox-ios input:checked + .checkbox-ios-slider::before {
-  transform: translateX(18px);
-}
-.shake {
-    animation: shake 0.2s;
-    border-color: #ff4444 !important;
-}
-
-@keyframes shake {
-    0% { transform: translateX(0); }
-    25% { transform: translateX(-3px); }
-    50% { transform: translateX(3px); }
-    75% { transform: translateX(-3px); }
-    100% { transform: translateX(0); }
-}
-.app-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 34px;
-  background: #0f0f0f;
-  color: #ffd54f;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
   z-index: 100;
   gap: 6px;
+  height: 34px;
 }
 
-/* Левая зона */
 .footer-left {
   flex: 1;
   overflow: hidden;
 }
 
-/* Бегущая строка */
 .ticker {
   width: 100%;
   overflow: hidden;
@@ -877,48 +457,275 @@ body {
   font-size: 13px;
 }
 
-/* Анимация */
 @keyframes ticker-move {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
 }
 
-/* Кнопка */
 .footer-refresh {
   flex-shrink: 0;
-  background: #1a1a1a;
-  color: #ffd54f;
-  border: 1px solid #333;
+  border-width: 1px;
+  border-style: solid;
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
 }
 
-.footer-refresh:active {
-  transform: scale(0.96);
+.footer-refresh:active { transform: scale(0.96); }
+
+/* ============================================================
+   ACTION BUTTONS (layout)
+============================================================ */
+
+.actions-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
 }
-/* 🎄 NEW YEAR SNOW CANVAS */
+
+.actions-card .btn {
+  flex: 1 1 calc(33% - 12px);
+  text-align: center;
+}
+
+.actions-card .btn.wide { flex: 1 1 100%; }
+
+/* ============================================================
+   PARTS INFO (layout only)
+============================================================ */
+
+#parts-info {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#parts-info span {
+  margin-right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#parts-info .icon { font-size: 18px; }
+
+/* ============================================================
+   ENGINEER ROW
+============================================================ */
+
+.engineer-row { margin-bottom: 10px; }
+
+.engineer-row .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.engineer-row input { flex: 1; }
+
+.btn.small {
+  padding: 6px 10px;
+  font-size: 16px;
+}
+
+/* ============================================================
+   DRAG & DROP TABLE
+============================================================ */
+
+.draggable-table .drag-handle {
+  cursor: grab;
+  user-select: none;
+  width: 20px;
+  text-align: center;
+}
+
+.draggable-table tr.dragging { opacity: 0.5; }
+
+.drag-handle {
+  cursor: grab;
+  font-size: 18px;
+  user-select: none;
+  text-align: center;
+  width: 28px;
+  padding: 0;
+  margin: 0;
+}
+
+tr.dragging { opacity: 0.45; }
+
+/* ============================================================
+   INLINE QTY EDIT
+============================================================ */
+
+td.editable-qty {
+  cursor: pointer;
+  position: relative;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+td.editable-qty .qty-text {
+  display: inline-block;
+  padding: 2px 4px;
+  min-width: 22px;
+  text-align: center;
+  font-weight: 500;
+}
+
+td.editable-qty .qty-input {
+  display: none;
+  width: 42px;
+  padding: 4px 6px;
+  font-size: 14px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  outline: none;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+td.editable-qty.editing .qty-text { display: none; }
+td.editable-qty.editing .qty-input { display: inline-block; }
+
+/* ============================================================
+   LOGIN SCREEN (layout only)
+============================================================ */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.login-box {
+  padding: 25px;
+  border-radius: 14px;
+  width: 320px;
+  text-align: center;
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.login-error {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.hidden { display: none !important; }
+
+/* ============================================================
+   NAV BAR (layout only)
+============================================================ */
+
+.nav-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  justify-content: flex-start;
+}
+
+.nav-btn {
+  border-width: 1px;
+  border-style: solid;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.15s ease;
+  font-weight: 500;
+}
+
+.nav-btn:active { transform: scale(0.95); }
+
+/* ============================================================
+   CHECKBOX iOS (geometry only)
+============================================================ */
+
+.checkbox-field { margin-top: 10px; }
+
+.checkbox-ios {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-ios input { display: none; }
+
+.checkbox-ios-slider {
+  width: 40px;
+  height: 22px;
+  border-radius: 20px;
+  position: relative;
+  transition: 0.2s ease;
+}
+
+.checkbox-ios-slider::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: 0.2s ease;
+}
+
+.checkbox-ios input:checked + .checkbox-ios-slider::before {
+  transform: translateX(18px);
+}
+
+/* ============================================================
+   SHAKE
+============================================================ */
+
+.shake {
+  animation: shake 0.2s;
+}
+
+@keyframes shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
+
+/* ============================================================
+   NEW YEAR SNOW CANVAS
+============================================================ */
+
 #snow-canvas {
   position: fixed;
   inset: 0;
-  pointer-events: none; /* не мешает кликам */
+  pointer-events: none;
   z-index: 5;
 }
-/* =========================
-   🎄 NEW YEAR HEADER DECOR
-   ========================= */
+
+/* ============================================================
+   HEADER DECOR (layout)
+============================================================ */
 
 .app-header {
   position: relative;
   overflow: visible;
 }
 
-/* контейнер декора */
 .header-decor {
   position: absolute;
   top: -6px;
@@ -929,7 +736,6 @@ body {
   z-index: 30;
 }
 
-/* еловая ветка */
 .spruce-branch {
   position: absolute;
   top: 0;
@@ -937,24 +743,24 @@ body {
   width: 180px;
   transform: rotate(-2deg);
 }
-/* 📱 мобильная адаптация */
+
+/* mobile adaptation */
 @media (max-width: 480px) {
   .header-decor {
     width: 140px;
     height: 90px;
   }
+  .spruce-branch { width: 140px; }
+}
 
-  .spruce-branch {
-    width: 140px;
-  }
+/* ============================================================
+   WAREHOUSE (layout only)
+============================================================ */
 
- 
 .warehouse-panel {
-  background: #f7f7f7;
   border-radius: 16px;
   padding: 12px;
   margin: 12px 0;
-  box-shadow: inset 0 0 0 1px #e0e0e0;
 }
 
 .warehouse-title {
@@ -973,16 +779,15 @@ body {
   border-radius: 14px;
   border: none;
   padding: 6px;
-  background: #ddd;
   font-weight: 600;
 }
 
 .warehouse-placeholder {
   font-size: 13px;
-  color: #777;
   padding: 12px;
   text-align: center;
-  border: 1px dashed #ccc;
+  border-width: 1px;
+  border-style: dashed;
   border-radius: 12px;
   margin-bottom: 12px;
 }
@@ -997,9 +802,9 @@ body {
   border-radius: 16px;
   border: none;
   padding: 8px;
-  background: #ccc;
   font-weight: 600;
 }
+
 .positions-header {
   display: flex;
   align-items: center;
@@ -1008,19 +813,16 @@ body {
 }
 
 .warehouse-toggle {
-  background: #f2c94c;
   border: none;
   border-radius: 20px;
   padding: 6px 14px;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0,0,0,.15);
 }
 
-.warehouse-toggle:active {
-  transform: scale(0.97);
-}
+.warehouse-toggle:active { transform: scale(0.97); }
+
 .warehouse-input label {
   font-size: 13px;
   font-weight: 600;
@@ -1032,9 +834,7 @@ body {
   margin: 6px 0 12px;
 }
 
-.warehouse-add-row input {
-  width: 70px;
-}
+.warehouse-add-row input { width: 70px; }
 
 #warehouse-list {
   display: flex;
@@ -1043,83 +843,8 @@ body {
 }
 
 .warehouse-item {
-  background: #fff;
   border-radius: 12px;
   padding: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.08);
-}
-
-#warehouse-templates {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.template-row-form .field {
-  min-width: 160px;
-}
-
-.template-row-form {
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.template-actions-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-.template-actions-row .btn {
-  min-width: 160px;
-}
-
-.templates-panel {
-  margin-top: 8px;
-}
-
-.templates-panel.collapsed {
-  display: none !important;
-}
-
-.template-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  background: #fff;
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,.08);
-}
-
-.template-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.template-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.template-title {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.template-sub {
-  color: #666;
-  font-size: 13px;
 }
 
 .warehouse-item .top {
@@ -1142,42 +867,80 @@ body {
   height: 28px;
   font-weight: 700;
 }
-.warehouse-modes button.active {
-  background: #f2c94c;
-  color: #000;
-  box-shadow: 0 4px 10px rgba(0,0,0,.15);
-}
 
 .warehouse-add-row button {
-  background: #f2c94c;
   border: none;
   border-radius: 50%;
   width: 42px;
   height: 42px;
   font-size: 22px;
 }
-.warehouse-footer button.primary {
-  background: #f2c94c;
-  color: #000;
+
+/* templates panel */
+#warehouse-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
 }
-.warehouse-modes button.active {
-  background: #f2c94c;
-  color: #000;
-  box-shadow: 0 4px 10px rgba(0,0,0,.15);
+
+.template-row-form .field { min-width: 160px; }
+
+.template-row-form {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
 }
-.warehouse-add-row button {
-  background: #f2c94c;
-  border: none;
-  border-radius: 50%;
-  width: 42px;
-  height: 42px;
-  font-size: 22px;
+
+.template-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 6px;
 }
-.warehouse-toggle.has-items {
-  background: #f2c94c;
-  box-shadow: 0 0 0 2px rgba(242,201,76,.35);
+
+.template-actions-row .btn { min-width: 160px; }
+
+.templates-panel { margin-top: 8px; }
+
+.templates-panel.collapsed { display: none !important; }
+
+.template-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  padding: 10px;
 }
-/* Контейнер live OCR */
+
+.template-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.template-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.template-sub { font-size: 13px; }
+
+/* ============================================================
+   OCR LIVE (layout only)
+============================================================ */
+
 #ocr-live {
   position: relative;
   width: 100%;
@@ -1185,32 +948,27 @@ body {
   margin: 0 auto 12px;
   border-radius: 16px;
   overflow: hidden;
-  background: #000;
 }
 
-/* Видео обрезаем до области сканирования */
 #ocr-video {
   width: 100%;
-  height: 90px;              /* ← ВЫСОТА КАМЕРЫ */
+  height: 90px;
   object-fit: cover;
   border-radius: 16px;
 }
 
-/* OCR-рамка = 100% высоты видео */
 #ocr-frame {
   position: absolute;
   left: 10%;
   top: 10%;
   width: 80%;
   height: 50%;
-  border: 2px solid #f2c94c;
+  border-width: 2px;
+  border-style: solid;
   border-radius: 12px;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,.35);
   pointer-events: none;
 }
 
-
-/* Подсказка */
 #ocr-hint {
   position: absolute;
   bottom: 6px;
@@ -1218,14 +976,15 @@ body {
   right: 0;
   text-align: center;
   font-size: 12px;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,.8);
 }
 
+/* ============================================================
+   ALERT (layout only)
+============================================================ */
 
 #warehouse-alert {
   position: fixed;
-  bottom: 96px;            /* над футером */
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
   max-width: 90%;
@@ -1235,25 +994,9 @@ body {
   font-weight: 600;
   z-index: 99999;
   display: none;
-  box-shadow: 0 6px 20px rgba(0,0,0,.35);
 }
 
-.warehouse-alert.info {
-  background: #111;
-  color: #f2c94c;
-}
-
-.warehouse-alert.success {
-  background: #1f7a3f;
-  color: #fff;
-}
-
-.warehouse-alert.warn {
-  background: #9a6b00;
-  color: #fff;
-}
-
-.warehouse-alert.error {
-  background: #8a1f1f;
-  color: #fff;
-}
+.warehouse-alert.info {}
+.warehouse-alert.success {}
+.warehouse-alert.warn {}
+.warehouse-alert.error {}
