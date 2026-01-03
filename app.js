@@ -2007,6 +2007,58 @@ function updateFooterTicker() {
 
   loop();
 })();
+function setTheme(mode) {
+  // mode: "dark" | "light" | "auto"
+  document.body.classList.remove("theme-light", "theme-dark");
+
+  if (mode === "light") document.body.classList.add("theme-light");
+  if (mode === "dark")  document.body.classList.add("theme-dark");
+
+  localStorage.setItem("surp_theme", mode);
+  updateThemeButton();
+}
+
+function getEffectiveTheme() {
+  const saved = localStorage.getItem("surp_theme") || "dark"; // default dark
+  if (saved !== "auto") return saved;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+}
+
+function applyThemeFromStorage() {
+  const saved = localStorage.getItem("surp_theme") || "dark";
+  const eff = (saved === "auto") ? getEffectiveTheme() : saved;
+  document.body.classList.toggle("theme-light", eff === "light");
+  document.body.classList.toggle("theme-dark",  eff === "dark");
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const btn = document.getElementById("theme-btn");
+  if (!btn) return;
+  const isLight = document.body.classList.contains("theme-light");
+  btn.textContent = isLight ? "☀️" : "🌙";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  applyThemeFromStorage();
+
+  const btn = document.getElementById("theme-btn");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const isLight = document.body.classList.contains("theme-light");
+      setTheme(isLight ? "dark" : "light");
+    });
+  }
+
+  // если когда-то включишь "auto", тема будет меняться при смене системной
+  const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+  mq?.addEventListener?.("change", () => {
+    const saved = localStorage.getItem("surp_theme") || "dark";
+    if (saved === "auto") applyThemeFromStorage();
+  });
+});
 
 // ======================
 // Инициализация
@@ -2079,6 +2131,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
