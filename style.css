@@ -212,6 +212,17 @@ body {
   background: #f3f4f6;
 }
 
+.btn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.btn.danger:hover {
+  background: #ffe4e6;
+  color: #991b1b;
+}
+
 .btn.wide {
   width: 100%;
 }
@@ -1036,6 +1047,79 @@ body {
   border-radius: 12px;
   padding: 8px;
   box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+#warehouse-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.template-row-form .field {
+  min-width: 160px;
+}
+
+.template-row-form {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.template-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.template-actions-row .btn {
+  min-width: 160px;
+}
+
+.templates-panel {
+  margin-top: 8px;
+}
+
+.templates-panel.collapsed {
+  display: none !important;
+}
+
+.template-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.template-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.template-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.template-sub {
+  color: #666;
+  font-size: 13px;
 }
 
 .warehouse-item .top {

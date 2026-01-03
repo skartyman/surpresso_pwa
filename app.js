@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.4"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -62,6 +62,10 @@ const SERVICE_SHEETS = [
 const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
 const USER_SHEET_GID = 0;
 
+// Шаблоны наборов
+const TEMPLATES_FILE_ID = "1w45rHNyS3qcoyy1fdDO55N0p-Yg3ViQb"; // JSON на Google Drive (чтение)
+const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
+
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
 
@@ -70,6 +74,9 @@ let parts = [];
 let services = [];
 let items = []; // {code,name,qty,price,sum}
 let kit = []; // набор со склада
+let warehouseTemplates = [];
+let templatesPanelOpen = false;
+let editingTemplateId = null;
 // ======================
 // Загрузка пользователей
 // ======================
@@ -767,6 +774,242 @@ function renderWarehouseList() {
   });
 
   updateWarehouseActions();
+}
+
+// ---------- шаблоны ----------
+function normalizeTemplate(tpl, idx = 0) {
+  const id = tpl.id || tpl.templateId || tpl.createdAt || `tpl-${idx}-${Date.now()}`;
+  return { ...tpl, id };
+}
+
+function renderWarehouseTemplates(filter = "") {
+  const box = document.getElementById("warehouse-templates");
+  const empty = document.getElementById("warehouse-templates-empty");
+  if (!box || !empty) return;
+
+  box.innerHTML = "";
+
+  const norm = filter.trim().toLowerCase();
+  const list = warehouseTemplates.filter(t => {
+    if (!norm) return true;
+    return [t.name, t.machine, t.node]
+      .filter(Boolean)
+      .some(v => v.toLowerCase().includes(norm));
+  });
+
+  empty.style.display = list.length ? "none" : "block";
+
+  list.forEach((tpl, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "template-row";
+
+    const meta = document.createElement("div");
+    meta.className = "template-meta";
+    meta.innerHTML = `
+      <div class="template-title">${tpl.name || "Без названия"}</div>
+      <div class="template-sub">${tpl.machine || "—"} • ${tpl.node || "—"}</div>
+      <div class="template-sub">${tpl.createdBy || "неизвестно"} • ${tpl.createdAt || ""}</div>
+    `;
+
+    const actions = document.createElement("div");
+    actions.className = "template-actions";
+
+    const toKitBtn = document.createElement("button");
+    toKitBtn.type = "button";
+    toKitBtn.className = "btn ghost";
+    toKitBtn.textContent = "📦 В набор";
+    toKitBtn.onclick = () => applyTemplateToKit(tpl);
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn ghost";
+    editBtn.textContent = "✏️ Редактировать";
+    editBtn.onclick = () => startTemplateEdit(tpl);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn ghost danger";
+    deleteBtn.textContent = "🗑 Удалить";
+    deleteBtn.onclick = () => deleteWarehouseTemplate(tpl);
+
+    actions.appendChild(toKitBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+
+    wrap.appendChild(meta);
+    wrap.appendChild(actions);
+    box.appendChild(wrap);
+  });
+}
+
+function applyTemplateToKit(tpl) {
+  if (!tpl || !Array.isArray(tpl.items)) return;
+  if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
+
+  kit = tpl.items.map(it => ({
+    code: it.code,
+    name: it.name,
+    cell: it.cell || "",
+    qty: +(+it.qty || 1).toFixed(2)
+  }));
+
+  saveKit();
+  renderWarehouseList();
+  updateWarehouseActions();
+  warehouseAlert(`Шаблон \"${tpl.name}\" загружен`, "success", 2000);
+}
+
+function resetTemplateForm() {
+  const name = document.getElementById("template-name");
+  const machine = document.getElementById("template-machine");
+  const node = document.getElementById("template-node");
+  const saveBtn = document.getElementById("save-template-btn");
+
+  [name, machine, node].forEach(i => { if (i) i.value = ""; });
+  editingTemplateId = null;
+  if (saveBtn) saveBtn.textContent = "💾 Сохранить";
+}
+
+function startTemplateEdit(tpl) {
+  if (!tpl) return;
+  const name = document.getElementById("template-name");
+  const machine = document.getElementById("template-machine");
+  const node = document.getElementById("template-node");
+  const saveBtn = document.getElementById("save-template-btn");
+
+  if (name) name.value = tpl.name || "";
+  if (machine) machine.value = tpl.machine || "";
+  if (node) node.value = tpl.node || "";
+  if (saveBtn) saveBtn.textContent = "✏️ Обновить";
+
+  editingTemplateId = tpl.id;
+  toggleTemplatesVisibility(true);
+  applyTemplateToKit(tpl);
+}
+
+async function deleteWarehouseTemplate(tpl) {
+  if (!tpl?.id) {
+    warehouseAlert("Не удалось определить шаблон", "error", 2000);
+    return;
+  }
+
+  if (!confirm(`Удалить шаблон \"${tpl.name || tpl.id}\"?`)) return;
+
+  try {
+    const resp = await fetch(`/warehouse-templates/${encodeURIComponent(tpl.id)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: TEMPLATES_FILE_ID })
+    });
+
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    await loadWarehouseTemplates();
+    if (editingTemplateId === tpl.id) resetTemplateForm();
+    warehouseAlert("Шаблон удалён", "success", 2000);
+  } catch (e) {
+    console.error("Ошибка удаления шаблона", e);
+    warehouseAlert("Не удалось удалить шаблон", "error", 2500);
+  }
+}
+
+function toggleTemplatesVisibility(force) {
+  if (typeof force === "boolean") {
+    templatesPanelOpen = force;
+  } else {
+    templatesPanelOpen = !templatesPanelOpen;
+  }
+
+  const panel = document.getElementById("templates-panel");
+  const toggleBtn = document.getElementById("toggle-templates-btn");
+  if (panel) {
+    panel.style.display = templatesPanelOpen ? "block" : "none";
+    panel.classList.toggle("collapsed", !templatesPanelOpen);
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = templatesPanelOpen ? "Скрыть шаблоны ▲" : "Все шаблоны ▾";
+  }
+}
+
+async function loadWarehouseTemplates() {
+  try {
+    const url = `/warehouse-templates?file=${TEMPLATES_FILE_ID}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    warehouseTemplates = Array.isArray(data.items)
+      ? data.items.map((tpl, idx) => normalizeTemplate(tpl, idx))
+      : [];
+    if (data.warning === "drive_failed") {
+      warehouseAlert("Не удалось обратиться к Google, показаны локальные шаблоны", "warning", 4000);
+    }
+    const filterVal = document.getElementById("template-filter")?.value || "";
+    renderWarehouseTemplates(filterVal);
+  } catch (e) {
+    console.error("Ошибка загрузки шаблонов", e);
+    warehouseAlert("Не удалось загрузить шаблоны", "error", 3000);
+  }
+}
+
+async function saveWarehouseTemplate() {
+  const name = (document.getElementById("template-name")?.value || "").trim();
+  const machine = (document.getElementById("template-machine")?.value || "").trim();
+  const node = (document.getElementById("template-node")?.value || "").trim();
+  const isEdit = Boolean(editingTemplateId);
+  const existingTpl = isEdit
+    ? warehouseTemplates.find(t => t.id === editingTemplateId) || {}
+    : {};
+
+  if (!kit.length) {
+    warehouseAlert("Набор пустой", "error", 2000);
+    return;
+  }
+
+  if (!name) {
+    warehouseAlert("Название шаблона обязательно", "error", 2000);
+    return;
+  }
+
+  const payload = {
+    id: editingTemplateId,
+    name,
+    machine,
+    node,
+    createdBy: existingTpl.createdBy || CURRENT_USER?.name || CURRENT_USER?.login || "неизвестно",
+    createdAt: existingTpl.createdAt || new Date().toISOString(),
+    file: TEMPLATES_FILE_ID,
+    items: kit.map(i => ({
+      code: i.code,
+      name: i.name,
+      cell: i.cell || "",
+      qty: i.qty
+    }))
+  };
+
+  try {
+    const endpoint = isEdit
+      ? `/warehouse-templates/${encodeURIComponent(editingTemplateId)}`
+      : "/warehouse-templates";
+
+    const resp = await fetch(endpoint, {
+      method: isEdit ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    warehouseAlert(isEdit ? "Шаблон обновлён" : "Шаблон сохранён", "success", 2000);
+    if (data.source === "local") {
+      warehouseAlert("Сохранили локально: проверьте доступ к Google", "warning", 3000);
+    }
+    resetTemplateForm();
+    await loadWarehouseTemplates();
+  } catch (e) {
+    console.error("Ошибка сохранения шаблона", e);
+    warehouseAlert("Не удалось сохранить шаблон", "error", 3000);
+  }
 }
 
 // ======================
@@ -1738,6 +1981,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   await loadPrices();
   loadKit();
+  loadWarehouseTemplates();
 
 
   attachSuggest("parts-input", "parts-suggest", parts);
@@ -1752,9 +1996,29 @@ attachSuggest(
   renderTable();
   
   const clearBtn = document.getElementById("clear-kit-btn");
-if (clearBtn) {
-  clearBtn.onclick = clearWarehouseKit;
-}
+  if (clearBtn) {
+    clearBtn.onclick = clearWarehouseKit;
+  }
+
+  const saveTplBtn = document.getElementById("save-template-btn");
+  if (saveTplBtn) {
+    saveTplBtn.onclick = saveWarehouseTemplate;
+  }
+
+  const tplFilter = document.getElementById("template-filter");
+  if (tplFilter) {
+    tplFilter.addEventListener("input", e => {
+      renderWarehouseTemplates(e.target.value);
+    });
+  }
+
+  const toggleTplBtn = document.getElementById("toggle-templates-btn");
+  if (toggleTplBtn) {
+    toggleTplBtn.addEventListener("click", () => {
+      toggleTemplatesVisibility();
+    });
+    toggleTemplatesVisibility(false);
+  }
 
   const refreshBtn = document.getElementById("hard-refresh-btn");
   if (refreshBtn) {

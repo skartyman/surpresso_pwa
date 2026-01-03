@@ -3,6 +3,8 @@ import path from "path";
 import fetch from "node-fetch";
 import bodyParser from "body-parser";
 import FormData from "form-data";
+import fs from "fs/promises";
+import crypto from "crypto";
 
 const app = express();
 const __dirname = path.resolve();
@@ -19,6 +21,19 @@ const TRELLO_LIST_ID = "65895fe3788e6f790d29e806";
 const LABEL_OUR = "65895fe3788e6f790d29e8b0";       // НАШЕ Майстерня
 const LABEL_CLIENT = "65895fe3788e6f790d29e8ad";     // КЛ Майстерня
 const LABEL_CONTRACT = "65a69d546560f1050990998d";   // ОБСЛ Майстерня
+const TEMPLATE_SAVE_URL = process.env.TEMPLATE_SAVE_WEBHOOK ||
+  "https://script.google.com/macros/s/AKfycbzQjkfMUxYT2RRsnclIu8yWzdnW2dqIV-9Q8L5pGrfN9a8YvIPVTESM_JPo8pPHS10V/exec";
+const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
+
+const generateTemplateId = () => crypto.randomUUID ? crypto.randomUUID() : `tpl-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+function ensureTemplateId(tpl) {
+  if (!tpl) return tpl;
+  return {
+    ...tpl,
+    id: tpl.id || tpl.templateId || tpl.createdAt || generateTemplateId()
+  };
+}
 
 function pickLabel(card) {
     if (card.owner === "company") return LABEL_OUR;
@@ -151,6 +166,177 @@ app.post("/send-equipment", async (req, res) => {
   } catch (err) {
     console.error("SERVER ERROR:", err);
     res.status(500).send({ error: true });
+  }
+});
+
+// === 📦 Templates proxy ===
+async function loadTemplatesFromDrive(fileId) {
+  if (!fileId) return null;
+
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const text = await resp.text();
+
+  let items = [];
+  try { items = JSON.parse(text); } catch (e) { console.error("Parse templates", e); }
+  if (!Array.isArray(items)) items = [];
+
+  return items.map(ensureTemplateId);
+}
+
+async function loadTemplatesLocal() {
+  try {
+    const raw = await fs.readFile(TEMPLATES_STORE, "utf8");
+    const data = JSON.parse(raw);
+    const items = Array.isArray(data) ? data : [];
+    const normalized = items.map(ensureTemplateId);
+    const missing = normalized.some((tpl, i) => tpl.id !== items[i]?.id);
+    if (missing) {
+      await saveTemplatesLocal(normalized);
+    }
+    return normalized;
+  } catch {
+    return [];
+  }
+}
+
+async function saveTemplatesLocal(items) {
+  await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
+}
+
+app.get("/warehouse-templates", async (req, res) => {
+  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
+
+  try {
+    // 1. Пытаемся прочитать с Google Drive (если доступен)
+    if (fileId) {
+      const items = await loadTemplatesFromDrive(fileId);
+      if (items) {
+        res.send({ items: items.map(ensureTemplateId), source: "drive" });
+        return;
+      }
+    }
+
+    // 2. Фолбэк на локальный файл, чтобы шаблоны работали даже без интернета
+    const fallback = await loadTemplatesLocal();
+    res.send({ items: fallback, source: "local" });
+  } catch (err) {
+    console.error("TEMPLATE LOAD ERROR", err);
+    const fallback = await loadTemplatesLocal();
+    res.status(200).send({ items: fallback, source: "local", warning: "drive_failed" });
+  }
+});
+
+app.post("/warehouse-templates", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+
+  const template = ensureTemplateId({
+    ...req.body,
+    createdAt: req.body?.createdAt || new Date().toISOString()
+  });
+
+  // 1. Основной путь — Apps Script webhook (Google Sheets/Drive)
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...template, file: fileId })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id: template.id, ...data });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE SAVE ERROR (webhook)", err);
+    }
+  }
+
+  // 2. Фолбэк — локальный json на сервере (общий для всех пользователей сервера)
+  try {
+    const current = await loadTemplatesLocal();
+    const updated = [template, ...current.filter(t => t.id !== template.id)].slice(0, 200); // ограничение по объему
+    await saveTemplatesLocal(updated);
+
+    res.send({ ok: true, source: "local", id: template.id });
+  } catch (err) {
+    console.error("TEMPLATE SAVE ERROR (local)", err);
+    res.status(500).send({ error: "save_failed" });
+  }
+});
+
+app.put("/warehouse-templates/:id", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const id = req.params.id;
+
+  const template = ensureTemplateId({ ...req.body, id, file: fileId });
+
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...template, action: "update" })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE UPDATE ERROR (webhook)", err);
+    }
+  }
+
+  try {
+    const current = await loadTemplatesLocal();
+    const idx = current.findIndex(t => t.id === id);
+    const next = idx === -1
+      ? [template, ...current]
+      : current.map(t => (t.id === id ? { ...t, ...template } : t));
+    await saveTemplatesLocal(next);
+
+    res.send({ ok: true, source: idx === -1 ? "local_added" : "local_updated", id });
+  } catch (err) {
+    console.error("TEMPLATE UPDATE ERROR (local)", err);
+    res.status(500).send({ error: "update_failed" });
+  }
+});
+
+app.delete("/warehouse-templates/:id", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const id = req.params.id;
+
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id, file: fileId })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE DELETE ERROR (webhook)", err);
+    }
+  }
+
+  try {
+    const current = await loadTemplatesLocal();
+    const filtered = current.filter(t => t.id !== id);
+    await saveTemplatesLocal(filtered);
+    res.send({ ok: true, source: "local", id });
+  } catch (err) {
+    console.error("TEMPLATE DELETE ERROR (local)", err);
+    res.status(500).send({ error: "delete_failed" });
   }
 });
 
