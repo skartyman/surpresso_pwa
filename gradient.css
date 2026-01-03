@@ -1,1 +1,404 @@
+/* ============================================================
+   THEME TOKENS
+   - default: dark (без классов или .theme-dark)
+   - light: body.theme-light
+============================================================ */
+
+/* ---------- DARK (default) ---------- */
+:root,
+body.theme-dark {
+  /* фон */
+  --bg-0: #0b1220;
+  --bg-1: #111827;
+  --bg-2: #1f2933;
+
+  /* поверхность/карточки */
+  --surface: rgba(249, 250, 251, 0.08);
+  --surface-2: rgba(249, 250, 251, 0.12);
+  --surface-solid: #0f172a;
+
+  /* текст */
+  --text: #f9fafb;
+  --text-2: rgba(249, 250, 251, 0.78);
+  --text-3: rgba(249, 250, 251, 0.55);
+  --text-dark: #0b1220;
+
+  /* обводки */
+  --border: rgba(255, 255, 255, 0.14);
+  --border-2: rgba(255, 255, 255, 0.22);
+
+  /* бренд */
+  --brand-0: #f2c94c;  /* Surpresso gold */
+  --brand-1: #f59e0b;  /* amber */
+  --brand-2: #ff8c22;  /* orange */
+  --accent: #22c55e;   /* green */
+
+  /* тени/свечение */
+  --shadow-lg: 0 14px 32px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 8px 18px rgba(0, 0, 0, 0.45);
+  --glow: 0 0 0 2px rgba(242, 201, 76, 0.22), 0 10px 28px rgba(242, 201, 76, 0.12);
+
+  /* градиенты */
+  --g-bg:
+    radial-gradient(circle at 20% 0%, rgba(242,201,76,0.26) 0%, rgba(242,201,76,0.08) 30%, rgba(11,18,32,1) 72%),
+    radial-gradient(circle at 90% 30%, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 35%, rgba(11,18,32,0) 70%);
+
+  --g-card: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+  --g-card-strong: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08));
+
+  --g-primary: linear-gradient(135deg, var(--brand-0), var(--brand-1), var(--brand-2));
+  --g-primary-soft: linear-gradient(135deg, rgba(242,201,76,0.35), rgba(245,158,11,0.22), rgba(255,140,34,0.18));
+
+  --g-danger: linear-gradient(135deg, #ff6b6b, #ef4444, #b91c1c);
+  --g-success: linear-gradient(135deg, #22c55e, #16a34a);
+  --g-warn: linear-gradient(135deg, #fbbf24, #f59e0b, #9a6b00);
+  --g-info: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+}
+
+/* ---------- LIGHT ---------- */
+body.theme-light {
+  --bg-0: #ffffff;
+  --bg-1: #f7fafc;
+  --bg-2: #eef2f7;
+
+  --surface: rgba(255, 255, 255, 0.85);
+  --surface-2: rgba(255, 255, 255, 0.95);
+  --surface-solid: #ffffff;
+
+  --text: #0b1220;
+  --text-2: rgba(11, 18, 32, 0.72);
+  --text-3: rgba(11, 18, 32, 0.55);
+  --text-dark: #0b1220;
+
+  --border: rgba(17, 24, 39, 0.10);
+  --border-2: rgba(17, 24, 39, 0.16);
+
+  --brand-0: #f2c94c;
+  --brand-1: #f59e0b;
+  --brand-2: #ff8c22;
+  --accent: #16a34a;
+
+  --shadow-lg: 0 14px 34px rgba(2, 6, 23, 0.12);
+  --shadow-md: 0 8px 18px rgba(2, 6, 23, 0.10);
+  --glow: 0 0 0 2px rgba(242, 201, 76, 0.22), 0 10px 26px rgba(245, 158, 11, 0.14);
+
+  --g-bg:
+    radial-gradient(circle at 20% 0%, rgba(242,201,76,0.32) 0%, rgba(242,201,76,0.10) 35%, rgba(255,255,255,1) 75%),
+    radial-gradient(circle at 90% 25%, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.06) 35%, rgba(255,255,255,0) 70%);
+
+  --g-card: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.86));
+  --g-card-strong: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.90));
+
+  --g-primary: linear-gradient(135deg, var(--brand-0), var(--brand-1), var(--brand-2));
+  --g-primary-soft: linear-gradient(135deg, rgba(242,201,76,0.26), rgba(245,158,11,0.14), rgba(255,140,34,0.12));
+
+  --g-danger: linear-gradient(135deg, #ff7b7b, #ef4444, #b91c1c);
+  --g-success: linear-gradient(135deg, #34d399, #16a34a);
+  --g-warn: linear-gradient(135deg, #fde68a, #f59e0b, #9a6b00);
+  --g-info: linear-gradient(135deg, rgba(2,6,23,0.06), rgba(2,6,23,0.03));
+}
+
+/* ============================================================
+   APPLY THEME
+============================================================ */
+
+body {
+  color: var(--text);
+  background-color: var(--bg-0);
+  background-image: var(--g-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+/* header */
+.app-header {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+body.theme-light .app-header {
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+}
+
+.app-logo {
+  background: var(--g-primary);
+  box-shadow: var(--glow);
+  color: var(--text-dark);
+}
+
+/* cards */
+.card {
+  background: var(--g-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.card h2 { color: var(--text); }
+.block-label { color: var(--text-2); }
+
+/* inputs */
+.field label { color: var(--text-3); }
+
+.field input,
+textarea,
+.select-ios select,
+.login-input {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+}
+body.theme-light .field input,
+body.theme-light textarea,
+body.theme-light .select-ios select,
+body.theme-light .login-input {
+  box-shadow: 0 2px 12px rgba(2,6,23,0.08);
+}
+
+.field input:focus,
+textarea:focus,
+.select-ios select:focus {
+  outline: none;
+  border-color: rgba(242,201,76,0.75);
+  box-shadow: var(--glow);
+}
+
+/* select arrow */
+.select-ios::after { color: var(--text-3); }
+
+/* buttons */
+.btn.primary,
+.btn-surpresso {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.30);
+}
+.btn.primary:hover,
+.btn-surpresso:hover {
+  box-shadow: 0 16px 30px rgba(245, 158, 11, 0.40);
+}
+
+.btn.ghost {
+  border-color: var(--border);
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+}
+body.theme-light .btn.ghost {
+  background: linear-gradient(180deg, rgba(2,6,23,0.04), rgba(2,6,23,0.02));
+}
+.btn.ghost:hover {
+  box-shadow: 0 10px 22px rgba(0,0,0,0.18);
+}
+
+.btn.danger {
+  background: linear-gradient(180deg, rgba(239,68,68,0.14), rgba(239,68,68,0.08));
+  border-color: rgba(239,68,68,0.22);
+  color: #fecaca;
+}
+body.theme-light .btn.danger { color: #7f1d1d; }
+
+.del-btn {
+  background: var(--g-danger);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(239,68,68,0.28);
+}
+.del-btn:hover { filter: brightness(0.95); }
+
+/* floating refresh button */
+#refresh-db-btn {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  box-shadow: 0 14px 26px rgba(245, 158, 11, 0.35);
+}
+#refresh-db-btn:hover { box-shadow: 0 18px 34px rgba(245, 158, 11, 0.45); }
+
+/* suggestions */
+.suggest ul {
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.suggest li .name { color: var(--text-2); }
+.suggest li .price { color: var(--text-2); }
+.suggest li:hover {
+  background: var(--g-primary-soft);
+}
+
+/* table */
+.table-wrapper { border-color: var(--border); }
+th {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  border-bottom-color: rgba(0,0,0,0.10);
+}
+td { border-bottom-color: rgba(255,255,255,0.06); }
+body.theme-light td { border-bottom-color: rgba(2,6,23,0.06); }
+
+/* footer */
+.app-footer {
+  background: linear-gradient(90deg, rgba(15,23,42,0.92), rgba(15,23,42,0.25));
+  color: var(--brand-0);
+  border-top: 1px solid var(--border);
+}
+body.theme-light .app-footer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.92), rgba(255,255,255,0.55));
+  color: #8a6a00;
+}
+
+.footer-refresh {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  color: var(--brand-0);
+  border-color: var(--border);
+}
+body.theme-light .footer-refresh { color: #8a6a00; }
+
+/* login */
+.login-screen { background: rgba(0,0,0,0.60); }
+body.theme-light .login-screen { background: rgba(2,6,23,0.35); }
+
+.login-box {
+  background: var(--g-card-strong);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+.login-error { color: #ef4444; }
+
+/* nav buttons */
+.nav-btn {
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+  border-color: var(--border);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+}
+body.theme-light .nav-btn {
+  background: linear-gradient(180deg, rgba(2,6,23,0.06), rgba(2,6,23,0.03));
+}
+.nav-btn:hover { filter: brightness(1.06); }
+
+/* checkbox */
+.checkbox-ios-slider {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid var(--border);
+}
+.checkbox-ios-slider::before {
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}
+.checkbox-ios input:checked + .checkbox-ios-slider {
+  background: var(--g-success);
+  border-color: rgba(34,197,94,0.35);
+}
+
+/* warehouse panel + items */
+.warehouse-panel {
+  background: var(--g-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.warehouse-toggle {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.25);
+}
+.warehouse-toggle.has-items {
+  box-shadow: var(--glow);
+}
+
+.warehouse-item,
+.template-row {
+  background: var(--g-card-strong);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.template-sub { color: var(--text-2); }
+
+/* modes buttons */
+.warehouse-modes button {
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+  color: var(--text);
+}
+body.theme-light .warehouse-modes button {
+  background: linear-gradient(180deg, rgba(2,6,23,0.05), rgba(2,6,23,0.02));
+}
+.warehouse-modes button.active {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  box-shadow: var(--glow);
+}
+
+/* add row plus */
+.warehouse-add-row button {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.22);
+}
+
+/* qty controls */
+.qty-controls button {
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+body.theme-light .qty-controls button { color: var(--text); }
+
+/* OCR frame */
+#ocr-frame {
+  border-color: rgba(242,201,76,0.95);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.35);
+}
+#ocr-hint {
+  color: var(--text);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+}
+
+/* alerts */
+#warehouse-alert {
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-lg);
+}
+
+.warehouse-alert.info {
+  background: var(--g-info);
+  color: var(--text);
+}
+
+.warehouse-alert.success {
+  background: var(--g-success);
+  color: #fff;
+  border-color: rgba(34,197,94,0.35);
+}
+
+.warehouse-alert.warn {
+  background: var(--g-warn);
+  color: #fff;
+  border-color: rgba(245,158,11,0.35);
+}
+
+.warehouse-alert.error {
+  background: var(--g-danger);
+  color: #fff;
+  border-color: rgba(239,68,68,0.35);
+}
+
+/* parts info text */
+#parts-info,
+#parts-info span {
+  color: var(--text);
+}
+body.theme-light #parts-info,
+body.theme-light #parts-info span {
+  color: var(--text);
+}
+
+/* shake accent */
+.shake {
+  border-color: rgba(239,68,68,0.85) !important;
+}
 
