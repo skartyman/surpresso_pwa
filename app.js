@@ -586,12 +586,6 @@ function toggleWarehouse() {
     setWarehouseMode("manual", { silent: true });
   }
 }
-function normalizeCode(s) {
-  return String(s || "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, ""); // убираем всё кроме букв и цифр
-}
-
 // ---------- storage ----------
 function saveKit() {
   localStorage.setItem("surp_kit", JSON.stringify(kit));
