@@ -2038,7 +2038,7 @@ function updateThemeButton() {
   const btn = document.getElementById("theme-btn");
   if (!btn) return;
   const isLight = document.body.classList.contains("theme-light");
-  btn.textContent = isLight ? "☀️" : "🌙";
+  btn.textContent = isLight ? "🌙" : "☀️";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -2131,6 +2131,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
