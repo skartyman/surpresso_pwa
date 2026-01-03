@@ -54,7 +54,7 @@ app.post("/send-equipment", async (req, res) => {
 
     if (card.owner === "client") {
       caption =
-        `🟡 Прийом від клієнта\n` +
+        `🟢 Прийом від клієнта\n` +
         `👤 Ім’я: ${card.clientName}\n` +
         `📞 Телефон: ${card.clientPhone}\n` +
         `📍 Локація: ${card.clientLocation}\n` +
@@ -67,7 +67,7 @@ app.post("/send-equipment", async (req, res) => {
 
     } else {
       caption =
-        `🏢 Обладнання компанії\n` +
+        `🔴 Обладнання компанії\n` +
         `📍 Локація: ${card.companyLocation}\n` +
         `🛠 Назва: ${card.name}\n` +
         `🔢 Внутрішній №: ${card.internalNumber}\n` +
@@ -343,3 +343,4 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // === START SERVER ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
