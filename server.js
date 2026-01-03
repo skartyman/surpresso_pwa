@@ -174,16 +174,38 @@ async function loadTemplatesFromDrive(fileId) {
   if (!fileId) return null;
 
   const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
-  const resp = await fetch(url);
+  const resp = await fetch(url, {
+    headers: { "Accept": "application/json,text/plain,*/*" }
+  });
+
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+  const contentType = (resp.headers.get("content-type") || "").toLowerCase();
   const text = await resp.text();
 
-  let items = [];
-  try { items = JSON.parse(text); } catch (e) { console.error("Parse templates", e); }
-  if (!Array.isArray(items)) items = [];
+  // Если Drive вернул HTML (страница доступа/подтверждения) — это НЕ наш JSON
+  if (contentType.includes("text/html") || text.trim().startsWith("<!DOCTYPE html") || text.includes("<html")) {
+    throw new Error("Drive returned HTML вместо JSON (файл не публичный или требует подтверждения)");
+  }
 
-  return items.map(ensureTemplateId);
+  let items;
+  try {
+    items = JSON.parse(text);
+  } catch (e) {
+    throw new Error("Не удалось распарсить JSON из Drive");
+  }
+
+  // Поддержим 2 формата: либо массив, либо объект {items:[...]}
+  if (Array.isArray(items)) {
+    return items.map(ensureTemplateId);
+  }
+  if (items && Array.isArray(items.items)) {
+    return items.items.map(ensureTemplateId);
+  }
+
+  return [];
 }
+
 
 async function loadTemplatesLocal() {
   try {
@@ -343,4 +365,5 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // === START SERVER ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
