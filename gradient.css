@@ -255,14 +255,28 @@ body.theme-light .app-footer {
 body.theme-light .footer-refresh { color: #8a6a00; }
 
 /* login */
-.login-screen { background: rgba(0,0,0,0.60); }
+.login-screen {
+  background: rgba(0, 0, 0, 0.75); /* ← сильнее */
+  backdrop-filter: blur(2px);      /* лёгкое размытие */
+}
 body.theme-light .login-screen { background: rgba(2,6,23,0.35); }
 
 .login-box {
-  background: var(--g-card-strong);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  color: var(--text);
+  background: linear-gradient(
+    180deg,
+    #2a2a2a 0%,
+    #1a1a1a 100%
+  );
+  padding: 26px 22px;
+  border-radius: 18px;
+  width: 320px;
+  text-align: center;
+
+  box-shadow:
+    0 20px 50px rgba(0,0,0,0.6),
+    inset 0 0 0 1px rgba(255, 201, 76, 0.25);
+
+  color: #f9fafb;
 }
 
 .login-error { color: #ef4444; }
