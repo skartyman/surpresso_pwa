@@ -174,7 +174,7 @@ textarea {
 
 .row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
 }
@@ -962,6 +962,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
 
 
 
