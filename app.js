@@ -779,26 +779,43 @@ function renderWarehouseList() {
     const div = document.createElement("div");
     div.className = "warehouse-item";
 
+    // подтягиваем остаток из прайса по коду
+    const priceItem = parts.find(p => p.code === it.code);
+
+    const stockRaw = priceItem?.stock ?? "";
+    const stockNum = parseFloat(String(stockRaw).replace(",", ".").replace(/[^\d.]+/g, ""));
+    const hasStock = !isNaN(stockNum) && stockNum > 0;
+
+    const stockHTML = hasStock
+      ? `<span class="stock ok">📦 ${stockNum}</span>`
+      : `<span class="stock empty">❌ закончилось</span>`;
+
     div.innerHTML = `
       <div class="top">
-        <span>${it.code}</span>
-        <span>🗄 ${it.cell || "—"}</span>
+        <span class="code">${it.code}</span>
+
+        <div class="meta">
+          ${stockHTML}
+          <span class="cell">🗄 ${it.cell || "—"}</span>
+        </div>
       </div>
+
       <div class="bottom">
         <div class="qty-controls">
           <button type="button" onclick="changeKitQty(${idx}, -1)">−</button>
           <span>${it.qty}</span>
           <button type="button" onclick="changeKitQty(${idx}, 1)">+</button>
         </div>
-        <button type="button" onclick="removeKitItem(${idx})">❌</button>
+
+        <button type="button" class="remove-btn" onclick="removeKitItem(${idx})">❌</button>
       </div>
     `;
+
     box.appendChild(div);
   });
 
   updateWarehouseActions();
 }
-
 function applyTemplateToKit(tpl) {
   if (!tpl || !Array.isArray(tpl.items)) return;
   if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
@@ -2136,6 +2153,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
