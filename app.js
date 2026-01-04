@@ -445,13 +445,13 @@ function attachSuggest(inputId, suggestId, sourceList) {
       const li = document.createElement("li");
 
       let extraHTML = "";
-      if (inputId === "parts-input") {
-        extraHTML = `
-          <div class="extra">
-            📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
-          </div>
-        `;
-      }
+if (inputId === "parts-input" || inputId === "warehouse-input") {
+  extraHTML = `
+    <div class="extra">
+      📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
+    </div>
+  `;
+}
 
       li.innerHTML = `
         <div class="code">${item.code}</div>
@@ -2136,6 +2136,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
