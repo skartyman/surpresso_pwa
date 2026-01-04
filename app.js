@@ -376,41 +376,46 @@ function fuzzyScore(pattern, text) {
   return score;
 }
 
+function looksLikeCellQuery(q) {
+  q = String(q || "").trim();
+  if (!q) return false;
+  // "0.4", "2.4.7", "12-3", "A12", "B-03" — типичные форматы
+  return /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) || /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q);
+}
+
 // ======================================
-// УМНЫЙ ФУЗЗИ ПОИСК
+// УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
 function filterList(list, query) {
   if (!query.trim()) return [];
 
-  const words = query
-    .toLowerCase()
-    .split(/[\s,.;:]+/)
-    .filter(w => w.length > 0);
+  const q = query.trim().toLowerCase();
+
+  // 🔎 режим поиска по ячейке
+  if (looksLikeCellQuery(q)) {
+    return list
+      .filter(item => (item.cell || "").toLowerCase().includes(q))
+      .slice(0, 80);
+  }
+
+  const words = q.split(/[\s,.;:]+/).filter(w => w.length > 0);
 
   return list
     .map(item => {
       const haystack =
         `${item.code} ${item.name} ${item.stock || ""} ${item.cell || ""}`.toLowerCase();
 
-      // Суммарный фуззи рейтинг по каждому слову
       let totalScore = 0;
+      for (const w of words) totalScore += fuzzyScore(w, haystack);
 
-      for (const w of words) {
-        totalScore += fuzzyScore(w, haystack);
-      }
+      // небольшой бонус, если ячейка совпадает с вводом
+      if ((item.cell || "").toLowerCase().includes(q)) totalScore += 25;
 
       return { item, score: totalScore };
     })
-
-    // выбрасываем нерелевантное
     .filter(res => res.score > 0)
-
-    // сортируем по релевантности
     .sort((a, b) => b.score - a.score)
-
-    // оставляем только объекты item
     .map(res => res.item)
-
     .slice(0, 50);
 }
 
@@ -2131,6 +2136,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
