@@ -169,34 +169,6 @@ textarea:focus,
 .select-ios::after { color: var(--text-3); }
 
 /* buttons */
-.remove-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 16px;
-  cursor: pointer;
-
-  background: linear-gradient(135deg, #ffe4e6, #fecdd3);
-  color: #be123c;
-
-  box-shadow: 0 2px 6px rgba(190,18,60,.25);
-  transition: 0.15s ease;
-}
-
-.remove-btn:hover {
-  background: linear-gradient(135deg, #fecdd3, #fda4af);
-  transform: scale(1.05);
-}
-
-.remove-btn:active {
-  transform: scale(0.92);
-}
 
 .btn.primary,
 .btn-surpresso {
