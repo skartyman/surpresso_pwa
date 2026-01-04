@@ -227,7 +227,6 @@ textarea {
   font-size: 14px;
   line-height: 1;
   font-weight: 500;
-  align-items: flex-end;
 }
 
 /* Surpresso main button layout */
@@ -963,6 +962,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
 
 
 
