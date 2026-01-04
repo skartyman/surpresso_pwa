@@ -226,10 +226,10 @@ textarea {
   justify-content: center;
   font-size: 14px;
   line-height: 1;
-  font-weight: 800;
-  align-self: flex-end;
+  font-weight: 500;
+  align-self: center;
+  vertical-align: middle;
 }
-
 
 /* Surpresso main button layout */
 .btn-surpresso {
@@ -964,6 +964,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
 
 
 
