@@ -174,7 +174,7 @@ textarea {
 
 .row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
 }
@@ -227,7 +227,8 @@ textarea {
   font-size: 14px;
   line-height: 1;
   font-weight: 500;
-  align-items: baseline;
+  align-items: flex-end;
+  margin-top: -2px;
 }
 
 /* Surpresso main button layout */
@@ -963,6 +964,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
 
 
 
