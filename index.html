@@ -34,35 +34,7 @@
 
     /* Editable qty */
     td.editable-qty { cursor: pointer; position: relative; }
-    td.editable-qty .qty-input { display: none; width: 50px; }
-
-    /* Floating refresh button */
-    #refresh-db-btn {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: rgba(0,0,0,0.75);
-      color: #ffd900;
-      border: none;
-      font-size: 22px;
-      font-weight: bold;
-      cursor: pointer;
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-      transition: transform .15s ease, background .15s ease;
-    }
-    #refresh-db-btn:hover {
-      background: rgba(0,0,0,0.9);
-      transform: scale(1.05);
-    }
-    #refresh-db-btn.spin { animation: spin-refresh 0.6s linear infinite; }
-    @keyframes spin-refresh { from{transform:rotate(0);} to{transform:rotate(360deg);} }
+    td.editable-qty .qty-input { display: none; width: 50px; }    
   </style>
 </head>
 
@@ -370,6 +342,7 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
