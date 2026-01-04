@@ -806,8 +806,14 @@ function renderWarehouseList() {
           <span>${it.qty}</span>
           <button type="button" onclick="changeKitQty(${idx}, 1)">+</button>
         </div>
-
-        <button type="button" class="remove-btn" onclick="removeKitItem(${idx})">❌</button>
+      <button
+  type="button"
+  class="remove-btn"
+  onclick="removeKitItem(${idx})"
+  title="Удалить из набора"
+>
+  🗑
+</button>
       </div>
     `;
 
@@ -2153,6 +2159,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
