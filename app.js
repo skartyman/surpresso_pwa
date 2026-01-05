@@ -349,6 +349,27 @@ async function loadPrices() {
 // ======================================
 // ФУЗЗИ-АЛГОРИТМ (легкий и быстрый)
 // ======================================
+function normalizeCell(cell) {
+  let s = String(cell || "").trim().toLowerCase();
+  s = s.replace(/\s+/g, "");
+
+  // запятая -> точка
+  s = s.replace(/,/g, ".");
+
+  // убираем ведущие нули в сегментах и обрезаем хвостовые нули после точки
+  // 0.40 -> 0.4, 02.010 -> 2.1
+  s = s.split(".").map(seg => {
+    // если сегмент чисто цифры — нормализуем
+    if (/^\d+$/.test(seg)) return String(parseInt(seg, 10));
+    return seg;
+  }).join(".");
+
+  // если получилось "0" (например "00") — оставим "0"
+  if (s === "nan") s = "";
+
+  return s;
+}
+
 function fuzzyScore(pattern, text) {
   pattern = pattern.toLowerCase();
   text = text.toLowerCase();
@@ -376,12 +397,13 @@ function fuzzyScore(pattern, text) {
   return score;
 }
 
-function looksLikeCellQuery(q) {
-  q = String(q || "").trim();
-  if (!q) return false;
-  // "0.4", "2.4.7", "12-3", "A12", "B-03" — типичные форматы
-  return /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) || /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q);
+fif (looksLikeCellQuery(q)) {
+  const qCell = normalizeCell(q);
+  return list
+    .filter(item => normalizeCell(item.cell) === qCell)
+    .slice(0, 200); // можно больше, это "режим ячейки"
 }
+
 
 // ======================================
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
@@ -2189,6 +2211,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
