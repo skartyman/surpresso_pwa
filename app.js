@@ -397,7 +397,7 @@ function fuzzyScore(pattern, text) {
   return score;
 }
 
-fif (looksLikeCellQuery(q)) {
+if (looksLikeCellQuery(q)) {
   const qCell = normalizeCell(q);
   return list
     .filter(item => normalizeCell(item.cell) === qCell)
@@ -2211,6 +2211,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
