@@ -390,35 +390,54 @@ function filterList(list, query) {
   if (!query.trim()) return [];
 
   const q = query.trim().toLowerCase();
+  const qNorm = normalizeSearch(q);
 
   // 🔎 режим поиска по ячейке
   if (looksLikeCellQuery(q)) {
     return list
-      .filter(item => (item.cell || "").toLowerCase().includes(q))
+      .filter(item => normalizeSearch(item.cell || "").includes(qNorm))
       .slice(0, 80);
   }
 
   const words = q.split(/[\s,.;:]+/).filter(w => w.length > 0);
+  const codeMode = isCodeLikeQuery(q); // <-- ключ
 
   return list
     .map(item => {
-      const haystack =
-        `${item.code} ${item.name} ${item.stock || ""} ${item.cell || ""}`.toLowerCase();
+      const code = String(item.code || "");
+      const name = String(item.name || "");
+      const cell = String(item.cell || "");
+      const stock = String(item.stock || "");
+
+      const codeNorm = normalizeSearch(code);
+      const nameNorm = normalizeSearch(name);
+      const cellNorm = normalizeSearch(cell);
 
       let totalScore = 0;
-      for (const w of words) totalScore += fuzzyScore(w, haystack);
 
-      // небольшой бонус, если ячейка совпадает с вводом
-      if ((item.cell || "").toLowerCase().includes(q)) totalScore += 25;
+      // ✅ 1) Сильный бонус за совпадение по коду (особенно важно при цифрах)
+      if (qNorm && codeNorm.includes(qNorm)) totalScore += 300;
+
+      // ✅ 2) Бонус за совпадение по ячейке (даже вне режима looksLikeCellQuery)
+      if (qNorm && cellNorm.includes(qNorm)) totalScore += 120;
+
+      // ✅ 3) Если запрос "цифровой/кодовый" — не мучаем fuzzy, даём мягкий includes по названию
+      if (codeMode) {
+        if (qNorm && nameNorm.includes(qNorm)) totalScore += 80;
+      } else {
+        // обычный текстовый режим — твой fuzzy
+        const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
+        for (const w of words) totalScore += fuzzyScore(w, haystack);
+      }
 
       return { item, score: totalScore };
     })
-    .filter(res => res.score > 0)
+    // ✅ ВАЖНО: в кодовом режиме оставляем даже небольшой score (иначе снова “пропадёт”)
+    .filter(res => (codeMode ? res.score >= 50 : res.score > 0))
     .sort((a, b) => b.score - a.score)
     .map(res => res.item)
     .slice(0, 50);
 }
-
 // ======================
 // Подсказки
 // ======================
@@ -2159,6 +2178,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
