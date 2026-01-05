@@ -386,6 +386,17 @@ function looksLikeCellQuery(q) {
 // ======================================
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
+function normalizeSearch(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ""); // убираем пробелы, -, /, точки и т.п.
+}
+
+function isCodeLikeQuery(q) {
+  // если в запросе есть цифры — считаем, что это "кодовый" поиск
+  return /\d/.test(q);
+}
+
 function filterList(list, query) {
   if (!query.trim()) return [];
 
@@ -2178,6 +2189,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
