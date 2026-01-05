@@ -408,13 +408,15 @@ function filterList(list, query) {
   const q = normalizeSearch(query);
   if (!q) return [];
 
-  // 1) Режим "ячейка" — СТРОГОЕ совпадение, без 0.40/0.41 при вводе 0.4
-  if (looksLikeCellQuery(q)) {
-    const qCell = normalizeCell(q);
-    return list
-      .filter(item => normalizeCell(item.cell) === qCell)
-      .slice(0, 200);
-  }
+// 1) Режим "ячейка" — только если в этом списке вообще есть ячейки
+const hasCells = list.some(x => (x.cell || "").trim() !== "");
+if (hasCells && looksLikeCellQuery(q)) {
+  const qCell = normalizeCell(q);
+  return list
+    .filter(item => normalizeCell(item.cell) === qCell)
+    .slice(0, 200);
+}
+
 
   // 2) Обычный режим (код + название + склад + ячейка)
   const words = q.split(/[\s,.;:]+/).filter(Boolean);
@@ -2194,6 +2196,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
