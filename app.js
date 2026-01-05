@@ -343,44 +343,50 @@ async function loadPrices() {
   }
 }
 
-// ======================
-// Фильтрация списка
-// ======================
 // ======================================
-// ФУЗЗИ-АЛГОРИТМ (легкий и быстрый)
+// УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
+// ===== helpers =====
+function normalizeSearch(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// "0.4", "0,4", "0.40" -> "0.4"
 function normalizeCell(cell) {
   let s = String(cell || "").trim().toLowerCase();
   s = s.replace(/\s+/g, "");
-
-  // запятая -> точка
   s = s.replace(/,/g, ".");
 
-  // убираем ведущие нули в сегментах и обрезаем хвостовые нули после точки
-  // 0.40 -> 0.4, 02.010 -> 2.1
-  s = s.split(".").map(seg => {
-    // если сегмент чисто цифры — нормализуем
-    if (/^\d+$/.test(seg)) return String(parseInt(seg, 10));
-    return seg;
-  }).join(".");
-
-  // если получилось "0" (например "00") — оставим "0"
-  if (s === "nan") s = "";
+  // нормализуем сегменты чисел: 02.040 -> 2.4
+  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
 
   return s;
+}
+
+// распознаем "запрос похож на ячейку"
+function looksLikeCellQuery(q) {
+  q = String(q || "").trim();
+  if (!q) return false;
+
+  // типичные варианты: "0.4", "2.4.7", "12-3", "A12", "B-03", "A-12-3"
+  return (
+    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||
+    /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q)
+  );
 }
 
 function fuzzyScore(pattern, text) {
   pattern = pattern.toLowerCase();
   text = text.toLowerCase();
 
-  // Прямое включение — 100%
   if (text.includes(pattern)) return 100;
 
   let score = 0;
   let pIndex = 0;
 
-  // последовательное совпадение букв → чем больше последовательность, тем выше score
   for (let i = 0; i < text.length; i++) {
     if (text[i] === pattern[pIndex]) {
       score += 5;
@@ -391,86 +397,63 @@ function fuzzyScore(pattern, text) {
     }
   }
 
-  // штраф за расстояние по длине
   score -= Math.abs(text.length - pattern.length);
-
   return score;
 }
 
-if (looksLikeCellQuery(q)) {
-  const qCell = normalizeCell(q);
-  return list
-    .filter(item => normalizeCell(item.cell) === qCell)
-    .slice(0, 200); // можно больше, это "режим ячейки"
-}
-
-
 // ======================================
-// УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
+// ✅ filterList: ячейка = строго, иначе умный поиск
 // ======================================
-function normalizeSearch(str) {
-  return String(str || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, ""); // убираем пробелы, -, /, точки и т.п.
-}
-
-function isCodeLikeQuery(q) {
-  // если в запросе есть цифры — считаем, что это "кодовый" поиск
-  return /\d/.test(q);
-}
-
 function filterList(list, query) {
-  if (!query.trim()) return [];
+  const q = normalizeSearch(query);
+  if (!q) return [];
 
-  const q = query.trim().toLowerCase();
-  const qNorm = normalizeSearch(q);
-
-  // 🔎 режим поиска по ячейке
+  // 1) Режим "ячейка" — СТРОГОЕ совпадение, без 0.40/0.41 при вводе 0.4
   if (looksLikeCellQuery(q)) {
+    const qCell = normalizeCell(q);
     return list
-      .filter(item => normalizeSearch(item.cell || "").includes(qNorm))
-      .slice(0, 80);
+      .filter(item => normalizeCell(item.cell) === qCell)
+      .slice(0, 200);
   }
 
-  const words = q.split(/[\s,.;:]+/).filter(w => w.length > 0);
-  const codeMode = isCodeLikeQuery(q); // <-- ключ
+  // 2) Обычный режим (код + название + склад + ячейка)
+  const words = q.split(/[\s,.;:]+/).filter(Boolean);
+
+  // нормализация "для кода": убираем всё кроме букв/цифр
+  const qCode = q.toLowerCase().replace(/[^a-z0-9]/g, "");
 
   return list
     .map(item => {
       const code = String(item.code || "");
       const name = String(item.name || "");
-      const cell = String(item.cell || "");
       const stock = String(item.stock || "");
+      const cell = String(item.cell || "");
 
-      const codeNorm = normalizeSearch(code);
-      const nameNorm = normalizeSearch(name);
-      const cellNorm = normalizeSearch(cell);
+      const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
 
-      let totalScore = 0;
+      // кодовая нормализация
+      const codeNorm = code.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-      // ✅ 1) Сильный бонус за совпадение по коду (особенно важно при цифрах)
-      if (qNorm && codeNorm.includes(qNorm)) totalScore += 300;
+      let score = 0;
 
-      // ✅ 2) Бонус за совпадение по ячейке (даже вне режима looksLikeCellQuery)
-      if (qNorm && cellNorm.includes(qNorm)) totalScore += 120;
+      // сильный бонус за совпадение по коду (чтобы "буква+цифра" не убивало подсказки)
+      if (qCode && codeNorm.includes(qCode)) score += 500;
 
-      // ✅ 3) Если запрос "цифровой/кодовый" — не мучаем fuzzy, даём мягкий includes по названию
-      if (codeMode) {
-        if (qNorm && nameNorm.includes(qNorm)) totalScore += 80;
-      } else {
-        // обычный текстовый режим — твой fuzzy
-        const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
-        for (const w of words) totalScore += fuzzyScore(w, haystack);
-      }
+      // бонус за совпадение по ячейке и остатку (как текст)
+      if (cell.toLowerCase().includes(q)) score += 120;
+      if (stock.toLowerCase().includes(q)) score += 60;
 
-      return { item, score: totalScore };
+      // fuzzy по словам (по названию/общему тексту)
+      for (const w of words) score += fuzzyScore(w, haystack);
+
+      return { item, score };
     })
-    // ✅ ВАЖНО: в кодовом режиме оставляем даже небольшой score (иначе снова “пропадёт”)
-    .filter(res => (codeMode ? res.score >= 50 : res.score > 0))
+    .filter(r => r.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map(res => res.item)
+    .map(r => r.item)
     .slice(0, 50);
 }
+
 // ======================
 // Подсказки
 // ======================
@@ -2211,6 +2194,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
