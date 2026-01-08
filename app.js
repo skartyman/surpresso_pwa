@@ -348,10 +348,25 @@ async function loadPrices() {
 // ======================================
 // ===== helpers =====
 function normalizeSearch(str) {
-  return String(str || "")
+  let s = String(str || "").toLowerCase().normalize("NFKD");
+
+  // синонимы микрофарад (по желанию)
+  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+
+  // оставляем любые буквы (кириллица тоже) и цифры
+  return s.replace(/[^\p{L}\p{N}]+/gu, "");
+}
+function tokenizeQuery(q) {
+  return String(q || "")
     .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+    .normalize("NFKD")
+    .replace(/µf/g, "uf")
+    .replace(/мкф/g, "uf")
+    .split(/[\s,.;:|/\\()+\-_]+/g)
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => normalizeSearch(t))
+    .filter(Boolean);
 }
 
 // "0.4", "0,4", "0.40" -> "0.4"
@@ -405,52 +420,62 @@ function fuzzyScore(pattern, text) {
 // ✅ filterList: ячейка = строго, иначе умный поиск
 // ======================================
 function filterList(list, query) {
-  const q = normalizeSearch(query);
-  if (!q) return [];
+  if (!query.trim()) return [];
 
-// 1) Режим "ячейка" — только если в этом списке вообще есть ячейки
-const hasCells = list.some(x => (x.cell || "").trim() !== "");
-if (hasCells && looksLikeCellQuery(q)) {
-  const qCell = normalizeCell(q);
-  return list
-    .filter(item => normalizeCell(item.cell) === qCell)
-    .slice(0, 200);
-}
+  const q = query.trim().toLowerCase();
 
+  // 🔎 режим поиска по ячейке (у тебя он уже работает — оставляем)
+  if (looksLikeCellQuery(q)) {
+    const qCell = normalizeCell(q);
+    return list
+      .filter(item => normalizeCell(item.cell) === qCell)
+      .slice(0, 200);
+  }
 
-  // 2) Обычный режим (код + название + склад + ячейка)
-  const words = q.split(/[\s,.;:]+/).filter(Boolean);
+  const tokens = tokenizeQuery(query);
+  if (!tokens.length) return [];
 
-  // нормализация "для кода": убираем всё кроме букв/цифр
-  const qCode = q.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const codeMode = /\d/.test(query); // если есть цифра — включаем "токенный" режим
 
   return list
     .map(item => {
-      const code = String(item.code || "");
-      const name = String(item.name || "");
-      const stock = String(item.stock || "");
-      const cell = String(item.cell || "");
+      const codeNorm  = normalizeSearch(item.code || "");
+      const nameNorm  = normalizeSearch(item.name || "");
+      const cellNorm  = normalizeSearch(item.cell || "");
+      const stockNorm = normalizeSearch(String(item.stock || ""));
 
-      const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
-
-      // кодовая нормализация
-      const codeNorm = code.toLowerCase().replace(/[^a-z0-9]/g, "");
-
+      // считаем, сколько токенов нашли (в любом поле)
+      let matched = 0;
       let score = 0;
 
-      // сильный бонус за совпадение по коду (чтобы "буква+цифра" не убивало подсказки)
-      if (qCode && codeNorm.includes(qCode)) score += 500;
+      for (const t of tokens) {
+        const hitCode  = codeNorm.includes(t);
+        const hitName  = nameNorm.includes(t);
+        const hitCell  = cellNorm.includes(t);
+        const hitStock = stockNorm.includes(t);
 
-      // бонус за совпадение по ячейке и остатку (как текст)
-      if (cell.toLowerCase().includes(q)) score += 120;
-      if (stock.toLowerCase().includes(q)) score += 60;
+        if (hitCode || hitName || hitCell || hitStock) matched++;
 
-      // fuzzy по словам (по названию/общему тексту)
-      for (const w of words) score += fuzzyScore(w, haystack);
+        // веса
+        if (hitCode)  score += 260;
+        if (hitCell)  score += 140;
+        if (hitName)  score += 90;
+        if (hitStock) score += 20;
+      }
 
-      return { item, score };
+      // бонус если нашли ВСЕ токены (это важно для "конденсатор 6")
+      if (matched === tokens.length) score += 200;
+
+      // если НЕ codeMode — добавим твой fuzzy как доп. ранжирование
+      if (!codeMode) {
+        const haystack = `${item.code} ${item.name} ${item.stock || ""} ${item.cell || ""}`.toLowerCase();
+        for (const w of q.split(/[\s,.;:]+/).filter(Boolean)) score += fuzzyScore(w, haystack);
+      }
+
+      return { item, score, matched };
     })
-    .filter(r => r.score > 0)
+    // ✅ ключ: в codeMode требуем совпадение ВСЕХ токенов (чтобы не исчезало и не было мусора)
+    .filter(r => (codeMode ? r.matched === tokens.length : r.score > 0))
     .sort((a, b) => b.score - a.score)
     .map(r => r.item)
     .slice(0, 50);
@@ -2196,6 +2221,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
