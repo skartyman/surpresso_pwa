@@ -347,6 +347,18 @@ async function loadPrices() {
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
 // ===== helpers =====
+function parseStockNum(stockRaw) {
+  if (stockRaw === null || stockRaw === undefined) return NaN;
+  const s = String(stockRaw).replace(/\s+/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function inStock(item) {
+  const n = parseStockNum(item?.stock);
+  return Number.isFinite(n) && n > 0;
+}
+
 function normalizeSearch(str) {
   let s = String(str || "").toLowerCase().normalize("NFKD");
 
@@ -419,12 +431,14 @@ function fuzzyScore(pattern, text) {
 // ======================================
 // ✅ filterList: ячейка = строго, иначе умный поиск
 // ======================================
-function filterList(list, query) {
+function filterList(list, query, opts = {}) {
   if (!query.trim()) return [];
 
+  const preferStock = !!opts.preferStock;
   const q = query.trim().toLowerCase();
+  const qNorm = normalizeSearch(q);
 
-  // 🔎 режим поиска по ячейке (у тебя он уже работает — оставляем)
+  // 🔎 режим поиска по ячейке
   if (looksLikeCellQuery(q)) {
     const qCell = normalizeCell(q);
     return list
@@ -432,52 +446,46 @@ function filterList(list, query) {
       .slice(0, 200);
   }
 
-  const tokens = tokenizeQuery(query);
-  if (!tokens.length) return [];
-
-  const codeMode = /\d/.test(query); // если есть цифра — включаем "токенный" режим
+  const words = q.split(/[\s,.;:]+/).filter(w => w.length > 0);
+  const codeMode = isCodeLikeQuery(q); // у тебя уже есть
 
   return list
     .map(item => {
-      const codeNorm  = normalizeSearch(item.code || "");
-      const nameNorm  = normalizeSearch(item.name || "");
-      const cellNorm  = normalizeSearch(item.cell || "");
-      const stockNorm = normalizeSearch(String(item.stock || ""));
+      const code  = String(item.code || "");
+      const name  = String(item.name || "");
+      const cell  = String(item.cell || "");
+      const stock = String(item.stock || "");
 
-      // считаем, сколько токенов нашли (в любом поле)
-      let matched = 0;
+      const codeNorm = normalizeSearch(code);
+      const nameNorm = normalizeSearch(name);
+      const cellNorm = normalizeSearch(cell);
+
       let score = 0;
 
-      for (const t of tokens) {
-        const hitCode  = codeNorm.includes(t);
-        const hitName  = nameNorm.includes(t);
-        const hitCell  = cellNorm.includes(t);
-        const hitStock = stockNorm.includes(t);
+      // сильные бонусы по коду/ячейке
+      if (qNorm && codeNorm.includes(qNorm)) score += 300;
+      if (qNorm && cellNorm.includes(qNorm)) score += 120;
 
-        if (hitCode || hitName || hitCell || hitStock) matched++;
-
-        // веса
-        if (hitCode)  score += 260;
-        if (hitCell)  score += 140;
-        if (hitName)  score += 90;
-        if (hitStock) score += 20;
+      if (codeMode) {
+        if (qNorm && nameNorm.includes(qNorm)) score += 80;
+      } else {
+        const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
+        for (const w of words) score += fuzzyScore(w, haystack);
       }
 
-      // бонус если нашли ВСЕ токены (это важно для "конденсатор 6")
-      if (matched === tokens.length) score += 200;
+      // ✅ бонус "в наличии" — ТОЛЬКО если включили флаг
+      const stockOk = preferStock ? inStock(item) : false;
+      if (stockOk) score += 160;
 
-      // если НЕ codeMode — добавим твой fuzzy как доп. ранжирование
-      if (!codeMode) {
-        const haystack = `${item.code} ${item.name} ${item.stock || ""} ${item.cell || ""}`.toLowerCase();
-        for (const w of q.split(/[\s,.;:]+/).filter(Boolean)) score += fuzzyScore(w, haystack);
-      }
-
-      return { item, score, matched };
+      return { item, score, stockOk };
     })
-    // ✅ ключ: в codeMode требуем совпадение ВСЕХ токенов (чтобы не исчезало и не было мусора)
-    .filter(r => (codeMode ? r.matched === tokens.length : r.score > 0))
-    .sort((a, b) => b.score - a.score)
-    .map(r => r.item)
+    .filter(res => (codeMode ? res.score >= 50 : res.score > 0))
+    .sort((a, b) => {
+      // ✅ сначала "в наличии", но только если preferStock включен
+      if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+      return b.score - a.score;
+    })
+    .map(res => res.item)
     .slice(0, 50);
 }
 
@@ -498,7 +506,7 @@ function attachSuggest(inputId, suggestId, sourceList) {
     const text = input.value.trim().toLowerCase();
     if (!text) return;
 
-    const results = filterList(sourceList, text);
+    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input"); const results = filterList(sourceList, text, { preferStock });
     if (!results.length) return;
 
     const ul = document.createElement("ul");
@@ -2221,6 +2229,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
