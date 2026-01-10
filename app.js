@@ -347,16 +347,10 @@ async function loadPrices() {
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
 // ===== helpers (search) =====
-function looksLikeCellQuery(q) {
-  const s = String(q || "").trim();
-  if (!s) return false;
-
-  // ЯЧЕЙКА = начинается с цифры и содержит разделитель (., -, /)
-  // Примеры: "0.4", "2.4.7", "12-3", "1/2", "0,4"
-  // А вот "DC1" сюда больше НЕ попадает.
-  return /^\d+([.,\-\/]\d+)+$/.test(s);
+// ===== helpers =====
+function isCodeLikeQuery(q) {
+  return /\d/.test(String(q || ""));
 }
-
 
 // оставляем буквы (включая кириллицу) + цифры
 function normalizeSearch(str) {
@@ -393,15 +387,15 @@ function normalizeCell(cell) {
 }
 
 function looksLikeCellQuery(q) {
-  q = String(q || "").trim();
-  if (!q) return false;
+  const s = String(q || "").trim();
+  if (!s) return false;
 
-  // типичные варианты: "0.4", "2.4.7", "12-3", "A12", "B-03"
-  return (
-    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||
-    /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q)
-  );
+  // ЯЧЕЙКА = начинается с цифры и содержит разделитель (., -, /)
+  // Примеры: "0.4", "2.4.7", "12-3", "1/2", "0,4"
+  // А вот "DC1" сюда больше НЕ попадает.
+  return /^\d+([.,\-\/]\d+)+$/.test(s);
 }
+
 
 function parseStockNum(stockRaw) {
   if (stockRaw === null || stockRaw === undefined) return NaN;
@@ -2268,6 +2262,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
