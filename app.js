@@ -498,9 +498,22 @@ function filterList(list, query, opts = {}) {
     })
     .filter(res => res.score >= 0)
     .sort((a, b) => {
-      if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
-      return b.score - a.score;
-    })
+  // 1) ТОЧНОЕ совпадение кода всегда выше всего
+  const aExact = normalizeSearch(a.item.code) === qNorm;
+  const bExact = normalizeSearch(b.item.code) === qNorm;
+  if (aExact !== bExact) return aExact ? -1 : 1;
+
+  // 2) Начало кода (prefix) — вторым приоритетом
+  const aStarts = normalizeSearch(a.item.code).startsWith(qNorm);
+  const bStarts = normalizeSearch(b.item.code).startsWith(qNorm);
+  if (aStarts !== bStarts) return aStarts ? -1 : 1;
+
+  // 3) Далее можно поднять "в наличии", но НЕ выше exact/prefix
+  if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+
+  // 4) Потом общий score
+  return b.score - a.score;
+})
     .map(res => res.item)
     .slice(0, 50);
 }
@@ -2253,6 +2266,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
