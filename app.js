@@ -347,6 +347,11 @@ async function loadPrices() {
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
 // ===== helpers =====
+function isCodeLikeQuery(q) {
+  // любой запрос с цифрой — считаем "кодовым" режимом
+  return /\d/.test(String(q || ""));
+}
+
 function parseStockNum(stockRaw) {
   if (stockRaw === null || stockRaw === undefined) return NaN;
   const s = String(stockRaw).replace(/\s+/g, "").replace(",", ".");
@@ -479,7 +484,7 @@ function filterList(list, query, opts = {}) {
 
       return { item, score, stockOk };
     })
-    .filter(res => (codeMode ? res.score >= 50 : res.score > 0))
+    .filter(res => (codeMode ? res.score >= 10 : res.score > 0))
     .sort((a, b) => {
       // ✅ сначала "в наличии", но только если preferStock включен
       if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
@@ -506,7 +511,8 @@ function attachSuggest(inputId, suggestId, sourceList) {
     const text = input.value.trim().toLowerCase();
     if (!text) return;
 
-    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input"); const results = filterList(sourceList, text, { preferStock });
+    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input"); 
+	const results = filterList(sourceList, text, { preferStock });
     if (!results.length) return;
 
     const ul = document.createElement("ul");
@@ -2229,6 +2235,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
