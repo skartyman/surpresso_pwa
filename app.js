@@ -346,17 +346,11 @@ async function loadPrices() {
 // ======================================
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
-// ===== helpers =====
-// ===== helpers =====
+// ======================
+// SEARCH HELPERS (stable)
+// ======================
 function isCodeLikeQuery(q) {
-  // "кодовый режим" только если запрос похож на код:
-  // есть цифры И есть буквы/разделители, либо строка короткая
-  const s = String(q || "").trim();
-  if (!s) return false;
-  const hasDigit = /\d/.test(s);
-  const hasLetter = /[a-zа-яіїєґ]/i.test(s);
-  const hasSep = /[-_/\.]/.test(s);
-  return hasDigit && (hasLetter || hasSep || s.length <= 6);
+  return /\d/.test(String(q || ""));
 }
 
 function parseStockNum(stockRaw) {
@@ -365,130 +359,154 @@ function parseStockNum(stockRaw) {
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : NaN;
 }
+
 function inStock(item) {
   const n = parseStockNum(item?.stock);
   return Number.isFinite(n) && n > 0;
 }
 
-// нормализация строки для поиска (кириллица + латиница + цифры)
+// нормализация для поиска (без \p{L} чтобы не ломалось на мобилках/старых webview)
 function normalizeSearch(str) {
-  let s = String(str || "").toLowerCase().normalize("NFKD");
-  // µF / мкФ -> uf
-  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
-  // убираем всё кроме букв/цифр
-  return s.replace(/[^\p{L}\p{N}]+/gu, "");
-}
+  let s = String(str || "").toLowerCase();
 
-function tokenizeQuery(q) {
-  return String(q || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/µf/g, "uf")
-    .replace(/мкф/g, "uf")
-    .split(/[\s,.;:|/\\()+\-_]+/g)
-    .map(t => normalizeSearch(t))
-    .filter(Boolean);
+  // унифицируем "мкф/µf" -> "uf"
+  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+
+  // оставляем латиницу + кириллицу + цифры
+  return s.replace(/[^0-9a-zа-яёіїєґ]+/gi, "");
 }
 
 // "0.4", "0,4", "0.40" -> "0.4"
 function normalizeCell(cell) {
   let s = String(cell || "").trim().toLowerCase();
-  s = s.replace(/\s+/g, "").replace(/,/g, ".");
+  s = s.replace(/\s+/g, "");
+  s = s.replace(/,/g, ".");
+
+  // нормализуем сегменты чисел: 02.040 -> 2.4
   s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
   return s;
 }
 
+// ВАЖНО: ячейка допускает ТОЛЬКО 0-1 букву в начале, иначе "DC1" не станет ячейкой
 function looksLikeCellQuery(q) {
   q = String(q || "").trim();
   if (!q) return false;
+
+  // true: "0.4", "2.4.7", "12-3", "A12", "B-03"
+  // false: "dc1", "dc1p", "f64e"
   return (
-    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||
-    /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q)
+    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||     // 0.4 / A-12-3
+    /^[A-Za-z]?\-?\d{1,4}$/i.test(q)              // A12 / 123 / B-03
   );
 }
 
-// ======================================
-// ✅ filterList: ячейка = строго, иначе умный поиск
-// ======================================
-function filterList(list, query, opts = {}) {
-  if (!query || !query.trim()) return [];
+function fuzzyScore(pattern, text) {
+  pattern = pattern.toLowerCase();
+  text = text.toLowerCase();
 
-  const preferStock = !!opts.preferStock;  // только для parts/warehouse
-  const qRaw = query.trim();
+  if (text.includes(pattern)) return 100;
+
+  let score = 0;
+  let pIndex = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === pattern[pIndex]) {
+      score += 5;
+      pIndex++;
+      if (pIndex === pattern.length) break;
+    } else {
+      score--;
+    }
+  }
+
+  score -= Math.abs(text.length - pattern.length);
+  return score;
+}
+
+// ======================
+// FILTER LIST (cell strict + exact code first + stock-first for parts)
+// opts:
+//   enableCell: true/false (для services выключаем)
+//   preferStock: true/false (только parts/warehouse)
+// ======================
+function filterList(list, query, opts = {}) {
+  if (!query || !String(query).trim()) return [];
+
+  const enableCell = opts.enableCell !== false;
+  const preferStock = !!opts.preferStock;
+
+  const qRaw = String(query).trim();
   const q = qRaw.toLowerCase();
   const qNorm = normalizeSearch(qRaw);
-  const tokens = tokenizeQuery(qRaw);
   const codeMode = isCodeLikeQuery(qRaw);
 
-  // ✅ РЕЖИМ ЯЧЕЙКИ: строгое совпадение
-  if (looksLikeCellQuery(qRaw)) {
+  // 🔎 РЕЖИМ ЯЧЕЙКИ (строгое совпадение)
+  if (enableCell && looksLikeCellQuery(qRaw)) {
     const qCell = normalizeCell(qRaw);
     return list
       .filter(item => normalizeCell(item.cell) === qCell)
       .slice(0, 200);
   }
 
-  // --- скоринг ---
-  const scored = list.map(item => {
-    const code = String(item.code || "");
-    const name = String(item.name || "");
-    const cell = String(item.cell || "");
-    const stock = String(item.stock || "");
+  const words = q.split(/[\s,.;:]+/).filter(Boolean);
 
-    const codeNorm = normalizeSearch(code);
-    const nameNorm = normalizeSearch(name);
-    const cellNorm = normalizeSearch(cell);
+  return list
+    .map(item => {
+      const code  = String(item.code || "");
+      const name  = String(item.name || "");
+      const cell  = String(item.cell || "");
+      const stock = String(item.stock || "");
 
-    let score = 0;
+      const codeNorm = normalizeSearch(code);
+      const nameNorm = normalizeSearch(name);
+      const cellNorm = normalizeSearch(cell);
 
-    // ✅ 1) ЖЁСТКАЯ ПРИОРИТЕТНОСТЬ КОДА (убирает “мусор”)
-    if (qNorm && codeNorm === qNorm) score += 10000;          // exact code → #1
-    else if (qNorm && codeNorm.startsWith(qNorm)) score += 6000; // startsWith → #2
-    else if (qNorm && codeNorm.includes(qNorm)) score += 2500;   // includes → дальше
+      let score = 0;
 
-    // ✅ 2) Совпадение по ячейке (но слабее кода)
-    if (qNorm && cellNorm === qNorm) score += 1200;
-    else if (qNorm && cellNorm.startsWith(qNorm)) score += 700;
-    else if (qNorm && cellNorm.includes(qNorm)) score += 350;
+      // ✅ 0) Точный код ВСЕГДА наверх
+      if (qNorm && codeNorm === qNorm) score += 5000;
 
-    // ✅ 3) Совпадения по названию (работает и для услуг, и для запчастей)
-    // Используем токены: чем больше токенов нашлось — тем выше
-    let nameHits = 0;
-    for (const t of tokens) {
-      if (!t) continue;
-      if (nameNorm.includes(t)) nameHits++;
-      else if (!codeMode && qNorm && nameNorm.includes(qNorm)) nameHits++; // мягкий fallback
-    }
-    score += nameHits * 220;
+      // ✅ 1) Код: startsWith / includes
+      if (qNorm && codeNorm.startsWith(qNorm)) score += 1200;
+      else if (qNorm && codeNorm.includes(qNorm)) score += 700;
 
-    // ✅ 4) Небольшой бонус, если запрос с цифрами и они встречаются в названии (например "конденсатор 6")
-    if (/\d/.test(qRaw) && qNorm && nameNorm.includes(qNorm)) score += 260;
+      // ✅ 2) Ячейка: startsWith / includes (в обычном режиме — как бонус)
+      if (qNorm && cellNorm === qNorm) score += 500;
+      else if (qNorm && cellNorm.startsWith(qNorm)) score += 220;
+      else if (qNorm && cellNorm.includes(qNorm)) score += 120;
 
-    // ✅ 5) ВАЖНО: НЕ добавляем “наличие” в score (только сортировка)
-    const stockOk = preferStock ? inStock(item) : false;
+      // ✅ 3) Название: includes (важно для "конденсатор 6")
+      if (qNorm && nameNorm.includes(qNorm)) score += 260;
 
-    return { item, score, stockOk, nameHits };
-  });
+      // ✅ 4) Если НЕ codeMode — добавляем твой fuzzy по словам (для текста)
+      if (!codeMode) {
+        const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
+        for (const w of words) score += fuzzyScore(w, haystack);
+      }
 
-  // --- фильтр релевантности ---
-  // чтобы “непонятное” не лезло: нужен либо (код совпал частично), либо ≥1 токен в названии
-  const filtered = scored.filter(r => {
-    if (r.score >= 2500) return true;      // код/ячейка совпали
-    if (r.nameHits >= 1 && r.score >= 220) return true; // есть совпадение по названию
-    return false;
-  });
+      // ✅ 5) В наличии — только для parts/warehouse (и без “по количеству” — просто >0)
+      const stockOk = preferStock ? inStock(item) : false;
+      if (stockOk) score += 350;
 
-  // --- сортировка ---
-  filtered.sort((a, b) => {
-    // ✅ 1) сначала “в наличии” (только parts/warehouse)
-    if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
-    // ✅ 2) потом по score
-    return b.score - a.score;
-  });
+      // защита от мусора: если нет ни одного разумного совпадения — режем
+      const hasAnyMatch =
+        (qNorm && (codeNorm.includes(qNorm) || nameNorm.includes(qNorm) || cellNorm.includes(qNorm))) ||
+        (!qNorm && score > 0);
 
-  return filtered.map(r => r.item).slice(0, 50);
+      return { item, score, stockOk, hasAnyMatch };
+    })
+    .filter(r => {
+      // для codeMode (цифры) — показываем только когда есть реальное совпадение
+      if (codeMode) return r.hasAnyMatch && r.score >= 120;
+      return r.score > 0;
+    })
+    .sort((a, b) => {
+      if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+      return b.score - a.score;
+    })
+    .map(r => r.item)
+    .slice(0, 50);
 }
-
 // ======================
 // Подсказки
 // ======================
@@ -500,14 +518,19 @@ function attachSuggest(inputId, suggestId, sourceList) {
     suggest.innerHTML = "";
 
     if (inputId === "parts-input") {
-      document.getElementById("parts-info").innerHTML = "";
+      const pi = document.getElementById("parts-info");
+      if (pi) pi.innerHTML = "";
     }
 
-    const text = input.value.trim().toLowerCase();
+    const text = input.value.trim();
     if (!text) return;
 
-    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input");
-    const results = filterList(sourceList, text, { preferStock });
+    // ✅ Только для запчастей и склада:
+    const isPartsLike = (inputId === "parts-input" || inputId === "warehouse-input");
+    const results = filterList(sourceList, text, {
+      preferStock: isPartsLike,
+      enableCellSearch: isPartsLike
+    });
 
     if (!results.length) return;
 
@@ -517,18 +540,18 @@ function attachSuggest(inputId, suggestId, sourceList) {
       const li = document.createElement("li");
 
       let extraHTML = "";
-if (inputId === "parts-input" || inputId === "warehouse-input") {
-  extraHTML = `
-    <div class="extra">
-      📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
-    </div>
-  `;
-}
+      if (isPartsLike) {
+        extraHTML = `
+          <div class="extra">
+            📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
+          </div>
+        `;
+      }
 
       li.innerHTML = `
         <div class="code">${item.code}</div>
         <div class="name">${item.name}</div>
-        <div class="price">${item.price.toFixed(2)} грн</div>
+        <div class="price">${(item.price || 0).toFixed(2)} грн</div>
         ${extraHTML}
       `;
 
@@ -537,10 +560,13 @@ if (inputId === "parts-input" || inputId === "warehouse-input") {
         suggest.innerHTML = "";
 
         if (inputId === "parts-input") {
-          document.getElementById("parts-info").innerHTML = `
-            <span><span class="icon">📦</span> ${item.stock || "—"}</span>
-            <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
-          `;
+          const pi = document.getElementById("parts-info");
+          if (pi) {
+            pi.innerHTML = `
+              <span><span class="icon">📦</span> ${item.stock || "—"}</span>
+              <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
+            `;
+          }
         }
       });
 
@@ -556,7 +582,6 @@ if (inputId === "parts-input" || inputId === "warehouse-input") {
     }
   });
 }
-
 function addItemFromInput(inputId, qtyId, sourceList) {
   const inputEl = document.getElementById(inputId);
   const text = inputEl.value.trim().toLowerCase();
@@ -2231,6 +2256,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
