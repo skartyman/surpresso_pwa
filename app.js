@@ -346,11 +346,55 @@ async function loadPrices() {
 // ======================================
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
-// ======================
-// SEARCH HELPERS (stable)
-// ======================
+// ===== helpers (search) =====
 function isCodeLikeQuery(q) {
-  return /\d/.test(String(q || ""));
+  // "кодовый режим" если есть цифры ИЛИ запрос похож на короткий код без пробелов
+  const s = String(q || "").trim();
+  return /\d/.test(s) || (/^[a-z0-9\-_/]{2,}$/i.test(s) && !/\s/.test(s));
+}
+
+// оставляем буквы (включая кириллицу) + цифры
+function normalizeSearch(str) {
+  let s = String(str || "").toLowerCase().normalize("NFKD");
+
+  // синонимы микрофарад
+  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+
+  // только буквы/цифры (без пробелов/точек/слешей)
+  return s.replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function tokenizeQuery(q) {
+  return String(q || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/µf/g, "uf")
+    .replace(/мкф/g, "uf")
+    .split(/[\s,.;:|/\\()+\-_]+/g)
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => normalizeSearch(t))
+    .filter(Boolean);
+}
+
+// "0.4", "0,4", "0.40" -> "0.4"
+function normalizeCell(cell) {
+  let s = String(cell || "").trim().toLowerCase();
+  s = s.replace(/\s+/g, "");
+  s = s.replace(/,/g, ".");
+  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+  return s;
+}
+
+function looksLikeCellQuery(q) {
+  q = String(q || "").trim();
+  if (!q) return false;
+
+  // типичные варианты: "0.4", "2.4.7", "12-3", "A12", "B-03"
+  return (
+    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||
+    /^[A-Za-z]{1,3}\-?\d{1,4}$/i.test(q)
+  );
 }
 
 function parseStockNum(stockRaw) {
@@ -359,162 +403,117 @@ function parseStockNum(stockRaw) {
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : NaN;
 }
-
 function inStock(item) {
   const n = parseStockNum(item?.stock);
   return Number.isFinite(n) && n > 0;
 }
 
-// нормализация для поиска (без \p{L} чтобы не ломалось на мобилках/старых webview)
-function normalizeSearch(str) {
-  let s = String(str || "").toLowerCase();
-
-  // унифицируем "мкф/µf" -> "uf"
-  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
-
-  // оставляем латиницу + кириллицу + цифры
-  return s.replace(/[^0-9a-zа-яёіїєґ]+/gi, "");
-}
-
-// "0.4", "0,4", "0.40" -> "0.4"
-function normalizeCell(cell) {
-  let s = String(cell || "").trim().toLowerCase();
-  s = s.replace(/\s+/g, "");
-  s = s.replace(/,/g, ".");
-
-  // нормализуем сегменты чисел: 02.040 -> 2.4
-  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
-  return s;
-}
-
-// ВАЖНО: ячейка допускает ТОЛЬКО 0-1 букву в начале, иначе "DC1" не станет ячейкой
-function looksLikeCellQuery(q) {
-  q = String(q || "").trim();
-  if (!q) return false;
-
-  // true: "0.4", "2.4.7", "12-3", "A12", "B-03"
-  // false: "dc1", "dc1p", "f64e"
-  return (
-    /^[A-Za-z]?\d+([.\-\/]\d+)+$/i.test(q) ||     // 0.4 / A-12-3
-    /^[A-Za-z]?\-?\d{1,4}$/i.test(q)              // A12 / 123 / B-03
-  );
-}
-
-function fuzzyScore(pattern, text) {
-  pattern = pattern.toLowerCase();
-  text = text.toLowerCase();
-
-  if (text.includes(pattern)) return 100;
-
-  let score = 0;
-  let pIndex = 0;
-
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === pattern[pIndex]) {
-      score += 5;
-      pIndex++;
-      if (pIndex === pattern.length) break;
-    } else {
-      score--;
-    }
-  }
-
-  score -= Math.abs(text.length - pattern.length);
-  return score;
-}
-
-// ======================
-// FILTER LIST (cell strict + exact code first + stock-first for parts)
-// opts:
-//   enableCell: true/false (для services выключаем)
-//   preferStock: true/false (только parts/warehouse)
-// ======================
+// ======================================
+// ✅ filterList: ячейка строго, иначе адекватный поиск
+// opts.preferStock = true только для parts/warehouse
+// ======================================
 function filterList(list, query, opts = {}) {
-  if (!query.trim()) return [];
+  if (!query || !String(query).trim()) return [];
 
-  const preferStock = !!opts.preferStock;       // parts/warehouse
-  const enableCell  = !!opts.enableCellSearch;  // parts/warehouse
+  const preferStock = !!opts.preferStock;
+  const qRaw = String(query).trim();
+  const q = qRaw.toLowerCase();
 
-  const q = query.trim().toLowerCase();
-  const qNorm = normalizeSearch(q);
-
-  // 🔎 режим ячейки — только там где включено
-  if (enableCell && looksLikeCellQuery(q)) {
-    const qCell = normalizeCell(q);
+  // 1) 🔎 Режим ячейки — строгое совпадение нормализованной ячейки
+  if (looksLikeCellQuery(qRaw)) {
+    const qCell = normalizeCell(qRaw);
     return list
       .filter(item => normalizeCell(item.cell) === qCell)
       .slice(0, 200);
   }
 
-  const codeMode = isCodeLikeQuery(q);
+  const tokens = tokenizeQuery(qRaw);            // ["конденсатор","6"]
+  const qNorm = normalizeSearch(qRaw);           // "конденсатор6"
+  const codeMode = isCodeLikeQuery(qRaw);
 
-  // ✅ строгая релевантность:
-  // - для обычного текстового запроса (без цифр) требуем реальное includes по name/code
-  // - для кодового запроса (есть цифры) можно искать шире
-  return list
-    .map(item => {
-      const code  = String(item.code || "");
-      const name  = String(item.name || "");
-      const cell  = String(item.cell || "");
-      const stock = String(item.stock || "");
+  const hasLetters = /[a-zа-яё]/i.test(qRaw);
+  const hasDigits  = /\d/.test(qRaw);
+  const strictTokens = hasLetters && hasDigits;  // "конденсатор 6" / "dc1" / "8f404s" => строгий режим
 
-      const codeNorm = normalizeSearch(code);
-      const nameNorm = normalizeSearch(name);
-      const cellNorm = normalizeSearch(cell);
+  const scored = list.map(item => {
+    const code = String(item.code || "");
+    const name = String(item.name || "");
+    const cell = String(item.cell || "");
+    const stockRaw = item.stock;
 
-      const exactCode   = qNorm && codeNorm === qNorm;
-      const startsCode  = qNorm && codeNorm.startsWith(qNorm);
-      const incCode     = qNorm && codeNorm.includes(qNorm);
-      const incName     = qNorm && nameNorm.includes(qNorm);
-      const incCell     = qNorm && cellNorm && cellNorm.includes(qNorm);
+    const codeN = normalizeSearch(code);
+    const nameN = normalizeSearch(name);
+    const cellN = normalizeSearch(cell);
 
-      // ✅ ГЕЙТ: чтобы не было мусора
-      // Текстовый режим -> только если входит в name/code
-      // Кодовый режим -> можно code/name/cell
-      const passesGate = codeMode ? (incCode || incName || incCell) : (incName || incCode);
+    const hayN = codeN + nameN + cellN;
 
-      if (!passesGate) return { item, score: -1, stockOk: false };
+    // приоритеты по коду
+    const exactCode = qNorm && (codeN === qNorm);
+    const prefixCode = qNorm && codeN.startsWith(qNorm);
+    const inclCode = qNorm && codeN.includes(qNorm);
 
-      let score = 0;
+    // сколько токенов реально нашли
+    let hitCount = 0;
+    for (const t of tokens) {
+      if (t && hayN.includes(t)) hitCount++;
+    }
+    const allTokensHit = tokens.length ? (hitCount === tokens.length) : false;
 
-      // ✅ приоритеты
-      if (exactCode)  score += 4000;
-      if (startsCode) score += 1500;
-      if (incCode)    score += 700;
-      if (incName)    score += 900;
-      if (incCell)    score += 250;
+    // --- фильтрация "мусора" ---
+    // если запрос смешанный (буквы+цифры) — требуем, чтобы ВСЕ токены были найдены
+    // это убирает резинки/наклейки при запросе "конденсатор 6"
+    let passes = true;
+    if (strictTokens && tokens.length >= 2) {
+      passes = allTokensHit;
+    } else if (codeMode) {
+      // кодовый режим: пусть проходит если есть совпадение по коду
+      // или есть хотя бы 1 токен в названии/коде
+      passes = exactCode || prefixCode || inclCode || hitCount > 0;
+    } else {
+      // обычный текст: хотя бы 1 токен
+      passes = hitCount > 0;
+    }
 
-      // ✅ лёгкий fuzzy только для ДОСОРТИРОВКИ (не для попадания в список)
-      // чтобы “конденсатор” сортировался приятнее, но мусор не пролезал
-      if (!codeMode) {
-        const haystack = `${code} ${name}`.toLowerCase();
-        score += Math.max(0, fuzzyScore(q, haystack)); // только плюсы
-      }
+    // --- скоринг ---
+    let score = 0;
 
-      const stockOk = preferStock ? inStock(item) : false;
-      if (stockOk) score += 300; // только порядок, НЕ фильтр
+    if (exactCode) score += 5000;
+    else if (prefixCode) score += 3000;
+    else if (inclCode) score += 1600;
 
-      return { item, score, stockOk };
-    })
-    .filter(res => res.score >= 0)
+    // токены (именно name/code/cell)
+    score += hitCount * 250;
+
+    // небольшой бонус за совпадение в названии отдельно
+    if (tokens.length) {
+      let nameHits = 0;
+      for (const t of tokens) if (t && nameN.includes(t)) nameHits++;
+      score += nameHits * 120;
+    }
+
+    // наличие — только если включили preferStock (parts/warehouse)
+    const stockOk = preferStock ? inStock(item) : false;
+    if (stockOk) score += 900;
+
+    return { item, score, passes, stockOk, exactCode, prefixCode };
+  });
+
+  return scored
+    .filter(x => x.passes)
     .sort((a, b) => {
-  // 1) ТОЧНОЕ совпадение кода всегда выше всего
-  const aExact = normalizeSearch(a.item.code) === qNorm;
-  const bExact = normalizeSearch(b.item.code) === qNorm;
-  if (aExact !== bExact) return aExact ? -1 : 1;
+      // 1) точный код всегда №1 (даже если нет в наличии)
+      if (a.exactCode !== b.exactCode) return a.exactCode ? -1 : 1;
 
-  // 2) Начало кода (prefix) — вторым приоритетом
-  const aStarts = normalizeSearch(a.item.code).startsWith(qNorm);
-  const bStarts = normalizeSearch(b.item.code).startsWith(qNorm);
-  if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      // 2) дальше префикс по коду
+      if (a.prefixCode !== b.prefixCode) return a.prefixCode ? -1 : 1;
 
-  // 3) Далее можно поднять "в наличии", но НЕ выше exact/prefix
-  if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+      // 3) затем наличие (только если preferStock включен)
+      if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
 
-  // 4) Потом общий score
-  return b.score - a.score;
-})
-    .map(res => res.item)
+      // 4) общий score
+      return b.score - a.score;
+    })
+    .map(x => x.item)
     .slice(0, 50);
 }
 // ======================
@@ -523,24 +522,21 @@ function filterList(list, query, opts = {}) {
 function attachSuggest(inputId, suggestId, sourceList) {
   const input = document.getElementById(inputId);
   const suggest = document.getElementById(suggestId);
+  if (!input || !suggest) return;
 
   input.addEventListener("input", () => {
     suggest.innerHTML = "";
 
     if (inputId === "parts-input") {
-      const pi = document.getElementById("parts-info");
-      if (pi) pi.innerHTML = "";
+      const info = document.getElementById("parts-info");
+      if (info) info.innerHTML = "";
     }
 
     const text = input.value.trim();
     if (!text) return;
 
-    // ✅ Только для запчастей и склада:
-    const isPartsLike = (inputId === "parts-input" || inputId === "warehouse-input");
-    const results = filterList(sourceList, text, {
-      preferStock: isPartsLike,
-      enableCellSearch: isPartsLike
-    });
+    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input");
+    const results = filterList(sourceList, text, { preferStock });
 
     if (!results.length) return;
 
@@ -550,7 +546,7 @@ function attachSuggest(inputId, suggestId, sourceList) {
       const li = document.createElement("li");
 
       let extraHTML = "";
-      if (isPartsLike) {
+      if (inputId === "parts-input" || inputId === "warehouse-input") {
         extraHTML = `
           <div class="extra">
             📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
@@ -559,20 +555,20 @@ function attachSuggest(inputId, suggestId, sourceList) {
       }
 
       li.innerHTML = `
-        <div class="code">${item.code}</div>
-        <div class="name">${item.name}</div>
+        <div class="code">${item.code || ""}</div>
+        <div class="name">${item.name || ""}</div>
         <div class="price">${(item.price || 0).toFixed(2)} грн</div>
         ${extraHTML}
       `;
 
       li.addEventListener("click", () => {
-        input.value = item.code || item.name;
+        input.value = item.code || item.name || "";
         suggest.innerHTML = "";
 
         if (inputId === "parts-input") {
-          const pi = document.getElementById("parts-info");
-          if (pi) {
-            pi.innerHTML = `
+          const info = document.getElementById("parts-info");
+          if (info) {
+            info.innerHTML = `
               <span><span class="icon">📦</span> ${item.stock || "—"}</span>
               <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
             `;
@@ -2266,6 +2262,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
