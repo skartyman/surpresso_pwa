@@ -430,26 +430,27 @@ function fuzzyScore(pattern, text) {
 //   preferStock: true/false (только parts/warehouse)
 // ======================
 function filterList(list, query, opts = {}) {
-  if (!query || !String(query).trim()) return [];
+  if (!query.trim()) return [];
 
-  const enableCell = opts.enableCell !== false;
-  const preferStock = !!opts.preferStock;
+  const preferStock = !!opts.preferStock;       // parts/warehouse
+  const enableCell  = !!opts.enableCellSearch;  // parts/warehouse
 
-  const qRaw = String(query).trim();
-  const q = qRaw.toLowerCase();
-  const qNorm = normalizeSearch(qRaw);
-  const codeMode = isCodeLikeQuery(qRaw);
+  const q = query.trim().toLowerCase();
+  const qNorm = normalizeSearch(q);
 
-  // 🔎 РЕЖИМ ЯЧЕЙКИ (строгое совпадение)
-  if (enableCell && looksLikeCellQuery(qRaw)) {
-    const qCell = normalizeCell(qRaw);
+  // 🔎 режим ячейки — только там где включено
+  if (enableCell && looksLikeCellQuery(q)) {
+    const qCell = normalizeCell(q);
     return list
       .filter(item => normalizeCell(item.cell) === qCell)
       .slice(0, 200);
   }
 
-  const words = q.split(/[\s,.;:]+/).filter(Boolean);
+  const codeMode = isCodeLikeQuery(q);
 
+  // ✅ строгая релевантность:
+  // - для обычного текстового запроса (без цифр) требуем реальное includes по name/code
+  // - для кодового запроса (есть цифры) можно искать шире
   return list
     .map(item => {
       const code  = String(item.code || "");
@@ -461,50 +462,46 @@ function filterList(list, query, opts = {}) {
       const nameNorm = normalizeSearch(name);
       const cellNorm = normalizeSearch(cell);
 
+      const exactCode   = qNorm && codeNorm === qNorm;
+      const startsCode  = qNorm && codeNorm.startsWith(qNorm);
+      const incCode     = qNorm && codeNorm.includes(qNorm);
+      const incName     = qNorm && nameNorm.includes(qNorm);
+      const incCell     = qNorm && cellNorm && cellNorm.includes(qNorm);
+
+      // ✅ ГЕЙТ: чтобы не было мусора
+      // Текстовый режим -> только если входит в name/code
+      // Кодовый режим -> можно code/name/cell
+      const passesGate = codeMode ? (incCode || incName || incCell) : (incName || incCode);
+
+      if (!passesGate) return { item, score: -1, stockOk: false };
+
       let score = 0;
 
-      // ✅ 0) Точный код ВСЕГДА наверх
-      if (qNorm && codeNorm === qNorm) score += 5000;
+      // ✅ приоритеты
+      if (exactCode)  score += 4000;
+      if (startsCode) score += 1500;
+      if (incCode)    score += 700;
+      if (incName)    score += 900;
+      if (incCell)    score += 250;
 
-      // ✅ 1) Код: startsWith / includes
-      if (qNorm && codeNorm.startsWith(qNorm)) score += 1200;
-      else if (qNorm && codeNorm.includes(qNorm)) score += 700;
-
-      // ✅ 2) Ячейка: startsWith / includes (в обычном режиме — как бонус)
-      if (qNorm && cellNorm === qNorm) score += 500;
-      else if (qNorm && cellNorm.startsWith(qNorm)) score += 220;
-      else if (qNorm && cellNorm.includes(qNorm)) score += 120;
-
-      // ✅ 3) Название: includes (важно для "конденсатор 6")
-      if (qNorm && nameNorm.includes(qNorm)) score += 260;
-
-      // ✅ 4) Если НЕ codeMode — добавляем твой fuzzy по словам (для текста)
+      // ✅ лёгкий fuzzy только для ДОСОРТИРОВКИ (не для попадания в список)
+      // чтобы “конденсатор” сортировался приятнее, но мусор не пролезал
       if (!codeMode) {
-        const haystack = `${code} ${name} ${stock} ${cell}`.toLowerCase();
-        for (const w of words) score += fuzzyScore(w, haystack);
+        const haystack = `${code} ${name}`.toLowerCase();
+        score += Math.max(0, fuzzyScore(q, haystack)); // только плюсы
       }
 
-      // ✅ 5) В наличии — только для parts/warehouse (и без “по количеству” — просто >0)
       const stockOk = preferStock ? inStock(item) : false;
-      if (stockOk) score += 350;
+      if (stockOk) score += 300; // только порядок, НЕ фильтр
 
-      // защита от мусора: если нет ни одного разумного совпадения — режем
-      const hasAnyMatch =
-        (qNorm && (codeNorm.includes(qNorm) || nameNorm.includes(qNorm) || cellNorm.includes(qNorm))) ||
-        (!qNorm && score > 0);
-
-      return { item, score, stockOk, hasAnyMatch };
+      return { item, score, stockOk };
     })
-    .filter(r => {
-      // для codeMode (цифры) — показываем только когда есть реальное совпадение
-      if (codeMode) return r.hasAnyMatch && r.score >= 120;
-      return r.score > 0;
-    })
+    .filter(res => res.score >= 0)
     .sort((a, b) => {
       if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
       return b.score - a.score;
     })
-    .map(r => r.item)
+    .map(res => res.item)
     .slice(0, 50);
 }
 // ======================
@@ -2256,6 +2253,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
