@@ -359,14 +359,16 @@ function looksLikeCellQuery(q) {
 
 
 // оставляем буквы (включая кириллицу) + цифры
-function normalizeCell(cell) {
-  let s = String(cell || "").trim().toLowerCase();
-  s = s.replace(/\s+/g, "");
-  s = s.replace(/,/g, ".");
-  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+function normalizeSearch(str) {
+  let s = String(str || "").toLowerCase();
+
+  // синонимы микрофарад
+  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+
+  // оставляем буквы/цифры (лат, кир, укр) — без Unicode \p{...} чтобы не ломалось
+  s = s.replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
   return s;
 }
-
 
 function tokenizeQuery(q) {
   return String(q || "")
@@ -2266,6 +2268,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
