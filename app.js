@@ -347,22 +347,26 @@ async function loadPrices() {
 // УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
 // ===== helpers (search) =====
-function isCodeLikeQuery(q) {
-  // "кодовый режим" если есть цифры ИЛИ запрос похож на короткий код без пробелов
+function looksLikeCellQuery(q) {
   const s = String(q || "").trim();
-  return /\d/.test(s) || (/^[a-z0-9\-_/]{2,}$/i.test(s) && !/\s/.test(s));
+  if (!s) return false;
+
+  // ЯЧЕЙКА = начинается с цифры и содержит разделитель (., -, /)
+  // Примеры: "0.4", "2.4.7", "12-3", "1/2", "0,4"
+  // А вот "DC1" сюда больше НЕ попадает.
+  return /^\d+([.,\-\/]\d+)+$/.test(s);
 }
+
 
 // оставляем буквы (включая кириллицу) + цифры
-function normalizeSearch(str) {
-  let s = String(str || "").toLowerCase().normalize("NFKD");
-
-  // синонимы микрофарад
-  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
-
-  // только буквы/цифры (без пробелов/точек/слешей)
-  return s.replace(/[^\p{L}\p{N}]+/gu, "");
+function normalizeCell(cell) {
+  let s = String(cell || "").trim().toLowerCase();
+  s = s.replace(/\s+/g, "");
+  s = s.replace(/,/g, ".");
+  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+  return s;
 }
+
 
 function tokenizeQuery(q) {
   return String(q || "")
@@ -2262,6 +2266,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
