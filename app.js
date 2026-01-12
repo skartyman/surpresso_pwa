@@ -656,7 +656,25 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
-	let _kitChoiceTpl = null;
+addOrMergeItem({
+  code: found.code || "",
+  name: found.name,
+  qty,
+  price: found.price,
+  type: sourceList === parts ? "part" : "service"
+});
+
+
+
+  inputEl.value = "";
+  document.getElementById(qtyId).value = "1";
+
+  if (inputId === "parts-input")
+    document.getElementById("parts-info").innerHTML = "";
+
+  renderTable();
+}
+let _kitChoiceTpl = null;
 
 function openKitChoice(tpl) {
   _kitChoiceTpl = tpl;
@@ -702,24 +720,6 @@ function closeKitChoice() {
   _kitChoiceTpl = null;
 }
 
-addOrMergeItem({
-  code: found.code || "",
-  name: found.name,
-  qty,
-  price: found.price,
-  type: sourceList === parts ? "part" : "service"
-});
-
-
-
-  inputEl.value = "";
-  document.getElementById(qtyId).value = "1";
-
-  if (inputId === "parts-input")
-    document.getElementById("parts-info").innerHTML = "";
-
-  renderTable();
-}
 // ======================
 // 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR + LIVE OCR)
 // ======================
@@ -2409,6 +2409,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
