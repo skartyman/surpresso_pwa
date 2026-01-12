@@ -747,14 +747,26 @@ function applyKitToCheck() {
     const p = parts.find(x => x.code === k.code);
     if (!p) return;
 
-    items.push({
-      code: p.code,
-      name: p.name,
-      qty: k.qty,
-      price: p.price,
-      sum: p.price * k.qty,
-      type: "part"
-    });
+    const qtyAdd = +(+k.qty || 0).toFixed(2);
+    if (qtyAdd <= 0) return;
+
+    // ищем существующую строку в чеке (тот же код и тип)
+    const ex = items.find(it => it.type === "part" && String(it.code) === String(p.code));
+
+    if (ex) {
+      ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+      ex.price = +p.price || 0;            // на всякий случай обновим цену из прайса
+      ex.sum = +(ex.qty * ex.price).toFixed(2);
+    } else {
+      items.push({
+        code: p.code,
+        name: p.name,
+        qty: qtyAdd,
+        price: +p.price || 0,
+        sum: +( (+p.price || 0) * qtyAdd ).toFixed(2),
+        type: "part"
+      });
+    }
   });
 
   kit = [];
@@ -763,6 +775,7 @@ function applyKitToCheck() {
   renderTable();
   toggleWarehouse();
 }
+
 //Utilits for scanners
 function existsInPrice(code) {
   const raw = normalizeCode(code);
@@ -925,22 +938,58 @@ function renderWarehouseList() {
 
   updateWarehouseActions();
 }
-function applyTemplateToKit(tpl) {
-  if (!tpl || !Array.isArray(tpl.items)) return;
-  if (kit.length && !confirm("Заменить текущий набор на шаблон?")) return;
+function mergeTemplateIntoKit(tpl) {
+  // добавляем позиции шаблона в текущий kit
+  tpl.items.forEach(src => {
+    const code = src.code;
+    if (!code) return;
 
-  kit = tpl.items.map(it => ({
-    code: it.code,
-    name: it.name,
-    cell: it.cell || "",
-    qty: +(+it.qty || 1).toFixed(2)
-  }));
+    const qty = +(+src.qty || 1).toFixed(2);
+
+    const ex = kit.find(k => k.code === code);
+    if (ex) {
+      ex.qty = +(ex.qty + qty).toFixed(2);
+      // можно обновлять имя/ячейку если пустые
+      if (!ex.name && src.name) ex.name = src.name;
+      if (!ex.cell && src.cell) ex.cell = src.cell;
+    } else {
+      kit.push({
+        code,
+        name: src.name || "",
+        cell: src.cell || "",
+        qty
+      });
+    }
+  });
+}
+
+function applyTemplateToKit(tpl, mode) {
+  if (!tpl || !Array.isArray(tpl.items)) return;
+
+  // mode может быть "replace" | "add" | undefined
+  if (!mode) mode = chooseTemplateApplyMode(kit.length > 0);
+  if (mode === "cancel") return;
+
+  if (mode === "replace") {
+    kit = tpl.items.map(it => ({
+      code: it.code,
+      name: it.name,
+      cell: it.cell || "",
+      qty: +(+it.qty || 1).toFixed(2)
+    }));
+    warehouseAlert(`Шаблон "${tpl.name}" заменил набор`, "success", 2000);
+  }
+
+  if (mode === "add") {
+    mergeTemplateIntoKit(tpl);
+    warehouseAlert(`Шаблон "${tpl.name}" добавлен к набору`, "success", 2000);
+  }
 
   saveKit();
   renderWarehouseList();
   updateWarehouseActions();
-  warehouseAlert(`Шаблон \"${tpl.name}\" загружен`, "success", 2000);
 }
+
 // ---------- шаблоны ----------
 
 function renderWarehouseTemplates(filter = "") {
@@ -2262,6 +2311,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
