@@ -656,6 +656,52 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
+	let _kitChoiceTpl = null;
+
+function openKitChoice(tpl) {
+  _kitChoiceTpl = tpl;
+
+  const modal = document.getElementById("kit-choice-modal");
+  const title = document.getElementById("kit-choice-title");
+  const text  = document.getElementById("kit-choice-text");
+
+  const replaceBtn = document.getElementById("kit-choice-replace-btn");
+  const addBtn     = document.getElementById("kit-choice-add-btn");
+
+  if (!modal || !replaceBtn || !addBtn) return;
+
+  title.textContent = tpl?.name ? `Шаблон: ${tpl.name}` : "Шаблон";
+  text.textContent = kit.length
+    ? "Заменить текущий набор или добавить позиции к нему?"
+    : "Набор пуст. Добавить позиции из шаблона?";
+
+  // handlers
+  replaceBtn.onclick = () => {
+    closeKitChoice();
+    applyTemplateToKit(tpl, { mode: "replace" });
+  };
+
+  addBtn.onclick = () => {
+    closeKitChoice();
+    applyTemplateToKit(tpl, { mode: "add" });
+  };
+
+  modal.classList.remove("hidden");
+
+  // ESC to close
+  document.addEventListener("keydown", _kitChoiceEsc, { once: true });
+}
+
+function _kitChoiceEsc(e) {
+  if (e.key === "Escape") closeKitChoice();
+}
+
+function closeKitChoice() {
+  const modal = document.getElementById("kit-choice-modal");
+  if (modal) modal.classList.add("hidden");
+  _kitChoiceTpl = null;
+}
+
 addOrMergeItem({
   code: found.code || "",
   name: found.name,
@@ -993,12 +1039,10 @@ function chooseTemplateApplyMode(hasKit) {
   return "cancel";
 }
 
-function applyTemplateToKit(tpl, mode) {
+function applyTemplateToKit(tpl, opts = { mode: "replace" }) {
   if (!tpl || !Array.isArray(tpl.items)) return;
 
-  // mode может быть "replace" | "add" | undefined
-  if (!mode) mode = chooseTemplateApplyMode(kit.length > 0);
-  if (mode === "cancel") return;
+  const mode = opts.mode || "replace";
 
   if (mode === "replace") {
     kit = tpl.items.map(it => ({
@@ -1007,17 +1051,41 @@ function applyTemplateToKit(tpl, mode) {
       cell: it.cell || "",
       qty: +(+it.qty || 1).toFixed(2)
     }));
-    warehouseAlert(`Шаблон "${tpl.name}" заменил набор`, "success", 2000);
-  }
+  } else {
+    // mode === "add"
+    tpl.items.forEach(it => {
+      const code = it.code;
+      if (!code) return;
 
-  if (mode === "add") {
-    mergeTemplateIntoKit(tpl);
-    warehouseAlert(`Шаблон "${tpl.name}" добавлен к набору`, "success", 2000);
+      const qtyAdd = +(+it.qty || 1).toFixed(2);
+
+      const ex = kit.find(x => x.code === code);
+      if (ex) {
+        ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+        // обновим ячейку/имя если вдруг пустые
+        if (!ex.cell && it.cell) ex.cell = it.cell;
+        if (!ex.name && it.name) ex.name = it.name;
+      } else {
+        kit.push({
+          code,
+          name: it.name,
+          cell: it.cell || "",
+          qty: qtyAdd
+        });
+      }
+    });
   }
 
   saveKit();
   renderWarehouseList();
   updateWarehouseActions();
+  warehouseAlert(
+    mode === "replace"
+      ? `Шаблон "${tpl.name}" заменил набор`
+      : `Шаблон "${tpl.name}" добавлен в набор`,
+    "success",
+    2200
+  );
 }
 
 // ---------- шаблоны ----------
@@ -2341,6 +2409,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
