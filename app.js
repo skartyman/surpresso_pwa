@@ -588,6 +588,31 @@ function attachSuggest(inputId, suggestId, sourceList) {
     }
   });
 }
+function addOrMergeItem({ code, name, qty, price, type }) {
+  const qtyAdd = +(+qty || 0).toFixed(2);
+  if (qtyAdd <= 0) return;
+
+  const ex = items.find(it =>
+    it.type === type &&
+    String(it.code) === String(code)
+  );
+
+  if (ex) {
+    ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+    ex.price = +price || 0;
+    ex.sum = +(ex.qty * ex.price).toFixed(2);
+  } else {
+    items.push({
+      code,
+      name,
+      qty: qtyAdd,
+      price: +price || 0,
+      sum: +(qtyAdd * (+price || 0)).toFixed(2),
+      type
+    });
+  }
+}
+
 function addItemFromInput(inputId, qtyId, sourceList) {
   const inputEl = document.getElementById(inputId);
   const text = inputEl.value.trim().toLowerCase();
@@ -631,31 +656,6 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
-function addOrMergeItem({ code, name, qty, price, type }) {
-  const qtyAdd = +(+qty || 0).toFixed(2);
-  if (qtyAdd <= 0) return;
-
-  const ex = items.find(it =>
-    it.type === type &&
-    String(it.code) === String(code)
-  );
-
-  if (ex) {
-    ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
-    ex.price = +price || 0;
-    ex.sum = +(ex.qty * ex.price).toFixed(2);
-  } else {
-    items.push({
-      code,
-      name,
-      qty: qtyAdd,
-      price: +price || 0,
-      sum: +(qtyAdd * (+price || 0)).toFixed(2),
-      type
-    });
-  }
-}
-
 addOrMergeItem({
   code: found.code || "",
   name: found.name,
@@ -2341,6 +2341,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
