@@ -1126,7 +1126,7 @@ function renderWarehouseTemplates(filter = "") {
     toKitBtn.type = "button";
     toKitBtn.className = "btn ghost";
     toKitBtn.textContent = "📦 В набор";
-    toKitBtn.onclick = () => applyTemplateToKit(tpl);
+    toKitBtn.onclick = () => openKitChoice(tpl);
 
     const editBtn = document.createElement("button");
     editBtn.type = "button";
@@ -2409,6 +2409,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
