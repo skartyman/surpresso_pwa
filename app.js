@@ -631,14 +631,39 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
-items.push({
+function addOrMergeItem({ code, name, qty, price, type }) {
+  const qtyAdd = +(+qty || 0).toFixed(2);
+  if (qtyAdd <= 0) return;
+
+  const ex = items.find(it =>
+    it.type === type &&
+    String(it.code) === String(code)
+  );
+
+  if (ex) {
+    ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+    ex.price = +price || 0;
+    ex.sum = +(ex.qty * ex.price).toFixed(2);
+  } else {
+    items.push({
+      code,
+      name,
+      qty: qtyAdd,
+      price: +price || 0,
+      sum: +(qtyAdd * (+price || 0)).toFixed(2),
+      type
+    });
+  }
+}
+
+addOrMergeItem({
   code: found.code || "",
   name: found.name,
   qty,
   price: found.price,
-  sum: qty * found.price,
-  type: sourceList === parts ? "part" : "service"   // ← добавили тип
+  type: sourceList === parts ? "part" : "service"
 });
+
 
 
   inputEl.value = "";
@@ -747,26 +772,13 @@ function applyKitToCheck() {
     const p = parts.find(x => x.code === k.code);
     if (!p) return;
 
-    const qtyAdd = +(+k.qty || 0).toFixed(2);
-    if (qtyAdd <= 0) return;
-
-    // ищем существующую строку в чеке (тот же код и тип)
-    const ex = items.find(it => it.type === "part" && String(it.code) === String(p.code));
-
-    if (ex) {
-      ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
-      ex.price = +p.price || 0;            // на всякий случай обновим цену из прайса
-      ex.sum = +(ex.qty * ex.price).toFixed(2);
-    } else {
-      items.push({
-        code: p.code,
-        name: p.name,
-        qty: qtyAdd,
-        price: +p.price || 0,
-        sum: +( (+p.price || 0) * qtyAdd ).toFixed(2),
-        type: "part"
-      });
-    }
+    addOrMergeItem({
+      code: p.code,
+      name: p.name,
+      qty: k.qty,
+      price: p.price,
+      type: "part"
+    });
   });
 
   kit = [];
@@ -775,6 +787,7 @@ function applyKitToCheck() {
   renderTable();
   toggleWarehouse();
 }
+
 
 //Utilits for scanners
 function existsInPrice(code) {
@@ -2328,6 +2341,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
