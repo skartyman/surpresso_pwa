@@ -962,6 +962,23 @@ function mergeTemplateIntoKit(tpl) {
     }
   });
 }
+function chooseTemplateApplyMode(hasKit) {
+  // Если набор пуст — просто "заменить" (по сути одно и то же)
+  if (!hasKit) return "replace";
+
+  // 3 варианта: replace / add / cancel
+  // confirm = заменить, cancel = спросим добавить
+  if (confirm("Применить шаблон?\n\nОК — Заменить текущий набор\nОтмена — Добавить к текущему")) {
+    return "replace";
+  }
+
+  // Второй шаг: добавить или отмена
+  if (confirm("Добавить шаблон к текущему набору?\n\nОК — Добавить\nОтмена — Ничего не делать")) {
+    return "add";
+  }
+
+  return "cancel";
+}
 
 function applyTemplateToKit(tpl, mode) {
   if (!tpl || !Array.isArray(tpl.items)) return;
@@ -2311,6 +2328,7 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
 
 
 
