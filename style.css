@@ -717,6 +717,64 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 /* ============================================================
    WAREHOUSE (layout only)
 ============================================================ */
+.mini-modal.hidden { display: none !important; }
+
+.mini-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+}
+
+.mini-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(6px);
+}
+
+.mini-modal__card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 360px);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(0,0,0,.08);
+}
+
+body.theme-dark .mini-modal__card {
+  background: rgba(17,24,39,.92);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.mini-modal__title {
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 6px;
+  color: #111827;
+}
+
+body.theme-dark .mini-modal__title { color: #f9fafb; }
+
+.mini-modal__text {
+  font-size: 13px;
+  opacity: .85;
+  margin-bottom: 12px;
+  color: #111827;
+}
+
+body.theme-dark .mini-modal__text { color: #e5e7eb; }
+
+.mini-modal__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.mini-modal__actions .btn { flex: 1 1 auto; }
 
 .warehouse-panel {
   border-radius: 16px;
@@ -961,6 +1019,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .warehouse-alert.success {}
 .warehouse-alert.warn {}
 .warehouse-alert.error {}
+
 
 
 
