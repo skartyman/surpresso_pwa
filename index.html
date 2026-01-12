@@ -215,8 +215,24 @@
       </button>
     </div>
   </div>
+<!-- Mini modal:............................................................ Replace / Add -->
+<div id="kit-choice-modal" class="mini-modal hidden">
+  <div class="mini-modal__backdrop" onclick="closeKitChoice()"></div>
 
-  <!-- ===== ЗАПЧАСТИ ===== -->
+  <div class="mini-modal__card" role="dialog" aria-modal="true">
+    <div class="mini-modal__title" id="kit-choice-title">Шаблон</div>
+    <div class="mini-modal__text" id="kit-choice-text">
+      Что сделать с текущим набором?
+    </div>
+
+    <div class="mini-modal__actions">
+      <button type="button" class="btn ghost" onclick="closeKitChoice()">Отмена</button>
+      <button type="button" class="btn ghost danger" id="kit-choice-replace-btn">Заменить</button>
+      <button type="button" class="btn primary" id="kit-choice-add-btn">Добавить</button>
+    </div>
+  </div>
+</div>
+  <!-- ===== ЗАПЧАСТИ ====--------------------------------------------------------------------= -->
   <div class="block-label">Запчасти</div>
 
   <div class="row">
@@ -342,6 +358,7 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
