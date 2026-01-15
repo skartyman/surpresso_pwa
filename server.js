@@ -40,7 +40,7 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:
         process.env.GOOGLE_CALLBACK_URL ||
-        "http://localhost:8080/google/callback",
+        "https://wpa-surpresso.fly.dev/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       // Здесь можно добавить логику поиска/создания пользователя в БД
@@ -138,7 +138,7 @@ const LABEL_CONTRACT = "65a69d546560f1050990998d"; // ОБСЛ Майстерн�
 
 const TEMPLATE_SAVE_URL =
   process.env.TEMPLATE_SAVE_WEBHOOK ||
-  "https://script.google.com/macros/s/AKfycbwK8g6vrhko8aXgSs46aJ_NJuSgxnLuhYX15i0Zqnj4Vo7iE43G4XHn5iD_s-3e5H_3/exec";
+  "https://script.google.com/macros/s/AKfycbwKVKPW76SzwkoRCYvxDqa-jgsF4eh31dGpogbOGO4m7uoDh9UEc4kdWBDlrr-a2gTwqw/exec";
 
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 
@@ -447,4 +447,5 @@ app.delete("/warehouse-templates/:id", authenticateToken, async (req, res) => {
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
+
 });
