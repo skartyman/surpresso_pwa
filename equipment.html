@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Добавить оборудование</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/gradient.css?v=1.1.4">
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -189,6 +190,48 @@
 </div> <!-- end main -->
 
 <script>
+	// ======================
+//  EQUIPMENT REGISTRY (Apps Script WebApp)
+// ======================
+const EQUIP_API = "https://script.google.com/macros/s/AKfycbx53SUfuTcC3jZ5K_mX5lseF3HQiFyYxMa41ry_vlVk0GALCiZIXxTYVErK9TdJN5NS/exec";
+
+// 1) Получить/создать единый ID оборудования (чтобы не менялся между печатью/отправкой)
+function getOrCreateEquipId() {
+  let id = localStorage.getItem("equip_current_id");
+  if (!id) {
+    id = "SURPRESSO-" + Date.now().toString().slice(-8); // или "SURP-" как тебе нравится
+    localStorage.setItem("equip_current_id", id);
+  }
+  return id;
+}
+
+// 🔓 PIN временно отключён
+function getSecret() {
+  return "NO_PIN_TEMP";
+}
+
+async function ensureSecret() {
+  return "NO_PIN_TEMP";
+}
+
+
+// 3) POST в Apps Script
+async function apiPost(payload) {
+  const resp = await fetch(EQUIP_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await resp.text(); // Apps Script иногда отдаёт HTML при ошибках
+  let json;
+  try { json = JSON.parse(text); }
+  catch { throw new Error("AppsScript not JSON: " + text.slice(0, 120)); }
+
+  if (!json.ok) throw new Error(json.error || "AppsScript error");
+  return json;
+}
+
 function openPrintPage() {
   const owner = localStorage.getItem("equip_owner");
   const type = localStorage.getItem("equip_type");
@@ -208,7 +251,7 @@ function openPrintPage() {
   };
 
   const card = {
-    id: "SURP-" + Date.now().toString().slice(-6),
+    id: getOrCreateEquipId(),
     owner,
     type,
     typeText: typeMap[type] || type
@@ -505,7 +548,7 @@ async function generatePNG() {
     });
 
     /* ID */
-    const id = "SURP-" + Date.now().toString().slice(-6);
+    const id = getOrCreateEquipId();
     document.getElementById("posterID").textContent=id;
 
     /* RENDER */
@@ -544,6 +587,7 @@ async function sendToTelegram() {
 
     // Собираем карточку
     let card = { owner, type };
+	card.id = getOrCreateEquipId();
 
     if (owner === "client") {
         card.clientName     = value("clientName");
@@ -575,25 +619,69 @@ async function sendToTelegram() {
     }
 
     try {
-        const resp = await fetch("/send-equipment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ card, photos })
-        });
+  // ============================
+  // 1️⃣ Telegram + Trello (основное)
+  // ============================
+  const resp = await fetch("/send-equipment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card, photos })
+  });
 
-        if (!resp.ok) throw new Error("Ошибка ответа от backend");
+  if (!resp.ok) throw new Error("Ошибка ответа от backend");
 
-        alert("Отправлено в Telegram и создана карточка в trello ✅");
-		capturedPhotos.length = 0;
-		//renderPhotoPreview();
-        stopCamera();
-        
+  alert("Отправлено в Telegram и создана карточка в Trello ✅");
 
-    } catch (err) {
-        console.error(err);
-        alert("Ошибка отправки в Telegram ❌");
+  // ============================
+  // 2️⃣ Реестр оборудования (Apps Script)
+  // ============================
+  try {
+    const secret = await ensureSecret();
+
+    // create / upsert карточки
+    const created = await apiPost({
+      action: "create",
+      secret,
+      card
+    });
+
+    // загрузка фото
+    for (let i = 0; i < photos.length; i++) {
+      await apiPost({
+        action: "photo",
+        secret,
+        id: card.id,
+        base64: photos[i],
+        caption: `Фото ${i + 1}`
+      });
     }
-}
+
+    console.log("Registry OK:", created);
+
+    // сохраняем QR
+    if (created?.qrUrl) {
+      localStorage.setItem("equip_last_qr", created.qrUrl);
+      localStorage.setItem("equip_last_qr_target", created.qrTargetUrl || "");
+    }
+
+  } catch (e) {
+    // ⚠️ НЕ ЛОМАЕМ основной процесс
+    console.warn("Registry error:", e);
+  }
+
+  // ============================
+  // 3️⃣ Очистка UI
+  // ============================
+  capturedPhotos.length = 0;
+  stopCamera();
+  localStorage.removeItem("equip_current_id");
+
+  } catch (err) {
+    console.error(err);
+    alert("Ошибка отправки в Telegram ❌");
+  }
+} // ✅ ОБЯЗАТЕЛЬНО ЗАКРЫТЬ sendToTelegram
+
 
 /* ===================================================================
    COLLECT EQUIPMENT DATA
@@ -761,3 +849,8 @@ window.addEventListener("load", () => {
 
 </body>
 </html>
+
+
+
+
+

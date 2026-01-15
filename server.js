@@ -3,6 +3,8 @@ import path from "path";
 import fetch from "node-fetch";
 import bodyParser from "body-parser";
 import FormData from "form-data";
+import fs from "fs/promises";
+import crypto from "crypto";
 
 const app = express();
 const __dirname = path.resolve();
@@ -19,6 +21,103 @@ const TRELLO_LIST_ID = "65895fe3788e6f790d29e806";
 const LABEL_OUR = "65895fe3788e6f790d29e8b0";       // НАШЕ Майстерня
 const LABEL_CLIENT = "65895fe3788e6f790d29e8ad";     // КЛ Майстерня
 const LABEL_CONTRACT = "65a69d546560f1050990998d";   // ОБСЛ Майстерня
+const TEMPLATE_SAVE_URL = process.env.TEMPLATE_SAVE_WEBHOOK ||
+  "https://script.google.com/macros/s/AKfycbwK8g6vrhko8aXgSs46aJ_NJuSgxnLuhYX15i0Zqnj4Vo7iE43G4XHn5iD_s-3e5H_3/exec";
+const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
+
+const generateTemplateId = () => crypto.randomUUID ? crypto.randomUUID() : `tpl-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+// server.js — добавь в начало файла
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'твой-секретный-ключ-очень-длинный'; // в .env или Fly secrets
+
+// Сессия (нужна для passport)
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'surpresso-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' } // true на проде
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Стратегия Google
+passport.use(new GoogleStrategy({
+    clientID:     process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL:  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:8080/google/callback'
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    // Здесь ты можешь сохранить/найти пользователя в БД
+    // Для начала просто используем Google-данные
+    const user = {
+      id: profile.id,
+      name: profile.displayName,
+      email: profile.emails[0].value,
+      role: 'user' // или 'engineer' по email
+    };
+    return done(null, user);
+  }
+));
+
+// Сериализация пользователя в сессию
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// Роуты авторизации
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    // Успешный вход — создаём JWT
+    const token = jwt.sign({
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email
+    }, JWT_SECRET, { expiresIn: '7d' });
+
+    // Перенаправляем на главную с токеном в URL (или cookie)
+    res.redirect(`/?token=${token}`);
+  }
+);
+
+// Защищённые роуты (например шаблоны)
+app.use('/warehouse-templates', (req, res, next) => {
+  const token = req.query.token || req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// Новый эндпоинт: текущий пользователь
+app.get('/api/me', (req, res) => {
+  const token = req.query.token || req.headers.authorization?.split(' ')[1];
+  if (!token) return res.json({ user: null });
+  try {
+    const user = jwt.verify(token, JWT_SECRET);
+    res.json({ user });
+  } catch {
+    res.json({ user: null });
+  }
+});
+function ensureTemplateId(tpl) {
+  if (!tpl) return tpl;
+  return {
+    ...tpl,
+    id: tpl.id || tpl.templateId || tpl.createdAt || generateTemplateId()
+  };
+}
 
 function pickLabel(card) {
     if (card.owner === "company") return LABEL_OUR;
@@ -39,7 +138,7 @@ app.post("/send-equipment", async (req, res) => {
 
     if (card.owner === "client") {
       caption =
-        `🟡 Прийом від клієнта\n` +
+        `🟢 Прийом від клієнта\n` +
         `👤 Ім’я: ${card.clientName}\n` +
         `📞 Телефон: ${card.clientPhone}\n` +
         `📍 Локація: ${card.clientLocation}\n` +
@@ -52,7 +151,7 @@ app.post("/send-equipment", async (req, res) => {
 
     } else {
       caption =
-        `🏢 Обладнання компанії\n` +
+        `🔴 Обладнання компанії\n` +
         `📍 Локація: ${card.companyLocation}\n` +
         `🛠 Назва: ${card.name}\n` +
         `🔢 Внутрішній №: ${card.internalNumber}\n` +
@@ -154,6 +253,201 @@ app.post("/send-equipment", async (req, res) => {
   }
 });
 
+// === 📦 Templates proxy ===
+async function loadTemplatesFromDrive(fileId) {
+  if (!fileId) return null;
+
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const resp = await fetch(url, {
+    headers: { "Accept": "application/json,text/plain,*/*" }
+  });
+
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+  const contentType = (resp.headers.get("content-type") || "").toLowerCase();
+  const text = await resp.text();
+
+  // Если Drive вернул HTML (страница доступа/подтверждения) — это НЕ наш JSON
+  if (contentType.includes("text/html") || text.trim().startsWith("<!DOCTYPE html") || text.includes("<html")) {
+    throw new Error("Drive returned HTML вместо JSON (файл не публичный или требует подтверждения)");
+  }
+
+  let items;
+  try {
+    items = JSON.parse(text);
+  } catch (e) {
+    throw new Error("Не удалось распарсить JSON из Drive");
+  }
+
+  // Поддержим 2 формата: либо массив, либо объект {items:[...]}
+  if (Array.isArray(items)) {
+    return items.map(ensureTemplateId);
+  }
+  if (items && Array.isArray(items.items)) {
+    return items.items.map(ensureTemplateId);
+  }
+
+  return [];
+}
+
+
+async function loadTemplatesLocal() {
+  try {
+    const raw = await fs.readFile(TEMPLATES_STORE, "utf8");
+    const data = JSON.parse(raw);
+    const items = Array.isArray(data) ? data : [];
+    const normalized = items.map(ensureTemplateId);
+    const missing = normalized.some((tpl, i) => tpl.id !== items[i]?.id);
+    if (missing) {
+      await saveTemplatesLocal(normalized);
+    }
+    return normalized;
+  } catch {
+    return [];
+  }
+}
+
+async function saveTemplatesLocal(items) {
+  await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
+}
+
+app.get("/warehouse-templates", async (req, res) => {
+  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
+
+  try {
+    // 1. Пытаемся прочитать с Google Drive (если доступен)
+    if (fileId) {
+      const items = await loadTemplatesFromDrive(fileId);
+      if (items) {
+        res.send({ items: items.map(ensureTemplateId), source: "drive" });
+        return;
+      }
+    }
+
+    // 2. Фолбэк на локальный файл, чтобы шаблоны работали даже без интернета
+    const fallback = await loadTemplatesLocal();
+    res.send({ items: fallback, source: "local" });
+  } catch (err) {
+    console.error("TEMPLATE LOAD ERROR", err);
+    const fallback = await loadTemplatesLocal();
+    res.status(200).send({ items: fallback, source: "local", warning: "drive_failed" });
+  }
+});
+
+app.post("/warehouse-templates", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+
+  const template = ensureTemplateId({
+    ...req.body,
+    createdAt: req.body?.createdAt || new Date().toISOString()
+  });
+
+  // 1. Основной путь — Apps Script webhook (Google Sheets/Drive)
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...template, file: fileId })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id: template.id, ...data });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE SAVE ERROR (webhook)", err);
+    }
+  }
+
+  // 2. Фолбэк — локальный json на сервере (общий для всех пользователей сервера)
+  try {
+    const current = await loadTemplatesLocal();
+    const updated = [template, ...current.filter(t => t.id !== template.id)].slice(0, 200); // ограничение по объему
+    await saveTemplatesLocal(updated);
+
+    res.send({ ok: true, source: "local", id: template.id });
+  } catch (err) {
+    console.error("TEMPLATE SAVE ERROR (local)", err);
+    res.status(500).send({ error: "save_failed" });
+  }
+});
+
+app.put("/warehouse-templates/:id", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const id = req.params.id;
+
+  const template = ensureTemplateId({ ...req.body, id, file: fileId });
+
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...template, action: "update" })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE UPDATE ERROR (webhook)", err);
+    }
+  }
+
+  try {
+    const current = await loadTemplatesLocal();
+    const idx = current.findIndex(t => t.id === id);
+    const next = idx === -1
+      ? [template, ...current]
+      : current.map(t => (t.id === id ? { ...t, ...template } : t));
+    await saveTemplatesLocal(next);
+
+    res.send({ ok: true, source: idx === -1 ? "local_added" : "local_updated", id });
+  } catch (err) {
+    console.error("TEMPLATE UPDATE ERROR (local)", err);
+    res.status(500).send({ error: "update_failed" });
+  }
+});
+
+app.delete("/warehouse-templates/:id", async (req, res) => {
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const id = req.params.id;
+
+  if (TEMPLATE_SAVE_URL) {
+    try {
+      const forward = await fetch(TEMPLATE_SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id, file: fileId })
+      });
+
+      const data = await forward.json().catch(() => ({}));
+      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+
+      res.send({ ok: true, source: "webhook", id });
+      return;
+    } catch (err) {
+      console.error("TEMPLATE DELETE ERROR (webhook)", err);
+    }
+  }
+
+  try {
+    const current = await loadTemplatesLocal();
+    const filtered = current.filter(t => t.id !== id);
+    await saveTemplatesLocal(filtered);
+    res.send({ ok: true, source: "local", id });
+  } catch (err) {
+    console.error("TEMPLATE DELETE ERROR (local)", err);
+    res.status(500).send({ error: "delete_failed" });
+  }
+});
+
 // === START SERVER ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
+

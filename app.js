@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.3"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.4"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -39,11 +39,6 @@ async function loadTesseract() {
   });
 }
 
-// ======================
-//  Surpresso Check PWA — обновлённая версия
-//  Поддержка: Drag & Drop, inline qty, Excel в формате макета
-// ======================
-
 // IDs Google Sheets
 const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
 const PARTS_GID = 1099059228;
@@ -62,6 +57,10 @@ const SERVICE_SHEETS = [
 const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
 const USER_SHEET_GID = 0;
 
+// Шаблоны наборов
+const TEMPLATES_FILE_ID = "1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3"; // JSON на Google Drive (чтение)https://drive.google.com/file/d/1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3/view?usp=sharing
+const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwtsXXhRM104adebpAl50eMULdaUlCpBitmQNeDdJA3SVfzyRR7R1ibRql0JKJKUC6aCQ/exec";
+
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
 
@@ -70,6 +69,42 @@ let parts = [];
 let services = [];
 let items = []; // {code,name,qty,price,sum}
 let kit = []; // набор со склада
+let warehouseTemplates = [];
+let templatesPanelOpen = false;
+let editingTemplateId = null;
+// ===== Templates: ID + local cache =====
+const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
+
+function genTemplateId() {
+  // modern browsers
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  // fallback
+  return "tpl-" + Date.now() + "-" + Math.random().toString(16).slice(2, 10);
+}
+
+function saveTemplatesCache(items) {
+  try {
+    localStorage.setItem(TEMPLATES_CACHE_KEY, JSON.stringify(items || []));
+  } catch (e) {
+    console.warn("saveTemplatesCache failed", e);
+  }
+}
+
+function loadTemplatesCache() {
+  try {
+    return JSON.parse(localStorage.getItem(TEMPLATES_CACHE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTemplate(tpl, idx = 0) {
+  if (!tpl) return null;
+  return {
+    ...tpl,
+    id: tpl.id || tpl.templateId || tpl.createdAt || `tpl-${idx}-${Date.now()}`
+  };
+}
 // ======================
 // Загрузка пользователей
 // ======================
@@ -308,99 +343,201 @@ async function loadPrices() {
   }
 }
 
-// ======================
-// Обновление базы (кнопка ⟳)
-// ======================
-
-// ======================
-// Фильтрация списка
-// ======================
 // ======================================
-// ФУЗЗИ-АЛГОРИТМ (легкий и быстрый)
+// УМНЫЙ ФУЗЗИ ПОИСК + ПОИСК ПО ЯЧЕЙКЕ
 // ======================================
-function fuzzyScore(pattern, text) {
-  pattern = pattern.toLowerCase();
-  text = text.toLowerCase();
+// ===== helpers (search) =====
+// ===== helpers =====
+function isCodeLikeQuery(q) {
+  return /\d/.test(String(q || ""));
+}
 
-  // Прямое включение — 100%
-  if (text.includes(pattern)) return 100;
+// оставляем буквы (включая кириллицу) + цифры
+function normalizeSearch(str) {
+  let s = String(str || "").toLowerCase();
 
-  let score = 0;
-  let pIndex = 0;
+  // синонимы микрофарад
+  s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
 
-  // последовательное совпадение букв → чем больше последовательность, тем выше score
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === pattern[pIndex]) {
-      score += 5;
-      pIndex++;
-      if (pIndex === pattern.length) break;
-    } else {
-      score--;
-    }
+  // оставляем буквы/цифры (лат, кир, укр) — без Unicode \p{...} чтобы не ломалось
+  s = s.replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
+  return s;
+}
+
+function tokenizeQuery(q) {
+  return String(q || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/µf/g, "uf")
+    .replace(/мкф/g, "uf")
+    .split(/[\s,.;:|/\\()+\-_]+/g)
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => normalizeSearch(t))
+    .filter(Boolean);
+}
+
+// "0.4", "0,4", "0.40" -> "0.4"
+function normalizeCell(cell) {
+  let s = String(cell || "").trim().toLowerCase();
+  s = s.replace(/\s+/g, "");
+  s = s.replace(/,/g, ".");
+  s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+  return s;
+}
+
+function looksLikeCellQuery(q) {
+  const s = String(q || "").trim();
+  if (!s) return false;
+
+  // ЯЧЕЙКА = начинается с цифры и содержит разделитель (., -, /)
+  // Примеры: "0.4", "2.4.7", "12-3", "1/2", "0,4"
+  // А вот "DC1" сюда больше НЕ попадает.
+  return /^\d+([.,\-\/]\d+)+$/.test(s);
+}
+
+
+function parseStockNum(stockRaw) {
+  if (stockRaw === null || stockRaw === undefined) return NaN;
+  const s = String(stockRaw).replace(/\s+/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+function inStock(item) {
+  const n = parseStockNum(item?.stock);
+  return Number.isFinite(n) && n > 0;
+}
+
+// ======================================
+// ✅ filterList: ячейка строго, иначе адекватный поиск
+// opts.preferStock = true только для parts/warehouse
+// ======================================
+function filterList(list, query, opts = {}) {
+  if (!query || !String(query).trim()) return [];
+
+  const preferStock = !!opts.preferStock;
+  const qRaw = String(query).trim();
+  const q = qRaw.toLowerCase();
+
+  // 1) 🔎 Режим ячейки — строгое совпадение нормализованной ячейки
+  if (looksLikeCellQuery(qRaw)) {
+    const qCell = normalizeCell(qRaw);
+    return list
+      .filter(item => normalizeCell(item.cell) === qCell)
+      .slice(0, 200);
   }
 
-  // штраф за расстояние по длине
-  score -= Math.abs(text.length - pattern.length);
+  const tokens = tokenizeQuery(qRaw);            // ["конденсатор","6"]
+  const qNorm = normalizeSearch(qRaw);           // "конденсатор6"
+  const codeMode = isCodeLikeQuery(qRaw);
 
-  return score;
-}
+  const hasLetters = /[a-zа-яё]/i.test(qRaw);
+  const hasDigits  = /\d/.test(qRaw);
+  const strictTokens = hasLetters && hasDigits;  // "конденсатор 6" / "dc1" / "8f404s" => строгий режим
 
-// ======================================
-// УМНЫЙ ФУЗЗИ ПОИСК
-// ======================================
-function filterList(list, query) {
-  if (!query.trim()) return [];
+  const scored = list.map(item => {
+    const code = String(item.code || "");
+    const name = String(item.name || "");
+    const cell = String(item.cell || "");
+    const stockRaw = item.stock;
 
-  const words = query
-    .toLowerCase()
-    .split(/[\s,.;:]+/)
-    .filter(w => w.length > 0);
+    const codeN = normalizeSearch(code);
+    const nameN = normalizeSearch(name);
+    const cellN = normalizeSearch(cell);
 
-  return list
-    .map(item => {
-      const haystack =
-        `${item.code} ${item.name} ${item.stock || ""} ${item.cell || ""}`.toLowerCase();
+    const hayN = codeN + nameN + cellN;
 
-      // Суммарный фуззи рейтинг по каждому слову
-      let totalScore = 0;
+    // приоритеты по коду
+    const exactCode = qNorm && (codeN === qNorm);
+    const prefixCode = qNorm && codeN.startsWith(qNorm);
+    const inclCode = qNorm && codeN.includes(qNorm);
 
-      for (const w of words) {
-        totalScore += fuzzyScore(w, haystack);
-      }
+    // сколько токенов реально нашли
+    let hitCount = 0;
+    for (const t of tokens) {
+      if (t && hayN.includes(t)) hitCount++;
+    }
+    const allTokensHit = tokens.length ? (hitCount === tokens.length) : false;
 
-      return { item, score: totalScore };
+    // --- фильтрация "мусора" ---
+    // если запрос смешанный (буквы+цифры) — требуем, чтобы ВСЕ токены были найдены
+    // это убирает резинки/наклейки при запросе "конденсатор 6"
+    let passes = true;
+    if (strictTokens && tokens.length >= 2) {
+      passes = allTokensHit;
+    } else if (codeMode) {
+      // кодовый режим: пусть проходит если есть совпадение по коду
+      // или есть хотя бы 1 токен в названии/коде
+      passes = exactCode || prefixCode || inclCode || hitCount > 0;
+    } else {
+      // обычный текст: хотя бы 1 токен
+      passes = hitCount > 0;
+    }
+
+    // --- скоринг ---
+    let score = 0;
+
+    if (exactCode) score += 5000;
+    else if (prefixCode) score += 3000;
+    else if (inclCode) score += 1600;
+
+    // токены (именно name/code/cell)
+    score += hitCount * 250;
+
+    // небольшой бонус за совпадение в названии отдельно
+    if (tokens.length) {
+      let nameHits = 0;
+      for (const t of tokens) if (t && nameN.includes(t)) nameHits++;
+      score += nameHits * 120;
+    }
+
+    // наличие — только если включили preferStock (parts/warehouse)
+    const stockOk = preferStock ? inStock(item) : false;
+    if (stockOk) score += 900;
+
+    return { item, score, passes, stockOk, exactCode, prefixCode };
+  });
+
+  return scored
+    .filter(x => x.passes)
+    .sort((a, b) => {
+      // 1) точный код всегда №1 (даже если нет в наличии)
+      if (a.exactCode !== b.exactCode) return a.exactCode ? -1 : 1;
+
+      // 2) дальше префикс по коду
+      if (a.prefixCode !== b.prefixCode) return a.prefixCode ? -1 : 1;
+
+      // 3) затем наличие (только если preferStock включен)
+      if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+
+      // 4) общий score
+      return b.score - a.score;
     })
-
-    // выбрасываем нерелевантное
-    .filter(res => res.score > 0)
-
-    // сортируем по релевантности
-    .sort((a, b) => b.score - a.score)
-
-    // оставляем только объекты item
-    .map(res => res.item)
-
+    .map(x => x.item)
     .slice(0, 50);
 }
-
 // ======================
 // Подсказки
 // ======================
 function attachSuggest(inputId, suggestId, sourceList) {
   const input = document.getElementById(inputId);
   const suggest = document.getElementById(suggestId);
+  if (!input || !suggest) return;
 
   input.addEventListener("input", () => {
     suggest.innerHTML = "";
 
     if (inputId === "parts-input") {
-      document.getElementById("parts-info").innerHTML = "";
+      const info = document.getElementById("parts-info");
+      if (info) info.innerHTML = "";
     }
 
-    const text = input.value.trim().toLowerCase();
+    const text = input.value.trim();
     if (!text) return;
 
-    const results = filterList(sourceList, text);
+    const preferStock = (inputId === "parts-input" || inputId === "warehouse-input");
+    const results = filterList(sourceList, text, { preferStock });
+
     if (!results.length) return;
 
     const ul = document.createElement("ul");
@@ -409,7 +546,7 @@ function attachSuggest(inputId, suggestId, sourceList) {
       const li = document.createElement("li");
 
       let extraHTML = "";
-      if (inputId === "parts-input") {
+      if (inputId === "parts-input" || inputId === "warehouse-input") {
         extraHTML = `
           <div class="extra">
             📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
@@ -418,21 +555,24 @@ function attachSuggest(inputId, suggestId, sourceList) {
       }
 
       li.innerHTML = `
-        <div class="code">${item.code}</div>
-        <div class="name">${item.name}</div>
-        <div class="price">${item.price.toFixed(2)} грн</div>
+        <div class="code">${item.code || ""}</div>
+        <div class="name">${item.name || ""}</div>
+        <div class="price">${(item.price || 0).toFixed(2)} грн</div>
         ${extraHTML}
       `;
 
       li.addEventListener("click", () => {
-        input.value = item.code || item.name;
+        input.value = item.code || item.name || "";
         suggest.innerHTML = "";
 
         if (inputId === "parts-input") {
-          document.getElementById("parts-info").innerHTML = `
-            <span><span class="icon">📦</span> ${item.stock || "—"}</span>
-            <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
-          `;
+          const info = document.getElementById("parts-info");
+          if (info) {
+            info.innerHTML = `
+              <span><span class="icon">📦</span> ${item.stock || "—"}</span>
+              <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
+            `;
+          }
         }
       });
 
@@ -447,6 +587,30 @@ function attachSuggest(inputId, suggestId, sourceList) {
       suggest.innerHTML = "";
     }
   });
+}
+function addOrMergeItem({ code, name, qty, price, type }) {
+  const qtyAdd = +(+qty || 0).toFixed(2);
+  if (qtyAdd <= 0) return;
+
+  const ex = items.find(it =>
+    it.type === type &&
+    String(it.code) === String(code)
+  );
+
+  if (ex) {
+    ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+    ex.price = +price || 0;
+    ex.sum = +(ex.qty * ex.price).toFixed(2);
+  } else {
+    items.push({
+      code,
+      name,
+      qty: qtyAdd,
+      price: +price || 0,
+      sum: +(qtyAdd * (+price || 0)).toFixed(2),
+      type
+    });
+  }
 }
 
 function addItemFromInput(inputId, qtyId, sourceList) {
@@ -492,14 +656,14 @@ function addItemFromInput(inputId, qtyId, sourceList) {
   }
 
   // ===== Добавление позиции =====
-items.push({
+addOrMergeItem({
   code: found.code || "",
   name: found.name,
   qty,
   price: found.price,
-  sum: qty * found.price,
-  type: sourceList === parts ? "part" : "service"   // ← добавили тип
+  type: sourceList === parts ? "part" : "service"
 });
+
 
 
   inputEl.value = "";
@@ -510,6 +674,52 @@ items.push({
 
   renderTable();
 }
+let _kitChoiceTpl = null;
+
+function openKitChoice(tpl) {
+  _kitChoiceTpl = tpl;
+
+  const modal = document.getElementById("kit-choice-modal");
+  const title = document.getElementById("kit-choice-title");
+  const text  = document.getElementById("kit-choice-text");
+
+  const replaceBtn = document.getElementById("kit-choice-replace-btn");
+  const addBtn     = document.getElementById("kit-choice-add-btn");
+
+  if (!modal || !replaceBtn || !addBtn) return;
+
+  title.textContent = tpl?.name ? `Шаблон: ${tpl.name}` : "Шаблон";
+  text.textContent = kit.length
+    ? "Заменить текущий набор или добавить позиции к нему?"
+    : "Набор пуст. Добавить позиции из шаблона?";
+
+  // handlers
+  replaceBtn.onclick = () => {
+    closeKitChoice();
+    applyTemplateToKit(tpl, { mode: "replace" });
+  };
+
+  addBtn.onclick = () => {
+    closeKitChoice();
+    applyTemplateToKit(tpl, { mode: "add" });
+  };
+
+  modal.classList.remove("hidden");
+
+  // ESC to close
+  document.addEventListener("keydown", _kitChoiceEsc, { once: true });
+}
+
+function _kitChoiceEsc(e) {
+  if (e.key === "Escape") closeKitChoice();
+}
+
+function closeKitChoice() {
+  const modal = document.getElementById("kit-choice-modal");
+  if (modal) modal.classList.add("hidden");
+  _kitChoiceTpl = null;
+}
+
 // ======================
 // 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR + LIVE OCR)
 // ======================
@@ -583,12 +793,6 @@ function toggleWarehouse() {
     setWarehouseMode("manual", { silent: true });
   }
 }
-function normalizeCode(s) {
-  return String(s || "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, ""); // убираем всё кроме букв и цифр
-}
-
 // ---------- storage ----------
 function saveKit() {
   localStorage.setItem("surp_kit", JSON.stringify(kit));
@@ -614,12 +818,11 @@ function applyKitToCheck() {
     const p = parts.find(x => x.code === k.code);
     if (!p) return;
 
-    items.push({
+    addOrMergeItem({
       code: p.code,
       name: p.name,
       qty: k.qty,
       price: p.price,
-      sum: p.price * k.qty,
       type: "part"
     });
   });
@@ -630,6 +833,8 @@ function applyKitToCheck() {
   renderTable();
   toggleWarehouse();
 }
+
+
 //Utilits for scanners
 function existsInPrice(code) {
   const raw = normalizeCode(code);
@@ -749,25 +954,391 @@ function renderWarehouseList() {
     const div = document.createElement("div");
     div.className = "warehouse-item";
 
+    // подтягиваем остаток из прайса по коду
+    const priceItem = parts.find(p => p.code === it.code);
+
+    const stockRaw = priceItem?.stock ?? "";
+    const stockNum = parseFloat(String(stockRaw).replace(",", ".").replace(/[^\d.]+/g, ""));
+    const hasStock = !isNaN(stockNum) && stockNum > 0;
+
+    const stockHTML = hasStock
+      ? `<span class="stock ok">📦 ${stockNum}</span>`
+      : `<span class="stock empty">❌ закончилось</span>`;
+
     div.innerHTML = `
       <div class="top">
-        <span>${it.code}</span>
-        <span>🗄 ${it.cell || "—"}</span>
+        <span class="code">${it.code}</span>
+
+        <div class="meta">
+          ${stockHTML}
+          <span class="cell">🗄 ${it.cell || "—"}</span>
+        </div>
       </div>
+
       <div class="bottom">
         <div class="qty-controls">
           <button type="button" onclick="changeKitQty(${idx}, -1)">−</button>
           <span>${it.qty}</span>
           <button type="button" onclick="changeKitQty(${idx}, 1)">+</button>
         </div>
-        <button type="button" onclick="removeKitItem(${idx})">❌</button>
+      <button
+  type="button"
+  class="remove-btn"
+  onclick="removeKitItem(${idx})"
+  title="Удалить из набора"
+>
+  🗑
+</button>
       </div>
     `;
+
     box.appendChild(div);
   });
 
   updateWarehouseActions();
 }
+function mergeTemplateIntoKit(tpl) {
+  // добавляем позиции шаблона в текущий kit
+  tpl.items.forEach(src => {
+    const code = src.code;
+    if (!code) return;
+
+    const qty = +(+src.qty || 1).toFixed(2);
+
+    const ex = kit.find(k => k.code === code);
+    if (ex) {
+      ex.qty = +(ex.qty + qty).toFixed(2);
+      // можно обновлять имя/ячейку если пустые
+      if (!ex.name && src.name) ex.name = src.name;
+      if (!ex.cell && src.cell) ex.cell = src.cell;
+    } else {
+      kit.push({
+        code,
+        name: src.name || "",
+        cell: src.cell || "",
+        qty
+      });
+    }
+  });
+}
+function chooseTemplateApplyMode(hasKit) {
+  // Если набор пуст — просто "заменить" (по сути одно и то же)
+  if (!hasKit) return "replace";
+
+  // 3 варианта: replace / add / cancel
+  // confirm = заменить, cancel = спросим добавить
+  if (confirm("Применить шаблон?\n\nОК — Заменить текущий набор\nОтмена — Добавить к текущему")) {
+    return "replace";
+  }
+
+  // Второй шаг: добавить или отмена
+  if (confirm("Добавить шаблон к текущему набору?\n\nОК — Добавить\nОтмена — Ничего не делать")) {
+    return "add";
+  }
+
+  return "cancel";
+}
+
+function applyTemplateToKit(tpl, opts = { mode: "replace" }) {
+  if (!tpl || !Array.isArray(tpl.items)) return;
+
+  const mode = opts.mode || "replace";
+
+  if (mode === "replace") {
+    kit = tpl.items.map(it => ({
+      code: it.code,
+      name: it.name,
+      cell: it.cell || "",
+      qty: +(+it.qty || 1).toFixed(2)
+    }));
+  } else {
+    // mode === "add"
+    tpl.items.forEach(it => {
+      const code = it.code;
+      if (!code) return;
+
+      const qtyAdd = +(+it.qty || 1).toFixed(2);
+
+      const ex = kit.find(x => x.code === code);
+      if (ex) {
+        ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
+        // обновим ячейку/имя если вдруг пустые
+        if (!ex.cell && it.cell) ex.cell = it.cell;
+        if (!ex.name && it.name) ex.name = it.name;
+      } else {
+        kit.push({
+          code,
+          name: it.name,
+          cell: it.cell || "",
+          qty: qtyAdd
+        });
+      }
+    });
+  }
+
+  saveKit();
+  renderWarehouseList();
+  updateWarehouseActions();
+  warehouseAlert(
+    mode === "replace"
+      ? `Шаблон "${tpl.name}" заменил набор`
+      : `Шаблон "${tpl.name}" добавлен в набор`,
+    "success",
+    2200
+  );
+}
+
+// ---------- шаблоны ----------
+
+function renderWarehouseTemplates(filter = "") {
+  const box = document.getElementById("warehouse-templates");
+  const empty = document.getElementById("warehouse-templates-empty");
+  if (!box || !empty) return;
+
+  box.innerHTML = "";
+
+  const norm = filter.trim().toLowerCase();
+  const list = warehouseTemplates.filter(t => {
+    if (!norm) return true;
+    return [t.name, t.machine, t.node]
+      .filter(Boolean)
+      .some(v => v.toLowerCase().includes(norm));
+  });
+
+  empty.style.display = list.length ? "none" : "block";
+
+  list.forEach((tpl, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "template-row";
+
+    const meta = document.createElement("div");
+    meta.className = "template-meta";
+    meta.innerHTML = `
+      <div class="template-title">${tpl.name || "Без названия"}</div>
+      <div class="template-sub">${tpl.machine || "—"} • ${tpl.node || "—"}</div>
+      <div class="template-sub">${tpl.createdBy || "неизвестно"} • ${tpl.createdAt || ""}</div>
+    `;
+
+    const actions = document.createElement("div");
+    actions.className = "template-actions";
+
+    const toKitBtn = document.createElement("button");
+    toKitBtn.type = "button";
+    toKitBtn.className = "btn ghost";
+    toKitBtn.textContent = "📦 В набор";
+    toKitBtn.onclick = () => openKitChoice(tpl);
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn ghost";
+    editBtn.textContent = "✏️ Редактировать";
+    editBtn.onclick = () => startTemplateEdit(tpl);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn ghost danger";
+    deleteBtn.textContent = "🗑 Удалить";
+    deleteBtn.onclick = () => deleteWarehouseTemplate(tpl);
+
+    actions.appendChild(toKitBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+
+    wrap.appendChild(meta);
+    wrap.appendChild(actions);
+    box.appendChild(wrap);
+  });
+}
+function resetTemplateForm() {
+  const name = document.getElementById("template-name");
+  const machine = document.getElementById("template-machine");
+  const node = document.getElementById("template-node");
+  const saveBtn = document.getElementById("save-template-btn");
+
+  [name, machine, node].forEach(i => { if (i) i.value = ""; });
+  editingTemplateId = null;
+  if (saveBtn) saveBtn.textContent = "💾 Сохранить";
+}
+
+function startTemplateEdit(tpl) {
+  if (!tpl) return;
+  const name = document.getElementById("template-name");
+  const machine = document.getElementById("template-machine");
+  const node = document.getElementById("template-node");
+  const saveBtn = document.getElementById("save-template-btn");
+
+  if (name) name.value = tpl.name || "";
+  if (machine) machine.value = tpl.machine || "";
+  if (node) node.value = tpl.node || "";
+  if (saveBtn) saveBtn.textContent = "✏️ Обновить";
+
+  editingTemplateId = tpl.id;
+  toggleTemplatesVisibility(true);
+  applyTemplateToKit(tpl);
+}
+
+async function deleteWarehouseTemplate(tpl) {
+  if (!tpl?.id) {
+    warehouseAlert("Не удалось определить шаблон", "error", 2000);
+    return;
+  }
+
+  if (!confirm(`Удалить шаблон \"${tpl.name || tpl.id}\"?`)) return;
+
+  try {
+    const resp = await fetch(`/warehouse-templates/${encodeURIComponent(tpl.id)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: TEMPLATES_FILE_ID })
+    });
+
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    await loadWarehouseTemplates();
+    if (editingTemplateId === tpl.id) resetTemplateForm();
+    warehouseAlert("Шаблон удалён", "success", 2000);
+  } catch (e) {
+    console.error("Ошибка удаления шаблона", e);
+    warehouseAlert("Не удалось удалить шаблон", "error", 2500);
+  }
+}
+
+function toggleTemplatesVisibility(force) {
+  if (typeof force === "boolean") {
+    templatesPanelOpen = force;
+  } else {
+    templatesPanelOpen = !templatesPanelOpen;
+  }
+
+  const panel = document.getElementById("templates-panel");
+  const toggleBtn = document.getElementById("toggle-templates-btn");
+  if (panel) {
+    panel.style.display = templatesPanelOpen ? "block" : "none";
+    panel.classList.toggle("collapsed", !templatesPanelOpen);
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = templatesPanelOpen ? "Скрыть шаблоны ▲" : "Все шаблоны ▾";
+  }
+}
+
+async function loadWarehouseTemplates() {
+  const filterVal = document.getElementById("template-filter")?.value || "";
+
+  try {
+    const url = `/warehouse-templates?file=${encodeURIComponent(TEMPLATES_FILE_ID)}`;
+    const resp = await fetch(url, { cache: "no-store" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+
+    const data = await resp.json();
+
+    warehouseTemplates = Array.isArray(data.items)
+      ? data.items.map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean)
+      : [];
+
+    // ✅ сохраняем кэш в браузере
+    saveTemplatesCache(warehouseTemplates);
+
+    if (data.warning === "drive_failed") {
+      warehouseAlert("Google недоступен — показаны шаблоны с сервера/кэша", "warning", 4000);
+    }
+
+    renderWarehouseTemplates(filterVal);
+  } catch (e) {
+    console.error("Ошибка загрузки шаблонов", e);
+
+    // ✅ фолбэк на локальный кэш в браузере
+    warehouseTemplates = loadTemplatesCache().map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean);
+
+    if (warehouseTemplates.length) {
+      warehouseAlert("Сервер недоступен — показаны шаблоны из кэша (localStorage)", "warning", 4500);
+    } else {
+      warehouseAlert("Не удалось загрузить шаблоны (нет кэша)", "error", 3500);
+    }
+
+    renderWarehouseTemplates(filterVal);
+  }
+}
+
+async function saveWarehouseTemplate() {
+  const name = (document.getElementById("template-name")?.value || "").trim();
+  const machine = (document.getElementById("template-machine")?.value || "").trim();
+  const node = (document.getElementById("template-node")?.value || "").trim();
+
+  if (!kit.length) {
+    warehouseAlert("Набор пустой", "error", 2000);
+    return;
+  }
+  if (!name) {
+    warehouseAlert("Название шаблона обязательно", "error", 2000);
+    return;
+  }
+
+  const isEdit = Boolean(editingTemplateId);
+  const existingTpl = isEdit ? (warehouseTemplates.find(t => t.id === editingTemplateId) || {}) : {};
+
+  // ✅ ВАЖНО: id всегда есть
+  const id = editingTemplateId || genTemplateId();
+
+  const payload = {
+    id,
+    name,
+    machine,
+    node,
+    createdBy: existingTpl.createdBy || CURRENT_USER?.name || CURRENT_USER?.login || "неизвестно",
+    createdAt: existingTpl.createdAt || new Date().toISOString(),
+    file: TEMPLATES_FILE_ID,
+    items: kit.map(i => ({
+      code: i.code,
+      name: i.name,
+      cell: i.cell || "",
+      qty: i.qty
+    }))
+  };
+
+  try {
+    const endpoint = isEdit
+      ? `/warehouse-templates/${encodeURIComponent(id)}`
+      : "/warehouse-templates";
+
+    const resp = await fetch(endpoint, {
+      method: isEdit ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json().catch(() => ({}));
+    if (data.error) throw new Error(data.error);
+
+    warehouseAlert(isEdit ? "Шаблон обновлён" : "Шаблон добавлен", "success", 2000);
+
+    // ✅ сброс формы и режима редактирования
+    resetTemplateForm();
+    editingTemplateId = null;
+
+    // ✅ перезагрузим список
+    await loadWarehouseTemplates();
+  } catch (e) {
+    console.error("Ошибка сохранения шаблона", e);
+    warehouseAlert("Не удалось сохранить шаблон", "error", 3500);
+
+    // ✅ локальный фолбэк: добавим/обновим в кэше браузера
+    try {
+      const cached = loadTemplatesCache();
+      const idx = cached.findIndex(t => t.id === id);
+      const next = idx === -1
+        ? [payload, ...cached]
+        : cached.map(t => (t.id === id ? { ...t, ...payload } : t));
+
+      saveTemplatesCache(next);
+
+      warehouseTemplates = next.map((tpl, i) => normalizeTemplate(tpl, i)).filter(Boolean);
+      renderWarehouseTemplates(document.getElementById("template-filter")?.value || "");
+
+      warehouseAlert("Сохранил в кэш (localStorage). Позже синхронизируем с сервером.", "warning", 4500);
+    } catch {}
+  }
+}
+
 
 // ======================
 // 🎛 MODE SWITCH (с корректной остановкой камеры)
@@ -841,10 +1412,6 @@ function stopLiveAll() {
   stopLiveOCR();
 }
 
-
-// ======================
-// 📷 LIVE QR / BARCODE SCAN
-// ======================
 
 // ======================
 // 📷 QR / BARCODE SCAN — FINAL
@@ -1718,6 +2285,58 @@ function updateFooterTicker() {
 
   loop();
 })();
+function setTheme(mode) {
+  // mode: "dark" | "light" | "auto"
+  document.body.classList.remove("theme-light", "theme-dark");
+
+  if (mode === "light") document.body.classList.add("theme-light");
+  if (mode === "dark")  document.body.classList.add("theme-dark");
+
+  localStorage.setItem("surp_theme", mode);
+  updateThemeButton();
+}
+
+function getEffectiveTheme() {
+  const saved = localStorage.getItem("surp_theme") || "dark"; // default dark
+  if (saved !== "auto") return saved;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+}
+
+function applyThemeFromStorage() {
+  const saved = localStorage.getItem("surp_theme") || "dark";
+  const eff = (saved === "auto") ? getEffectiveTheme() : saved;
+  document.body.classList.toggle("theme-light", eff === "light");
+  document.body.classList.toggle("theme-dark",  eff === "dark");
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const btn = document.getElementById("theme-btn");
+  if (!btn) return;
+  const isLight = document.body.classList.contains("theme-light");
+  btn.textContent = isLight ? "🌙" : "☀️";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  applyThemeFromStorage();
+
+  const btn = document.getElementById("theme-btn");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const isLight = document.body.classList.contains("theme-light");
+      setTheme(isLight ? "dark" : "light");
+    });
+  }
+
+  // если когда-то включишь "auto", тема будет меняться при смене системной
+  const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+  mq?.addEventListener?.("change", () => {
+    const saved = localStorage.getItem("surp_theme") || "dark";
+    if (saved === "auto") applyThemeFromStorage();
+  });
+});
 
 // ======================
 // Инициализация
@@ -1738,6 +2357,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   await loadPrices();
   loadKit();
+  loadWarehouseTemplates();
 
 
   attachSuggest("parts-input", "parts-suggest", parts);
@@ -1752,9 +2372,29 @@ attachSuggest(
   renderTable();
   
   const clearBtn = document.getElementById("clear-kit-btn");
-if (clearBtn) {
-  clearBtn.onclick = clearWarehouseKit;
-}
+  if (clearBtn) {
+    clearBtn.onclick = clearWarehouseKit;
+  }
+
+  const saveTplBtn = document.getElementById("save-template-btn");
+  if (saveTplBtn) {
+    saveTplBtn.onclick = saveWarehouseTemplate;
+  }
+
+  const tplFilter = document.getElementById("template-filter");
+  if (tplFilter) {
+    tplFilter.addEventListener("input", e => {
+      renderWarehouseTemplates(e.target.value);
+    });
+  }
+
+  const toggleTplBtn = document.getElementById("toggle-templates-btn");
+  if (toggleTplBtn) {
+    toggleTplBtn.addEventListener("click", () => {
+      toggleTemplatesVisibility();
+    });
+    toggleTemplatesVisibility(false);
+  }
 
   const refreshBtn = document.getElementById("hard-refresh-btn");
   if (refreshBtn) {
@@ -1769,4 +2409,44 @@ if (clearBtn) {
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
