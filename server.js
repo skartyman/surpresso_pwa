@@ -447,5 +447,4 @@ app.delete("/warehouse-templates/:id", authenticateToken, async (req, res) => {
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
-
 });
