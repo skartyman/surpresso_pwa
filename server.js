@@ -22,7 +22,7 @@ const LABEL_OUR = "65895fe3788e6f790d29e8b0";       // НАШЕ Майстерн
 const LABEL_CLIENT = "65895fe3788e6f790d29e8ad";     // КЛ Майстерня
 const LABEL_CONTRACT = "65a69d546560f1050990998d";   // ОБСЛ Майстерня
 const TEMPLATE_SAVE_URL = process.env.TEMPLATE_SAVE_WEBHOOK ||
-  "https://script.google.com/macros/s/AKfycbwK8g6vrhko8aXgSs46aJ_NJuSgxnLuhYX15i0Zqnj4Vo7iE43G4XHn5iD_s-3e5H_3/exec";
+  "https://script.google.com/macros/s/AKfycbwO0gS3bMjbmY479TetXjt-_gZ8Ty3FjFYse0xSmS_81Plmd7ld50GvMZ9eH5Z8bunO/exec";
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 
 const generateTemplateId = () => crypto.randomUUID ? crypto.randomUUID() : `tpl-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -449,5 +449,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // === START SERVER ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
