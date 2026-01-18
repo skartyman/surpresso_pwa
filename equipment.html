@@ -189,47 +189,37 @@
 
 </div> <!-- end main -->
 
-<script>
-	// ======================
-//  EQUIPMENT REGISTRY (Apps Script WebApp)
+<script>	
 // ======================
-const EQUIP_API = "https://script.google.com/macros/s/AKfycbx53SUfuTcC3jZ5K_mX5lseF3HQiFyYxMa41ry_vlVk0GALCiZIXxTYVErK9TdJN5NS/exec";
-
-// 1) Получить/создать единый ID оборудования (чтобы не менялся между печатью/отправкой)
-function getOrCreateEquipId() {
-  let id = localStorage.getItem("equip_current_id");
-  if (!id) {
-    id = "SURPRESSO-" + Date.now().toString().slice(-8); // или "SURP-" как тебе нравится
-    localStorage.setItem("equip_current_id", id);
+// AUTH KEY FOR PWA -> SERVER
+// ======================
+function getPwaKey() {
+  // лучше sessionStorage, чтобы не оставался навсегда
+  let key = sessionStorage.getItem("surpresso_pwa_key");
+  if (!key) {
+    key = prompt("Введи ключ доступа (PWA Key):") || "b78214820561570fae5f86ba7e62ed078a5e451ac25a35d4b2beec3ac5f097f0";
+    key = key.trim();
+    if (!key) throw new Error("NO_PWA_KEY");
+    sessionStorage.setItem("surpresso_pwa_key", key);
   }
-  return id;
+  return key;
 }
 
-// 🔓 PIN временно отключён
-function getSecret() {
-  return "NO_PIN_TEMP";
-}
+async function apiFetch(url, options = {}) {
+  const key = getPwaKey();
 
-async function ensureSecret() {
-  return "NO_PIN_TEMP";
-}
+  const headers = {
+    ...(options.headers || {}),
+    "x-surpresso-key": key
+  };
 
+  // если отправляешь JSON — гарантируем content-type
+  if (options.body && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  }
 
-// 3) POST в Apps Script
-async function apiPost(payload) {
-  const resp = await fetch(EQUIP_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const text = await resp.text(); // Apps Script иногда отдаёт HTML при ошибках
-  let json;
-  try { json = JSON.parse(text); }
-  catch { throw new Error("AppsScript not JSON: " + text.slice(0, 120)); }
-
-  if (!json.ok) throw new Error(json.error || "AppsScript error");
-  return json;
+  const resp = await fetch(url, { ...options, headers });
+  return resp;
 }
 
 function openPrintPage() {
@@ -849,6 +839,7 @@ window.addEventListener("load", () => {
 
 </body>
 </html>
+
 
 
 
