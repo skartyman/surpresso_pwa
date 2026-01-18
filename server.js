@@ -20,12 +20,12 @@ app.use(express.static(path.join(__dirname)));
 // =======================
 const PORT = process.env.PORT || 8080;
 
-// PWA -> NODE (временная защита, потом заменим на Google auth)
+// PWA -> NODE
 const PWA_KEY = process.env.PWA_KEY || "";
 
 // NODE -> GAS
 const GAS_WEBAPP_URL = process.env.GAS_WEBAPP_URL || ""; // https://script.google.com/macros/s/.../exec
-const GAS_SECRET = process.env.GAS_SECRET || "";         // любая длинная строка
+const GAS_SECRET = process.env.GAS_SECRET || "";         // длинная строка
 
 // Telegram
 const TG_BOT = process.env.TG_BOT_TOKEN || "";
@@ -52,8 +52,7 @@ const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 // HELPERS: auth
 // =======================
 function requirePwaKey(req, res, next) {
-  // если ключ не задан — пропускаем (удобно для локалки)
-  if (!PWA_KEY) return next();
+  if (!PWA_KEY) return next(); // удобно для локалки
 
   const key = req.headers["x-surpresso-key"] || req.query.k;
   if (!key || String(key) !== String(PWA_KEY)) {
@@ -78,12 +77,16 @@ async function gasPost(payload) {
   if (!GAS_WEBAPP_URL) throw new Error("GAS_WEBAPP_URL is not set");
   if (!GAS_SECRET) throw new Error("GAS_SECRET is not set");
 
-  const url = `${GAS_WEBAPP_URL}?secret=${encodeURIComponent(GAS_SECRET)}`;
+  // ✅ секрет передаем в BODY, как ожидает новый GAS
+  const body = {
+    secret: GAS_SECRET,
+    ...payload,
+  };
 
-  const resp = await fetch(url, {
+  const resp = await fetch(GAS_WEBAPP_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 
   const text = await resp.text();
@@ -100,98 +103,152 @@ async function gasPost(payload) {
 }
 
 // =======================
-// 1) MAIN: SEND TO TELEGRAM + TRELLO + (GAS registry)
+// HELPERS: Telegram send
+// =======================
+async function tgSendText(text) {
+  if (!TG_BOT || !TG_CHAT) return;
+  await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: TG_CHAT,
+      text,
+      disable_web_page_preview: true,
+    }),
+  }).catch(() => {});
+}
+
+async function tgSendPhotos(photos, caption) {
+  if (!TG_BOT || !TG_CHAT) return;
+
+  if (!photos || photos.length === 0) {
+    if (caption) await tgSendText(caption);
+    return;
+  }
+
+  const tgForm = new FormData();
+  const media = [];
+
+  photos.forEach((base64, i) => {
+    const fileId = `file${i}.jpg`;
+    const buffer = Buffer.from(
+      String(base64).replace(/^data:image\/\w+;base64,/, ""),
+      "base64"
+    );
+
+    tgForm.append(fileId, buffer, { filename: fileId });
+
+    media.push({
+      type: "photo",
+      media: `attach://${fileId}`,
+      caption: i === photos.length - 1 ? caption : "",
+    });
+  });
+
+  tgForm.append("chat_id", TG_CHAT);
+  tgForm.append("media", JSON.stringify(media));
+
+  const tgResp = await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMediaGroup`, {
+    method: "POST",
+    body: tgForm,
+  });
+
+  console.log("TG RESPONSE:", await tgResp.text());
+}
+
+// =======================
+// HELPERS: caption
+// =======================
+function buildCaption(card) {
+  let caption = "";
+
+  if (card.owner === "client") {
+    caption =
+      `🟢 Прийом від клієнта\n` +
+      `🆔 ID: ${card.id || ""}\n` +
+      `👤 Ім’я: ${card.clientName || ""}\n` +
+      `📞 Телефон: ${card.clientPhone || ""}\n` +
+      `📍 Локація: ${card.clientLocation || ""}\n` +
+      `⚙️ Модель: ${card.model || ""}\n` +
+      `🔢 Серійний: ${card.serial || ""}\n` +
+      `❗ Проблема: ${card.problem || ""}\n`;
+
+    if (card.isContract) caption += `📄 Клієнт за договором (обслуговування)\n`;
+  } else {
+    caption =
+      `🔴 Обладнання компанії\n` +
+      `🆔 ID: ${card.id || ""}\n` +
+      `📍 Локація: ${card.companyLocation || ""}\n` +
+      `🛠 Назва: ${card.name || ""}\n` +
+      `🔢 Внутрішній №: ${card.internalNumber || ""}\n` +
+      `❗ Завдання: ${card.task || ""}\n` +
+      `📝 Коментар: ${card.comment || ""}\n`;
+  }
+
+  return caption;
+}
+
+// =======================
+// 1) MAIN: первичный прием (TG + Trello + GAS)
 // =======================
 app.post("/send-equipment", requirePwaKey, async (req, res) => {
   try {
     const { card, photos = [] } = req.body || {};
     if (!card) return res.status(400).send({ ok: false, error: "no_card" });
 
-    // -----------------------
-    // Telegram caption
-    // -----------------------
-    let caption = "";
+    // ✅ статус задаем на первом приеме
+    const payloadCard = { ...card };
 
-    if (card.owner === "client") {
-      caption =
-        `🟢 Прийом від клієнта\n` +
-        `👤 Ім’я: ${card.clientName || ""}\n` +
-        `📞 Телефон: ${card.clientPhone || ""}\n` +
-        `📍 Локація: ${card.clientLocation || ""}\n` +
-        `⚙️ Модель: ${card.model || ""}\n` +
-        `🔢 Серійний: ${card.serial || ""}\n` +
-        `❗ Проблема: ${card.problem || ""}\n`;
-
-      if (card.isContract) caption += `📄 Клієнт за договором (обслуговування)\n`;
-    } else {
-      caption =
-        `🔴 Обладнання компанії\n` +
-        `📍 Локація: ${card.companyLocation || ""}\n` +
-        `🛠 Назва: ${card.name || ""}\n` +
-        `🔢 Внутрішній №: ${card.internalNumber || ""}\n` +
-        `❗ Завдання: ${card.task || ""}\n` +
-        `📝 Коментар: ${card.comment || ""}\n`;
+    if (!payloadCard.status) {
+      payloadCard.status = payloadCard.owner === "company"
+        ? "Бронь"
+        : "принято на ремонт";
     }
 
+    const caption = buildCaption(payloadCard);
+
     // -----------------------
-    // Telegram sendMediaGroup
+    // 1) GAS create/upsert + photos
     // -----------------------
-    if (TG_BOT && TG_CHAT && photos.length > 0) {
-      const tgForm = new FormData();
-      const media = [];
+    let registry = null;
+    if (GAS_WEBAPP_URL && GAS_SECRET) {
+      registry = await gasPost({ action: "create", card: payloadCard });
 
-      photos.forEach((base64, i) => {
-        const fileId = `file${i}.jpg`;
-        const buffer = Buffer.from(
-          String(base64).replace(/^data:image\/\w+;base64,/, ""),
-          "base64"
-        );
-
-        tgForm.append(fileId, buffer, { filename: fileId });
-
-        media.push({
-          type: "photo",
-          media: `attach://${fileId}`,
-          caption: i === photos.length - 1 ? caption : "",
+      for (let i = 0; i < photos.length; i++) {
+        await gasPost({
+          action: "photo",
+          id: payloadCard.id,
+          base64: photos[i],
+          caption: `Фото ${i + 1}`,
         });
-      });
-
-      tgForm.append("chat_id", TG_CHAT);
-      tgForm.append("media", JSON.stringify(media));
-
-      const tgResp = await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMediaGroup`, {
-        method: "POST",
-        body: tgForm,
-      });
-
-      console.log("TG RESPONSE:", await tgResp.text());
-    } else if (TG_BOT && TG_CHAT && photos.length === 0) {
-      // если фото нет — можно отправить просто сообщение
-      await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: TG_CHAT,
-          text: caption,
-          disable_web_page_preview: true,
-        }),
-      }).catch(() => {});
+      }
     }
 
     // -----------------------
-    // Trello create card + attach photos
+    // 2) Telegram post (при первичном приеме)
+    // -----------------------
+    await tgSendPhotos(photos, caption);
+
+    // -----------------------
+    // 3) Trello create card + attach photos
     // -----------------------
     let trelloCardId = null;
 
     if (TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID) {
-      const labelId = pickLabel(card);
+      const labelId = pickLabel(payloadCard);
 
       const trelloName =
-        card.owner === "company"
-          ? `🛠Обладнання: ${card.name || ""} |📍Локація: ${card.companyLocation || ""} | 🔢Внутрішній №:${card.internalNumber || ""} | 📝Коментар:${card.comment || ""}`
-          : `👤Клієнт: ${card.clientName || ""} | ⚙️Модель:${card.model || ""} | ❗Проблема:${card.problem || ""}`;
+        payloadCard.owner === "company"
+          ? `🛠Обладнання: ${payloadCard.name || ""} |📍${payloadCard.companyLocation || ""} | №:${payloadCard.internalNumber || ""}`
+          : `👤Клієнт: ${payloadCard.clientName || ""} | ⚙️${payloadCard.model || ""} | ❗${payloadCard.problem || ""}`;
 
-      const desc = caption + "\n\n📸 Фото прикріплені в Telegram.";
+      // ✅ ссылка на паспорт через NODE (а не GAS)
+      const passportLink = `${req.protocol}://${req.get("host")}/passport.html?id=${encodeURIComponent(payloadCard.id)}`;
+
+      const desc =
+        caption +
+        `\n\n🔗 Паспорт: ${passportLink}\n` +
+        `\n📸 Фото прикріплені в Telegram.`;
 
       const createCard = await fetch(
         `https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`,
@@ -233,36 +290,7 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
       }
     }
 
-    // -----------------------
-    // GAS registry: create + photos
-    // -----------------------
-    let registry = null;
-    if (GAS_WEBAPP_URL && GAS_SECRET) {
-      try {
-        // при первом приёме статус сразу "Прийнято на ремонт"
-        const payloadCard = { ...card };
-        if (!payloadCard.status) payloadCard.status = "Прийнято на ремонт";
-
-        registry = await gasPost({ action: "create", card: payloadCard });
-
-        for (let i = 0; i < photos.length; i++) {
-          await gasPost({
-            action: "photo",
-            id: payloadCard.id,
-            base64: photos[i],
-            caption: `Фото ${i + 1}`,
-          });
-        }
-      } catch (e) {
-        console.warn("GAS registry failed:", e);
-      }
-    }
-
-    res.send({
-      ok: true,
-      trelloCardId,
-      registry,
-    });
+    res.send({ ok: true, trelloCardId, registry });
   } catch (err) {
     console.error("SERVER ERROR:", err);
     res.status(500).send({ ok: false, error: String(err) });
@@ -284,7 +312,7 @@ app.get("/api/equip/:id", requirePwaKey, async (req, res) => {
   }
 });
 
-// изменить статус (сервер решает — постить в TG или нет будет делать GAS логикой, позже)
+// изменить статус (пока без TG, дальше добавим умные правила)
 app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
