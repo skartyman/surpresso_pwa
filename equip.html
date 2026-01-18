@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Surpresso — Паспорт</title>
+  <style>
+    body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #F2C94C;padding-bottom:10px}
+    .logo{font-size:20px;font-weight:800}
+    .sub{font-size:12px;color:#666}
+    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn-yellow{background:#F2C94C}
+    .btn-ghost{background:#f4f4f4}
+    select,input,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px}
+    table{width:100%;border-collapse:collapse}
+    td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
+    td.lbl{font-weight:700;width:220px}
+    .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
+    .ph{border:1px solid #eee;border-radius:12px;overflow:hidden}
+    .ph img{width:100%;display:block;height:160px;object-fit:cover}
+    .muted{color:#666;font-size:12px}
+    .warn{color:#b00;font-weight:700}
+    .ok{color:#0a7;font-weight:700}
+    .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
+    .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="logo">Surpresso Service</div>
+        <div class="sub">Паспорт / статус обладнання</div>
+      </div>
+      <div class="sub">ID: <b id="eqId">—</b></div>
+    </div>
+
+    <div id="noId" class="card" style="display:none">
+      <div class="warn">Немає ID. Відкрий сторінку як: <b>equip.html?id=...</b></div>
+    </div>
+
+    <div id="main" style="display:none">
+      <div class="card">
+        <div class="bar" style="justify-content:space-between">
+          <div>
+            <div class="muted">Поточний статус</div>
+            <div style="font-size:18px;font-weight:800" id="curStatus">—</div>
+            <div class="muted" id="updatedAt"></div>
+          </div>
+
+          <div class="row">
+            <button class="btn btn-ghost" id="btnPdf">📄 PDF A4</button>
+            <button class="btn btn-yellow" id="btnRefresh">⟳ Оновити</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <span class="pill" id="pillOwner">owner: —</span>
+          <span class="pill" id="pillType">type: —</span>
+          <a class="pill link" id="driveFolderLink" href="#" target="_blank" style="display:none">📁 Drive папка</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <div>
+            <div class="muted">Змінити статус</div>
+            <select id="statusSelect"></select>
+          </div>
+          <div>
+            <div class="muted">Коментар</div>
+            <input id="comment" placeholder="Напр: Забрав клієнт, віддали в оренду..." />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <input id="actor" placeholder="Хто змінив (опц.) напр: Ігор" style="max-width:220px" />
+          <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
+          <span class="muted" id="statusHint"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div style="font-weight:800">Інформація</div>
+          <div class="muted" id="infoHint"></div>
+        </div>
+        <table id="info"></table>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div style="font-weight:800">Фото</div>
+          <div class="row">
+            <input type="file" id="photoFile" accept="image/*" />
+            <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:6px">Фото зберігаються в папці обладнання (Drive).</div>
+        <div class="photos" id="photos"></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:800">Історія статусів</div>
+        <table id="log"></table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===========================
+    // CONFIG
+    // ===========================
+    const PWA_KEY_STORAGE = "surpresso_pwa_key"; // где храним ключ
+    const API_BASE = ""; // если API на том же домене -> пусто; иначе поставь "https://твойдомен"
+
+    const DEFAULT_STATUSES_CLIENT = [
+      "Прийнято на ремонт",
+      "В роботі",
+      "Готово",
+      "Видано клієнту"
+    ];
+
+    const DEFAULT_STATUSES_COMPANY = [
+      "Бронь",
+      "Готово к аренде",
+      "Уезжает на аренду",
+      "Приехало после аренды",
+      "Уезжает на подмену",
+      "Приехало с подмены",
+      "Продано"
+    ];
+
+    const $ = (id) => document.getElementById(id);
+
+    // ===========================
+    // GET ID FROM URL
+    // ===========================
+    const params = new URLSearchParams(location.search);
+    const EQUIPMENT_ID = (params.get("id") || "").trim();
+
+    if (!EQUIPMENT_ID) {
+      $("noId").style.display = "block";
+    } else {
+      $("main").style.display = "block";
+      $("eqId").textContent = EQUIPMENT_ID;
+
+      $("btnRefresh").onclick = load;
+      $("btnStatus").onclick = saveStatus;
+      $("btnUpload").onclick = uploadPhoto;
+      $("btnPdf").onclick = () => {
+        // PDF через Node -> редирект на Drive
+        location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
+      };
+
+      load();
+    }
+
+    // ===========================
+    // AUTH: key
+    // ===========================
+    function getKey() {
+      return localStorage.getItem(PWA_KEY_STORAGE) || "";
+    }
+
+    function ensureKey() {
+      let k = getKey();
+      if (k) return k;
+      k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+      if (!k) return "";
+      localStorage.setItem(PWA_KEY_STORAGE, k);
+      return k;
+    }
+
+    function headersWithKey() {
+      const k = ensureKey();
+      return k ? { "x-surpresso-key": k } : {};
+    }
+
+    function withKeyQuery() {
+      // если ты хочешь вместо header подставлять query ?k=
+      // сейчас оставим пусто, потому что PDF редирект удобнее с query, но сервер ждёт header
+      // поэтому: сделаем query ?k=... на случай requirePwaKey()
+      const k = ensureKey();
+      if (!k) return "";
+      return `?k=${encodeURIComponent(k)}`;
+    }
+
+    // ===========================
+    // API wrapper: Node -> GAS
+    // ===========================
+    async function apiGet(url) {
+      const resp = await fetch(url, { headers: headersWithKey() });
+      return await resp.json();
+    }
+
+    async function apiPost(url, payload) {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headersWithKey()
+        },
+        body: JSON.stringify(payload || {})
+      });
+      return await resp.json();
+    }
+
+    // ===========================
+    // LOAD & RENDER
+    // ===========================
+    let CURRENT_OWNER = ""; // client / company
+
+    async function load() {
+      $("statusHint").textContent = "Завантажую...";
+      const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
+
+      if (!data.ok) {
+        $("statusHint").textContent = "";
+        return alert(data.error || "Помилка завантаження");
+      }
+
+      render(data);
+      $("statusHint").textContent = "";
+    }
+
+    function render(data) {
+      const eq = data.equipment || {};
+      const photos = data.photos || [];
+      const log = data.log || [];
+
+      CURRENT_OWNER = eq.owner || "";
+
+      $("curStatus").textContent = eq.status || "—";
+      $("updatedAt").textContent = "Оновлено: " + fmt(eq.updatedAt);
+
+      $("pillOwner").textContent = "owner: " + (eq.owner || "—");
+      $("pillType").textContent = "type: " + (eq.type || "—");
+
+      // Drive folder link
+      if (eq.folderUrl) {
+        $("driveFolderLink").href = eq.folderUrl;
+        $("driveFolderLink").style.display = "inline-flex";
+      } else {
+        $("driveFolderLink").style.display = "none";
+      }
+
+      // fill statuses (по owner)
+      const statuses = buildStatusesFor(eq);
+      fillStatuses(statuses, eq.status);
+
+      // info table
+      const rows = [];
+      const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
+
+      add("Тип", eq.type || "—");
+      add("Власник", eq.owner || "—");
+      if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
+
+      if (eq.owner === "client") {
+        add("Клієнт", eq.clientName || "—");
+        add("Телефон", eq.clientPhone || "—");
+        add("Локація", eq.clientLocation || "—");
+        add("Модель", eq.model || "—");
+        add("Серійний", eq.serial || "—");
+      } else {
+        add("Локація (заклад/цех)", eq.companyLocation || "—");
+        add("Назва", eq.name || "—");
+        add("Внутрішній №", eq.internalNumber || "—");
+      }
+
+      add("Останній коментар", eq.lastComment || "—");
+
+      $("info").innerHTML = rows.join("");
+
+      // photos render
+      $("photos").innerHTML = photos.length
+        ? photos.map(p => `
+          <div class="ph">
+            <a href="${p.url}" target="_blank"><img src="${p.url}" alt=""></a>
+          </div>
+        `).join("")
+        : `<div class="muted">Фото поки що немає.</div>`;
+
+      // log render
+      $("log").innerHTML = log.length
+        ? log.map(r => `
+          <tr>
+            <td style="width:160px">${fmt(r.ts)}</td>
+            <td><b>${esc(r.newStatus)}</b>
+              ${r.comment ? "— " + esc(r.comment) : ""}
+              ${r.actor ? `<span class="muted">(${esc(r.actor)})</span>` : ""}
+            </td>
+          </tr>
+        `).join("")
+        : `<tr><td class="muted">Немає записів</td></tr>`;
+    }
+
+    function buildStatusesFor(eq) {
+      // если GAS отдаёт statuses — можешь подхватить
+      // но мы делаем по твоей логике
+      if (eq.owner === "company") return DEFAULT_STATUSES_COMPANY;
+      return DEFAULT_STATUSES_CLIENT;
+    }
+
+    function fillStatuses(list, current) {
+      const sel = $("statusSelect");
+      sel.innerHTML = "";
+      list.forEach(s => {
+        const o = document.createElement("option");
+        o.value = s;
+        o.textContent = s;
+        sel.appendChild(o);
+      });
+
+      if (current && list.includes(current)) sel.value = current;
+      else sel.value = list[0] || "";
+    }
+
+    // ===========================
+    // SAVE STATUS
+    // ===========================
+    async function saveStatus() {
+      const newStatus = $("statusSelect").value;
+      const comment = $("comment").value.trim();
+      const actor = $("actor").value.trim();
+
+      $("btnStatus").disabled = true;
+      $("statusHint").textContent = "Зберігаю...";
+
+      const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
+        newStatus, comment, actor
+      });
+
+      $("btnStatus").disabled = false;
+      $("statusHint").textContent = "";
+
+      if (!out.ok) return alert(out.error || "Помилка");
+
+      $("comment").value = "";
+      await load();
+    }
+
+    // ===========================
+    // UPLOAD PHOTO
+    // ===========================
+    async function uploadPhoto() {
+      const file = $("photoFile").files[0];
+      if (!file) return alert("Оберіть фото");
+
+      $("btnUpload").disabled = true;
+      $("infoHint").textContent = "Завантажую фото...";
+
+      const base64 = await fileToBase64(file);
+
+      const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
+        base64,
+        caption: ""
+      });
+
+      $("btnUpload").disabled = false;
+      $("infoHint").textContent = "";
+
+      if (!out.ok) return alert(out.error || "Помилка");
+
+      $("photoFile").value = "";
+      await load();
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+
+    // ===========================
+    // UTILS
+    // ===========================
+    function fmt(d) {
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt)) return "";
+        const dd = String(dt.getDate()).padStart(2, "0");
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        const yy = String(dt.getFullYear()).slice(-2);
+        const hh = String(dt.getHours()).padStart(2, "0");
+        const mi = String(dt.getMinutes()).padStart(2, "0");
+        return `${dd}.${mm}.${yy} ${hh}:${mi}`;
+      } catch (e) { return ""; }
+    }
+
+    function esc(v) {
+      if (v === null || v === undefined) return "—";
+      return String(v)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+  </script>
+</body>
+</html>
