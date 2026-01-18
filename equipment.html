@@ -68,6 +68,37 @@
           <option value="osmos">Система фильтров</option>
         </select>
       </div>
+<hr style="margin:16px 0; border:0; border-top:1px solid #eee;">
+
+<h3 style="margin:0 0 10px 0;">🔎 Открыть уже добавленное оборудование</h3>
+
+<div class="field">
+  <label>ID / Серийный / Внутренний №</label>
+  <input id="equipLookupId" placeholder="Например: 2P.109 или 22010488" />
+</div>
+
+<div class="row" style="gap:8px; margin-top:8px;">
+  <button class="btn ghost" type="button" onclick="startQrScan()">📷 Сканировать QR</button>
+  <button class="btn primary" type="button" onclick="openEquipmentByInput()">➡️ Открыть</button>
+</div>
+
+<!-- QR SCANNER PANEL -->
+<div id="qrScannerCard" class="card" style="display:none; margin-top:12px;">
+  <h2>QR Сканер</h2>
+
+  <video id="qrVideo" autoplay playsinline
+    style="width:100%; border-radius:12px; background:#000; max-height:360px; object-fit:cover;"></video>
+
+  <canvas id="qrCanvas" style="display:none;"></canvas>
+
+  <div class="row" style="margin-top:10px; gap:8px;">
+    <button class="btn ghost" type="button" onclick="stopQrScan()">⏹ Закрыть</button>
+  </div>
+
+  <div class="muted" style="margin-top:6px; font-size:12px; color:#666;">
+    Наведи камеру на QR с ID (например: SURP-12345678)
+  </div>
+</div>
 
       <button class="btn primary wide" onclick="goToStep2()">Далее</button>
     </div>
@@ -173,6 +204,147 @@
   </div><!-- end main -->
 
   <script>
+    // ============================
+// QR -> открыть оборудование по ID
+// QR содержит только ID (без ссылок)
+// ============================
+
+let qrStream = null;
+let qrLoopTimer = null;
+
+function normalizeEquipId(raw) {
+  if (!raw) return "";
+  return String(raw).trim()
+    .replace(/^https?:\/\/.+?(\?|&|#)id=/i, "") // если вдруг случайно засунут ссылку
+    .replace(/[^\w\-]/g, "")                   // чистим мусор
+    .trim();
+}
+
+// 🔥 Открытие страницы оборудования
+// Тут ТЫ ВЫБИРАЕШЬ куда открывать:
+// ✅ вариант 1: открыть "паспорт" на твоем сервере (лучше)
+// ✅ вариант 2: открыть GAS напрямую (если надо)
+function openEquipmentPageById(id) {
+  id = normalizeEquipId(id);
+  if (!id) return alert("Нет ID оборудования");
+
+  // ✅ РЕКОМЕНДУЮ: открыть страницу паспорта, которая лежит на твоём Node сервере
+  // (например /equip.html?id=... или /passport.html?id=...)
+  window.location.href = `equip.html?id=${encodeURIComponent(id)}`;
+
+  // ❗ Если хочешь открывать GAS напрямую (не рекомендую светить URL):
+  // window.location.href = `${GAS_WEBAPP_URL}?id=${encodeURIComponent(id)}`;
+}
+
+// кнопка "Открыть" возле поля ввода
+function openEquipmentByInput() {
+  const v = document.getElementById("equipLookupId")?.value || "";
+  const id = normalizeEquipId(v);
+  if (!id) return alert("Введи ID оборудования");
+  openEquipmentPageById(id);
+}
+
+// ============================
+// QR SCAN (BarcodeDetector)
+// ============================
+
+async function startQrScan() {
+  const card = document.getElementById("qrScannerCard");
+  const video = document.getElementById("qrVideo");
+  const canvas = document.getElementById("qrCanvas");
+
+  if (!card || !video) return;
+
+  // показываем панель
+  card.style.display = "block";
+
+  // поддержка BarcodeDetector
+  if (!("BarcodeDetector" in window)) {
+    alert("⚠️ QR сканер не поддерживается на этом устройстве.\nОткрой в Chrome на Android или введи ID вручную.");
+    return;
+  }
+
+  try {
+    // камера
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+
+    video.srcObject = qrStream;
+    await video.play();
+
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+
+    const tick = async () => {
+      try {
+        if (!video.videoWidth) {
+          qrLoopTimer = requestAnimationFrame(tick);
+          return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const barcodes = await detector.detect(canvas);
+
+        if (barcodes && barcodes.length) {
+          const raw = barcodes[0].rawValue;
+          const id = normalizeEquipId(raw);
+
+          if (id) {
+            // заполним поле ввода
+            const input = document.getElementById("equipLookupId");
+            if (input) input.value = id;
+
+            // остановим сканер
+            stopQrScan();
+
+            // откроем страницу
+            openEquipmentPageById(id);
+            return;
+          }
+        }
+      } catch (e) {
+        // молча
+      }
+
+      qrLoopTimer = requestAnimationFrame(tick);
+    };
+
+    tick();
+
+  } catch (e) {
+    console.error(e);
+    alert("❌ Не удалось запустить камеру");
+    stopQrScan();
+  }
+}
+
+function stopQrScan() {
+  const card = document.getElementById("qrScannerCard");
+  const video = document.getElementById("qrVideo");
+
+  if (qrLoopTimer) {
+    cancelAnimationFrame(qrLoopTimer);
+    qrLoopTimer = null;
+  }
+
+  if (qrStream) {
+    qrStream.getTracks().forEach(t => t.stop());
+    qrStream = null;
+  }
+
+  if (video) video.srcObject = null;
+  if (card) card.style.display = "none";
+}
+
     // =========================================================
     // ✅ AUTH: PWA -> SERVER (x-surpresso-key)
     // =========================================================
@@ -705,3 +877,4 @@ function getOrCreateEquipId() {
   </script>
 </body>
 </html>
+
