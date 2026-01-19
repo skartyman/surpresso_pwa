@@ -873,7 +873,7 @@ async function saveToBaseOnly() {
 
   // Статус дефолт
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Бронь" : "принято на ремонт";
+    card.status = (card.owner === "company") ? "Приехало после аренды" : "Принято на ремонт";
   }
 
   const hint = document.getElementById("saveHint");
@@ -1020,6 +1020,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
