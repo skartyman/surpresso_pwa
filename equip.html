@@ -431,28 +431,28 @@
 
   const s = String(driveUrl);
 
-  // вже готовий uc?export=view
+  let fileId = null;
+
+  // Витягуємо ID з будь-якого варіанту посилання
   if (s.includes("uc?export=view&id=")) {
-    // намагаємось thumbnail
-    const idMatch = s.match(/id=([^&]+)/i);
-    if (idMatch && idMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`; // w800–w2000, обирай під себе
-    }
-    return s; // якщо вже був uc — лишаємо, іноді ще прокатує
+    const m = s.match(/id=([^&]+)/i);
+    if (m) fileId = m[1];
+  } else if (s.includes("/file/d/")) {
+    const m = s.match(/\/file\/d\/([^\/]+)\//i);
+    if (m) fileId = m[1];
+  } else if (s.includes("id=")) {
+    const m = s.match(/[?&]id=([^&]+)/i);
+    if (m) fileId = m[1];
   }
 
-  // класичний /file/d/ID/view
-  const m = s.match(/\/file\/d\/([^\/]+)\//i);
-  if (m && m[1]) {
-    return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
+  if (fileId) {
+    // thumbnail — найстабільніший варіант на 2026 рік
+    // sz=w1000 — ширина до 1000px (можна w800, w1600, w2000 — тестуй)
+    // для квадратних прев’ю: &sz=s400 або &sz=w400-h400
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
   }
 
-  // open?id=...
-  const m2 = s.match(/[?&]id=([^&]+)/i);
-  if (m2 && m2[1]) {
-    return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w1000`;
-  }
-
+  // Якщо не вдалося витягти ID — повертаємо оригінал (рідко)
   return s;
 }
     // ===========================
