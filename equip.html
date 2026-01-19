@@ -427,27 +427,34 @@
     // 1) если url уже /uc?export=view&id=... -> оставим
     // 2) если url = https://drive.google.com/file/d/{id}/view -> сделаем /uc?export=view&id=...
     function driveToImageUrl(driveUrl) {
-      if (!driveUrl) return "";
-      const s = String(driveUrl);
+  if (!driveUrl) return "";
 
-      // already good
-      if (s.includes("uc?export=view&id=")) return s;
+  const s = String(driveUrl);
 
-      // /file/d/FILEID/view
-      const m = s.match(/\/file\/d\/([^\/]+)\//i);
-      if (m && m[1]) {
-        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(m[1])}`;
-      }
-
-      // open?id=FILEID
-      const m2 = s.match(/[?&]id=([^&]+)/i);
-      if (m2 && m2[1]) {
-        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(m2[1])}`;
-      }
-
-      return s;
+  // вже готовий uc?export=view
+  if (s.includes("uc?export=view&id=")) {
+    // намагаємось thumbnail
+    const idMatch = s.match(/id=([^&]+)/i);
+    if (idMatch && idMatch[1]) {
+      return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`; // w800–w2000, обирай під себе
     }
+    return s; // якщо вже був uc — лишаємо, іноді ще прокатує
+  }
 
+  // класичний /file/d/ID/view
+  const m = s.match(/\/file\/d\/([^\/]+)\//i);
+  if (m && m[1]) {
+    return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
+  }
+
+  // open?id=...
+  const m2 = s.match(/[?&]id=([^&]+)/i);
+  if (m2 && m2[1]) {
+    return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w1000`;
+  }
+
+  return s;
+}
     // ===========================
     // LIGHTBOX
     // ===========================
