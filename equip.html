@@ -5,42 +5,23 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
   <style>
-    *{ box-sizing:border-box; }
-    html,body{ margin:0; padding:0; width:100%; }
-    body{
-      font-family:Segoe UI,system-ui,sans-serif;
-      background:#fff;
-      color:#222;
-      overflow-x:hidden; /* фикс "вылазит строка" */
-    }
+    body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{
-      display:flex;gap:12px;align-items:flex-end;justify-content:space-between;
-      border-bottom:2px solid #F2C94C;padding-bottom:10px
-    }
+    .top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #F2C94C;padding-bottom:10px}
     .logo{font-size:20px;font-weight:800}
     .sub{font-size:12px;color:#666}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px;background:#fff}
+    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px; overflow:hidden;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:760px){.grid{grid-template-columns:1fr}}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .btn{
-      border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;
-      max-width:100%;
-    }
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.55; cursor:not-allowed}
     .btn-yellow{background:#F2C94C}
     .btn-ghost{background:#f4f4f4}
-    select,input,textarea{
-      width:100%;
-      max-width:100%;
-      padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px;
-      outline:none;
-    }
+    select,input,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px; box-sizing:border-box;}
     table{width:100%;border-collapse:collapse}
     td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
     td.lbl{font-weight:700;width:220px}
-    @media(max-width:760px){ td.lbl{width:140px} }
-
     .muted{color:#666;font-size:12px}
     .warn{color:#b00;font-weight:700}
     .ok{color:#0a7;font-weight:700}
@@ -48,77 +29,32 @@
     .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
     .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
 
-    /* Gallery */
-    .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
-    .ph{
-      border:1px solid #eee;border-radius:12px;overflow:hidden;
-      background:#fafafa;
-      position:relative;
-      min-height:140px;
+    /* photos */
+    .photosHeader{
+      display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
     }
-    .ph img{
-      width:100%;display:block;height:160px;object-fit:cover;
-      background:#f2f2f2;
-    }
-    .ph .cap{
-      padding:6px 8px;
-      font-size:12px;color:#666;
-      border-top:1px solid #eee;
-      background:#fff;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .galleryTop{
-      display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-    }
-    .pager{
-      display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-    }
-    .pager .btn{ padding:8px 12px; border-radius:10px; }
-    .pager .pageInfo{ font-size:12px; color:#666; }
+    .photosGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px; margin-top:10px}
+    @media(max-width:760px){.photosGrid{grid-template-columns:repeat(2,1fr)}}
+    .ph{border:1px solid #eee;border-radius:12px;overflow:hidden;background:#fafafa}
+    .ph img{width:100%;display:block;height:160px;object-fit:cover; cursor:pointer}
+    .cap{padding:8px;font-size:12px;color:#444;border-top:1px solid #eee; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
-    /* Lightbox */
+    .pager{display:flex; gap:8px; align-items:center; justify-content:center; margin-top:10px}
+    .pager button{padding:8px 10px; border-radius:12px}
+    .pagerInfo{font-size:12px; color:#666; min-width:120px; text-align:center}
+
+    /* lightbox */
     .lb{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.75);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      padding:18px;
-      z-index:9999;
+      position:fixed; inset:0; background:rgba(0,0,0,.78);
+      display:none; align-items:center; justify-content:center; padding:18px; z-index:9999;
     }
-    .lb.open{ display:flex; }
-    .lbContent{
-      width:min(980px, 100%);
-      background:#111;
-      border-radius:14px;
-      overflow:hidden;
-      border:1px solid rgba(255,255,255,.08);
-    }
-    .lbImg{
-      width:100%;
-      height:min(76vh, 720px);
-      object-fit:contain;
-      display:block;
-      background:#000;
-    }
-    .lbBar{
-      display:flex;justify-content:space-between;align-items:center;
-      padding:10px 12px;
-      color:#fff;
-      font-size:13px;
-      background:#111;
-    }
-    .lbBar a{ color:#fff; opacity:.9; text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.4) }
-    .lbClose{
-      background:rgba(255,255,255,.12);
-      border:0;color:#fff;border-radius:10px;
-      padding:8px 10px;
-      font-weight:700;cursor:pointer;
-    }
-
+    .lbInner{max-width:980px; width:100%;}
+    .lbTop{display:flex; gap:10px; align-items:center; justify-content:space-between; color:#fff; margin-bottom:10px}
+    .lbTitle{font-weight:700; font-size:14px; opacity:.95; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .lbBtns{display:flex; gap:8px; flex-wrap:wrap;}
+    .lbBtn{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.18); padding:8px 10px; border-radius:12px; cursor:pointer; font-weight:700}
+    .lbImgWrap{background:#111;border-radius:16px; overflow:hidden; box-shadow:0 10px 28px rgba(0,0,0,.35)}
+    .lbImg{width:100%; max-height:78vh; object-fit:contain; display:block; background:#111}
   </style>
 </head>
 <body>
@@ -170,7 +106,7 @@
         </div>
 
         <div class="row" style="margin-top:10px">
-          <input id="actor" placeholder="Хто змінив (опц.) напр: Ігор" style="max-width:240px" />
+          <input id="actor" placeholder="Хто змінив (опц.) напр: Ігор" style="max-width:220px" />
           <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
           <span class="muted" id="statusHint"></span>
         </div>
@@ -184,27 +120,33 @@
         <table id="info"></table>
       </div>
 
+      <!-- PHOTOS -->
       <div class="card">
-        <div class="galleryTop">
+        <div class="photosHeader">
           <div style="font-weight:800">Фото</div>
 
-          <div class="row">
-            <input type="file" id="photoFile" accept="image/*" />
-            <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
+          <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
+            <!-- ✅ MULTI FILES -->
+            <input type="file" id="photoFiles" accept="image/*" multiple />
+            <button class="btn btn-yellow" id="btnUploadPhotos">📸 Додати фото</button>
           </div>
         </div>
 
         <div class="muted" style="margin-top:6px">
-          Показуємо останні 10 фото. Натисни на фото — відкриється велике.
+          Можна вибрати одразу <b>3–5 фото</b> (або більше). Показуємо останні <b>10</b> з пагінацією.
         </div>
 
-        <div class="pager" style="margin-top:10px">
-          <button class="btn btn-ghost" id="btnPrevPhotos">←</button>
-          <span class="pageInfo" id="photosPageInfo">—</span>
-          <button class="btn btn-ghost" id="btnNextPhotos">→</button>
+        <div class="row" style="margin-top:10px; align-items:center; justify-content:space-between">
+          <div class="muted" id="photosHint"></div>
+
+          <div class="pager">
+            <button class="btn btn-ghost" id="btnPrevPhotos">←</button>
+            <div class="pagerInfo" id="photosPageInfo">Фото: 0</div>
+            <button class="btn btn-ghost" id="btnNextPhotos">→</button>
+          </div>
         </div>
 
-        <div class="photos" id="photos"></div>
+        <div class="photosGrid" id="photos"></div>
       </div>
 
       <div class="card">
@@ -214,16 +156,18 @@
     </div>
   </div>
 
-  <!-- Lightbox -->
-  <div class="lb" id="lightbox">
-    <div class="lbContent">
-      <img id="lbImg" class="lbImg" src="" alt="">
-      <div class="lbBar">
-        <div id="lbText">—</div>
-        <div class="row" style="gap:10px">
-          <a id="lbLink" href="#" target="_blank">Відкрити в Drive</a>
-          <button class="lbClose" id="lbClose">✕</button>
+  <!-- LIGHTBOX -->
+  <div class="lb" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lbInner">
+      <div class="lbTop">
+        <div class="lbTitle" id="lbTitle">Фото</div>
+        <div class="lbBtns">
+          <button class="lbBtn" id="lbOpenDrive" onclick="openDriveFromLightbox(event)">Відкрити в Drive</button>
+          <button class="lbBtn" onclick="forceCloseLightbox(event)">✕ Закрити</button>
         </div>
+      </div>
+      <div class="lbImgWrap">
+        <img class="lbImg" id="lbImg" src="" alt="">
       </div>
     </div>
   </div>
@@ -233,26 +177,26 @@
     // CONFIG
     // ===========================
     const PWA_KEY_STORAGE = "surpresso_pwa_key"; // где храним ключ
-    const API_BASE = ""; // если API на том же домене -> пусто; иначе поставь "https://твойдомен"
-
-    const DEFAULT_STATUSES_CLIENT = [
-  "Принято на ремонт",
-  "В работе",
-  "Готово",
-  "Выдано клиенту"
-];
-
-    const DEFAULT_STATUSES_COMPANY = [
-  "Бронь",
-  "Уезжает на аренду",
-  "Продано",
-  "Готово к аренде",
-  "Приехало после аренды",
-  "Уезжает на подмену",
-  "Приехало с подмены"
-];
+    const API_BASE = ""; // если API на том же домене -> пусто
 
     const PHOTOS_PAGE_SIZE = 10;
+
+    const DEFAULT_STATUSES_CLIENT = [
+      "Прийнято на ремонт",
+      "В роботі",
+      "Готово",
+      "Видано клієнту"
+    ];
+
+    const DEFAULT_STATUSES_COMPANY = [
+      "Бронь",
+      "Готово к аренде",
+      "Уезжает на аренду",
+      "Приехало после аренды",
+      "Уезжает на подмену",
+      "Приехало с подмены",
+      "Продано"
+    ];
 
     const $ = (id) => document.getElementById(id);
 
@@ -270,20 +214,14 @@
 
       $("btnRefresh").onclick = load;
       $("btnStatus").onclick = saveStatus;
-      $("btnUpload").onclick = uploadPhoto;
+      $("btnUploadPhotos").onclick = uploadPhotosMulti;
+      $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
+      $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
 
       $("btnPdf").onclick = () => {
-        // PDF через Node -> редирект на Drive
-        location.href = urlWithKey(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf`);
+        location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
       };
 
-      $("btnPrevPhotos").onclick = () => { if (photosPage > 0) { photosPage--; renderPhotos(); } };
-      $("btnNextPhotos").onclick = () => {
-        const maxPage = Math.max(0, Math.ceil(allPhotos.length / PHOTOS_PAGE_SIZE) - 1);
-        if (photosPage < maxPage) { photosPage++; renderPhotos(); }
-      };
-
-      setupLightbox();
       load();
     }
 
@@ -308,23 +246,22 @@
       return k ? { "x-surpresso-key": k } : {};
     }
 
-    // ВАЖНО: добавляем key и в query, и в header — чтобы НЕ было Unauthorized
-    function urlWithKey(url) {
+    function withKeyQuery() {
       const k = ensureKey();
-      if (!k) return url;
-      return url + (url.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(k);
+      if (!k) return "";
+      return `?k=${encodeURIComponent(k)}`;
     }
 
     // ===========================
     // API wrapper
     // ===========================
     async function apiGet(url) {
-      const resp = await fetch(urlWithKey(url), { headers: headersWithKey() });
+      const resp = await fetch(url, { headers: headersWithKey() });
       return await resp.json();
     }
 
     async function apiPost(url, payload) {
-      const resp = await fetch(urlWithKey(url), {
+      const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -336,15 +273,12 @@
     }
 
     // ===========================
-    // DATA STATE
+    // LOAD & RENDER
     // ===========================
     let CURRENT_OWNER = ""; // client / company
     let allPhotos = [];
     let photosPage = 0;
 
-    // ===========================
-    // LOAD & RENDER
-    // ===========================
     async function load() {
       $("statusHint").textContent = "Завантажую...";
       const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
@@ -379,7 +313,7 @@
         $("driveFolderLink").style.display = "none";
       }
 
-      // fill statuses
+      // fill statuses (по owner)
       const statuses = buildStatusesFor(eq);
       fillStatuses(statuses, eq.status);
 
@@ -404,9 +338,10 @@
       }
 
       add("Останній коментар", eq.lastComment || "—");
+
       $("info").innerHTML = rows.join("");
 
-      // reset pagination
+      // photos render (pagination)
       photosPage = 0;
       renderPhotos();
 
@@ -422,49 +357,6 @@
           </tr>
         `).join("")
         : `<tr><td class="muted">Немає записів</td></tr>`;
-    }
-
-    function renderPhotos() {
-      const total = allPhotos.length;
-      const maxPage = Math.max(0, Math.ceil(total / PHOTOS_PAGE_SIZE) - 1);
-      photosPage = Math.min(photosPage, maxPage);
-
-      const start = photosPage * PHOTOS_PAGE_SIZE;
-      const slice = allPhotos.slice(start, start + PHOTOS_PAGE_SIZE);
-
-      $("photosPageInfo").textContent =
-        total === 0 ? "Фото: 0" : `Фото ${start + 1}-${Math.min(start + PHOTOS_PAGE_SIZE, total)} / ${total}`;
-
-      $("btnPrevPhotos").disabled = photosPage <= 0;
-      $("btnNextPhotos").disabled = photosPage >= maxPage;
-
-      if (!slice.length) {
-        $("photos").innerHTML = `<div class="muted">Фото поки що немає.</div>`;
-        return;
-      }
-
-      $("photos").innerHTML = slice.map((p, idx) => {
-        const driveViewUrl = p.url || "";
-        const img = driveToImageUrl(driveViewUrl);
-        const cap = p.caption || "";
-        const ts = fmt(p.ts);
-
-        const safeCap = esc(cap || ts || "Фото");
-        const safeDrive = esc(driveViewUrl);
-
-        return `
-          <div class="ph">
-            <img
-              src="${img}"
-              alt="${safeCap}"
-              loading="lazy"
-              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
-              onclick="openLightbox('${escapeJs(img)}','${escapeJs(driveViewUrl)}','${escapeJs(safeCap)}')"
-            >
-            <div class="cap">${safeCap}</div>
-          </div>
-        `;
-      }).join("");
     }
 
     function buildStatusesFor(eq) {
@@ -484,6 +376,112 @@
 
       if (current && list.includes(current)) sel.value = current;
       else sel.value = list[0] || "";
+    }
+
+    // ===========================
+    // PHOTOS: pagination + preview
+    // ===========================
+    function renderPhotos() {
+      const total = allPhotos.length;
+      const maxPage = Math.max(0, Math.ceil(total / PHOTOS_PAGE_SIZE) - 1);
+      photosPage = Math.min(Math.max(photosPage, 0), maxPage);
+
+      const start = photosPage * PHOTOS_PAGE_SIZE;
+      const slice = allPhotos.slice(start, start + PHOTOS_PAGE_SIZE);
+
+      $("photosPageInfo").textContent =
+        total === 0 ? "Фото: 0" : `Фото ${start + 1}-${Math.min(start + PHOTOS_PAGE_SIZE, total)} / ${total}`;
+
+      $("btnPrevPhotos").disabled = photosPage <= 0;
+      $("btnNextPhotos").disabled = photosPage >= maxPage;
+
+      if (!slice.length) {
+        $("photos").innerHTML = `<div class="muted">Фото поки що немає.</div>`;
+        return;
+      }
+
+      $("photos").innerHTML = slice.map((p) => {
+        const driveViewUrl = String(p.url || "");
+        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl);
+        const cap = p.caption || "";
+        const ts = fmt(p.ts);
+        const safeCap = esc(cap || ts || "Фото");
+        const safeDrive = esc(driveViewUrl);
+
+        return `
+          <div class="ph">
+            <img
+              src="${imgUrl}"
+              alt="${safeCap}"
+              loading="lazy"
+              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
+              onclick="openLightbox('${escapeJs(imgUrl)}','${escapeJs(driveViewUrl)}','${escapeJs(safeCap)}')"
+            >
+            <div class="cap">${safeCap}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Превью URL из Drive:
+    // 1) если url уже /uc?export=view&id=... -> оставим
+    // 2) если url = https://drive.google.com/file/d/{id}/view -> сделаем /uc?export=view&id=...
+    function driveToImageUrl(driveUrl) {
+      if (!driveUrl) return "";
+      const s = String(driveUrl);
+
+      // already good
+      if (s.includes("uc?export=view&id=")) return s;
+
+      // /file/d/FILEID/view
+      const m = s.match(/\/file\/d\/([^\/]+)\//i);
+      if (m && m[1]) {
+        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(m[1])}`;
+      }
+
+      // open?id=FILEID
+      const m2 = s.match(/[?&]id=([^&]+)/i);
+      if (m2 && m2[1]) {
+        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(m2[1])}`;
+      }
+
+      return s;
+    }
+
+    // ===========================
+    // LIGHTBOX
+    // ===========================
+    let LB_DRIVE_URL = "";
+    function openLightbox(imgUrl, driveUrl, title) {
+      LB_DRIVE_URL = driveUrl || "";
+      $("lbImg").src = imgUrl || "";
+      $("lbTitle").textContent = title || "Фото";
+      $("lightbox").style.display = "flex";
+      $("lbOpenDrive").style.display = LB_DRIVE_URL ? "inline-flex" : "none";
+    }
+
+    function closeLightbox(e) {
+      // закрываем только по клику на фон
+      if (e.target && e.target.id === "lightbox") {
+        $("lightbox").style.display = "none";
+        $("lbImg").src = "";
+        LB_DRIVE_URL = "";
+      }
+    }
+
+    function forceCloseLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      $("lightbox").style.display = "none";
+      $("lbImg").src = "";
+      LB_DRIVE_URL = "";
+    }
+
+    function openDriveFromLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (!LB_DRIVE_URL) return;
+      window.open(LB_DRIVE_URL, "_blank");
     }
 
     // ===========================
@@ -511,29 +509,53 @@
     }
 
     // ===========================
-    // UPLOAD PHOTO
+    // ✅ UPLOAD PHOTOS (MULTI)
     // ===========================
-    async function uploadPhoto() {
-      const file = $("photoFile").files[0];
-      if (!file) return alert("Оберіть фото");
+    async function uploadPhotosMulti() {
+      const input = $("photoFiles");
+      const files = input && input.files ? Array.from(input.files) : [];
 
-      $("btnUpload").disabled = true;
-      $("infoHint").textContent = "Завантажую фото...";
+      if (!files.length) return alert("Оберіть фото (можна кілька)");
 
-      const base64 = await fileToBase64(file);
+      // Мягкое ограничение (можешь поменять)
+      const MAX = 10;
+      if (files.length > MAX) {
+        if (!confirm(`Обрано ${files.length} фото. Завантажити тільки перші ${MAX}?`)) return;
+      }
 
-      const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
-        base64,
-        caption: file.name || ""
-      });
+      const toUpload = files.slice(0, MAX);
 
-      $("btnUpload").disabled = false;
-      $("infoHint").textContent = "";
+      $("btnUploadPhotos").disabled = true;
+      $("photosHint").textContent = `Завантажую ${toUpload.length} фото...`;
 
-      if (!out.ok) return alert(out.error || "Помилка");
+      try {
+        for (let i = 0; i < toUpload.length; i++) {
+          $("photosHint").textContent = `Завантажую фото ${i + 1} / ${toUpload.length}...`;
+          const base64 = await fileToBase64(toUpload[i]);
 
-      $("photoFile").value = "";
-      await load();
+          const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
+            base64,
+            caption: ""
+          });
+
+          if (!out.ok) {
+            throw new Error(out.error || `Помилка на фото ${i + 1}`);
+          }
+        }
+
+        $("photosHint").textContent = "✅ Фото додано";
+        setTimeout(() => $("photosHint").textContent = "", 2000);
+
+        input.value = "";
+        await load();
+
+      } catch (e) {
+        console.error(e);
+        $("photosHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка завантаження"));
+      } finally {
+        $("btnUploadPhotos").disabled = false;
+      }
     }
 
     function fileToBase64(file) {
@@ -543,52 +565,6 @@
         fr.onerror = reject;
         fr.readAsDataURL(file);
       });
-    }
-
-    // ===========================
-    // Drive URL -> IMG URL
-    // ===========================
-    function extractDriveFileId(url) {
-      if (!url) return "";
-      // 1) .../file/d/<ID>/view
-      let m = String(url).match(/\/d\/([a-zA-Z0-9_-]{10,})/);
-      if (m && m[1]) return m[1];
-      // 2) ...?id=<ID>
-      m = String(url).match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
-      if (m && m[1]) return m[1];
-      return "";
-    }
-
-    function driveToImageUrl(driveUrl) {
-      const id = extractDriveFileId(driveUrl);
-      if (!id) return driveUrl || "";
-      // самый стабильный вариант для img
-      return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`;
-    }
-
-    // ===========================
-    // Lightbox
-    // ===========================
-    function setupLightbox() {
-      $("lbClose").onclick = closeLightbox;
-      $("lightbox").onclick = (e) => {
-        if (e.target && e.target.id === "lightbox") closeLightbox();
-      };
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeLightbox();
-      });
-    }
-
-    window.openLightbox = function(imgUrl, driveUrl, title) {
-      $("lbImg").src = imgUrl || "";
-      $("lbLink").href = driveUrl || "#";
-      $("lbText").textContent = title || "Фото";
-      $("lightbox").classList.add("open");
-    }
-
-    function closeLightbox() {
-      $("lightbox").classList.remove("open");
-      $("lbImg").src = "";
     }
 
     // ===========================
@@ -608,14 +584,14 @@
     }
 
     function esc(v) {
-      if (v === null || v === undefined || v === "") return "—";
+      if (v === null || v === undefined) return "—";
       return String(v)
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
     }
 
-    function escapeJs(s) {
+    function escapeJs(s){
       return String(s || "")
         .replaceAll("\\", "\\\\")
         .replaceAll("'", "\\'")
