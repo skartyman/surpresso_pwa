@@ -132,7 +132,8 @@
 
       <div class="actions-stack">
         <div class="btn-row">
-          <button class="btn-surpresso" onclick="generatePNG()">🖼 Скачать карту</button>
+          <button class="btn-surpresso" id="btnSaveToBase">💾 Загрузить в базу</button>
+<span class="muted" id="saveHint"></span>
           <button class="btn-surpresso" onclick="sendToTelegram()">📤 Отправить в Telegram + Trello</button>
           <button class="btn-surpresso" onclick="openPrintPage()">🖨 Печать</button>
         </div>
@@ -175,7 +176,8 @@
 
       <div class="actions-stack">
         <div class="btn-row">
-          <button class="btn-surpresso" onclick="generatePNG()">🖼 Скачать карту</button>
+          <button class="btn-surpresso" id="btnSaveToBase">💾 Загрузить в базу</button>
+<span class="muted" id="saveHint"></span>
           <button class="btn-surpresso" onclick="sendToTelegram()">📤 Отправить в Telegram + Trello</button>
           <button class="btn-surpresso" onclick="openPrintPage()">🖨 Печать</button>
         </div>
@@ -860,7 +862,47 @@ function getOrCreateEquipId() {
         requestAnimationFrame(loop);
       })();
     })();
+document.getElementById("btnSaveToBase").onclick = saveToBaseOnly;
 
+async function saveToBaseOnly() {
+  const card = collectCardFromForm(); // твоя функция, которая собирает поля формы
+
+  if (!card.id) return alert("Немає ID обладнання");
+  if (!card.owner) return alert("Вибери власника");
+  if (!card.type) return alert("Вибери тип");
+
+  // Статус дефолт
+  if (!card.status) {
+    card.status = (card.owner === "company") ? "Бронь" : "принято на ремонт";
+  }
+
+  const hint = document.getElementById("saveHint");
+  hint.textContent = "Завантажую в базу...";
+
+  try {
+    const resp = await fetch("/api/equip/create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headersWithKey() // как у тебя уже сделано
+      },
+      body: JSON.stringify({ card })
+    });
+
+    const out = await resp.json();
+    if (!out.ok) throw new Error(out.error || "Помилка");
+
+    hint.textContent = "✅ Додано в базу";
+    setTimeout(() => hint.textContent = "", 2500);
+
+    // можно сразу открыть паспорт
+    // location.href = `equip.html?id=${encodeURIComponent(card.id)}`;
+
+  } catch (e) {
+    hint.textContent = "";
+    alert("❌ " + e.message);
+  }
+}
     // =========================================================
     // INIT
     // =========================================================
@@ -876,6 +918,7 @@ function getOrCreateEquipId() {
   </script>
 </body>
 </html>
+
 
 
 
