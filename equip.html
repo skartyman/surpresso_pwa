@@ -1,545 +1,441 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Surpresso — Паспорт</title>
-  <style>
-    body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #F2C94C;padding-bottom:10px}
-    .logo{font-size:20px;font-weight:800}
-    .sub{font-size:12px;color:#666}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media(max-width:760px){.grid{grid-template-columns:1fr}}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn-yellow{background:#F2C94C}
-    .btn-ghost{background:#f4f4f4}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    select,input{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px}
-    table{width:100%;border-collapse:collapse}
-    td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
-    td.lbl{font-weight:700;width:220px}
-    .muted{color:#666;font-size:12px}
-    .warn{color:#b00;font-weight:800}
-    .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
-    .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
-    .hint{font-size:12px;color:#666}
+/***********************
+ * Surpresso Equipment — GAS WebApp (Registry)
+ * Node <-> GAS via ?secret=...
+ * Sheets + Drive folders + Photo previewUrl
+ ***********************/
 
-    /* ===== Gallery (grid) ===== */
-    .photosGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
-    @media(max-width:760px){.photosGrid{grid-template-columns:repeat(2,1fr)}}
-    .phTile{border:1px solid #eee;border-radius:12px;overflow:hidden;position:relative;background:#fafafa}
-    .phTile img{width:100%;display:block;height:160px;object-fit:cover}
-    .phCap{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:4px 6px;border-radius:999px}
-    .phDate{position:absolute;right:8px;bottom:8px;background:rgba(255,255,255,.8);color:#222;font-size:11px;padding:4px 6px;border-radius:999px}
+// ===== CONFIG =====
+const SPREADSHEET_ID = '19GhF5uxmZ8NpnBXIavL1pjulALJhdKpKCCAt0IKc3OI';
+const DRIVE_ROOT_FOLDER_ID = '1jbjJoxxoGN8L5YXGNpXKB1HJZ9Sk6JtD'; // папка Surpresso_Equipment
 
-    /* ===== Fullscreen viewer ===== */
-    .viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;z-index:9999}
-    .viewer.open{display:block}
-    .viewerTop{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 6px 12px;color:#fff}
-    .viewerTitle{font-weight:800;font-size:14px}
-    .viewerClose{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:12px;padding:8px 10px;font-weight:800}
-    .viewerBody{height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;position:relative}
-    .viewerImg{max-width:94vw;max-height:84vh;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    .navBtn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:999px;padding:10px 12px;font-weight:900}
-    .navBtn.left{left:10px}
-    .navBtn.right{right:10px}
-    .viewerMeta{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.35);padding:6px 10px;border-radius:999px}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <div class="logo">Surpresso Service</div>
-        <div class="sub">Паспорт / статус обладнання</div>
-      </div>
-      <div class="sub">ID: <b id="eqId">—</b></div>
-    </div>
+// Script Properties key name:
+const SERVER_KEY_PROP = 'SURPRESSO_SERVER_KEY';
 
-    <div id="noId" class="card" style="display:none">
-      <div class="warn">Немає ID. Відкрий сторінку як: <b>equip.html?id=...</b></div>
-      <div class="hint" style="margin-top:6px">Наприклад: <b>equip.html?id=SURP-12345</b></div>
-    </div>
+// Sheet names (НЕ gid)
+const SH_EQUIPMENT = 'EQUIPMENT';
+const SH_STATUS    = 'STATUS_LOG';
+const SH_PHOTOS    = 'PHOTOS';
 
-    <div id="main" style="display:none">
+// ===== Utils =====
+function json_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
-      <div class="card">
-        <div class="bar" style="justify-content:space-between">
-          <div>
-            <div class="muted">Поточний статус</div>
-            <div style="font-size:18px;font-weight:800" id="curStatus">—</div>
-            <div class="muted" id="updatedAt"></div>
-          </div>
+function now_() { return new Date(); }
 
-          <div class="row">
-            <button class="btn btn-ghost" id="btnPdf">📄 PDF A4</button>
-            <button class="btn btn-yellow" id="btnRefresh">⟳ Оновити</button>
-          </div>
-        </div>
+function getServerKey_() {
+  return PropertiesService.getScriptProperties().getProperty(SERVER_KEY_PROP) || "";
+}
 
-        <div class="row" style="margin-top:8px">
-          <span class="pill" id="pillOwner">owner: —</span>
-          <span class="pill" id="pillType">type: —</span>
-          <a class="pill link" id="driveFolderLink" href="#" target="_blank" style="display:none">📁 Drive папка</a>
-        </div>
+function assertServer_(e) {
+  const secret = (e && e.parameter && e.parameter.secret) ? String(e.parameter.secret) : "";
+  const real = getServerKey_();
+  if (!real) throw new Error("Server key is not configured in Script Properties");
+  if (!secret || secret !== real) throw new Error("unauthorized");
+}
 
-        <div class="muted" style="margin-top:8px" id="authInfo"></div>
-      </div>
+function ss_() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
 
-      <div class="card">
-        <div class="grid">
-          <div>
-            <div class="muted">Змінити статус</div>
-            <select id="statusSelect"></select>
-          </div>
-          <div>
-            <div class="muted">Коментар</div>
-            <input id="comment" placeholder="Напр: Забрав клієнт, віддали в оренду..." />
-          </div>
-        </div>
+function getOrCreateSheet_(name, headerRow) {
+  const ss = ss_();
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  if (sh.getLastRow() === 0 && headerRow && headerRow.length) sh.appendRow(headerRow);
+  return sh;
+}
 
-        <div class="row" style="margin-top:10px">
-          <input id="actor" placeholder="Хто змінив (опц.) напр: Ігор" style="max-width:220px" />
-          <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
-          <span class="muted" id="statusHint"></span>
-        </div>
-      </div>
+function rowToObj_(head, row) {
+  const o = {};
+  head.forEach((k, i) => o[k] = row[i]);
+  return o;
+}
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <div style="font-weight:800">Інформація</div>
-          <div class="muted" id="infoHint"></div>
-        </div>
-        <table id="info"></table>
-      </div>
+function findRowById_(sheet, id) {
+  const data = sheet.getDataRange().getValues();
+  if (!data || data.length < 2) return null;
+  const head = data[0];
+  const idx = head.indexOf('id');
+  if (idx < 0) return null;
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <div style="font-weight:800">Фото</div>
-          <div class="row">
-            <input type="file" id="photoFile" accept="image/*" />
-            <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
-          </div>
-        </div>
-        <div class="muted" style="margin-top:6px">Фото зберігаються в папці обладнання (Drive).</div>
-
-        <div class="photosGrid" id="photos"></div>
-      </div>
-
-      <div class="card">
-        <div style="font-weight:800">Історія статусів</div>
-        <table id="log"></table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Fullscreen viewer -->
-  <div class="viewer" id="viewer">
-    <div class="viewerTop">
-      <div class="viewerTitle" id="viewerTitle">Фото</div>
-      <button class="viewerClose" id="viewerClose">✕ Закрити</button>
-    </div>
-    <div class="viewerBody" id="viewerBody">
-      <button class="navBtn left" id="viewerPrev">⟵</button>
-      <img class="viewerImg" id="viewerImg" src="" alt="">
-      <button class="navBtn right" id="viewerNext">⟶</button>
-      <div class="viewerMeta" id="viewerMeta">—</div>
-    </div>
-  </div>
-
-  <script>
-    // ===========================
-    // CONFIG
-    // ===========================
-    const PWA_KEY_STORAGE = "surpresso_pwa_key";
-    // Если equip.html лежит на другом домене (GAS/GitHub/file) — укажи сюда URL сервера:
-    // const API_BASE = "https://wpa-surpresso.fly.dev";
-    const API_BASE = "";
-
-    const DEFAULT_STATUSES_CLIENT = [
-      "Прийнято на ремонт",
-      "В роботі",
-      "Готово",
-      "Видано клієнту"
-    ];
-
-    const DEFAULT_STATUSES_COMPANY = [
-      "Приехало на ремонт",
-      "Готово к аренде",
-      "Уезжает на аренду",
-      "Приехало после аренды",
-      "Уезжает на подмену",
-      "Приехало с подмены",
-      "Бронь",
-      "Продано"
-    ];
-
-    const $ = (id) => document.getElementById(id);
-
-    // ===========================
-    // GET ID FROM URL
-    // ===========================
-    const params = new URLSearchParams(location.search);
-    const EQUIPMENT_ID = (params.get("id") || "").trim();
-
-    // ===========================
-    // AUTH: key (через query ?k=)
-    // ===========================
-    function getKey() {
-      return localStorage.getItem(PWA_KEY_STORAGE) || "";
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][idx]) === String(id)) {
+      return { row: r + 1, head, values: rowToObj_(head, data[r]) };
     }
+  }
+  return null;
+}
 
-    function ensureKey() {
-      let k = getKey();
-      if (k) return k;
-      k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
-      if (!k) return "";
-      localStorage.setItem(PWA_KEY_STORAGE, k);
-      return k;
-    }
+function colIndex_(head, name) {
+  const idx = head.indexOf(name);
+  if (idx < 0) throw new Error("No column: " + name);
+  return idx + 1;
+}
 
-    function addKey(url) {
-      const k = ensureKey();
-      if (!k) return url;
-      return url.includes("?")
-        ? `${url}&k=${encodeURIComponent(k)}`
-        : `${url}?k=${encodeURIComponent(k)}`;
-    }
+// ===== Drive helpers =====
+function ensureEquipmentFolder_(id) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const it = root.getFoldersByName(id);
+  if (it.hasNext()) {
+    const f = it.next();
+    return { id: f.getId(), url: f.getUrl() };
+  }
+  const f = root.createFolder(id);
+  return { id: f.getId(), url: f.getUrl() };
+}
 
-    async function apiGet(url) {
-      const resp = await fetch(addKey(url));
-      return await resp.json();
-    }
+function base64ToBlob_(base64, filename) {
+  const clean = String(base64).replace(/^data:image\/\w+;base64,/, "");
+  const bytes = Utilities.base64Decode(clean);
+  return Utilities.newBlob(bytes, 'image/jpeg', filename);
+}
 
-    async function apiPost(url, payload) {
-      const resp = await fetch(addKey(url), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload || {})
-      });
-      return await resp.json();
-    }
+function drivePreviewUrl_(fileId) {
+  // ✅ вот это нормально грузится в <img src="...">
+  return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`;
+}
 
-    // ===========================
-    // INIT
-    // ===========================
-    if (!EQUIPMENT_ID) {
-      $("noId").style.display = "block";
-    } else {
-      $("main").style.display = "block";
-      $("eqId").textContent = EQUIPMENT_ID;
+// =========================
+// Setup (запусти вручную 1 раз)
+// =========================
+function setup() {
+  const ss = ss_();
 
-      $("btnRefresh").onclick = load;
-      $("btnStatus").onclick = saveStatus;
-      $("btnUpload").onclick = uploadPhoto;
+  // EQUIPMENT
+  let sh = ss.getSheetByName(SH_EQUIPMENT) || ss.insertSheet(SH_EQUIPMENT);
+  sh.clear();
+  sh.appendRow([
+    'id', 'createdAt', 'updatedAt',
+    'type', 'owner', 'isContract',
+    'clientName', 'clientPhone', 'clientLocation',
+    'model', 'serial',
+    'companyLocation', 'name', 'internalNumber',
+    'status', 'lastComment',
+    'folderId', 'folderUrl',
+    'passportPdfId', 'passportPdfUrl'
+  ]);
 
-      $("btnPdf").onclick = () => {
-        location.href = addKey(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf`);
-      };
+  // STATUS_LOG
+  sh = ss.getSheetByName(SH_STATUS) || ss.insertSheet(SH_STATUS);
+  sh.clear();
+  sh.appendRow(['ts','equipmentId','oldStatus','newStatus','comment','actor']);
 
-      $("authInfo").textContent = getKey()
-        ? "🔐 Ключ підключено ✅"
-        : "🔐 Потрібен ключ доступу (запитає при першому запиті)";
+  // PHOTOS
+  sh = ss.getSheetByName(SH_PHOTOS) || ss.insertSheet(SH_PHOTOS);
+  sh.clear();
+  sh.appendRow(['ts','equipmentId','fileId','fileUrl','previewUrl','caption']);
 
-      // Viewer events
-      $("viewerClose").onclick = closeViewer;
-      $("viewerPrev").onclick = () => stepViewer(-1);
-      $("viewerNext").onclick = () => stepViewer(+1);
-      $("viewer").addEventListener("click", (e) => {
-        if (e.target.id === "viewer") closeViewer();
-      });
+  SpreadsheetApp.flush();
+}
 
-      // keyboard
-      window.addEventListener("keydown", (e) => {
-        if (!$("viewer").classList.contains("open")) return;
-        if (e.key === "Escape") closeViewer();
-        if (e.key === "ArrowLeft") stepViewer(-1);
-        if (e.key === "ArrowRight") stepViewer(+1);
-      });
+// =========================
+// WebApp routes
+// =========================
+function doGet(e) {
+  // Можно оставить простую заглушку
+  return HtmlService.createHtmlOutput("Surpresso Equipment GAS WebApp ✅");
+}
 
-      // swipe
-      let sx=0, sy=0;
-      $("viewerBody").addEventListener("touchstart", (e) => {
-        const t = e.touches[0];
-        sx = t.clientX; sy = t.clientY;
-      }, {passive:true});
-      $("viewerBody").addEventListener("touchend", (e) => {
-        const t = e.changedTouches[0];
-        const dx = t.clientX - sx;
-        const dy = t.clientY - sy;
-        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-          stepViewer(dx > 0 ? -1 : +1);
-        }
-      }, {passive:true});
+function doPost(e) {
+  try {
+    // ✅ Только сервер имеет доступ
+    assertServer_(e);
 
-      load();
-    }
+    const body = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    const data = JSON.parse(body);
 
-    // ===========================
-    // STATE
-    // ===========================
-    let CURRENT_OWNER = "";
-    let PHOTOS_CACHE = [];
-    let VIEW_INDEX = 0;
+    const action = data.action;
 
-    // ===========================
-    // LOAD
-    // ===========================
-    async function load() {
-      $("statusHint").textContent = "Завантажую...";
-      $("btnRefresh").disabled = true;
+    if (action === 'create') return json_(createOrUpdateEquipment_(data.card || {}));
+    if (action === 'get')    return json_(getEquipmentBundle_(data.id));
+    if (action === 'status') return json_(updateStatus_(data.id, data.newStatus, data.comment || '', data.actor || ''));
+    if (action === 'photo')  return json_(addPhoto_(data.id, data.base64, data.caption || ''));
+    if (action === 'pdf')    return json_(generatePassportPdfA4_(data.id));
 
-      const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
+    return json_({ ok:false, error:'Unknown action' });
 
-      $("btnRefresh").disabled = false;
-      $("statusHint").textContent = "";
+  } catch (err) {
+    return json_({ ok:false, error:String(err) });
+  }
+}
 
-      if (!data.ok) {
-        return alert(data.error || "Помилка завантаження");
-      }
+// =========================
+// Core: create / upsert equipment
+// =========================
+function createOrUpdateEquipment_(card) {
+  const sh = getOrCreateSheet_(SH_EQUIPMENT, []);
 
-      render(data);
-    }
+  const id = String(card.id || '').trim();
+  if (!id) return { ok:false, error:'No id' };
 
-    // ===========================
-    // RENDER
-    // ===========================
-    function render(data) {
-      const eq = data.equipment || {};
-      const photos = data.photos || [];
-      const log = data.log || [];
+  const found = findRowById_(sh, id);
+  const now = now_();
 
-      CURRENT_OWNER = eq.owner || "";
-      PHOTOS_CACHE = photos;
+  const folder = ensureEquipmentFolder_(id);
 
-      $("curStatus").textContent = eq.status || "—";
-      $("updatedAt").textContent = "Оновлено: " + fmt(eq.updatedAt);
+  const status = String(card.status || '').trim() || (
+    card.owner === "company" ? "Бронь" : "Прийнято на ремонт"
+  );
 
-      $("pillOwner").textContent = "owner: " + (eq.owner || "—");
-      $("pillType").textContent = "type: " + (eq.type || "—");
+  const rowObj = {
+    id,
+    createdAt: found ? found.values.createdAt : now,
+    updatedAt: now,
+    type: card.type || '',
+    owner: card.owner || '',
+    isContract: !!card.isContract,
 
-      // Drive folder link
-      if (eq.folderUrl) {
-        $("driveFolderLink").href = eq.folderUrl;
-        $("driveFolderLink").style.display = "inline-flex";
-      } else {
-        $("driveFolderLink").style.display = "none";
-      }
+    clientName: card.clientName || '',
+    clientPhone: card.clientPhone || '',
+    clientLocation: card.clientLocation || '',
+    model: card.model || '',
+    serial: card.serial || '',
 
-      // statuses
-      const statuses = buildStatusesFor(eq);
-      fillStatuses(statuses, eq.status);
+    companyLocation: card.companyLocation || '',
+    name: card.name || '',
+    internalNumber: card.internalNumber || '',
 
-      // info
-      const rows = [];
-      const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
+    status,
+    lastComment: card.comment || '',
 
-      add("Тип", eq.type || "—");
-      add("Власник", eq.owner || "—");
+    folderId: folder.id,
+    folderUrl: folder.url,
 
-      if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
+    passportPdfId: found ? (found.values.passportPdfId || '') : '',
+    passportPdfUrl: found ? (found.values.passportPdfUrl || '') : ''
+  };
 
-      if (eq.owner === "client") {
-        add("Клієнт", eq.clientName || "—");
-        add("Телефон", eq.clientPhone || "—");
-        add("Локація", eq.clientLocation || "—");
-        add("Модель", eq.model || "—");
-        add("Серійний", eq.serial || "—");
-      } else {
-        add("Локація (заклад/цех)", eq.companyLocation || "—");
-        add("Назва", eq.name || "—");
-        add("Внутрішній №", eq.internalNumber || "—");
-      }
+  if (!found) {
+    // append new
+    sh.appendRow([
+      rowObj.id, rowObj.createdAt, rowObj.updatedAt,
+      rowObj.type, rowObj.owner, rowObj.isContract,
+      rowObj.clientName, rowObj.clientPhone, rowObj.clientLocation,
+      rowObj.model, rowObj.serial,
+      rowObj.companyLocation, rowObj.name, rowObj.internalNumber,
+      rowObj.status, rowObj.lastComment,
+      rowObj.folderId, rowObj.folderUrl,
+      rowObj.passportPdfId, rowObj.passportPdfUrl
+    ]);
 
-      add("Останній коментар", eq.lastComment || "—");
+    // log
+    appendStatusLog_(id, '', status, rowObj.lastComment, card.actor || '');
+  } else {
+    // update existing row
+    const head = found.head;
 
-      $("info").innerHTML = rows.join("");
+    sh.getRange(found.row, colIndex_(head,'updatedAt')).setValue(rowObj.updatedAt);
+    sh.getRange(found.row, colIndex_(head,'type')).setValue(rowObj.type);
+    sh.getRange(found.row, colIndex_(head,'owner')).setValue(rowObj.owner);
+    sh.getRange(found.row, colIndex_(head,'isContract')).setValue(rowObj.isContract);
 
-      // Gallery
-      renderGallery(photos);
+    sh.getRange(found.row, colIndex_(head,'clientName')).setValue(rowObj.clientName);
+    sh.getRange(found.row, colIndex_(head,'clientPhone')).setValue(rowObj.clientPhone);
+    sh.getRange(found.row, colIndex_(head,'clientLocation')).setValue(rowObj.clientLocation);
+    sh.getRange(found.row, colIndex_(head,'model')).setValue(rowObj.model);
+    sh.getRange(found.row, colIndex_(head,'serial')).setValue(rowObj.serial);
 
-      // Log
-      $("log").innerHTML = log.length
-        ? log.map(r => `
-          <tr>
-            <td style="width:160px">${fmt(r.ts)}</td>
-            <td><b>${esc(r.newStatus)}</b>
-              ${r.comment ? "— " + esc(r.comment) : ""}
-              ${r.actor ? `<span class="muted">(${esc(r.actor)})</span>` : ""}
-            </td>
-          </tr>
-        `).join("")
-        : `<tr><td class="muted">Немає записів</td></tr>`;
-    }
+    sh.getRange(found.row, colIndex_(head,'companyLocation')).setValue(rowObj.companyLocation);
+    sh.getRange(found.row, colIndex_(head,'name')).setValue(rowObj.name);
+    sh.getRange(found.row, colIndex_(head,'internalNumber')).setValue(rowObj.internalNumber);
 
-    function buildStatusesFor(eq) {
-      if (eq.owner === "company") return DEFAULT_STATUSES_COMPANY;
-      return DEFAULT_STATUSES_CLIENT;
-    }
+    sh.getRange(found.row, colIndex_(head,'status')).setValue(rowObj.status);
+    sh.getRange(found.row, colIndex_(head,'lastComment')).setValue(rowObj.lastComment);
 
-    function fillStatuses(list, current) {
-      const sel = $("statusSelect");
-      sel.innerHTML = "";
-      list.forEach(s => {
-        const o = document.createElement("option");
-        o.value = s;
-        o.textContent = s;
-        sel.appendChild(o);
-      });
+    sh.getRange(found.row, colIndex_(head,'folderId')).setValue(rowObj.folderId);
+    sh.getRange(found.row, colIndex_(head,'folderUrl')).setValue(rowObj.folderUrl);
+  }
 
-      if (current && list.includes(current)) sel.value = current;
-      else sel.value = list[0] || "";
-    }
+  return {
+    ok:true,
+    id,
+    folderUrl: folder.url,
+    status
+  };
+}
 
-    // ===========================
-    // GALLERY
-    // ===========================
-    function renderGallery(photos) {
-      const box = $("photos");
+// =========================
+// Read bundle
+// =========================
+function getEquipmentBundle_(id) {
+  id = String(id || '').trim();
+  if (!id) return { ok:false, error:'No id' };
 
-      if (!photos.length) {
-        box.innerHTML = `<div class="muted">Фото поки що немає.</div>`;
-        return;
-      }
+  const eq = getEquipmentById_(id);
+  if (!eq) return { ok:false, error:'Not found' };
 
-      box.innerHTML = photos.map((p, idx) => {
-        const date = p.ts ? fmtShort(p.ts) : "";
-        const cap = p.caption ? String(p.caption).slice(0, 18) : "";
-        return `
-          <div class="phTile" role="button" tabindex="0" onclick="openViewer(${idx})">
-            <img src="${p.thumb || p.url}" alt="">
-            ${cap ? `<div class="phCap">${esc(cap)}</div>` : ""}
-            ${date ? `<div class="phDate">${esc(date)}</div>` : ""}
-          </div>
-        `;
-      }).join("");
-    }
+  return {
+    ok:true,
+    equipment: eq,
+    photos: getPhotosById_(id),
+    log: getStatusLogById_(id)
+  };
+}
 
-    // expose for onclick
-    window.openViewer = function(idx) {
-      if (!PHOTOS_CACHE.length) return;
-      VIEW_INDEX = clamp(idx, 0, PHOTOS_CACHE.length - 1);
+// =========================
+// Update status
+// =========================
+function updateStatus_(id, newStatus, comment, actor) {
+  id = String(id || '').trim();
+  newStatus = String(newStatus || '').trim();
+  if (!id) return { ok:false, error:'No id' };
+  if (!newStatus) return { ok:false, error:'No newStatus' };
 
-      const p = PHOTOS_CACHE[VIEW_INDEX];
-      $("viewerImg").src = p.url;
-      $("viewerTitle").textContent = `Фото ${VIEW_INDEX + 1} / ${PHOTOS_CACHE.length}`;
-      $("viewerMeta").textContent = `${p.caption ? p.caption : ""}${p.ts ? " • " + fmt(p.ts) : ""}`.trim() || "—";
+  const sh = getOrCreateSheet_(SH_EQUIPMENT, []);
+  const found = findRowById_(sh, id);
+  if (!found) return { ok:false, error:'Not found' };
 
-      $("viewer").classList.add("open");
-    }
+  const oldStatus = String(found.values.status || '');
+  const now = now_();
 
-    function closeViewer() {
-      $("viewer").classList.remove("open");
-      $("viewerImg").src = "";
-    }
+  sh.getRange(found.row, colIndex_(found.head,'status')).setValue(newStatus);
+  sh.getRange(found.row, colIndex_(found.head,'updatedAt')).setValue(now);
+  sh.getRange(found.row, colIndex_(found.head,'lastComment')).setValue(comment || '');
 
-    function stepViewer(dir) {
-      if (!PHOTOS_CACHE.length) return;
-      VIEW_INDEX = clamp(VIEW_INDEX + dir, 0, PHOTOS_CACHE.length - 1);
-      openViewer(VIEW_INDEX);
-    }
+  appendStatusLog_(id, oldStatus, newStatus, comment || '', actor || '');
 
-    // ===========================
-    // SAVE STATUS
-    // ===========================
-    async function saveStatus() {
-      const newStatus = $("statusSelect").value;
-      const comment = $("comment").value.trim();
-      const actor = $("actor").value.trim();
+  return { ok:true, id, oldStatus, newStatus };
+}
 
-      $("btnStatus").disabled = true;
-      $("statusHint").textContent = "Зберігаю...";
+// =========================
+// Add photo (Drive + Sheet)
+// =========================
+function addPhoto_(id, base64, caption) {
+  id = String(id || '').trim();
+  if (!id) return { ok:false, error:'No id' };
+  if (!base64) return { ok:false, error:'No base64' };
 
-      const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
-        newStatus, comment, actor
-      });
+  const eq = getEquipmentById_(id);
+  if (!eq) return { ok:false, error:'Not found' };
 
-      $("btnStatus").disabled = false;
-      $("statusHint").textContent = "";
+  const folder = DriveApp.getFolderById(eq.folderId);
 
-      if (!out.ok) return alert(out.error || "Помилка");
+  const filename = `photo_${id}_${Date.now()}.jpg`;
+  const blob = base64ToBlob_(base64, filename);
 
-      $("comment").value = "";
-      await load();
-    }
+  const file = folder.createFile(blob);
 
-    // ===========================
-    // UPLOAD PHOTO
-    // ===========================
-    async function uploadPhoto() {
-      const file = $("photoFile").files[0];
-      if (!file) return alert("Оберіть фото");
+  // ✅ делаем доступ для просмотра по ссылке
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-      $("btnUpload").disabled = true;
-      $("infoHint").textContent = "Завантажую фото...";
+  const fileId = file.getId();
+  const fileUrl = file.getUrl();
+  const previewUrl = drivePreviewUrl_(fileId);
 
-      const base64 = await fileToBase64(file);
+  // сохраняем
+  const sh = getOrCreateSheet_(SH_PHOTOS, []);
+  sh.appendRow([now_(), id, fileId, fileUrl, previewUrl, caption || '']);
 
-      const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
-        base64,
-        caption: ""
-      });
+  return { ok:true, fileId, fileUrl, previewUrl };
+}
 
-      $("btnUpload").disabled = false;
-      $("infoHint").textContent = "";
+// =========================
+// PDF Passport A4
+// =========================
+function generatePassportPdfA4_(id) {
+  id = String(id || '').trim();
+  if (!id) return { ok:false, error:'No id' };
 
-      if (!out.ok) return alert(out.error || "Помилка");
+  const eq = getEquipmentById_(id);
+  if (!eq) return { ok:false, error:'Not found' };
 
-      $("photoFile").value = "";
-      await load();
-    }
+  const photos = getPhotosById_(id);
+  const log = getStatusLogById_(id);
 
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result);
-        fr.onerror = reject;
-        fr.readAsDataURL(file);
-      });
-    }
+  // ✅ твой шаблон pdf_a4 должен быть в проекте как HTML-файл "pdf_a4"
+  const html = HtmlService.createTemplateFromFile('pdf_a4');
+  html.eq = eq;
+  html.photos = photos;
+  html.statuses = log;
 
-    // ===========================
-    // UTILS
-    // ===========================
-    function fmt(d) {
-      try {
-        const dt = new Date(d);
-        if (isNaN(dt)) return "";
-        const dd = String(dt.getDate()).padStart(2, "0");
-        const mm = String(dt.getMonth() + 1).padStart(2, "0");
-        const yy = String(dt.getFullYear()).slice(-2);
-        const hh = String(dt.getHours()).padStart(2, "0");
-        const mi = String(dt.getMinutes()).padStart(2, "0");
-        return `${dd}.${mm}.${yy} ${hh}:${mi}`;
-      } catch (e) { return ""; }
-    }
+  const content = html.evaluate().getContent();
 
-    function fmtShort(d) {
-      try {
-        const dt = new Date(d);
-        if (isNaN(dt)) return "";
-        const dd = String(dt.getDate()).padStart(2, "0");
-        const mm = String(dt.getMonth() + 1).padStart(2, "0");
-        return `${dd}.${mm}`;
-      } catch (e) { return ""; }
-    }
+  const blob = Utilities
+    .newBlob(content, 'text/html', `passport_${id}.html`)
+    .getAs('application/pdf')
+    .setName(`Surpresso_Passport_${id}.pdf`);
 
-    function esc(v) {
-      if (v === null || v === undefined) return "—";
-      return String(v)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-    }
+  const folder = DriveApp.getFolderById(eq.folderId);
+  const pdfFile = folder.createFile(blob);
 
-    function clamp(n, a, b) {
-      return Math.max(a, Math.min(b, n));
-    }
-  </script>
-</body>
-</html>
+  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // обновляем поля в EQUIPMENT
+  const sh = getOrCreateSheet_(SH_EQUIPMENT, []);
+  const found = findRowById_(sh, id);
+
+  if (found) {
+    sh.getRange(found.row, colIndex_(found.head,'passportPdfId')).setValue(pdfFile.getId());
+    sh.getRange(found.row, colIndex_(found.head,'passportPdfUrl')).setValue(pdfFile.getUrl());
+    sh.getRange(found.row, colIndex_(found.head,'updatedAt')).setValue(now_());
+  }
+
+  return { ok:true, id, fileId: pdfFile.getId(), url: pdfFile.getUrl() };
+}
+
+// =========================
+// Helpers: Read from sheets
+// =========================
+function getEquipmentById_(id) {
+  const sh = getOrCreateSheet_(SH_EQUIPMENT, []);
+  const found = findRowById_(sh, id);
+  return found ? found.values : null;
+}
+
+function getPhotosById_(id) {
+  const sh = getOrCreateSheet_(SH_PHOTOS, []);
+  const data = sh.getDataRange().getValues();
+  if (!data || data.length < 2) return [];
+
+  const head = data[0];
+  const idxId  = head.indexOf('equipmentId');
+  const idxFileId = head.indexOf('fileId');
+  const idxUrl = head.indexOf('fileUrl');
+  const idxPrev = head.indexOf('previewUrl');
+  const idxCap = head.indexOf('caption');
+  const idxTs  = head.indexOf('ts');
+
+  return data.slice(1)
+    .filter(r => String(r[idxId]) === String(id))
+    .map(r => ({
+      ts: r[idxTs],
+      fileId: r[idxFileId],
+      url: r[idxUrl],
+      previewUrl: r[idxPrev] || (r[idxFileId] ? drivePreviewUrl_(r[idxFileId]) : r[idxUrl]),
+      caption: r[idxCap]
+    }))
+    .reverse();
+}
+
+function getStatusLogById_(id) {
+  const sh = getOrCreateSheet_(SH_STATUS, []);
+  const data = sh.getDataRange().getValues();
+  if (!data || data.length < 2) return [];
+
+  const head = data[0];
+  const idxId  = head.indexOf('equipmentId');
+  const idxTs  = head.indexOf('ts');
+  const idxOld = head.indexOf('oldStatus');
+  const idxNew = head.indexOf('newStatus');
+  const idxCom = head.indexOf('comment');
+  const idxAct = head.indexOf('actor');
+
+  return data.slice(1)
+    .filter(r => String(r[idxId]) === String(id))
+    .map(r => ({
+      ts: r[idxTs],
+      oldStatus: r[idxOld],
+      newStatus: r[idxNew],
+      comment: r[idxCom],
+      actor: r[idxAct]
+    }))
+    .reverse();
+}
+
+function appendStatusLog_(id, oldStatus, newStatus, comment, actor) {
+  const sh = getOrCreateSheet_(SH_STATUS, []);
+  sh.appendRow([now_(), id, oldStatus || '', newStatus || '', comment || '', actor || '']);
+}
