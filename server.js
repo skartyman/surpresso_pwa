@@ -357,7 +357,7 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
 
     // статус по умолчанию
     if (!card.status) {
-      card.status = card.owner === "company" ? "Бронь" : "принято на ремонт";
+      card.status = card.owner === "company" ? "Бронь" : "Принято на ремонт";
     }
 
     const out = await gasPost({ action: "create", card });
@@ -553,4 +553,5 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
