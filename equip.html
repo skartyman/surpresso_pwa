@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
+
   <style>
     body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
@@ -21,18 +22,87 @@
     table{width:100%;border-collapse:collapse}
     td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
     td.lbl{font-weight:700;width:220px}
-    .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
-    .ph{border:1px solid #eee;border-radius:12px;overflow:hidden}
-    .ph img{width:100%;display:block;height:160px;object-fit:cover}
     .muted{color:#666;font-size:12px}
     .warn{color:#b00;font-weight:700}
     .ok{color:#0a7;font-weight:700}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
     .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
+
+    /* ===== PHOTO GRID ===== */
+    .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
+    .ph{
+      border:1px solid #eee;border-radius:12px;overflow:hidden;
+      background:#fafafa; cursor:pointer;
+      position:relative;
+    }
+    .ph img{width:100%;display:block;height:160px;object-fit:cover}
+    .ph::after{
+      content:"🔍"; position:absolute; right:8px; bottom:8px;
+      font-size:14px; background:rgba(0,0,0,0.5); color:#fff;
+      padding:4px 6px; border-radius:10px;
+    }
+
+    /* ===== GALLERY MODAL ===== */
+    .gallery {
+      position: fixed; inset:0;
+      background: rgba(0,0,0,0.85);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      padding: 12px;
+    }
+    .gallery.open { display:flex; }
+
+    .gallery-inner{
+      width: min(920px, 95vw);
+      max-height: 92vh;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .gallery-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      color:#fff;
+      font-size:14px;
+    }
+    .gallery-imgbox{
+      position:relative;
+      border-radius:14px;
+      overflow:hidden;
+      background:#111;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .gallery-imgbox img{
+      width:100%;
+      max-height: 80vh;
+      object-fit:contain;
+      display:block;
+    }
+    .gbtn{
+      border:0;
+      border-radius:12px;
+      padding:10px 14px;
+      font-weight:800;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .gbtn-ghost{ background:rgba(255,255,255,0.15); color:#fff; }
+    .gbtn-yellow{ background:#F2C94C; color:#111; }
+
+    .gallery-nav{
+      display:flex; gap:10px; justify-content:center;
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
@@ -104,7 +174,9 @@
             <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
           </div>
         </div>
-        <div class="muted" style="margin-top:6px">Фото зберігаються в папці обладнання (Drive).</div>
+        <div class="muted" style="margin-top:6px">
+          Фото зберігаються в папці обладнання (Drive). Натисни на фото — відкриється галерея.
+        </div>
         <div class="photos" id="photos"></div>
       </div>
 
@@ -115,12 +187,34 @@
     </div>
   </div>
 
+  <!-- ====== GALLERY MODAL ====== -->
+  <div class="gallery" id="gallery" onclick="closeGallery(event)">
+    <div class="gallery-inner">
+      <div class="gallery-top">
+        <div>Фото: <b id="gIndex">1</b>/<span id="gTotal">1</span></div>
+        <div style="display:flex;gap:10px">
+          <a class="gbtn gbtn-ghost" id="gOpen" target="_blank">Відкрити</a>
+          <button class="gbtn gbtn-yellow" onclick="closeGallery()">✕ Закрити</button>
+        </div>
+      </div>
+
+      <div class="gallery-imgbox">
+        <img id="gImg" src="" alt="">
+      </div>
+
+      <div class="gallery-nav">
+        <button class="gbtn gbtn-ghost" onclick="prevPhoto()">⬅</button>
+        <button class="gbtn gbtn-ghost" onclick="nextPhoto()">➡</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ===========================
     // CONFIG
     // ===========================
-    const PWA_KEY_STORAGE = "surpresso_pwa_key"; // где храним ключ
-    const API_BASE = ""; // если API на том же домене -> пусто; иначе поставь "https://твойдомен"
+    const PWA_KEY_STORAGE = "surpresso_pwa_key";
+    const API_BASE = ""; // если на том же домене -> ""
 
     const DEFAULT_STATUSES_CLIENT = [
       "Прийнято на ремонт",
@@ -147,6 +241,12 @@
     const params = new URLSearchParams(location.search);
     const EQUIPMENT_ID = (params.get("id") || "").trim();
 
+    // ===========================
+    // Gallery state
+    // ===========================
+    let CURRENT_PHOTOS = [];
+    let G_INDEX = 0;
+
     if (!EQUIPMENT_ID) {
       $("noId").style.display = "block";
     } else {
@@ -156,8 +256,9 @@
       $("btnRefresh").onclick = load;
       $("btnStatus").onclick = saveStatus;
       $("btnUpload").onclick = uploadPhoto;
+
+      // PDF: тут обязательно query ?k= потому что редирект не умеет headers
       $("btnPdf").onclick = () => {
-        // PDF через Node -> редирект на Drive
         location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
       };
 
@@ -186,9 +287,6 @@
     }
 
     function withKeyQuery() {
-      // если ты хочешь вместо header подставлять query ?k=
-      // сейчас оставим пусто, потому что PDF редирект удобнее с query, но сервер ждёт header
-      // поэтому: сделаем query ?k=... на случай requirePwaKey()
       const k = ensureKey();
       if (!k) return "";
       return `?k=${encodeURIComponent(k)}`;
@@ -217,8 +315,6 @@
     // ===========================
     // LOAD & RENDER
     // ===========================
-    let CURRENT_OWNER = ""; // client / company
-
     async function load() {
       $("statusHint").textContent = "Завантажую...";
       const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
@@ -236,8 +332,6 @@
       const eq = data.equipment || {};
       const photos = data.photos || [];
       const log = data.log || [];
-
-      CURRENT_OWNER = eq.owner || "";
 
       $("curStatus").textContent = eq.status || "—";
       $("updatedAt").textContent = "Оновлено: " + fmt(eq.updatedAt);
@@ -278,16 +372,17 @@
       }
 
       add("Останній коментар", eq.lastComment || "—");
-
       $("info").innerHTML = rows.join("");
 
-      // photos render
+      // photos render (ВАЖНО: используем previewUrl если есть)
+      CURRENT_PHOTOS = photos;
+
       $("photos").innerHTML = photos.length
-        ? photos.map(p => `
-          <div class="ph">
-            <a href="${p.url}" target="_blank"><img src="${p.url}" alt=""></a>
-          </div>
-        `).join("")
+        ? photos.map((p, i) => `
+            <div class="ph" onclick="openGallery(${i})">
+              <img src="${p.previewUrl || p.url}" alt="" loading="lazy">
+            </div>
+          `).join("")
         : `<div class="muted">Фото поки що немає.</div>`;
 
       // log render
@@ -305,8 +400,6 @@
     }
 
     function buildStatusesFor(eq) {
-      // если GAS отдаёт statuses — можешь подхватить
-      // но мы делаем по твоей логике
       if (eq.owner === "company") return DEFAULT_STATUSES_COMPANY;
       return DEFAULT_STATUSES_CLIENT;
     }
@@ -383,6 +476,52 @@
         fr.readAsDataURL(file);
       });
     }
+
+    // ===========================
+    // GALLERY
+    // ===========================
+    function openGallery(idx) {
+      if (!CURRENT_PHOTOS.length) return;
+      G_INDEX = idx;
+      showGallery();
+    }
+
+    function showGallery() {
+      const p = CURRENT_PHOTOS[G_INDEX];
+      $("gImg").src = p.previewUrl || p.url;
+      $("gOpen").href = p.url;
+
+      $("gIndex").textContent = String(G_INDEX + 1);
+      $("gTotal").textContent = String(CURRENT_PHOTOS.length);
+
+      $("gallery").classList.add("open");
+    }
+
+    function closeGallery(e) {
+      if (e && e.target && e.target.id !== "gallery") return;
+      $("gallery").classList.remove("open");
+    }
+
+    function nextPhoto() {
+      if (!CURRENT_PHOTOS.length) return;
+      G_INDEX = (G_INDEX + 1) % CURRENT_PHOTOS.length;
+      showGallery();
+    }
+
+    function prevPhoto() {
+      if (!CURRENT_PHOTOS.length) return;
+      G_INDEX = (G_INDEX - 1 + CURRENT_PHOTOS.length) % CURRENT_PHOTOS.length;
+      showGallery();
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const isOpen = $("gallery").classList.contains("open");
+      if (!isOpen) return;
+
+      if (e.key === "Escape") closeGallery();
+      if (e.key === "ArrowRight") nextPhoto();
+      if (e.key === "ArrowLeft") prevPhoto();
+    });
 
     // ===========================
     // UTILS
