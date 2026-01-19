@@ -323,7 +323,21 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     res.status(500).send({ ok: false, error: String(e) });
   }
 });
+app.get('/proxy-drive/:fileId', requirePwaKey, async (req, res) => {
+  const { fileId } = req.params;
+  try {
+    const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Drive error');
 
+    const buffer = await response.buffer();
+    res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).send('Proxy error');
+  }
+});
 // добавить фото
 app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
   try {
@@ -553,5 +567,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
