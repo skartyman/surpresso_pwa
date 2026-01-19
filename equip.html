@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
-
   <style>
     body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
@@ -18,91 +17,40 @@
     .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn-yellow{background:#F2C94C}
     .btn-ghost{background:#f4f4f4}
-    select,input,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    select,input{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px}
     table{width:100%;border-collapse:collapse}
     td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
     td.lbl{font-weight:700;width:220px}
     .muted{color:#666;font-size:12px}
-    .warn{color:#b00;font-weight:700}
-    .ok{color:#0a7;font-weight:700}
+    .warn{color:#b00;font-weight:800}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
     .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
+    .hint{font-size:12px;color:#666}
 
-    /* ===== PHOTO GRID ===== */
-    .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
-    .ph{
-      border:1px solid #eee;border-radius:12px;overflow:hidden;
-      background:#fafafa; cursor:pointer;
-      position:relative;
-    }
-    .ph img{width:100%;display:block;height:160px;object-fit:cover}
-    .ph::after{
-      content:"🔍"; position:absolute; right:8px; bottom:8px;
-      font-size:14px; background:rgba(0,0,0,0.5); color:#fff;
-      padding:4px 6px; border-radius:10px;
-    }
+    /* ===== Gallery (grid) ===== */
+    .photosGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+    @media(max-width:760px){.photosGrid{grid-template-columns:repeat(2,1fr)}}
+    .phTile{border:1px solid #eee;border-radius:12px;overflow:hidden;position:relative;background:#fafafa}
+    .phTile img{width:100%;display:block;height:160px;object-fit:cover}
+    .phCap{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:4px 6px;border-radius:999px}
+    .phDate{position:absolute;right:8px;bottom:8px;background:rgba(255,255,255,.8);color:#222;font-size:11px;padding:4px 6px;border-radius:999px}
 
-    /* ===== GALLERY MODAL ===== */
-    .gallery {
-      position: fixed; inset:0;
-      background: rgba(0,0,0,0.85);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-      padding: 12px;
-    }
-    .gallery.open { display:flex; }
-
-    .gallery-inner{
-      width: min(920px, 95vw);
-      max-height: 92vh;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .gallery-top{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      color:#fff;
-      font-size:14px;
-    }
-    .gallery-imgbox{
-      position:relative;
-      border-radius:14px;
-      overflow:hidden;
-      background:#111;
-      border: 1px solid rgba(255,255,255,0.12);
-    }
-    .gallery-imgbox img{
-      width:100%;
-      max-height: 80vh;
-      object-fit:contain;
-      display:block;
-    }
-    .gbtn{
-      border:0;
-      border-radius:12px;
-      padding:10px 14px;
-      font-weight:800;
-      cursor:pointer;
-      text-decoration:none;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-    }
-    .gbtn-ghost{ background:rgba(255,255,255,0.15); color:#fff; }
-    .gbtn-yellow{ background:#F2C94C; color:#111; }
-
-    .gallery-nav{
-      display:flex; gap:10px; justify-content:center;
-    }
+    /* ===== Fullscreen viewer ===== */
+    .viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;z-index:9999}
+    .viewer.open{display:block}
+    .viewerTop{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 6px 12px;color:#fff}
+    .viewerTitle{font-weight:800;font-size:14px}
+    .viewerClose{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:12px;padding:8px 10px;font-weight:800}
+    .viewerBody{height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;position:relative}
+    .viewerImg{max-width:94vw;max-height:84vh;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .navBtn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:999px;padding:10px 12px;font-weight:900}
+    .navBtn.left{left:10px}
+    .navBtn.right{right:10px}
+    .viewerMeta{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.35);padding:6px 10px;border-radius:999px}
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <div class="top">
@@ -115,9 +63,11 @@
 
     <div id="noId" class="card" style="display:none">
       <div class="warn">Немає ID. Відкрий сторінку як: <b>equip.html?id=...</b></div>
+      <div class="hint" style="margin-top:6px">Наприклад: <b>equip.html?id=SURP-12345</b></div>
     </div>
 
     <div id="main" style="display:none">
+
       <div class="card">
         <div class="bar" style="justify-content:space-between">
           <div>
@@ -137,6 +87,8 @@
           <span class="pill" id="pillType">type: —</span>
           <a class="pill link" id="driveFolderLink" href="#" target="_blank" style="display:none">📁 Drive папка</a>
         </div>
+
+        <div class="muted" style="margin-top:8px" id="authInfo"></div>
       </div>
 
       <div class="card">
@@ -174,10 +126,9 @@
             <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
           </div>
         </div>
-        <div class="muted" style="margin-top:6px">
-          Фото зберігаються в папці обладнання (Drive). Натисни на фото — відкриється галерея.
-        </div>
-        <div class="photos" id="photos"></div>
+        <div class="muted" style="margin-top:6px">Фото зберігаються в папці обладнання (Drive).</div>
+
+        <div class="photosGrid" id="photos"></div>
       </div>
 
       <div class="card">
@@ -187,25 +138,17 @@
     </div>
   </div>
 
-  <!-- ====== GALLERY MODAL ====== -->
-  <div class="gallery" id="gallery" onclick="closeGallery(event)">
-    <div class="gallery-inner">
-      <div class="gallery-top">
-        <div>Фото: <b id="gIndex">1</b>/<span id="gTotal">1</span></div>
-        <div style="display:flex;gap:10px">
-          <a class="gbtn gbtn-ghost" id="gOpen" target="_blank">Відкрити</a>
-          <button class="gbtn gbtn-yellow" onclick="closeGallery()">✕ Закрити</button>
-        </div>
-      </div>
-
-      <div class="gallery-imgbox">
-        <img id="gImg" src="" alt="">
-      </div>
-
-      <div class="gallery-nav">
-        <button class="gbtn gbtn-ghost" onclick="prevPhoto()">⬅</button>
-        <button class="gbtn gbtn-ghost" onclick="nextPhoto()">➡</button>
-      </div>
+  <!-- Fullscreen viewer -->
+  <div class="viewer" id="viewer">
+    <div class="viewerTop">
+      <div class="viewerTitle" id="viewerTitle">Фото</div>
+      <button class="viewerClose" id="viewerClose">✕ Закрити</button>
+    </div>
+    <div class="viewerBody" id="viewerBody">
+      <button class="navBtn left" id="viewerPrev">⟵</button>
+      <img class="viewerImg" id="viewerImg" src="" alt="">
+      <button class="navBtn right" id="viewerNext">⟶</button>
+      <div class="viewerMeta" id="viewerMeta">—</div>
     </div>
   </div>
 
@@ -214,7 +157,9 @@
     // CONFIG
     // ===========================
     const PWA_KEY_STORAGE = "surpresso_pwa_key";
-    const API_BASE = ""; // если на том же домене -> ""
+    // Если equip.html лежит на другом домене (GAS/GitHub/file) — укажи сюда URL сервера:
+    // const API_BASE = "https://wpa-surpresso.fly.dev";
+    const API_BASE = "";
 
     const DEFAULT_STATUSES_CLIENT = [
       "Прийнято на ремонт",
@@ -224,12 +169,13 @@
     ];
 
     const DEFAULT_STATUSES_COMPANY = [
-      "Бронь",
+      "Приехало на ремонт",
       "Готово к аренде",
       "Уезжает на аренду",
       "Приехало после аренды",
       "Уезжает на подмену",
       "Приехало с подмены",
+      "Бронь",
       "Продано"
     ];
 
@@ -242,31 +188,7 @@
     const EQUIPMENT_ID = (params.get("id") || "").trim();
 
     // ===========================
-    // Gallery state
-    // ===========================
-    let CURRENT_PHOTOS = [];
-    let G_INDEX = 0;
-
-    if (!EQUIPMENT_ID) {
-      $("noId").style.display = "block";
-    } else {
-      $("main").style.display = "block";
-      $("eqId").textContent = EQUIPMENT_ID;
-
-      $("btnRefresh").onclick = load;
-      $("btnStatus").onclick = saveStatus;
-      $("btnUpload").onclick = uploadPhoto;
-
-      // PDF: тут обязательно query ?k= потому что редирект не умеет headers
-      $("btnPdf").onclick = () => {
-        location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
-      };
-
-      load();
-    }
-
-    // ===========================
-    // AUTH: key
+    // AUTH: key (через query ?k=)
     // ===========================
     function getKey() {
       return localStorage.getItem(PWA_KEY_STORAGE) || "";
@@ -281,57 +203,119 @@
       return k;
     }
 
-    function headersWithKey() {
+    function addKey(url) {
       const k = ensureKey();
-      return k ? { "x-surpresso-key": k } : {};
+      if (!k) return url;
+      return url.includes("?")
+        ? `${url}&k=${encodeURIComponent(k)}`
+        : `${url}?k=${encodeURIComponent(k)}`;
     }
 
-    function withKeyQuery() {
-      const k = ensureKey();
-      if (!k) return "";
-      return `?k=${encodeURIComponent(k)}`;
-    }
-
-    // ===========================
-    // API wrapper: Node -> GAS
-    // ===========================
     async function apiGet(url) {
-      const resp = await fetch(url, { headers: headersWithKey() });
+      const resp = await fetch(addKey(url));
       return await resp.json();
     }
 
     async function apiPost(url, payload) {
-      const resp = await fetch(url, {
+      const resp = await fetch(addKey(url), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...headersWithKey()
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload || {})
       });
       return await resp.json();
     }
 
     // ===========================
-    // LOAD & RENDER
+    // INIT
+    // ===========================
+    if (!EQUIPMENT_ID) {
+      $("noId").style.display = "block";
+    } else {
+      $("main").style.display = "block";
+      $("eqId").textContent = EQUIPMENT_ID;
+
+      $("btnRefresh").onclick = load;
+      $("btnStatus").onclick = saveStatus;
+      $("btnUpload").onclick = uploadPhoto;
+
+      $("btnPdf").onclick = () => {
+        location.href = addKey(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf`);
+      };
+
+      $("authInfo").textContent = getKey()
+        ? "🔐 Ключ підключено ✅"
+        : "🔐 Потрібен ключ доступу (запитає при першому запиті)";
+
+      // Viewer events
+      $("viewerClose").onclick = closeViewer;
+      $("viewerPrev").onclick = () => stepViewer(-1);
+      $("viewerNext").onclick = () => stepViewer(+1);
+      $("viewer").addEventListener("click", (e) => {
+        if (e.target.id === "viewer") closeViewer();
+      });
+
+      // keyboard
+      window.addEventListener("keydown", (e) => {
+        if (!$("viewer").classList.contains("open")) return;
+        if (e.key === "Escape") closeViewer();
+        if (e.key === "ArrowLeft") stepViewer(-1);
+        if (e.key === "ArrowRight") stepViewer(+1);
+      });
+
+      // swipe
+      let sx=0, sy=0;
+      $("viewerBody").addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        sx = t.clientX; sy = t.clientY;
+      }, {passive:true});
+      $("viewerBody").addEventListener("touchend", (e) => {
+        const t = e.changedTouches[0];
+        const dx = t.clientX - sx;
+        const dy = t.clientY - sy;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+          stepViewer(dx > 0 ? -1 : +1);
+        }
+      }, {passive:true});
+
+      load();
+    }
+
+    // ===========================
+    // STATE
+    // ===========================
+    let CURRENT_OWNER = "";
+    let PHOTOS_CACHE = [];
+    let VIEW_INDEX = 0;
+
+    // ===========================
+    // LOAD
     // ===========================
     async function load() {
       $("statusHint").textContent = "Завантажую...";
+      $("btnRefresh").disabled = true;
+
       const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
 
+      $("btnRefresh").disabled = false;
+      $("statusHint").textContent = "";
+
       if (!data.ok) {
-        $("statusHint").textContent = "";
         return alert(data.error || "Помилка завантаження");
       }
 
       render(data);
-      $("statusHint").textContent = "";
     }
 
+    // ===========================
+    // RENDER
+    // ===========================
     function render(data) {
       const eq = data.equipment || {};
       const photos = data.photos || [];
       const log = data.log || [];
+
+      CURRENT_OWNER = eq.owner || "";
+      PHOTOS_CACHE = photos;
 
       $("curStatus").textContent = eq.status || "—";
       $("updatedAt").textContent = "Оновлено: " + fmt(eq.updatedAt);
@@ -347,16 +331,17 @@
         $("driveFolderLink").style.display = "none";
       }
 
-      // fill statuses (по owner)
+      // statuses
       const statuses = buildStatusesFor(eq);
       fillStatuses(statuses, eq.status);
 
-      // info table
+      // info
       const rows = [];
       const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
 
       add("Тип", eq.type || "—");
       add("Власник", eq.owner || "—");
+
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
 
       if (eq.owner === "client") {
@@ -372,20 +357,13 @@
       }
 
       add("Останній коментар", eq.lastComment || "—");
+
       $("info").innerHTML = rows.join("");
 
-      // photos render (ВАЖНО: используем previewUrl если есть)
-      CURRENT_PHOTOS = photos;
+      // Gallery
+      renderGallery(photos);
 
-      $("photos").innerHTML = photos.length
-        ? photos.map((p, i) => `
-            <div class="ph" onclick="openGallery(${i})">
-              <img src="${p.previewUrl || p.url}" alt="" loading="lazy">
-            </div>
-          `).join("")
-        : `<div class="muted">Фото поки що немає.</div>`;
-
-      // log render
+      // Log
       $("log").innerHTML = log.length
         ? log.map(r => `
           <tr>
@@ -416,6 +394,54 @@
 
       if (current && list.includes(current)) sel.value = current;
       else sel.value = list[0] || "";
+    }
+
+    // ===========================
+    // GALLERY
+    // ===========================
+    function renderGallery(photos) {
+      const box = $("photos");
+
+      if (!photos.length) {
+        box.innerHTML = `<div class="muted">Фото поки що немає.</div>`;
+        return;
+      }
+
+      box.innerHTML = photos.map((p, idx) => {
+        const date = p.ts ? fmtShort(p.ts) : "";
+        const cap = p.caption ? String(p.caption).slice(0, 18) : "";
+        return `
+          <div class="phTile" role="button" tabindex="0" onclick="openViewer(${idx})">
+            <img src="${p.thumb || p.url}" alt="">
+            ${cap ? `<div class="phCap">${esc(cap)}</div>` : ""}
+            ${date ? `<div class="phDate">${esc(date)}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+    // expose for onclick
+    window.openViewer = function(idx) {
+      if (!PHOTOS_CACHE.length) return;
+      VIEW_INDEX = clamp(idx, 0, PHOTOS_CACHE.length - 1);
+
+      const p = PHOTOS_CACHE[VIEW_INDEX];
+      $("viewerImg").src = p.url;
+      $("viewerTitle").textContent = `Фото ${VIEW_INDEX + 1} / ${PHOTOS_CACHE.length}`;
+      $("viewerMeta").textContent = `${p.caption ? p.caption : ""}${p.ts ? " • " + fmt(p.ts) : ""}`.trim() || "—";
+
+      $("viewer").classList.add("open");
+    }
+
+    function closeViewer() {
+      $("viewer").classList.remove("open");
+      $("viewerImg").src = "";
+    }
+
+    function stepViewer(dir) {
+      if (!PHOTOS_CACHE.length) return;
+      VIEW_INDEX = clamp(VIEW_INDEX + dir, 0, PHOTOS_CACHE.length - 1);
+      openViewer(VIEW_INDEX);
     }
 
     // ===========================
@@ -478,52 +504,6 @@
     }
 
     // ===========================
-    // GALLERY
-    // ===========================
-    function openGallery(idx) {
-      if (!CURRENT_PHOTOS.length) return;
-      G_INDEX = idx;
-      showGallery();
-    }
-
-    function showGallery() {
-      const p = CURRENT_PHOTOS[G_INDEX];
-      $("gImg").src = p.previewUrl || p.url;
-      $("gOpen").href = p.url;
-
-      $("gIndex").textContent = String(G_INDEX + 1);
-      $("gTotal").textContent = String(CURRENT_PHOTOS.length);
-
-      $("gallery").classList.add("open");
-    }
-
-    function closeGallery(e) {
-      if (e && e.target && e.target.id !== "gallery") return;
-      $("gallery").classList.remove("open");
-    }
-
-    function nextPhoto() {
-      if (!CURRENT_PHOTOS.length) return;
-      G_INDEX = (G_INDEX + 1) % CURRENT_PHOTOS.length;
-      showGallery();
-    }
-
-    function prevPhoto() {
-      if (!CURRENT_PHOTOS.length) return;
-      G_INDEX = (G_INDEX - 1 + CURRENT_PHOTOS.length) % CURRENT_PHOTOS.length;
-      showGallery();
-    }
-
-    document.addEventListener("keydown", (e) => {
-      const isOpen = $("gallery").classList.contains("open");
-      if (!isOpen) return;
-
-      if (e.key === "Escape") closeGallery();
-      if (e.key === "ArrowRight") nextPhoto();
-      if (e.key === "ArrowLeft") prevPhoto();
-    });
-
-    // ===========================
     // UTILS
     // ===========================
     function fmt(d) {
@@ -539,12 +519,26 @@
       } catch (e) { return ""; }
     }
 
+    function fmtShort(d) {
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt)) return "";
+        const dd = String(dt.getDate()).padStart(2, "0");
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        return `${dd}.${mm}`;
+      } catch (e) { return ""; }
+    }
+
     function esc(v) {
       if (v === null || v === undefined) return "—";
       return String(v)
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
+    }
+
+    function clamp(n, a, b) {
+      return Math.max(a, Math.min(b, n));
     }
   </script>
 </body>
