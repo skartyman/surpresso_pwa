@@ -347,6 +347,25 @@ app.get("/api/equip/:id/pdf", requirePwaKey, async (req, res) => {
     res.status(500).send({ ok: false, error: String(e) });
   }
 });
+// =======================
+// 2.5) Create ONLY in GAS (без TG / Trello)
+// =======================
+app.post("/api/equip/create", requirePwaKey, async (req, res) => {
+  try {
+    const { card } = req.body || {};
+    if (!card?.id) return res.status(400).send({ ok: false, error: "no_id" });
+
+    // статус по умолчанию
+    if (!card.status) {
+      card.status = card.owner === "company" ? "Бронь" : "принято на ремонт";
+    }
+
+    const out = await gasPost({ action: "create", card });
+    res.send(out);
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
 
 // =======================
 // 3) Templates proxy (как было)
@@ -534,3 +553,4 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
