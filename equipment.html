@@ -904,20 +904,123 @@ async function saveToBaseOnly() {
   }
 }
     // =========================================================
+// ✅ SAVE TO BASE ONLY (без TG и Trello)
+// =========================================================
+
+// телефон сохраняем как строку (0 не пропадает)
+function normalizePhone(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  return s.replace(/[^\d+]/g, "");
+}
+
+// ✅ сбор карточки из твоих полей (именно твоих id)
+function collectCardFromForm() {
+  const owner = localStorage.getItem("equip_owner") || "";      // client / company
+  const type = localStorage.getItem("equip_type") || "";        // grinder / pro-coffee / ...
+
+  // ID для базы:
+  // company -> internalNumber
+  // client  -> serial
+  let idRaw = "";
+  if (owner === "company") idRaw = value("internalNumber");
+  if (owner === "client")  idRaw = value("serial");
+
+  const card = {
+    id: normalizeEquipId(idRaw),
+    owner,
+    type,
+    isContract: !!document.getElementById("isServiceContract")?.checked,
+
+    // client
+    clientName: value("clientName"),
+    clientPhone: normalizePhone(value("clientPhone")),
+    clientLocation: value("clientLocation"),
+    model: value("model"),
+    serial: normalizeEquipId(value("serial")),
+    problem: value("problem"),
+
+    // company
+    companyLocation: value("companyLocation"),
+    name: value("equipmentName"),
+    internalNumber: normalizeEquipId(value("internalNumber")),
+    task: value("task"),
+    comment: value("comment"),
+
+    actor: "" // можно позже добавить поле
+  };
+
+  // чистим пустые значения
+  Object.keys(card).forEach(k => {
+    if (card[k] === "") delete card[k];
+  });
+
+  return card;
+}
+
+async function saveToBaseOnly() {
+  const card = collectCardFromForm();
+
+  if (!card.owner) return alert("Спочатку вибери власника (клієнт/компанія)");
+  if (!card.type) return alert("Спочатку вибери тип обладнання");
+  if (!card.id) return alert("Для бази потрібен ID. Введи Серійний або Внутрішній №");
+
+  // дефолтный статус
+  if (!card.status) {
+    card.status = (card.owner === "company") ? "Бронь" : "принято на ремонт";
+  }
+
+  // подсказка рядом с кнопкой (их две — клиент/компания)
+  const hintEls = document.querySelectorAll("#saveHint");
+  hintEls.forEach(h => h.textContent = "Завантажую в базу...");
+
+  try {
+    // ✅ используем ТВОЙ apiFetch (он добавляет x-surpresso-key)
+    const resp = await apiFetch("/api/equip/create", {
+      method: "POST",
+      body: JSON.stringify({ card })
+    });
+
+    const out = await resp.json();
+    if (!out.ok) throw new Error(out.error || "Помилка");
+
+    hintEls.forEach(h => h.textContent = "✅ Додано в базу");
+    setTimeout(() => hintEls.forEach(h => h.textContent = ""), 2000);
+
+    // можно сразу открыть паспорт
+    // location.href = `equip.html?id=${encodeURIComponent(card.id)}`;
+
+  } catch (e) {
+    console.error(e);
+    hintEls.forEach(h => h.textContent = "");
+    alert("❌ " + e.message);
+  }
+}
+
+// ✅ навешиваем на все кнопки "Загрузить в базу"
+function bindSaveButtons() {
+  const btns = document.querySelectorAll("#btnSaveToBase");
+  btns.forEach(btn => btn.onclick = saveToBaseOnly);
+}
+
+    // =========================================================
     // INIT
     // =========================================================
-    window.addEventListener("load", () => {
-      const today = new Date().toISOString().split("T")[0];
-      const companyDate = document.getElementById("companyDate");
-      const receivedDate = document.getElementById("receivedDate");
-      if (companyDate) companyDate.value = today;
-      if (receivedDate) receivedDate.value = today;
+window.addEventListener("load", () => {
+  const today = new Date().toISOString().split("T")[0];
+  const companyDate = document.getElementById("companyDate");
+  const receivedDate = document.getElementById("receivedDate");
+  if (companyDate) companyDate.value = today;
+  if (receivedDate) receivedDate.value = today;
 
-      showStep("step1");
-    });
+  bindSaveButtons();
+  showStep("step1");
+});
+
   </script>
 </body>
 </html>
+
 
 
 
