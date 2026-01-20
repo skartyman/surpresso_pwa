@@ -77,7 +77,6 @@ async function gasPost(payload) {
   if (!GAS_WEBAPP_URL) throw new Error("GAS_WEBAPP_URL is not set");
   if (!GAS_SECRET) throw new Error("GAS_SECRET is not set");
 
-  // ✅ секрет передаем в BODY, как ожидает новый GAS
   const body = {
     secret: GAS_SECRET,
     ...payload,
@@ -188,6 +187,76 @@ function buildCaption(card) {
   return caption;
 }
 
+function buildPassportLink(req, id) {
+  return `${req.protocol}://${req.get("host")}/equip.html?id=${encodeURIComponent(id)}`;
+}
+
+// =======================
+// HELPERS: status notify rules
+// =======================
+function normStatus(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function isClientGiveAwayStatus(status) {
+  // "Выдано клиенту" / "Видано клієнту"
+  const s = normStatus(status);
+  return (
+    s === "выдано клиенту" ||
+    s === "видано клієнту" ||
+    s.includes("выдано") ||
+    s.includes("видано")
+  );
+}
+
+function isCompanyLeavingStatus(status) {
+  // "Уезжает на аренду"
+  const s = normStatus(status);
+  return (
+    s === "уезжает на аренду" ||
+    s.includes("уезжает") ||
+    s.includes("виїжджає")
+  );
+}
+
+function shouldNotifyStatus(eqOwner, newStatus) {
+  if (eqOwner === "client") return isClientGiveAwayStatus(newStatus);
+  if (eqOwner === "company") return isCompanyLeavingStatus(newStatus);
+  return false;
+}
+
+function buildStatusChangeCaption({ eq, oldStatus, newStatus, comment, actor, passportLink }) {
+  const who = eq.owner === "company" ? "🔴 Обладнання компанії" : "🟢 Обладнання клієнта";
+
+  const head =
+    `🔔 Зміна статусу\n` +
+    `${who}\n` +
+    `🆔 ID: ${eq.id || ""}\n` +
+    `🔁 ${oldStatus || "—"} → ${newStatus || "—"}\n`;
+
+  let body = "";
+
+  if (eq.owner === "client") {
+    body +=
+      `👤 ${eq.clientName || ""}\n` +
+      `📞 ${eq.clientPhone || ""}\n` +
+      `⚙️ ${eq.model || ""}\n` +
+      `🔢 ${eq.serial || ""}\n`;
+  } else {
+    body +=
+      `📍 ${eq.companyLocation || ""}\n` +
+      `🛠 ${eq.name || ""}\n` +
+      `🔢 № ${eq.internalNumber || ""}\n`;
+  }
+
+  const extra =
+    (comment ? `📝 ${comment}\n` : "") +
+    (actor ? `👷 ${actor}\n` : "") +
+    `\n🔗 Паспорт: ${passportLink}`;
+
+  return head + body + extra;
+}
+
 // =======================
 // 1) MAIN: первичный прием (TG + Trello + GAS)
 // =======================
@@ -242,8 +311,7 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
           ? `🛠Обладнання: ${payloadCard.name || ""} |📍${payloadCard.companyLocation || ""} | №:${payloadCard.internalNumber || ""}`
           : `👤Клієнт: ${payloadCard.clientName || ""} | ⚙️${payloadCard.model || ""} | ❗${payloadCard.problem || ""}`;
 
-      // ✅ ссылка на паспорт через NODE (а не GAS)
-      const passportLink = `${req.protocol}://${req.get("host")}/passport.html?id=${encodeURIComponent(payloadCard.id)}`;
+      const passportLink = buildPassportLink(req, payloadCard.id);
 
       const desc =
         caption +
@@ -312,32 +380,62 @@ app.get("/api/equip/:id", requirePwaKey, async (req, res) => {
   }
 });
 
-// изменить статус (пока без TG, дальше добавим умные правила)
+// ✅ изменить статус + Telegram (при нужных статусах)
 app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
-    const { newStatus, comment = "", actor = "" } = req.body || {};
+    const { newStatus, comment = "", actor = "", photos = [] } = req.body || {};
+    if (!newStatus) return res.status(400).send({ ok: false, error: "no_newStatus" });
+
+    // 1) Получим текущий equipment чтобы знать owner + старый статус
+    const before = await gasPost({ action: "get", id });
+    const eqBefore = before?.equipment || {};
+    const oldStatus = String(eqBefore.status || "");
+
+    // 2) Пишем новый статус в GAS
     const out = await gasPost({ action: "status", id, newStatus, comment, actor });
-    res.send(out);
+
+    // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
+    const owner = String(eqBefore.owner || "");
+    if (shouldNotifyStatus(owner, newStatus)) {
+      const passportLink = buildPassportLink(req, id);
+
+      const caption = buildStatusChangeCaption({
+        eq: { ...eqBefore, id },
+        oldStatus,
+        newStatus,
+        comment,
+        actor,
+        passportLink,
+      });
+
+      const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
+      await tgSendPhotos(safePhotos, caption);
+    }
+
+    res.send({ ok: true, ...out });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
 });
-app.get('/proxy-drive/:fileId', requirePwaKey, async (req, res) => {
+
+// proxy drive preview (ORB fix)
+app.get("/proxy-drive/:fileId", requirePwaKey, async (req, res) => {
   const { fileId } = req.params;
   try {
     const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Drive error');
+    if (!response.ok) throw new Error("Drive error");
 
     const buffer = await response.buffer();
-    res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=3600');
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+    res.set("Cache-Control", "public, max-age=3600");
     res.send(buffer);
   } catch (err) {
-    res.status(500).send('Proxy error');
+    res.status(500).send("Proxy error");
   }
 });
+
 // добавить фото
 app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
   try {
@@ -361,6 +459,7 @@ app.get("/api/equip/:id/pdf", requirePwaKey, async (req, res) => {
     res.status(500).send({ ok: false, error: String(e) });
   }
 });
+
 // =======================
 // 2.5) Create ONLY in GAS (без TG / Trello)
 // =======================
@@ -369,7 +468,6 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
     const { card } = req.body || {};
     if (!card?.id) return res.status(400).send({ ok: false, error: "no_id" });
 
-    // статус по умолчанию
     if (!card.status) {
       card.status = card.owner === "company" ? "Бронь" : "Принято на ремонт";
     }
@@ -567,6 +665,3 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
-
-
