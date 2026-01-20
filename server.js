@@ -270,8 +270,8 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
 
     if (!payloadCard.status) {
       payloadCard.status = payloadCard.owner === "company"
-        ? "Бронь"
-        : "принято на ремонт";
+        ? "Приехало после аренды"
+        : "Принято на ремонт";
     }
 
     const caption = buildCaption(payloadCard);
