@@ -4,59 +4,177 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
+
   <style>
-    body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
+    :root{
+      --y:#F2C94C;
+      --bg:#fff;
+      --tx:#222;
+      --mut:#666;
+      --bd:#eee;
+      --ghost:#f4f4f4;
+      --rad:14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:Segoe UI,system-ui,sans-serif;
+      margin:0;background:var(--bg);color:var(--tx);
+      overflow-x:hidden;
+    }
     .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #F2C94C;padding-bottom:10px}
+    .top{
+      display:flex;gap:12px;align-items:flex-end;justify-content:space-between;
+      border-bottom:2px solid var(--y);padding-bottom:10px
+    }
     .logo{font-size:20px;font-weight:800}
-    .sub{font-size:12px;color:#666}
-    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px; overflow:hidden;}
+    .sub{font-size:12px;color:var(--mut)}
+    .card{
+      border:1px solid var(--bd);
+      border-radius:var(--rad);
+      padding:14px;margin-top:12px;
+      overflow:hidden;
+    }
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:760px){.grid{grid-template-columns:1fr}}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn:disabled{opacity:.55; cursor:not-allowed}
-    .btn-yellow{background:#F2C94C}
-    .btn-ghost{background:#f4f4f4}
-    select,input,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px; box-sizing:border-box;}
+    .btn{
+      border:0;border-radius:12px;padding:10px 14px;
+      font-weight:700;cursor:pointer;
+    }
+    .btn-yellow{background:var(--y)}
+    .btn-ghost{background:var(--ghost)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    select,input,textarea{
+      width:100%;padding:10px;border-radius:12px;
+      border:1px solid #ddd;font-size:14px;
+      max-width:100%;
+    }
     table{width:100%;border-collapse:collapse}
-    td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
+    td{padding:6px 4px;border-bottom:1px solid var(--bd);vertical-align:top}
     td.lbl{font-weight:700;width:220px}
-    .muted{color:#666;font-size:12px}
+
+    /* PHOTOS */
+    .photos{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:8px;
+      margin-top:10px;
+      width:100%;
+    }
+    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
+    .ph{
+      border:1px solid var(--bd);
+      border-radius:12px;
+      overflow:hidden;
+      background:#fff;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+    }
+    .ph img{
+      width:100%;
+      display:block;
+      height:160px;
+      object-fit:cover;
+      cursor:pointer;
+    }
+    .cap{
+      padding:8px 10px;
+      font-size:12px;
+      color:#333;
+      border-top:1px solid var(--bd);
+      word-break:break-word;
+      overflow-wrap:anywhere;
+      white-space:normal;
+    }
+
+    .muted{color:var(--mut);font-size:12px}
     .warn{color:#b00;font-weight:700}
     .ok{color:#0a7;font-weight:700}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
+    .pill{
+      background:var(--ghost);
+      border-radius:999px;
+      padding:6px 10px;font-size:12px;
+      max-width:100%;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
     .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
 
-    /* photos */
-    .photosHeader{
-      display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    /* Pager */
+    .pager{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      margin-top:10px;
     }
-    .photosGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px; margin-top:10px}
-    @media(max-width:760px){.photosGrid{grid-template-columns:repeat(2,1fr)}}
-    .ph{border:1px solid #eee;border-radius:12px;overflow:hidden;background:#fafafa}
-    .ph img{width:100%;display:block;height:160px;object-fit:cover; cursor:pointer}
-    .cap{padding:8px;font-size:12px;color:#444;border-top:1px solid #eee; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .pager .mini{
+      padding:8px 10px;border-radius:12px;
+      border:1px solid var(--bd);
+      background:#fff;
+      font-weight:700;
+    }
+    .pager .info{
+      font-size:12px;color:var(--mut);
+      padding:8px 10px;border-radius:12px;
+      background:var(--ghost);
+      white-space:nowrap;
+    }
 
-    .pager{display:flex; gap:8px; align-items:center; justify-content:center; margin-top:10px}
-    .pager button{padding:8px 10px; border-radius:12px}
-    .pagerInfo{font-size:12px; color:#666; min-width:120px; text-align:center}
-
-    /* lightbox */
+    /* Lightbox */
     .lb{
-      position:fixed; inset:0; background:rgba(0,0,0,.78);
-      display:none; align-items:center; justify-content:center; padding:18px; z-index:9999;
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.75);
+      display:none;
+      align-items:center;justify-content:center;
+      z-index:9999;
+      padding:16px;
     }
-    .lbInner{max-width:980px; width:100%;}
-    .lbTop{display:flex; gap:10px; align-items:center; justify-content:space-between; color:#fff; margin-bottom:10px}
-    .lbTitle{font-weight:700; font-size:14px; opacity:.95; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-    .lbBtns{display:flex; gap:8px; flex-wrap:wrap;}
-    .lbBtn{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.18); padding:8px 10px; border-radius:12px; cursor:pointer; font-weight:700}
-    .lbImgWrap{background:#111;border-radius:16px; overflow:hidden; box-shadow:0 10px 28px rgba(0,0,0,.35)}
-    .lbImg{width:100%; max-height:78vh; object-fit:contain; display:block; background:#111}
+    .lb.open{display:flex}
+    .lb-card{
+      background:#111;
+      border-radius:16px;
+      max-width:980px;
+      width:100%;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.1);
+    }
+    .lb-top{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;
+      color:#fff;
+      background:rgba(255,255,255,.05);
+      gap:10px;
+    }
+    .lb-title{
+      font-size:13px;opacity:.9;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      max-width:70%;
+    }
+    .lb-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .lb-actions a,.lb-actions button{
+      border:0;border-radius:12px;
+      padding:8px 10px;
+      font-weight:800;
+      cursor:pointer;
+      background:rgba(255,255,255,.12);
+      color:#fff;
+      text-decoration:none;
+    }
+    .lb-img{
+      width:100%;
+      max-height:78vh;
+      object-fit:contain;
+      display:block;
+      background:#000;
+    }
+
+    /* Fix any horizontal scroll */
+    html, body { max-width:100%; overflow-x:hidden; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
@@ -120,33 +238,26 @@
         <table id="info"></table>
       </div>
 
-      <!-- PHOTOS -->
       <div class="card">
-        <div class="photosHeader">
+        <div class="row" style="justify-content:space-between">
           <div style="font-weight:800">Фото</div>
-
-          <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
-            <!-- ✅ MULTI FILES -->
-            <input type="file" id="photoFiles" accept="image/*" multiple />
-            <button class="btn btn-yellow" id="btnUploadPhotos">📸 Додати фото</button>
+          <div class="row" style="align-items:center">
+            <input type="file" id="photoFile" accept="image/*" multiple />
+            <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
           </div>
         </div>
 
         <div class="muted" style="margin-top:6px">
-          Можна вибрати одразу <b>3–5 фото</b> (або більше). Показуємо останні <b>10</b> з пагінацією.
+          Можна вибрати одразу <b>3–5 фото</b>. Показуємо по <b>10</b> фото на сторінці.
         </div>
 
-        <div class="row" style="margin-top:10px; align-items:center; justify-content:space-between">
-          <div class="muted" id="photosHint"></div>
-
-          <div class="pager">
-            <button class="btn btn-ghost" id="btnPrevPhotos">←</button>
-            <div class="pagerInfo" id="photosPageInfo">Фото: 0</div>
-            <button class="btn btn-ghost" id="btnNextPhotos">→</button>
-          </div>
+        <div class="pager">
+          <button class="btn btn-ghost mini" id="btnPrevPhotos">←</button>
+          <div class="info" id="photosPageInfo">Фото: 0</div>
+          <button class="btn btn-ghost mini" id="btnNextPhotos">→</button>
         </div>
 
-        <div class="photosGrid" id="photos"></div>
+        <div class="photos" id="photos"></div>
       </div>
 
       <div class="card">
@@ -157,18 +268,16 @@
   </div>
 
   <!-- LIGHTBOX -->
-  <div class="lb" id="lightbox" onclick="closeLightbox(event)">
-    <div class="lbInner">
-      <div class="lbTop">
-        <div class="lbTitle" id="lbTitle">Фото</div>
-        <div class="lbBtns">
-          <button class="lbBtn" id="lbOpenDrive" onclick="openDriveFromLightbox(event)">Відкрити в Drive</button>
-          <button class="lbBtn" onclick="forceCloseLightbox(event)">✕ Закрити</button>
+  <div id="lightbox" class="lb" onclick="closeLightbox(event)">
+    <div class="lb-card" onclick="event.stopPropagation()">
+      <div class="lb-top">
+        <div id="lbTitle" class="lb-title">Фото</div>
+        <div class="lb-actions">
+          <a id="lbOpen" href="#" target="_blank">Відкрити</a>
+          <button onclick="closeLightbox()">✕</button>
         </div>
       </div>
-      <div class="lbImgWrap">
-        <img class="lbImg" id="lbImg" src="" alt="">
-      </div>
+      <img id="lbImg" class="lb-img" src="" alt="">
     </div>
   </div>
 
@@ -176,27 +285,10 @@
     // ===========================
     // CONFIG
     // ===========================
-    const PWA_KEY_STORAGE = "surpresso_pwa_key"; // где храним ключ
-    const API_BASE = ""; // если API на том же домене -> пусто
+    const PWA_KEY_STORAGE = "surpresso_pwa_key";
+    const API_BASE = ""; // same domain
 
     const PHOTOS_PAGE_SIZE = 10;
-
-    const DEFAULT_STATUSES_CLIENT = [
-      "Прийнято на ремонт",
-      "В роботі",
-      "Готово",
-      "Видано клієнту"
-    ];
-
-    const DEFAULT_STATUSES_COMPANY = [
-      "Бронь",
-      "Готово к аренде",
-      "Уезжает на аренду",
-      "Приехало после аренды",
-      "Уезжает на подмену",
-      "Приехало с подмены",
-      "Продано"
-    ];
 
     const $ = (id) => document.getElementById(id);
 
@@ -214,7 +306,8 @@
 
       $("btnRefresh").onclick = load;
       $("btnStatus").onclick = saveStatus;
-      $("btnUploadPhotos").onclick = uploadPhotosMulti;
+      $("btnUpload").onclick = uploadPhoto;
+
       $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
 
@@ -273,12 +366,15 @@
     }
 
     // ===========================
-    // LOAD & RENDER
+    // STATE
     // ===========================
-    let CURRENT_OWNER = ""; // client / company
+    let CURRENT_OWNER = "";
     let allPhotos = [];
     let photosPage = 0;
 
+    // ===========================
+    // LOAD & RENDER
+    // ===========================
     async function load() {
       $("statusHint").textContent = "Завантажую...";
       const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
@@ -294,8 +390,9 @@
 
     function render(data) {
       const eq = data.equipment || {};
-      allPhotos = Array.isArray(data.photos) ? data.photos : [];
+      const photos = data.photos || [];
       const log = data.log || [];
+      const statuses = data.statuses || [];
 
       CURRENT_OWNER = eq.owner || "";
 
@@ -305,7 +402,6 @@
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
 
-      // Drive folder link
       if (eq.folderUrl) {
         $("driveFolderLink").href = eq.folderUrl;
         $("driveFolderLink").style.display = "inline-flex";
@@ -313,9 +409,9 @@
         $("driveFolderLink").style.display = "none";
       }
 
-      // fill statuses (по owner)
-      const statuses = buildStatusesFor(eq);
-      fillStatuses(statuses, eq.status);
+      fillStatuses(statuses.length ? statuses : [
+        "Прийнято на ремонт", "В роботі", "Готово", "Видано клієнту"
+      ], eq.status);
 
       // info table
       const rows = [];
@@ -338,14 +434,14 @@
       }
 
       add("Останній коментар", eq.lastComment || "—");
-
       $("info").innerHTML = rows.join("");
 
-      // photos render (pagination)
+      // PHOTOS
+      allPhotos = Array.isArray(photos) ? photos : [];
       photosPage = 0;
       renderPhotos();
 
-      // log render
+      // log
       $("log").innerHTML = log.length
         ? log.map(r => `
           <tr>
@@ -357,11 +453,6 @@
           </tr>
         `).join("")
         : `<tr><td class="muted">Немає записів</td></tr>`;
-    }
-
-    function buildStatusesFor(eq) {
-      if (eq.owner === "company") return DEFAULT_STATUSES_COMPANY;
-      return DEFAULT_STATUSES_CLIENT;
     }
 
     function fillStatuses(list, current) {
@@ -379,12 +470,40 @@
     }
 
     // ===========================
-    // PHOTOS: pagination + preview
+    // PHOTOS: pagination + ORB-safe preview
     // ===========================
+    function bust(url){
+      if(!url) return "";
+      return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+    }
+
+    function extractDriveId(url) {
+      const s = String(url || "");
+      // ...id=FILEID
+      let m = s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m && m[1]) return m[1];
+      // /file/d/FILEID/
+      m = s.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (m && m[1]) return m[1];
+      return "";
+    }
+
+    function toPreviewUrl(p) {
+      // prefer fileId if can extract it
+      const fileId = extractDriveId(p.url || "") || extractDriveId(p.imgUrl || "");
+      if (fileId) {
+        // ✅ ORB-safe через твой Node proxy
+        return bust(`/proxy-drive/${encodeURIComponent(fileId)}`);
+      }
+
+      // fallback (may ORB, но пусть будет)
+      return bust(p.imgUrl || p.url || "");
+    }
+
     function renderPhotos() {
       const total = allPhotos.length;
       const maxPage = Math.max(0, Math.ceil(total / PHOTOS_PAGE_SIZE) - 1);
-      photosPage = Math.min(Math.max(photosPage, 0), maxPage);
+      photosPage = Math.min(Math.max(0, photosPage), maxPage);
 
       const start = photosPage * PHOTOS_PAGE_SIZE;
       const slice = allPhotos.slice(start, start + PHOTOS_PAGE_SIZE);
@@ -401,94 +520,27 @@
       }
 
       $("photos").innerHTML = slice.map((p) => {
-        const driveViewUrl = String(p.url || "");
-        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl);
+        const openUrl = String(p.url || p.imgUrl || "").trim();
+        const img = toPreviewUrl(p);
         const cap = p.caption || "";
         const ts = fmt(p.ts);
+
         const safeCap = esc(cap || ts || "Фото");
-        const safeDrive = esc(driveViewUrl);
+        const safeOpen = esc(openUrl || "");
 
         return `
           <div class="ph">
             <img
-              src="${imgUrl}"
+              src="${img}"
               alt="${safeCap}"
               loading="lazy"
-              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
-              onclick="openLightbox('${escapeJs(imgUrl)}','${escapeJs(driveViewUrl)}','${escapeJs(safeCap)}')"
+              onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeOpen}&quot;>Відкрити</a></div>';"
+              onclick="openLightbox('${escapeJs(img)}','${escapeJs(openUrl)}','${escapeJs(safeCap)}')"
             >
             <div class="cap">${safeCap}</div>
           </div>
         `;
       }).join("");
-    }
-
-    // Превью URL из Drive:
-    // 1) если url уже /uc?export=view&id=... -> оставим
-    // 2) если url = https://drive.google.com/file/d/{id}/view -> сделаем /uc?export=view&id=...
-    function driveToImageUrl(driveUrl) {
-  if (!driveUrl) return "";
-
-  const s = String(driveUrl);
-
-  let fileId = null;
-
-  // Витягуємо ID з будь-якого варіанту посилання
-  if (s.includes("uc?export=view&id=")) {
-    const m = s.match(/id=([^&]+)/i);
-    if (m) fileId = m[1];
-  } else if (s.includes("/file/d/")) {
-    const m = s.match(/\/file\/d\/([^\/]+)\//i);
-    if (m) fileId = m[1];
-  } else if (s.includes("id=")) {
-    const m = s.match(/[?&]id=([^&]+)/i);
-    if (m) fileId = m[1];
-  }
-
-  if (fileId) {
-    // thumbnail — найстабільніший варіант на 2026 рік
-    // sz=w1000 — ширина до 1000px (можна w800, w1600, w2000 — тестуй)
-    // для квадратних прев’ю: &sz=s400 або &sz=w400-h400
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-  }
-
-  // Якщо не вдалося витягти ID — повертаємо оригінал (рідко)
-  return s;
-}
-    // ===========================
-    // LIGHTBOX
-    // ===========================
-    let LB_DRIVE_URL = "";
-    function openLightbox(imgUrl, driveUrl, title) {
-      LB_DRIVE_URL = driveUrl || "";
-      $("lbImg").src = imgUrl || "";
-      $("lbTitle").textContent = title || "Фото";
-      $("lightbox").style.display = "flex";
-      $("lbOpenDrive").style.display = LB_DRIVE_URL ? "inline-flex" : "none";
-    }
-
-    function closeLightbox(e) {
-      // закрываем только по клику на фон
-      if (e.target && e.target.id === "lightbox") {
-        $("lightbox").style.display = "none";
-        $("lbImg").src = "";
-        LB_DRIVE_URL = "";
-      }
-    }
-
-    function forceCloseLightbox(e){
-      e.preventDefault();
-      e.stopPropagation();
-      $("lightbox").style.display = "none";
-      $("lbImg").src = "";
-      LB_DRIVE_URL = "";
-    }
-
-    function openDriveFromLightbox(e){
-      e.preventDefault();
-      e.stopPropagation();
-      if (!LB_DRIVE_URL) return;
-      window.open(LB_DRIVE_URL, "_blank");
     }
 
     // ===========================
@@ -504,6 +556,8 @@
 
       const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
         newStatus, comment, actor
+        // если позже захочешь слать фото со статусом в TG:
+        // photos: [...]
       });
 
       $("btnStatus").disabled = false;
@@ -516,52 +570,41 @@
     }
 
     // ===========================
-    // ✅ UPLOAD PHOTOS (MULTI)
+    // UPLOAD PHOTO (MULTI 3–5)
     // ===========================
-    async function uploadPhotosMulti() {
-      const input = $("photoFiles");
-      const files = input && input.files ? Array.from(input.files) : [];
+    async function uploadPhoto() {
+      const files = Array.from($("photoFile").files || []);
+      if (!files.length) return alert("Оберіть фото");
 
-      if (!files.length) return alert("Оберіть фото (можна кілька)");
+      const pack = files.slice(0, 5); // максимум 5
 
-      // Мягкое ограничение (можешь поменять)
-      const MAX = 10;
-      if (files.length > MAX) {
-        if (!confirm(`Обрано ${files.length} фото. Завантажити тільки перші ${MAX}?`)) return;
-      }
-
-      const toUpload = files.slice(0, MAX);
-
-      $("btnUploadPhotos").disabled = true;
-      $("photosHint").textContent = `Завантажую ${toUpload.length} фото...`;
+      $("btnUpload").disabled = true;
+      $("infoHint").textContent = `Завантажую ${pack.length} фото...`;
 
       try {
-        for (let i = 0; i < toUpload.length; i++) {
-          $("photosHint").textContent = `Завантажую фото ${i + 1} / ${toUpload.length}...`;
-          const base64 = await fileToBase64(toUpload[i]);
+        for (let i = 0; i < pack.length; i++) {
+          $("infoHint").textContent = `Завантажую фото ${i + 1} / ${pack.length}...`;
+          const base64 = await fileToBase64(pack[i]);
 
           const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
             base64,
-            caption: ""
+            caption: `Фото ${i + 1}`
           });
 
-          if (!out.ok) {
-            throw new Error(out.error || `Помилка на фото ${i + 1}`);
-          }
+          if (!out.ok) throw new Error(out.error || "Помилка завантаження фото");
         }
 
-        $("photosHint").textContent = "✅ Фото додано";
-        setTimeout(() => $("photosHint").textContent = "", 2000);
+        $("photoFile").value = "";
+        $("infoHint").textContent = "✅ Фото додані";
+        setTimeout(() => ($("infoHint").textContent = ""), 1500);
 
-        input.value = "";
         await load();
-
       } catch (e) {
         console.error(e);
-        $("photosHint").textContent = "";
-        alert("❌ " + (e.message || "Помилка завантаження"));
+        $("infoHint").textContent = "";
+        alert("❌ " + e.message);
       } finally {
-        $("btnUploadPhotos").disabled = false;
+        $("btnUpload").disabled = false;
       }
     }
 
@@ -572,6 +615,31 @@
         fr.onerror = reject;
         fr.readAsDataURL(file);
       });
+    }
+
+    // ===========================
+    // LIGHTBOX
+    // ===========================
+    function openLightbox(imgUrl, openUrl, title) {
+      const lb = $("lightbox");
+      const img = $("lbImg");
+      const a = $("lbOpen");
+      const t = $("lbTitle");
+
+      img.src = imgUrl || "";
+      a.href = openUrl || imgUrl || "#";
+      t.textContent = (title || "Фото").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+
+      lb.classList.add("open");
+    }
+
+    function closeLightbox(e) {
+      const lb = $("lightbox");
+      if (e && e.target && e.target.id !== "lightbox") return;
+      lb.classList.remove("open");
+      $("lbImg").src = "";
+      $("lbOpen").href = "#";
+      $("lbTitle").textContent = "";
     }
 
     // ===========================
