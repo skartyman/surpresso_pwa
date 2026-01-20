@@ -4,177 +4,119 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
-
   <style>
-    :root{
-      --y:#F2C94C;
-      --bg:#fff;
-      --tx:#222;
-      --mut:#666;
-      --bd:#eee;
-      --ghost:#f4f4f4;
-      --rad:14px;
-    }
-    *{box-sizing:border-box}
-    body{
-      font-family:Segoe UI,system-ui,sans-serif;
-      margin:0;background:var(--bg);color:var(--tx);
-      overflow-x:hidden;
-    }
+    body{font-family:Segoe UI,system-ui,sans-serif;margin:0;background:#fff;color:#222}
     .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{
-      display:flex;gap:12px;align-items:flex-end;justify-content:space-between;
-      border-bottom:2px solid var(--y);padding-bottom:10px
-    }
+    .top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #F2C94C;padding-bottom:10px}
     .logo{font-size:20px;font-weight:800}
-    .sub{font-size:12px;color:var(--mut)}
-    .card{
-      border:1px solid var(--bd);
-      border-radius:var(--rad);
-      padding:14px;margin-top:12px;
-      overflow:hidden;
-    }
+    .sub{font-size:12px;color:#666}
+    .card{border:1px solid #eee;border-radius:14px;padding:14px;margin-top:12px; overflow:hidden;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media(max-width:760px){.grid{grid-template-columns:1fr}}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .btn{
-      border:0;border-radius:12px;padding:10px 14px;
-      font-weight:700;cursor:pointer;
-    }
-    .btn-yellow{background:var(--y)}
-    .btn-ghost{background:var(--ghost)}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    select,input,textarea{
-      width:100%;padding:10px;border-radius:12px;
-      border:1px solid #ddd;font-size:14px;
-      max-width:100%;
-    }
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .btn-yellow{background:#F2C94C}
+    .btn-ghost{background:#f4f4f4}
+    .btn-danger{background:#ffe5e5;color:#b00}
+    select,input,textarea{width:100%;padding:10px;border-radius:12px;border:1px solid #ddd;font-size:14px; box-sizing:border-box;}
     table{width:100%;border-collapse:collapse}
-    td{padding:6px 4px;border-bottom:1px solid var(--bd);vertical-align:top}
+    td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
     td.lbl{font-weight:700;width:220px}
-
-    /* PHOTOS */
-    .photos{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:8px;
-      margin-top:10px;
-      width:100%;
-    }
-    @media(max-width:760px){.photos{grid-template-columns:repeat(2,1fr)}}
-    .ph{
-      border:1px solid var(--bd);
-      border-radius:12px;
-      overflow:hidden;
-      background:#fff;
-      display:flex;
-      flex-direction:column;
-      min-width:0;
-    }
-    .ph img{
-      width:100%;
-      display:block;
-      height:160px;
-      object-fit:cover;
-      cursor:pointer;
-    }
-    .cap{
-      padding:8px 10px;
-      font-size:12px;
-      color:#333;
-      border-top:1px solid var(--bd);
-      word-break:break-word;
-      overflow-wrap:anywhere;
-      white-space:normal;
-    }
-
-    .muted{color:var(--mut);font-size:12px}
+    .muted{color:#666;font-size:12px}
     .warn{color:#b00;font-weight:700}
     .ok{color:#0a7;font-weight:700}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .pill{
-      background:var(--ghost);
-      border-radius:999px;
-      padding:6px 10px;font-size:12px;
-      max-width:100%;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    }
+    .pill{background:#f4f4f4;border-radius:999px;padding:6px 10px;font-size:12px}
     .link{color:#222;text-decoration:none;border-bottom:1px dashed #999}
 
-    /* Pager */
-    .pager{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
+    /* photos in passport */
+    .photosHeader{
+      display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    }
+    .photosGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px; margin-top:10px}
+    @media(max-width:760px){.photosGrid{grid-template-columns:repeat(2,1fr)}}
+    .ph{border:1px solid #eee;border-radius:12px;overflow:hidden;background:#fafafa}
+    .ph img{width:100%;display:block;height:160px;object-fit:cover; cursor:pointer}
+    .cap{padding:8px;font-size:12px;color:#444;border-top:1px solid #eee; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+    .pager{display:flex; gap:8px; align-items:center; justify-content:center; margin-top:10px}
+    .pager button{padding:8px 10px; border-radius:12px}
+    .pagerInfo{font-size:12px; color:#666; min-width:120px; text-align:center}
+
+    /* lightbox */
+    .lb{
+      position:fixed; inset:0; background:rgba(0,0,0,.78);
+      display:none; align-items:center; justify-content:center; padding:18px; z-index:9999;
+    }
+    .lbInner{max-width:980px; width:100%;}
+    .lbTop{display:flex; gap:10px; align-items:center; justify-content:space-between; color:#fff; margin-bottom:10px}
+    .lbTitle{font-weight:700; font-size:14px; opacity:.95; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .lbBtns{display:flex; gap:8px; flex-wrap:wrap;}
+    .lbBtn{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.18); padding:8px 10px; border-radius:12px; cursor:pointer; font-weight:700}
+    .lbImgWrap{background:#111;border-radius:16px; overflow:hidden; box-shadow:0 10px 28px rgba(0,0,0,.35)}
+    .lbImg{width:100%; max-height:78vh; object-fit:contain; display:block; background:#111}
+
+    /* Status photo block */
+    .miniTitle{font-weight:800;margin:0 0 6px 0}
+    .hintLine{font-size:12px;color:#666;margin-top:6px}
+    .previewGrid{
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      gap:8px;
       margin-top:10px;
     }
-    .pager .mini{
-      padding:8px 10px;border-radius:12px;
-      border:1px solid var(--bd);
-      background:#fff;
-      font-weight:700;
+    @media(max-width:760px){
+      .previewGrid{grid-template-columns:repeat(3,1fr)}
     }
-    .pager .info{
-      font-size:12px;color:var(--mut);
-      padding:8px 10px;border-radius:12px;
-      background:var(--ghost);
-      white-space:nowrap;
+    .prevItem{
+      position:relative;
+      border:1px solid #eee;
+      border-radius:12px;
+      overflow:hidden;
+      background:#fafafa;
+    }
+    .prevItem img{
+      width:100%;
+      height:120px;
+      object-fit:cover;
+      display:block;
+    }
+    .prevDel{
+      position:absolute;
+      right:6px;
+      top:6px;
+      border:0;
+      background:rgba(0,0,0,.55);
+      color:#fff;
+      font-weight:800;
+      border-radius:10px;
+      padding:6px 8px;
+      cursor:pointer;
+      font-size:12px;
     }
 
-    /* Lightbox */
-    .lb{
-      position:fixed;inset:0;
-      background:rgba(0,0,0,.75);
+    .cameraBox{
       display:none;
-      align-items:center;justify-content:center;
-      z-index:9999;
-      padding:16px;
-    }
-    .lb.open{display:flex}
-    .lb-card{
-      background:#111;
-      border-radius:16px;
-      max-width:980px;
-      width:100%;
+      margin-top:10px;
+      border:1px solid #eee;
+      border-radius:14px;
       overflow:hidden;
-      border:1px solid rgba(255,255,255,.1);
-    }
-    .lb-top{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:10px 12px;
-      color:#fff;
-      background:rgba(255,255,255,.05);
-      gap:10px;
-    }
-    .lb-title{
-      font-size:13px;opacity:.9;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-      max-width:70%;
-    }
-    .lb-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .lb-actions a,.lb-actions button{
-      border:0;border-radius:12px;
-      padding:8px 10px;
-      font-weight:800;
-      cursor:pointer;
-      background:rgba(255,255,255,.12);
-      color:#fff;
-      text-decoration:none;
-    }
-    .lb-img{
-      width:100%;
-      max-height:78vh;
-      object-fit:contain;
-      display:block;
       background:#000;
     }
+    .cameraBox video{
+      width:100%;
+      max-height:320px;
+      object-fit:cover;
+      display:block;
+    }
 
-    /* Fix any horizontal scroll */
-    html, body { max-width:100%; overflow-x:hidden; }
+    .compactInput{
+      max-width:220px;
+    }
+
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <div class="top">
@@ -211,6 +153,7 @@
         </div>
       </div>
 
+      <!-- STATUS -->
       <div class="card">
         <div class="grid">
           <div>
@@ -224,12 +167,47 @@
         </div>
 
         <div class="row" style="margin-top:10px">
-          <input id="actor" placeholder="Хто змінив (опц.) напр: Ігор" style="max-width:220px" />
+          <input id="actor" class="compactInput" placeholder="Хто змінив (опц.) напр: Ігор" />
           <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
           <span class="muted" id="statusHint"></span>
         </div>
+
+        <!-- ✅ PHOTO FOR STATUS (FRESH) -->
+        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+          <div class="miniTitle">📸 Фото до зміни статусу (свіже / з телефону)</div>
+          <div class="muted">
+            Це фото піде разом зі зміною статусу на сервер. Сервер сам вирішить, чи робити постинг у Telegram.
+          </div>
+
+          <div class="row" style="margin-top:10px; justify-content:space-between">
+            <div class="row" style="gap:8px;">
+              <button class="btn btn-ghost" id="btnCamToggle">📷 Камера</button>
+              <button class="btn btn-ghost" id="btnTorch" style="display:none">💡 Світло</button>
+              <button class="btn btn-ghost" id="btnCapture" style="display:none">📸 Зняти</button>
+              <button class="btn btn-danger" id="btnClearStatusPhotos" style="display:none">🗑 Очистити</button>
+            </div>
+
+            <div class="row" style="gap:8px;">
+              <input type="file" id="statusPhotoFiles" accept="image/*" multiple />
+              <button class="btn btn-yellow" id="btnAddStatusFiles">➕ Додати з галереї</button>
+            </div>
+          </div>
+
+          <div class="hintLine">
+            Можна вибрати одразу <b>3–5 фото</b> (або більше). Рекомендую максимум <b>10</b> за раз.
+          </div>
+
+          <div class="cameraBox" id="cameraBox">
+            <video id="camVideo" autoplay playsinline></video>
+            <canvas id="camCanvas" style="display:none;"></canvas>
+          </div>
+
+          <div id="statusPhotosHint" class="muted" style="margin-top:8px"></div>
+          <div id="statusPreview" class="previewGrid" style="display:none"></div>
+        </div>
       </div>
 
+      <!-- INFO -->
       <div class="card">
         <div class="row" style="justify-content:space-between">
           <div style="font-weight:800">Інформація</div>
@@ -238,28 +216,35 @@
         <table id="info"></table>
       </div>
 
+      <!-- PHOTOS from GAS -->
       <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <div style="font-weight:800">Фото</div>
-          <div class="row" style="align-items:center">
-            <input type="file" id="photoFile" accept="image/*" multiple />
-            <button class="btn btn-yellow" id="btnUpload">📸 Додати фото</button>
+        <div class="photosHeader">
+          <div style="font-weight:800">Фото (з бази)</div>
+
+          <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
+            <input type="file" id="photoFiles" accept="image/*" multiple />
+            <button class="btn btn-yellow" id="btnUploadPhotos">📤 Додати фото в базу</button>
           </div>
         </div>
 
         <div class="muted" style="margin-top:6px">
-          Можна вибрати одразу <b>3–5 фото</b>. Показуємо по <b>10</b> фото на сторінці.
+          Можна вибрати одразу <b>3–5 фото</b> (або більше). Показуємо останні <b>10</b> з пагінацією.
         </div>
 
-        <div class="pager">
-          <button class="btn btn-ghost mini" id="btnPrevPhotos">←</button>
-          <div class="info" id="photosPageInfo">Фото: 0</div>
-          <button class="btn btn-ghost mini" id="btnNextPhotos">→</button>
+        <div class="row" style="margin-top:10px; align-items:center; justify-content:space-between">
+          <div class="muted" id="photosHint"></div>
+
+          <div class="pager">
+            <button class="btn btn-ghost" id="btnPrevPhotos">←</button>
+            <div class="pagerInfo" id="photosPageInfo">Фото: 0</div>
+            <button class="btn btn-ghost" id="btnNextPhotos">→</button>
+          </div>
         </div>
 
-        <div class="photos" id="photos"></div>
+        <div class="photosGrid" id="photos"></div>
       </div>
 
+      <!-- LOG -->
       <div class="card">
         <div style="font-weight:800">Історія статусів</div>
         <table id="log"></table>
@@ -268,16 +253,18 @@
   </div>
 
   <!-- LIGHTBOX -->
-  <div id="lightbox" class="lb" onclick="closeLightbox(event)">
-    <div class="lb-card" onclick="event.stopPropagation()">
-      <div class="lb-top">
-        <div id="lbTitle" class="lb-title">Фото</div>
-        <div class="lb-actions">
-          <a id="lbOpen" href="#" target="_blank">Відкрити</a>
-          <button onclick="closeLightbox()">✕</button>
+  <div class="lb" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lbInner">
+      <div class="lbTop">
+        <div class="lbTitle" id="lbTitle">Фото</div>
+        <div class="lbBtns">
+          <button class="lbBtn" id="lbOpenDrive" onclick="openDriveFromLightbox(event)">Відкрити в Drive</button>
+          <button class="lbBtn" onclick="forceCloseLightbox(event)">✕ Закрити</button>
         </div>
       </div>
-      <img id="lbImg" class="lb-img" src="" alt="">
+      <div class="lbImgWrap">
+        <img class="lbImg" id="lbImg" src="" alt="">
+      </div>
     </div>
   </div>
 
@@ -289,6 +276,23 @@
     const API_BASE = ""; // same domain
 
     const PHOTOS_PAGE_SIZE = 10;
+
+    const DEFAULT_STATUSES_CLIENT = [
+      "Прийнято на ремонт",
+      "В роботі",
+      "Готово",
+      "Видано клієнту"
+    ];
+
+    const DEFAULT_STATUSES_COMPANY = [
+      "Бронь",
+      "Готово к аренде",
+      "Уезжает на аренду",
+      "Приехало после аренды",
+      "Уезжает на подмену",
+      "Приехало с подмены",
+      "Продано"
+    ];
 
     const $ = (id) => document.getElementById(id);
 
@@ -306,8 +310,8 @@
 
       $("btnRefresh").onclick = load;
       $("btnStatus").onclick = saveStatus;
-      $("btnUpload").onclick = uploadPhoto;
 
+      $("btnUploadPhotos").onclick = uploadPhotosMulti;
       $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
 
@@ -315,11 +319,18 @@
         location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
       };
 
+      // status photos controls
+      $("btnCamToggle").onclick = toggleCamera;
+      $("btnCapture").onclick = captureStatusPhoto;
+      $("btnTorch").onclick = toggleTorch;
+      $("btnAddStatusFiles").onclick = addStatusFiles;
+      $("btnClearStatusPhotos").onclick = clearStatusPhotos;
+
       load();
     }
 
     // ===========================
-    // AUTH: key
+    // AUTH
     // ===========================
     function getKey() {
       return localStorage.getItem(PWA_KEY_STORAGE) || "";
@@ -366,15 +377,12 @@
     }
 
     // ===========================
-    // STATE
+    // LOAD & RENDER
     // ===========================
     let CURRENT_OWNER = "";
     let allPhotos = [];
     let photosPage = 0;
 
-    // ===========================
-    // LOAD & RENDER
-    // ===========================
     async function load() {
       $("statusHint").textContent = "Завантажую...";
       const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
@@ -390,9 +398,8 @@
 
     function render(data) {
       const eq = data.equipment || {};
-      const photos = data.photos || [];
+      allPhotos = Array.isArray(data.photos) ? data.photos : [];
       const log = data.log || [];
-      const statuses = data.statuses || [];
 
       CURRENT_OWNER = eq.owner || "";
 
@@ -402,6 +409,7 @@
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
 
+      // Drive folder link
       if (eq.folderUrl) {
         $("driveFolderLink").href = eq.folderUrl;
         $("driveFolderLink").style.display = "inline-flex";
@@ -409,9 +417,9 @@
         $("driveFolderLink").style.display = "none";
       }
 
-      fillStatuses(statuses.length ? statuses : [
-        "Прийнято на ремонт", "В роботі", "Готово", "Видано клієнту"
-      ], eq.status);
+      // statuses by owner
+      const statuses = buildStatusesFor(eq);
+      fillStatuses(statuses, eq.status);
 
       // info table
       const rows = [];
@@ -434,14 +442,14 @@
       }
 
       add("Останній коментар", eq.lastComment || "—");
+
       $("info").innerHTML = rows.join("");
 
-      // PHOTOS
-      allPhotos = Array.isArray(photos) ? photos : [];
+      // photos render (pagination)
       photosPage = 0;
       renderPhotos();
 
-      // log
+      // log render
       $("log").innerHTML = log.length
         ? log.map(r => `
           <tr>
@@ -453,6 +461,11 @@
           </tr>
         `).join("")
         : `<tr><td class="muted">Немає записів</td></tr>`;
+    }
+
+    function buildStatusesFor(eq) {
+      if (eq.owner === "company") return DEFAULT_STATUSES_COMPANY;
+      return DEFAULT_STATUSES_CLIENT;
     }
 
     function fillStatuses(list, current) {
@@ -470,40 +483,12 @@
     }
 
     // ===========================
-    // PHOTOS: pagination + ORB-safe preview
+    // PHOTOS: pagination + preview
     // ===========================
-    function bust(url){
-      if(!url) return "";
-      return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
-    }
-
-    function extractDriveId(url) {
-      const s = String(url || "");
-      // ...id=FILEID
-      let m = s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-      if (m && m[1]) return m[1];
-      // /file/d/FILEID/
-      m = s.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (m && m[1]) return m[1];
-      return "";
-    }
-
-    function toPreviewUrl(p) {
-      // prefer fileId if can extract it
-      const fileId = extractDriveId(p.url || "") || extractDriveId(p.imgUrl || "");
-      if (fileId) {
-        // ✅ ORB-safe через твой Node proxy
-        return bust(`/proxy-drive/${encodeURIComponent(fileId)}`);
-      }
-
-      // fallback (may ORB, но пусть будет)
-      return bust(p.imgUrl || p.url || "");
-    }
-
     function renderPhotos() {
       const total = allPhotos.length;
       const maxPage = Math.max(0, Math.ceil(total / PHOTOS_PAGE_SIZE) - 1);
-      photosPage = Math.min(Math.max(0, photosPage), maxPage);
+      photosPage = Math.min(Math.max(photosPage, 0), maxPage);
 
       const start = photosPage * PHOTOS_PAGE_SIZE;
       const slice = allPhotos.slice(start, start + PHOTOS_PAGE_SIZE);
@@ -520,22 +505,23 @@
       }
 
       $("photos").innerHTML = slice.map((p) => {
-        const openUrl = String(p.url || p.imgUrl || "").trim();
-        const img = toPreviewUrl(p);
+        const driveViewUrl = String(p.url || "");
+        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl);
         const cap = p.caption || "";
         const ts = fmt(p.ts);
-
         const safeCap = esc(cap || ts || "Фото");
-        const safeOpen = esc(openUrl || "");
+        const safeDrive = esc(driveViewUrl);
+
+        const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 
         return `
           <div class="ph">
             <img
-              src="${img}"
+              src="${fresh}"
               alt="${safeCap}"
               loading="lazy"
-              onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeOpen}&quot;>Відкрити</a></div>';"
-              onclick="openLightbox('${escapeJs(img)}','${escapeJs(openUrl)}','${escapeJs(safeCap)}')"
+              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
+              onclick="openLightbox('${escapeJs(fresh)}','${escapeJs(driveViewUrl)}','${escapeJs(safeCap)}')"
             >
             <div class="cap">${safeCap}</div>
           </div>
@@ -543,8 +529,70 @@
       }).join("");
     }
 
+    // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
+    function driveToImageUrl(driveUrl) {
+      if (!driveUrl) return "";
+
+      const s = String(driveUrl);
+      let fileId = null;
+
+      if (s.includes("uc?export=view&id=")) {
+        const m = s.match(/id=([^&]+)/i);
+        if (m) fileId = m[1];
+      } else if (s.includes("/file/d/")) {
+        const m = s.match(/\/file\/d\/([^\/]+)\//i);
+        if (m) fileId = m[1];
+      } else if (s.includes("id=")) {
+        const m = s.match(/[?&]id=([^&]+)/i);
+        if (m) fileId = m[1];
+      }
+
+      if (fileId) {
+        const k = ensureKey();
+        const q = k ? `?k=${encodeURIComponent(k)}` : "";
+        return `${API_BASE}/proxy-drive/${encodeURIComponent(fileId)}${q}`;
+      }
+
+      return s;
+    }
+
     // ===========================
-    // SAVE STATUS
+    // LIGHTBOX
+    // ===========================
+    let LB_DRIVE_URL = "";
+    function openLightbox(imgUrl, driveUrl, title) {
+      LB_DRIVE_URL = driveUrl || "";
+      $("lbImg").src = imgUrl || "";
+      $("lbTitle").textContent = title || "Фото";
+      $("lightbox").style.display = "flex";
+      $("lbOpenDrive").style.display = LB_DRIVE_URL ? "inline-flex" : "none";
+    }
+
+    function closeLightbox(e) {
+      if (e.target && e.target.id === "lightbox") {
+        $("lightbox").style.display = "none";
+        $("lbImg").src = "";
+        LB_DRIVE_URL = "";
+      }
+    }
+
+    function forceCloseLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      $("lightbox").style.display = "none";
+      $("lbImg").src = "";
+      LB_DRIVE_URL = "";
+    }
+
+    function openDriveFromLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (!LB_DRIVE_URL) return;
+      window.open(LB_DRIVE_URL, "_blank");
+    }
+
+    // ===========================
+    // ✅ STATUS SAVE (+ fresh photos)
     // ===========================
     async function saveStatus() {
       const newStatus = $("statusSelect").value;
@@ -554,10 +602,11 @@
       $("btnStatus").disabled = true;
       $("statusHint").textContent = "Зберігаю...";
 
+      // ✅ отправляем свежие фото вместе со статусом
+      const photos = statusPhotos.slice(0, 10);
+
       const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
-        newStatus, comment, actor
-        // если позже захочешь слать фото со статусом в TG:
-        // photos: [...]
+        newStatus, comment, actor, photos
       });
 
       $("btnStatus").disabled = false;
@@ -566,45 +615,230 @@
       if (!out.ok) return alert(out.error || "Помилка");
 
       $("comment").value = "";
+
+      // ✅ очищаем "статусные" фото после удачи
+      clearStatusPhotos();
+
       await load();
     }
 
     // ===========================
-    // UPLOAD PHOTO (MULTI 3–5)
+    // ✅ STATUS PHOTOS: камера + галерея
     // ===========================
-    async function uploadPhoto() {
-      const files = Array.from($("photoFile").files || []);
-      if (!files.length) return alert("Оберіть фото");
+    let statusPhotos = []; // base64
+    let camStream = null;
+    let torchOn = false;
 
-      const pack = files.slice(0, 5); // максимум 5
+    function updateStatusPhotosUI() {
+      const has = statusPhotos.length > 0;
+      $("statusPreview").style.display = has ? "grid" : "none";
+      $("btnClearStatusPhotos").style.display = has ? "inline-flex" : "none";
+      $("statusPhotosHint").textContent = has ? `Обрано фото: ${statusPhotos.length}` : "";
+      renderStatusPreview();
+    }
 
-      $("btnUpload").disabled = true;
-      $("infoHint").textContent = `Завантажую ${pack.length} фото...`;
+    function renderStatusPreview() {
+      if (!statusPhotos.length) {
+        $("statusPreview").innerHTML = "";
+        return;
+      }
+
+      $("statusPreview").innerHTML = statusPhotos.map((b64, idx) => {
+        return `
+          <div class="prevItem">
+            <img src="${b64}" alt="photo_${idx}">
+            <button class="prevDel" onclick="removeStatusPhoto(${idx})">✕</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function removeStatusPhoto(idx) {
+      statusPhotos.splice(idx, 1);
+      updateStatusPhotosUI();
+    }
+
+    function clearStatusPhotos() {
+      statusPhotos = [];
+      const input = $("statusPhotoFiles");
+      if (input) input.value = "";
+      updateStatusPhotosUI();
+    }
+
+    async function addStatusFiles() {
+      const input = $("statusPhotoFiles");
+      const files = input && input.files ? Array.from(input.files) : [];
+      if (!files.length) return alert("Оберіть фото (можна кілька)");
+
+      const MAX = 10;
+      if (files.length + statusPhotos.length > MAX) {
+        if (!confirm(`Максимум ${MAX} фото для статусу.\nДодати тільки частину?`)) return;
+      }
+
+      const remain = Math.max(0, MAX - statusPhotos.length);
+      const toAdd = files.slice(0, remain);
+
+      $("statusPhotosHint").textContent = `Додаю ${toAdd.length} фото...`;
 
       try {
-        for (let i = 0; i < pack.length; i++) {
-          $("infoHint").textContent = `Завантажую фото ${i + 1} / ${pack.length}...`;
-          const base64 = await fileToBase64(pack[i]);
+        for (let i = 0; i < toAdd.length; i++) {
+          const base64 = await fileToBase64(toAdd[i]);
+          statusPhotos.push(base64);
+        }
+        $("statusPhotosHint").textContent = "";
+        updateStatusPhotosUI();
+      } catch (e) {
+        console.error(e);
+        $("statusPhotosHint").textContent = "";
+        alert("❌ Не вдалося додати фото");
+      } finally {
+        input.value = "";
+      }
+    }
+
+    async function toggleCamera() {
+      if (camStream) {
+        stopCamera();
+        return;
+      }
+      await startCamera();
+    }
+
+    async function startCamera() {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        const v = $("camVideo");
+        v.srcObject = camStream;
+        await v.play();
+
+        $("cameraBox").style.display = "block";
+        $("btnCapture").style.display = "inline-flex";
+
+        // torch button if supported
+        const track = camStream.getVideoTracks()[0];
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps && caps.torch) {
+          $("btnTorch").style.display = "inline-flex";
+        } else {
+          $("btnTorch").style.display = "none";
+        }
+
+        $("btnCamToggle").textContent = "⏹ Закрити камеру";
+      } catch (e) {
+        console.error(e);
+        alert("❌ Камера недоступна");
+        stopCamera();
+      }
+    }
+
+    function stopCamera() {
+      if (camStream) {
+        camStream.getTracks().forEach(t => t.stop());
+        camStream = null;
+      }
+      torchOn = false;
+
+      $("cameraBox").style.display = "none";
+      $("btnCapture").style.display = "none";
+      $("btnTorch").style.display = "none";
+      $("btnCamToggle").textContent = "📷 Камера";
+    }
+
+    async function toggleTorch() {
+      if (!camStream) return;
+      try {
+        const track = camStream.getVideoTracks()[0];
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (!caps.torch) {
+          alert("⚠️ Світло не підтримується на цьому пристрої");
+          return;
+        }
+        torchOn = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        $("btnTorch").textContent = torchOn ? "💡 Світло: ON" : "💡 Світло";
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function captureStatusPhoto() {
+      if (!camStream) return;
+
+      const v = $("camVideo");
+      const c = $("camCanvas");
+      c.width = v.videoWidth || 1280;
+      c.height = v.videoHeight || 720;
+
+      const ctx = c.getContext("2d");
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+
+      // сжимаем разумно чтобы не взорвать лимиты
+      const dataURL = c.toDataURL("image/jpeg", 0.88);
+
+      const MAX = 10;
+      if (statusPhotos.length >= MAX) {
+        alert(`Максимум ${MAX} фото для статусу`);
+        return;
+      }
+
+      statusPhotos.push(dataURL);
+      updateStatusPhotosUI();
+    }
+
+    // ===========================
+    // ✅ UPLOAD PHOTOS (MULTI) -> GAS
+    // ===========================
+    async function uploadPhotosMulti() {
+      const input = $("photoFiles");
+      const files = input && input.files ? Array.from(input.files) : [];
+
+      if (!files.length) return alert("Оберіть фото (можна кілька)");
+
+      const MAX = 10;
+      if (files.length > MAX) {
+        if (!confirm(`Обрано ${files.length} фото. Завантажити тільки перші ${MAX}?`)) return;
+      }
+
+      const toUpload = files.slice(0, MAX);
+
+      $("btnUploadPhotos").disabled = true;
+      $("photosHint").textContent = `Завантажую ${toUpload.length} фото...`;
+
+      try {
+        for (let i = 0; i < toUpload.length; i++) {
+          $("photosHint").textContent = `Завантажую фото ${i + 1} / ${toUpload.length}...`;
+          const base64 = await fileToBase64(toUpload[i]);
 
           const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
             base64,
-            caption: `Фото ${i + 1}`
+            caption: ""
           });
 
-          if (!out.ok) throw new Error(out.error || "Помилка завантаження фото");
+          if (!out.ok) {
+            throw new Error(out.error || `Помилка на фото ${i + 1}`);
+          }
         }
 
-        $("photoFile").value = "";
-        $("infoHint").textContent = "✅ Фото додані";
-        setTimeout(() => ($("infoHint").textContent = ""), 1500);
+        $("photosHint").textContent = "✅ Фото додано";
+        setTimeout(() => $("photosHint").textContent = "", 2000);
 
+        input.value = "";
         await load();
+
       } catch (e) {
         console.error(e);
-        $("infoHint").textContent = "";
-        alert("❌ " + e.message);
+        $("photosHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка завантаження"));
       } finally {
-        $("btnUpload").disabled = false;
+        $("btnUploadPhotos").disabled = false;
       }
     }
 
@@ -615,31 +849,6 @@
         fr.onerror = reject;
         fr.readAsDataURL(file);
       });
-    }
-
-    // ===========================
-    // LIGHTBOX
-    // ===========================
-    function openLightbox(imgUrl, openUrl, title) {
-      const lb = $("lightbox");
-      const img = $("lbImg");
-      const a = $("lbOpen");
-      const t = $("lbTitle");
-
-      img.src = imgUrl || "";
-      a.href = openUrl || imgUrl || "#";
-      t.textContent = (title || "Фото").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-
-      lb.classList.add("open");
-    }
-
-    function closeLightbox(e) {
-      const lb = $("lightbox");
-      if (e && e.target && e.target.id !== "lightbox") return;
-      lb.classList.remove("open");
-      $("lbImg").src = "";
-      $("lbOpen").href = "#";
-      $("lbTitle").textContent = "";
     }
 
     // ===========================
@@ -673,6 +882,13 @@
         .replaceAll("\n", "\\n")
         .replaceAll("\r", "");
     }
+
+    // ===========================
+    // Cleanup camera on page leave
+    // ===========================
+    window.addEventListener("beforeunload", () => {
+      try { stopCamera(); } catch(e){}
+    });
   </script>
 </body>
 </html>
