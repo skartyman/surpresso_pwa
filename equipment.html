@@ -215,9 +215,12 @@ let qrLoopTimer = null;
 
 function normalizeEquipId(raw) {
   if (!raw) return "";
-  return String(raw).trim()
-    .replace(/^https?:\/\/.+?(\?|&|#)id=/i, "") // если вдруг случайно засунут ссылку
-    .replace(/[^\w\-]/g, "")                   // чистим мусор
+  return String(raw)
+    .trim()
+    .replace(/^https?:\/\/.+?(\?|&|#)id=/i, "") // на всякий случай
+    .toUpperCase()                              // как в normalizeId
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9.\-]/g, "")               // ← точки и дефисы сохранены
     .trim();
 }
 
@@ -1042,6 +1045,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
