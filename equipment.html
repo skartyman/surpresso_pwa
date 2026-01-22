@@ -973,27 +973,41 @@ async function saveToBaseOnly() {
   if (!card.type) return alert("Спочатку вибери тип обладнання");
   if (!card.id) return alert("Для бази потрібен ID. Введи Серійний або Внутрішній №");
 
-  // дефолтный статус
+  // ✅ дефолтный статус (ВАЖНО: с правильным регистром как в GAS)
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Бронь" : "принято на ремонт";
+    card.status = (card.owner === "company") ? "Приехало после аренды" : "Принято на ремонт";
   }
+
+  // ✅ фото берём отсюда (то, что снял камерой / выбрал из памяти)
+  const photos = Array.isArray(capturedPhotos) ? [...capturedPhotos] : [];
 
   // подсказка рядом с кнопкой (их две — клиент/компания)
   const hintEls = document.querySelectorAll("#saveHint");
-  hintEls.forEach(h => h.textContent = "Завантажую в базу...");
+  hintEls.forEach(h => h.textContent = photos.length
+    ? `Завантажую в базу... (фото: ${photos.length})`
+    : "Завантажую в базу..."
+  );
 
   try {
-    // ✅ используем ТВОЙ apiFetch (он добавляет x-surpresso-key)
+    // ✅ отправляем card + photos
     const resp = await apiFetch("/api/equip/create", {
       method: "POST",
-      body: JSON.stringify({ card })
+      body: JSON.stringify({ card, photos })
     });
 
     const out = await resp.json();
     if (!out.ok) throw new Error(out.error || "Помилка");
 
-    hintEls.forEach(h => h.textContent = "✅ Додано в базу");
+    hintEls.forEach(h => h.textContent =
+      photos.length ? "✅ Додано в базу + фото" : "✅ Додано в базу"
+    );
     setTimeout(() => hintEls.forEach(h => h.textContent = ""), 2000);
+
+    // ✅ можно очистить фотки после успешной отправки в базу
+    // (если НЕ хочешь — закомментируй)
+    capturedPhotos.length = 0;
+    if (typeof renderCapturedPhotos === "function") renderCapturedPhotos();
+    localStorage.removeItem("equip_current_id");
 
     // можно сразу открыть паспорт
     // location.href = `equip.html?id=${encodeURIComponent(card.id)}`;
@@ -1001,7 +1015,7 @@ async function saveToBaseOnly() {
   } catch (e) {
     console.error(e);
     hintEls.forEach(h => h.textContent = "");
-    alert("❌ " + e.message);
+    alert("❌ " + (e.message || "Помилка"));
   }
 }
 
@@ -1028,6 +1042,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
