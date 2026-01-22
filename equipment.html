@@ -114,10 +114,10 @@
       <h2 id="clientTitle">Карточка (Клиент)</h2>
 
       <div class="field"><label>Имя клиента</label><input id="clientName"></div>
-      <div class="field"><label>Телефон</label><input id="clientPhone"></div><input id="clientPhone" type="text" placeholder="0XXXXXXXXX">
+      <div class="field"><label>Телефон</label><input id="clientPhone" type="text" placeholder="0XXXXXXXXX"></div>
       <div class="field"><label>Адрес / Локация</label><input id="clientLocation"></div>
       <div class="field"><label>Модель</label><input id="model"></div>
-      <div class="field"><label>Серийный номер</label><input id="serial"></div>
+      <div class="field"><label>Серийный номер</label><input id="serial" type="text" inputmode="numeric" placeholder="000343212"></div>
       <div class="field"><label>Описание проблемы</label><input id="problem"></div>
       <div class="field"><label>Внешние повреждения</label><input id="condition"></div>
       <div class="field"><label>Дата приёма</label><input type="date" id="receivedDate"></div>
@@ -156,7 +156,7 @@
 
       <div class="field">
         <label>Внутренний номер</label>
-        <input id="internalNumber">
+        <input id="internalNumber" type="text" inputmode="numeric" placeholder="000343212">
       </div>
 
       <div class="field">
@@ -374,38 +374,42 @@ function stopQrScan() {
     // =========================================================
     // ✅ Единый ID оборудования (чтобы совпадал для печати/отправки)
     // =========================================================
-    function normalizeId(val) {
-  return String(val || "")
+  function normalizeId(raw) {
+  return String(raw || "")
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^A-Z0-9\-_.]/g, "");
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9.\-]/g, ""); // ✅ точку и дефис НЕ вырезаем
 }
 
 function getOrCreateEquipId() {
-  // если уже зафиксирован — возвращаем
-  let stored = localStorage.getItem("equip_current_id");
-  if (stored) return stored;
-
-  const owner = localStorage.getItem("equip_owner");
+  const owner = localStorage.getItem("equip_owner") || "client";
 
   let rawId = "";
-
   if (owner === "company") {
-    rawId = document.getElementById("internalNumber")?.value;
-  } else if (owner === "client") {
-    rawId = document.getElementById("serial")?.value;
+    rawId = document.getElementById("internalNumber")?.value || "";
+  } else {
+    rawId = document.getElementById("serial")?.value || "";
   }
 
-  // если пользователь ввёл номер — используем его
+  // ✅ ключ текущей формы (чтобы не путать разные приёмы)
+  const rawKey = `${owner}:${String(rawId).trim()}`;
+
+  const storedId = localStorage.getItem("equip_current_id") || "";
+  const storedKey = localStorage.getItem("equip_current_key") || "";
+
+  // ✅ используем сохранённый ID только если это тот же ввод
+  if (storedId && storedKey === rawKey) return storedId;
+
+  // ✅ создаем новый ID
   let id = normalizeId(rawId);
 
-  // если пусто — фолбэк (чтобы не сломать процесс)
-  if (!id) {
-    id = "SURP-" + Date.now().toString().slice(-8);
-  }
+  // если пусто — фолбэк
+  if (!id) id = "SURP-" + Date.now().toString().slice(-8);
 
   localStorage.setItem("equip_current_id", id);
+  localStorage.setItem("equip_current_key", rawKey);
+
   return id;
 }
 
@@ -730,10 +734,10 @@ function getOrCreateEquipId() {
 
       if (owner === "client") {
         card.clientName = value("clientName");
-        card.clientPhone = value("clientPhone");
+        card.clientPhone = String(clientPhone.value || "").trim();
         card.clientLocation = value("clientLocation");
         card.model = value("model");
-        card.serial = value("serial");
+        card.serial = String(document.getElementById("serial").value || "").trim();
         card.problem = value("problem");
         card.condition = value("condition");
         card.receivedDate = value("receivedDate");
@@ -745,7 +749,7 @@ function getOrCreateEquipId() {
         card.comment = value("comment");
         card.companyDate = value("companyDate");
       }
-
+     
       const isContract = document.getElementById("isServiceContract");
       card.isContract = isContract ? !!isContract.checked : false;
 
@@ -773,6 +777,10 @@ function getOrCreateEquipId() {
         renderCapturedPhotos();
         stopCamera();
         localStorage.removeItem("equip_current_id");
+        localStorage.removeItem("equip_current_key");
+
+        
+        
 
       } catch (err) {
         console.error(err);
@@ -1020,6 +1028,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
