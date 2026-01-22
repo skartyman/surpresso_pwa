@@ -465,7 +465,7 @@ app.get("/api/equip/:id/pdf", requirePwaKey, async (req, res) => {
 // =======================
 app.post("/api/equip/create", requirePwaKey, async (req, res) => {
   try {
-    const { card } = req.body || {};
+    const { card, photos = [] } = req.body || {};
     if (!card?.id) return res.status(400).send({ ok: false, error: "no_id" });
 
     if (!card.status) {
@@ -473,7 +473,18 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
     }
 
     const out = await gasPost({ action: "create", card });
-    res.send(out);
+
+    // ✅ ДОБАВИЛИ загрузку фоток в Drive
+    for (let i = 0; i < photos.length; i++) {
+      await gasPost({
+        action: "photo",
+        id: card.id,
+        base64: photos[i],
+        caption: `Фото ${i + 1}`,
+      });
+    }
+
+    res.send({ ok: true, registry: out, photosUploaded: photos.length });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
@@ -665,3 +676,4 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
