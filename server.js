@@ -271,7 +271,7 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
     if (!payloadCard.status) {
       payloadCard.status = payloadCard.owner === "company"
         ? "Приехало после аренды"
-        : "Принято на ремонт";
+        : "Прийнято на ремонт";
     }
 
     const caption = buildCaption(payloadCard);
@@ -469,7 +469,7 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
     if (!card?.id) return res.status(400).send({ ok: false, error: "no_id" });
 
     if (!card.status) {
-      card.status = card.owner === "company" ? "Приехало после аренды" : "Принято на ремонт";
+      card.status = card.owner === "company" ? "Приехало после аренды" : "Прийнято на ремонт";
     }
 
     const out = await gasPost({ action: "create", card });
@@ -676,6 +676,7 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
 
