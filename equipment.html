@@ -881,7 +881,7 @@ async function saveToBaseOnly() {
 
   // Статус дефолт
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Приехало после аренды" : "Принято на ремонт";
+    card.status = (card.owner === "company") ? "Приехало после аренды" : "Прийнято на ремонт";
   }
 
   const hint = document.getElementById("saveHint");
@@ -975,7 +975,7 @@ async function saveToBaseOnly() {
 
   // ✅ дефолтный статус (ВАЖНО: с правильным регистром как в GAS)
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Приехало после аренды" : "Принято на ремонт";
+    card.status = (card.owner === "company") ? "Приехало после аренды" : "Прийнято на ремонт";
   }
 
   // ✅ фото берём отсюда (то, что снял камерой / выбрал из памяти)
@@ -1042,6 +1042,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
