@@ -281,7 +281,7 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
     // -----------------------
     let registry = null;
     if (GAS_WEBAPP_URL && GAS_SECRET) {
-      registry = await gasPost({ action: "create", card: payloadCard });
+      registry = await gasPost({ action: "createOnly", card: payloadCard });
 
       for (let i = 0; i < photos.length; i++) {
         await gasPost({
@@ -676,4 +676,5 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
