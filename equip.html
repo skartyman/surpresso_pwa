@@ -317,8 +317,10 @@
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
 
       $("btnPdf").onclick = () => {
-        location.href = `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/pdf${withKeyQuery()}`;
-      };
+  // ✅ новый паспорт (динамика)
+  location.href = `/passport.html?id=${encodeURIComponent(EQUIPMENT_ID)}`;
+};
+
 
       // status photos controls
       $("btnCamToggle").onclick = toggleCamera;
