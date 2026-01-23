@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Surpresso — Паспорт</title>
+
+  <style>
+    :root{
+      --yellow:#F2C94C;
+      --text:#222;
+      --muted:#666;
+      --line:#eee;
+      --card:#fff;
+    }
+
+    body{
+      font-family: "Segoe UI", system-ui, Arial, sans-serif;
+      margin:0;
+      background:#f7f7f7;
+      color:var(--text);
+      font-size:14px;
+    }
+
+    .wrap{
+      max-width:980px;
+      margin:0 auto;
+      padding:16px;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      margin-top:12px;
+      overflow:hidden;
+    }
+
+    .top{
+      display:flex;
+      gap:12px;
+      align-items:flex-end;
+      justify-content:space-between;
+      border-bottom:2px solid var(--yellow);
+      padding-bottom:10px;
+    }
+
+    .logo{ font-size:20px; font-weight:900; }
+    .sub{ font-size:12px; color:var(--muted); }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .btn{
+      border:0;
+      border-radius:12px;
+      padding:10px 14px;
+      font-weight:800;
+      cursor:pointer;
+      background:#f1f1f1;
+    }
+    .btn-yellow{ background:var(--yellow); }
+
+    .pill{
+      background:#f4f4f4;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:12px;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    td{
+      padding:7px 6px;
+      border-bottom:1px solid var(--line);
+      vertical-align:top;
+    }
+    td.lbl{
+      width:230px;
+      font-weight:800;
+      color:#111;
+    }
+    .muted{ color:var(--muted); font-size:12px; }
+
+    h2{
+      margin:0 0 8px;
+      font-size:14px;
+      border-left:4px solid var(--yellow);
+      padding-left:8px;
+    }
+
+    /* photos */
+    .photosGrid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:8px;
+      margin-top:10px;
+    }
+    @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:560px){ .photosGrid{grid-template-columns:1fr} }
+
+    .ph{
+      border:1px solid var(--line);
+      border-radius:14px;
+      overflow:hidden;
+      background:#fafafa;
+    }
+    .ph img{
+      width:100%;
+      height:190px;
+      object-fit:cover;
+      display:block;
+      cursor:pointer;
+      background:#111;
+    }
+    .cap{
+      padding:8px 10px;
+      font-size:12px;
+      color:#444;
+      border-top:1px solid var(--line);
+      background:#fff;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* lightbox */
+    .lb{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.80);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      z-index:9999;
+    }
+    .lbInner{ max-width:980px; width:100%; }
+    .lbTop{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      color:#fff;
+      margin-bottom:10px;
+    }
+    .lbTitle{
+      font-weight:800;
+      font-size:14px;
+      opacity:.95;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .lbBtns{ display:flex; gap:8px; flex-wrap:wrap; }
+    .lbBtn{
+      background:rgba(255,255,255,.14);
+      color:#fff;
+      border:1px solid rgba(255,255,255,.18);
+      padding:8px 10px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:800;
+    }
+    .lbImgWrap{
+      background:#111;
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:0 10px 28px rgba(0,0,0,.35);
+    }
+    .lbImg{
+      width:100%;
+      max-height:78vh;
+      object-fit:contain;
+      display:block;
+      background:#111;
+    }
+
+    /* PRINT A4 */
+    @media print{
+      body{ background:#fff; }
+      .wrap{ max-width:none; padding:0; }
+      .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
+      .actions{ display:none !important; }
+      .ph img{ height:160px; }
+      .photosGrid{ grid-template-columns:repeat(3,1fr); }
+    }
+
+    @page{
+      size: A4;
+      margin: 12mm;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="logo">Surpresso Service</div>
+        <div class="sub">Паспорт обладнання (динамічний)</div>
+      </div>
+
+      <div class="sub">
+        ID: <b id="eqId">—</b><br />
+        <span class="muted" id="updatedAt"></span>
+      </div>
+    </div>
+
+    <div class="card actions">
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <span class="pill" id="pillOwner">owner: —</span>
+          <span class="pill" id="pillType">type: —</span>
+          <span class="pill">статус: <b id="curStatus">—</b></span>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="btnRefresh">⟳ Оновити</button>
+          <button class="btn btn-yellow" id="btnPrint">🖨 Друк A4</button>
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:8px" id="hint"></div>
+    </div>
+
+    <div id="noId" class="card" style="display:none">
+      <div style="color:#b00;font-weight:900">
+        Немає ID. Відкрий як <b>passport.html?id=...</b>
+      </div>
+    </div>
+
+    <div id="main" style="display:none">
+      <div class="card">
+        <h2>Інформація</h2>
+        <table id="info"></table>
+      </div>
+
+      <div class="card">
+        <h2>Фото</h2>
+        <div class="muted" id="photosHint"></div>
+        <div class="photosGrid" id="photos"></div>
+      </div>
+
+      <div class="card">
+        <h2>Історія статусів</h2>
+        <table id="log"></table>
+      </div>
+
+      <div class="card">
+        <h2>Підпис</h2>
+        <div class="row" style="gap:20px">
+          <div>Відповідальний: <span style="display:inline-block;border-bottom:1px solid #222; width:260px; height:16px;"></span></div>
+          <div>Дата: <span style="display:inline-block;border-bottom:1px solid #222; width:140px; height:16px;"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lb" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lbInner">
+      <div class="lbTop">
+        <div class="lbTitle" id="lbTitle">Фото</div>
+        <div class="lbBtns">
+          <button class="lbBtn" id="lbOpenDrive" onclick="openDriveFromLightbox(event)">Відкрити</button>
+          <button class="lbBtn" onclick="forceCloseLightbox(event)">✕ Закрити</button>
+        </div>
+      </div>
+      <div class="lbImgWrap">
+        <img class="lbImg" id="lbImg" src="" alt="">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================
+    // CONFIG
+    // ==========================
+    const PWA_KEY_STORAGE = "surpresso_pwa_key";
+    const API_BASE = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    // ==========================
+    // ID
+    // ==========================
+    const params = new URLSearchParams(location.search);
+    const EQUIPMENT_ID = (params.get("id") || "").trim();
+
+    if (!EQUIPMENT_ID) {
+      $("noId").style.display = "block";
+    } else {
+      $("main").style.display = "block";
+      $("eqId").textContent = EQUIPMENT_ID;
+
+      $("btnPrint").onclick = () => window.print();
+      $("btnRefresh").onclick = load;
+
+      load();
+    }
+
+    // ==========================
+    // AUTH headers (x-surpresso-key)
+    // ==========================
+    function getKey() {
+      return localStorage.getItem(PWA_KEY_STORAGE) || "";
+    }
+    function ensureKey() {
+      let k = getKey();
+      if (k) return k;
+      k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+      if (!k) return "";
+      localStorage.setItem(PWA_KEY_STORAGE, k);
+      return k;
+    }
+    function headersWithKey() {
+      const k = ensureKey();
+      return k ? { "x-surpresso-key": k } : {};
+    }
+
+    // ==========================
+    // API
+    // ==========================
+    async function apiGet(url) {
+      const resp = await fetch(url, { headers: headersWithKey() });
+      return await resp.json();
+    }
+
+    // ==========================
+    // LOAD / RENDER
+    // ==========================
+    async function load() {
+      $("hint").textContent = "Завантажую...";
+      const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}`);
+
+      if (!data.ok) {
+        $("hint").textContent = "";
+        return alert(data.error || "Помилка завантаження");
+      }
+
+      render(data);
+      $("hint").textContent = "";
+    }
+
+    function render(data) {
+      const eq = data.equipment || {};
+      const photos = Array.isArray(data.photos) ? data.photos : [];
+      const log = Array.isArray(data.log) ? data.log : [];
+
+      $("curStatus").textContent = eq.status || "—";
+      $("updatedAt").textContent = eq.updatedAt ? ("Оновлено: " + fmt(eq.updatedAt)) : "";
+
+      $("pillOwner").textContent = "owner: " + (eq.owner || "—");
+      $("pillType").textContent = "type: " + (eq.type || "—");
+
+      // info rows
+      const rows = [];
+      const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
+
+      add("ID", eq.id || EQUIPMENT_ID);
+      add("Тип", eq.type || "—");
+      add("Власник", eq.owner || "—");
+
+      if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
+
+      if (eq.owner === "client") {
+        add("Клієнт", eq.clientName || "—");
+        add("Телефон", eq.clientPhone || "—");
+        add("Локація", eq.clientLocation || "—");
+        add("Модель", eq.model || "—");
+        add("Серійний", eq.serial || "—");
+      } else {
+        add("Локація", eq.companyLocation || "—");
+        add("Назва", eq.name || "—");
+        add("Внутрішній №", eq.internalNumber || "—");
+      }
+
+      add("Поточний статус", eq.status || "—");
+      add("Останній коментар", eq.lastComment || "—");
+      add("Створено", fmt(eq.createdAt) || "—");
+      add("Оновлено", fmt(eq.updatedAt) || "—");
+
+      $("info").innerHTML = rows.join("");
+
+      // photos
+      renderPhotos(photos);
+
+      // log
+      $("log").innerHTML = log.length
+        ? log.slice(0, 12).map(r => `
+          <tr>
+            <td style="width:160px">${fmt(r.ts)}</td>
+            <td>
+              <b>${esc(r.newStatus)}</b>
+              ${r.comment ? " — " + esc(r.comment) : ""}
+              ${r.actor ? ` <span class="muted">(${esc(r.actor)})</span>` : ""}
+            </td>
+          </tr>
+        `).join("")
+        : `<tr><td class="muted">Немає записів</td></tr>`;
+    }
+
+    function renderPhotos(photos) {
+      if (!photos.length) {
+        $("photosHint").textContent = "Фото відсутні";
+        $("photos").innerHTML = "";
+        return;
+      }
+
+      $("photosHint").textContent = `Показано фото: ${photos.length}`;
+
+      $("photos").innerHTML = photos.map((p, i) => {
+        const imgUrl = String(p.imgUrl || "");
+        const driveUrl = String(p.url || "");
+        const cap = p.caption || `Фото ${i + 1}`;
+        const safeCap = esc(cap);
+
+        // если imgUrl пустой — покажем кнопку открыть
+        if (!imgUrl) {
+          return `
+            <div class="ph">
+              <div style="padding:18px" class="muted">
+                Немає прев’ю.
+                ${driveUrl ? `<br><a href="${esc(driveUrl)}" target="_blank">Відкрити</a>` : ""}
+              </div>
+              <div class="cap">${safeCap}</div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="ph">
+            <img
+              src="${esc(imgUrl)}"
+              alt="${safeCap}"
+              loading="lazy"
+              onclick="openLightbox('${escapeJs(imgUrl)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
+              onerror="this.onerror=null; this.style.display='none';"
+            />
+            <div class="cap">${safeCap}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // ==========================
+    // LIGHTBOX
+    // ==========================
+    let LB_DRIVE_URL = "";
+
+    function openLightbox(imgUrl, driveUrl, title) {
+      LB_DRIVE_URL = driveUrl || "";
+      $("lbImg").src = imgUrl || "";
+      $("lbTitle").textContent = title || "Фото";
+      $("lightbox").style.display = "flex";
+      $("lbOpenDrive").style.display = LB_DRIVE_URL ? "inline-flex" : "none";
+    }
+
+    function closeLightbox(e) {
+      if (e.target && e.target.id === "lightbox") {
+        $("lightbox").style.display = "none";
+        $("lbImg").src = "";
+        LB_DRIVE_URL = "";
+      }
+    }
+
+    function forceCloseLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      $("lightbox").style.display = "none";
+      $("lbImg").src = "";
+      LB_DRIVE_URL = "";
+    }
+
+    function openDriveFromLightbox(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (!LB_DRIVE_URL) return;
+      window.open(LB_DRIVE_URL, "_blank");
+    }
+
+    // ==========================
+    // UTILS
+    // ==========================
+    function fmt(d) {
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt)) return "";
+        const dd = String(dt.getDate()).padStart(2, "0");
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        const yy = String(dt.getFullYear());
+        const hh = String(dt.getHours()).padStart(2, "0");
+        const mi = String(dt.getMinutes()).padStart(2, "0");
+        return `${dd}.${mm}.${yy} ${hh}:${mi}`;
+      } catch (e) { return ""; }
+    }
+
+    function esc(v) {
+      if (v === null || v === undefined || String(v).trim() === "") return "—";
+      return String(v)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function escapeJs(s){
+      return String(s || "")
+        .replaceAll("\\", "\\\\")
+        .replaceAll("'", "\\'")
+        .replaceAll("\n", "\\n")
+        .replaceAll("\r", "");
+    }
+  </script>
+</body>
+</html>
