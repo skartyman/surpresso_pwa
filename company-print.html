@@ -478,8 +478,72 @@ if (card && card.owner === "company") {
 }
 
 document.getElementById("dataTable").innerHTML = html;
+
+  const PWA_KEY_STORAGE = "surpresso_pwa_key";
+  const API_BASE = "";
+
+  const $ = (s) => document.querySelector(s);
+
+  const params = new URLSearchParams(location.search);
+  const id = (params.get("id") || "").trim();
+
+  function getKey() {
+    return localStorage.getItem(PWA_KEY_STORAGE) || "";
+  }
+
+  function ensureKey() {
+    let k = getKey();
+    if (k) return k;
+    k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+    if (!k) return "";
+    localStorage.setItem(PWA_KEY_STORAGE, k);
+    return k;
+  }
+
+  function headersWithKey() {
+    const k = ensureKey();
+    return k ? { "x-surpresso-key": k } : {};
+  }
+
+  async function apiGet(url) {
+    const resp = await fetch(url, { headers: headersWithKey() });
+    return await resp.json();
+  }
+
+  async function loadAndRender() {
+    if (!id) return alert("Немає ID");
+
+    const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(id)}`);
+    if (!data.ok) return alert(data.error || "Помилка завантаження");
+
+    const eq = data.equipment || {};
+
+    // 👇 ТУТ ТЫ ПОДСТАВЛЯЕШЬ В СВОЙ ШАБЛОН
+    // пример:
+    const elId = document.getElementById("printId");
+    if (elId) elId.textContent = eq.id || "";
+
+    // Если нужно вывести фотки на печать:
+    // data.photos = [{imgUrl, caption, ...}]
+    const photosWrap = document.getElementById("printPhotos");
+    if (photosWrap && Array.isArray(data.photos)) {
+      const slice = data.photos.slice(0, 6);
+      photosWrap.innerHTML = slice.map(p => `
+        <div style="width:48%;border:1px solid #eee;border-radius:10px;overflow:hidden;margin-bottom:8px;">
+          <img src="${p.imgUrl || ''}" style="width:100%;height:180px;object-fit:cover;display:block;">
+          <div style="padding:6px 8px;font-size:11px;color:#666">${p.caption || ""}</div>
+        </div>
+      `).join("");
+    }
+
+    // ✅ Печать после подстановки
+    setTimeout(() => window.print(), 300);
+  }
+
+  loadAndRender();
 </script>
 
 </body>
 </html>
+
 
