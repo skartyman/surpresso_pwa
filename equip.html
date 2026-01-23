@@ -143,6 +143,7 @@
           <div class="row">
             <button class="btn btn-ghost" id="btnPdf">📄 PDF A4</button>
             <button class="btn btn-yellow" id="btnRefresh">⟳ Оновити</button>
+            <button class="btn btn-ghost" id="btnPrint">🖨 Бланк</button>
           </div>
         </div>
 
@@ -960,6 +961,18 @@ async function reSendToTelegramAndTrello() {
   } finally {
     $("btnReSend").disabled = false;
   }
+}
+$("btnPrint").onclick = () => printBlank();
+function printBlank() {
+  // LAST_EQUIPMENT мы сохраняем в render(data) как ты уже делал
+  const owner = (LAST_EQUIPMENT && LAST_EQUIPMENT.owner) ? LAST_EQUIPMENT.owner : "client";
+
+  const page = owner === "company" ? "company-print.html" : "print.html";
+
+  // передадим id + ключ доступа (если используешь ?k=... для печатной страницы)
+  const url = `${page}?id=${encodeURIComponent(EQUIPMENT_ID)}${withKeyQuery()}`;
+
+  window.open(url, "_blank");
 }
 
     // ===========================
