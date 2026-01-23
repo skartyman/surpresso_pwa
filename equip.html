@@ -318,7 +318,7 @@
     // ===========================
     const params = new URLSearchParams(location.search);
     const EQUIPMENT_ID = (params.get("id") || "").trim();
-
+    
     if (!EQUIPMENT_ID) {
       $("noId").style.display = "block";
     } else {
@@ -398,6 +398,7 @@
     // ===========================
     // LOAD & RENDER
     // ===========================
+    let LAST_EQUIPMENT = null;
     let CURRENT_OWNER = "";
     let allPhotos = [];
     let photosPage = 0;
@@ -417,6 +418,8 @@
 
     function render(data) {
       const eq = data.equipment || {};
+      LAST_EQUIPMENT = eq;
+      
       allPhotos = Array.isArray(data.photos) ? data.photos : [];
       const log = data.log || [];
 
