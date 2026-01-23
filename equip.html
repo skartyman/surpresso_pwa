@@ -872,14 +872,7 @@
         fr.readAsDataURL(file);
       });
     }
-let LAST_EQUIPMENT = null; // будем хранить то, что загрузили из /api/equip/:id
 
-// В render(data) в конце допиши:
-function render(data) {
-  const eq = data.equipment || {};
-  LAST_EQUIPMENT = eq; // ✅ сохранили
-  ...
-}
 $("btnReSend").onclick = reSendToTelegramAndTrello;
 
 async function reSendToTelegramAndTrello() {
