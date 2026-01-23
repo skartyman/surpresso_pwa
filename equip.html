@@ -206,6 +206,22 @@
           <div id="statusPreview" class="previewGrid" style="display:none"></div>
         </div>
       </div>
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <div style="font-weight:800">Повторний прийом (TG + Trello)</div>
+    <div class="muted" id="reHint"></div>
+  </div>
+
+  <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
+    <input type="file" id="reFiles" accept="image/*" multiple />
+    <input id="reComment" placeholder="Комментарий (напр: повернулось з оренди)" style="flex:1;min-width:220px"/>
+    <button class="btn btn-yellow" id="btnReSend">📩 В TG + Trello</button>
+  </div>
+
+  <div class="muted" style="margin-top:6px">
+    Выбери 3–5 свежих фото (можно больше) и отправь повторно как новый приём.
+  </div>
+</div>
 
       <!-- INFO -->
       <div class="card">
@@ -853,6 +869,102 @@
         fr.readAsDataURL(file);
       });
     }
+let LAST_EQUIPMENT = null; // будем хранить то, что загрузили из /api/equip/:id
+
+// В render(data) в конце допиши:
+function render(data) {
+  const eq = data.equipment || {};
+  LAST_EQUIPMENT = eq; // ✅ сохранили
+  ...
+}
+$("btnReSend").onclick = reSendToTelegramAndTrello;
+
+async function reSendToTelegramAndTrello() {
+  try {
+    if (!LAST_EQUIPMENT?.id) {
+      return alert("Немає даних обладнання. Натисни Оновити.");
+    }
+
+    const files = Array.from($("reFiles")?.files || []);
+    if (!files.length) return alert("Оберіть фото (можна кілька)");
+
+    $("btnReSend").disabled = true;
+    $("reHint").textContent = "Відправляю...";
+
+    // ✅ Собираем card ТАК ЖЕ, как /send-equipment ожидает
+    const eq = LAST_EQUIPMENT;
+
+    const card = {
+      id: String(eq.id || "").trim(),
+      owner: eq.owner || "client",
+      type: eq.type || "",
+      isContract: String(eq.isContract) === "true" || eq.isContract === true,
+    };
+
+    // дополняем поля по owner
+    if (card.owner === "client") {
+      card.clientName = eq.clientName || "";
+      card.clientPhone = eq.clientPhone || "";
+      card.clientLocation = eq.clientLocation || "";
+      card.model = eq.model || "";
+      card.serial = eq.serial || "";
+      // problem/condition можно оставить пустыми или дописать коммент
+      card.problem = "";
+      card.condition = "";
+    } else {
+      card.companyLocation = eq.companyLocation || "";
+      card.name = eq.name || "";
+      card.internalNumber = eq.internalNumber || "";
+      card.task = "";
+      card.comment = "";
+    }
+
+    // ✅ добавим комментарий (в lastComment / caption)
+    const extra = String($("reComment").value || "").trim();
+    if (extra) {
+      // сервер в buildCaption читает разные поля
+      // поэтому кладём туда, где он точно покажет:
+      if (card.owner === "client") card.problem = extra;
+      else card.comment = extra;
+    }
+
+    // ✅ файлы -> base64
+    const photos = [];
+    for (let i = 0; i < files.length; i++) {
+      $("reHint").textContent = `Готую фото ${i + 1} / ${files.length}...`;
+      photos.push(await fileToBase64(files[i]));
+    }
+
+    // ✅ отправляем ровно как “кнопка приёма”
+    const resp = await fetch(`${API_BASE}/send-equipment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headersWithKey(),
+      },
+      body: JSON.stringify({ card, photos }),
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      throw new Error("Server error: " + t.slice(0, 200));
+    }
+
+    $("reHint").textContent = "✅ Відправлено в TG + Trello";
+    setTimeout(() => $("reHint").textContent = "", 2500);
+
+    // очистка
+    $("reFiles").value = "";
+    $("reComment").value = "";
+
+  } catch (e) {
+    console.error(e);
+    $("reHint").textContent = "";
+    alert("❌ " + (e.message || "Помилка"));
+  } finally {
+    $("btnReSend").disabled = false;
+  }
+}
 
     // ===========================
     // UTILS
