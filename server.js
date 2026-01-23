@@ -280,17 +280,33 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
     // 1) GAS create/upsert + photos
     // -----------------------
     let registry = null;
-    if (GAS_WEBAPP_URL && GAS_SECRET) {
-      registry = await gasPost({ action: "createOnly", card: payloadCard });
 
-      for (let i = 0; i < photos.length; i++) {
-        await gasPost({
-          action: "photo",
-          id: payloadCard.id,
-          base64: photos[i],
-          caption: `Фото ${i + 1}`,
-        });
-      }
+if (GAS_WEBAPP_URL && GAS_SECRET) {
+  // ✅ 1) сначала пробуем "создать только если нет"
+  try {
+    registry = await gasPost({ action: "createOnly", card: payloadCard });
+  } catch (e) {
+    const msg = String(e || "");
+
+    // ✅ если уже существует — это НЕ ошибка для повторного приема
+    if (msg.includes("ID_ALREADY_EXISTS")) {
+      registry = await gasPost({ action: "create", card: payloadCard }); // upsert
+    } else {
+      throw e; // все остальное — настоящая ошибка
+    }
+  }
+
+  // ✅ 2) фото пишем всегда (они новые)
+  for (let i = 0; i < photos.length; i++) {
+    await gasPost({
+      action: "photo",
+      id: payloadCard.id,
+      base64: photos[i],
+      caption: `Фото ${i + 1}`,
+    });
+  }
+}
+
     }
 
     // -----------------------
@@ -676,6 +692,7 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
 
