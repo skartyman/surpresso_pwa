@@ -306,9 +306,6 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
     });
   }
 }
-
-    }
-
     // -----------------------
     // 2) Telegram post (при первичном приеме)
     // -----------------------
@@ -692,6 +689,7 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
 
