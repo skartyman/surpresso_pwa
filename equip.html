@@ -964,16 +964,13 @@ async function reSendToTelegramAndTrello() {
 }
 $("btnPrint").onclick = () => printBlank();
 function printBlank() {
-  // LAST_EQUIPMENT мы сохраняем в render(data) как ты уже делал
   const owner = (LAST_EQUIPMENT && LAST_EQUIPMENT.owner) ? LAST_EQUIPMENT.owner : "client";
-
   const page = owner === "company" ? "company-print.html" : "print.html";
 
-  // передадим id + ключ доступа (если используешь ?k=... для печатной страницы)
-  const url = `/print.html?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(ensureKey())}`;
-window.open(url, "_blank");
-
+  const url = `/${page}?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(ensureKey())}`;
+  window.open(url, "_blank");
 }
+
 
     // ===========================
     // UTILS
