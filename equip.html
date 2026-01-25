@@ -962,12 +962,16 @@ async function reSendToTelegramAndTrello() {
     $("btnReSend").disabled = false;
   }
 }
+
 $("btnPrint").onclick = () => printBlank();
+
 function printBlank() {
   const owner = (LAST_EQUIPMENT && LAST_EQUIPMENT.owner) ? LAST_EQUIPMENT.owner : "client";
   const page = owner === "company" ? "company-print.html" : "print.html";
 
-  const url = `/${page}?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(ensureKey())}`;
+  const k = ensureKey(); // чтобы печатная страница смогла дернуть /api/equip/:id
+  const url = `/${page}?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(k)}`;
+
   window.open(url, "_blank");
 }
 
