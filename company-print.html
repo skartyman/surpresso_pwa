@@ -11,14 +11,14 @@
   body, html {
     margin: 0;
     padding: 0;
-    background: #eee;                 /* как в другом бланке */
+    background: #eee;
     font-family: "Merriweather", serif;
   }
 
   /* ======= A5 page ======= */
   .page {
     width: 210mm;
-    min-height: 146mm;              /* было height — теперь min-height */
+    min-height: 146mm;
     padding: 6mm 10mm;
     box-sizing: border-box;
     background: white;
@@ -26,63 +26,83 @@
     display: flex;
     flex-direction: column;
     gap: 1mm;
+    position: relative;
+    overflow: hidden;
   }
 
   /* ======= Печать A5 альбомно ======= */
   @media print {
-    @page {
-      size: A5 landscape;
-      margin: 0;
-    }
-
-    body, html {
-      margin: 0;
-      padding: 0;
-      background: white;
-    }
+    @page { size: A5 landscape; margin: 0; }
+    body, html { margin: 0; padding: 0; background: white; }
 
     .page {
       margin: 0;
       width: 210mm;
-      min-height: 146mm;
+      height: 148mm;
       padding: 6mm 10mm;
       box-sizing: border-box;
       page-break-inside: avoid;
-      page-break-after: always;       /* каждая .page = отдельный лист */
+      page-break-after: always;
+      overflow: visible !important;
+      box-shadow: none;
+      border: none;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
+    .page:last-child { page-break-after: auto; }
 
-    .page:last-child {
-      page-break-after: auto;         /* после последней не добавляем пустую */
+    .page.watermark::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("/icons/deer.jpg");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 120mm 120mm;
+      opacity: 0.08;
+      z-index: 1;
+      pointer-events: none;
     }
   }
+
+  /* ВОДЯНОЙ ЗНАК (экран и печать) */
+  .page.watermark::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("/icons/deer.jpg");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 120mm 120mm;
+    opacity: 0.08;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .page.watermark > * { position: relative; z-index: 3; }
 
   .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center; /* чтобы логотип и текст были по центру */
-  border-bottom: 2px solid #F2C94C;
-  padding-bottom: 6px;
-  margin-bottom: 8px;
-}
-
-/* Контейнер справа */
-.header-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-/* Логотип */
-.header-logo {
-  height: 45px;   /* регулировать размер */
-  margin-bottom: 2px;
-  object-fit: contain;
-}
-
-  .sub {
-    font-size: 10px;
-    color: #666;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #F2C94C;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
   }
+
+  .header-right{
+    display:flex;
+    flex-direction: column;
+    align-items:flex-end;
+    gap: 2px;
+  }
+
+  .header-logo {
+    height: 45px;
+    object-fit: contain;
+  }
+
+  .logo { font-size: 20px; font-weight: 800; }
+  .sub  { font-size: 10px; color: #666; }
 
   .section-title {
     font-size: 12px;
@@ -98,190 +118,58 @@
     font-size: 10px;
     margin-top: 2px;
   }
-
   .table td, .table th {
     border-bottom: 1px solid #ddd;
     padding: 4px 6px;
+    vertical-align: top;
   }
+  .label { font-weight: 600; width: 35%; }
 
-  .label {
-    font-weight: 600;
-    width: 35%;
-  }
+  .first-block { font-size: 14px; }
+  .first-block .table td { padding: 6px 8px; font-size: 14px; }
+  .first-block .section-title { font-size: 15px; }
+  .first-block input[type="checkbox"] { width: 15px; height: 15px; }
 
-  .footer {
-    margin-top: auto;
-    font-size: 9px;
+  .table.grid { border: 1px solid #000; border-collapse: collapse; }
+  .table.grid td, .table.grid th { border: 1px solid #000; padding: 2px; height: 16px; }
+
+  .parts-table th:nth-child(3),
+  .parts-table td:nth-child(3),
+  .parts-table th:nth-child(5),
+  .parts-table td:nth-child(5),
+  .parts-table th:nth-child(7),
+  .parts-table td:nth-child(7) {
+    width: 50px;
     text-align: center;
-    color: #777;
   }
-
-  .table.grid {
-    border: 1px solid #000;
-    border-collapse: collapse;
-  }
-
-  .table.grid td,
-  .table.grid th {
-    border: 1px solid #000;
-    padding: 2px;
-    height: 16px;
-  }
-
-  .first-block {
-    font-size: 14px;
-  }
-
-  .first-block .table td {
-    padding: 6px 8px;
-    font-size: 14px;
-  }
-
-  .first-block .section-title {
-    font-size: 15px;
-  }
-
-  .first-block input[type="checkbox"] {
-    width: 15px;
-    height: 15px;
-  }
-
-  /* чуть уплотняем вторую сторону */
-  .page:nth-of-type(2) .table {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-  }
-
-  .page:nth-of-type(2) .section-title {
-    margin-top: 2px !important;
-    margin-bottom: 2px !important;
-  }
-  .page {
-  position: relative;
-  overflow: hidden;
-}
-
-/* -------------------------------
-   ВОДЯНОЙ ЗНАК (экран и печать)
--------------------------------- */
-.page.watermark::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-
-  background-image: url("/icons/deer.jpg");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 120mm 120mm;
-
-  opacity: 0.08;
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* Контент поверх водяного знака */
-.page.watermark > * {
-  position: relative;
-  z-index: 3;
-}
-
-/* -------------------------------
-   ПЕЧАТЬ
--------------------------------- */
-@media print {
-  @page {
-    size: A5 landscape;
-    margin: 0;
-  }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: white;
-  }
-
-  .page {
-    margin: 0;
-    width: 210mm;
-    height: 148mm;
-    padding: 6mm 10mm;
-    page-break-inside: avoid;
-    page-break-after: always;
-
-    overflow: visible !important;
-    box-shadow: none;
-    border: none;
-
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .page:last-child {
-    page-break-after: auto;
-  }
-
-  .page.watermark::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url("/icons/deer.jpg");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 120mm 120mm;
-    opacity: 0.08;
-    z-index: 1;
-    pointer-events: none;
-  }
-}
-.parts-table th:nth-child(3),
-.parts-table td:nth-child(3),
-.parts-table th:nth-child(5),
-.parts-table td:nth-child(5),
-.parts-table th:nth-child(7),
-.parts-table td:nth-child(7) {
-  width: 50px;
-  text-align: center;
-}
-
-/* Убираем линии под текстовыми подчеркиваниями */
-.table td.no-border {
-  border: none !important;
-  padding: 2px 0;
-  font-size: 10px;
-  white-space: nowrap;
-}
 </style>
 </head>
+
 <body>
 
 <!-- ==========================
      PAGE 1 (лицевая сторона)
 ============================= -->
 <div class="page watermark">
-
   <div class="header">
     <div>
       <div class="logo">Surpresso Service</div>
       <div class="sub">Картка обладнання компанії</div>
+      <div class="sub">ID: <b id="docId">—</b></div>
     </div>
+
     <div class="header-right">
-    <img src="/icons/deer.jpg" class="header-logo" alt="logo">
-</div>
+      <img src="/icons/deer.jpg" class="header-logo" alt="logo">
+      <div class="sub" id="loadHint"></div>
+    </div>
   </div>
 
   <div class="first-block">
-
-    <!-- Інформація -->
     <div class="section-title">Інформація</div>
-    <table class="table" id="dataTable"></table>
+    <table class="table" id="dataTable">
+      <tr><td class="label">Дані</td><td>Завантажую…</td></tr>
+    </table>
 
-    <!-- Комплектація -->
     <div class="section-title" style="margin-top:12px;">Комплектація (позначити галочкою ✓)</div>
 
     <table class="table complect-table" style="margin-top:6px;">
@@ -299,245 +187,200 @@
       </tr>
     </table>
 
-    <!-- Підпис -->
     <table class="table" style="margin-top:16px;">
       <tr>
         <td class="label">Прийняв (ПІБ)</td>
         <td>____________________________</td>
       </tr>
     </table>
-
   </div>
-
-</div><!-- END PAGE 1 -->
-
-
+</div>
 
 <!-- ==========================
      PAGE 2 (оборот)
 ============================= -->
-
 <div class="page watermark">
   <div class="section-title">Журнал ремонту / Заповнюється вручну</div>
   <table class="table">
     <tr><td class="label">Дата початку ремонту</td><td>2026 р.</td></tr>
     <tr><td class="label">Ремонтував (ПІБ)</td><td></td></tr>
   </table>
-    <div class="section-title">Використані запчастини</div>
-<table class="table grid parts-table">
-  <tr>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул</th>
-    <th style="width:7%">Кількість</th>
-  </tr>
 
-  <tr>
-    <td>1</td><td></td><td></td>
-    <td>2</td><td></td><td></td>
-    <td>3</td><td></td><td></td>
-    <td>4</td><td></td><td></td>
-  </tr>
-  <tr>
-    <td>5</td><td></td><td></td>
-    <td>6</td><td></td><td></td>
-    <td>7</td><td></td><td></td>
-    <td>8</td><td></td><td></td>
-  </tr>
-  <tr>
-    <td>9</td><td></td><td></td>
-    <td>10</td><td></td><td></td>
-    <td>11</td><td></td><td></td>
-    <td>12</td><td></td><td></td>
-  </tr>
-  <tr>
-    <td>13</td><td></td><td></td>
-    <td>14</td><td></td><td></td>
-    <td>15</td><td></td><td></td>
-    <td>16</td><td></td><td></td>
-  </tr>
-  <tr>
-    <td>17</td><td></td><td></td>
-    <td>18</td><td></td><td></td>
-    <td>19</td><td></td><td></td>
-    <td>20</td><td></td><td></td>
-  </tr>
-  <tr>
-    <td>21</td><td></td><td></td>
-    <td>22</td><td></td><td></td>
-    <td>23</td><td></td><td></td>
-    <td>24</td><td></td><td></td>
-  </tr>
-</table>
+  <div class="section-title">Використані запчастини</div>
+  <table class="table grid parts-table">
+    <tr>
+      <th style="width:4%">№</th><th style="width:14%">Артикул</th><th style="width:7%">Кількість</th>
+      <th style="width:4%">№</th><th style="width:14%">Артикул</th><th style="width:7%">Кількість</th>
+      <th style="width:4%">№</th><th style="width:14%">Артикул</th><th style="width:7%">Кількість</th>
+      <th style="width:4%">№</th><th style="width:14%">Артикул</th><th style="width:7%">Кількість</th>
+    </tr>
+    <tr>
+      <td>1</td><td></td><td></td>
+      <td>2</td><td></td><td></td>
+      <td>3</td><td></td><td></td>
+      <td>4</td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>5</td><td></td><td></td>
+      <td>6</td><td></td><td></td>
+      <td>7</td><td></td><td></td>
+      <td>8</td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>9</td><td></td><td></td>
+      <td>10</td><td></td><td></td>
+      <td>11</td><td></td><td></td>
+      <td>12</td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>13</td><td></td><td></td>
+      <td>14</td><td></td><td></td>
+      <td>15</td><td></td><td></td>
+      <td>16</td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>17</td><td></td><td></td>
+      <td>18</td><td></td><td></td>
+      <td>19</td><td></td><td></td>
+      <td>20</td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>21</td><td></td><td></td>
+      <td>22</td><td></td><td></td>
+      <td>23</td><td></td><td></td>
+      <td>24</td><td></td><td></td>
+    </tr>
+  </table>
 
-<div class="section-title">Ремонтні роботи</div>
-<table class="table grid repair-table">
-  <tr>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул послуги</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул послуги</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:4%">№</th>
-    <th style="width:14%">Артикул послуги</th>
-    <th style="width:7%">Кількість</th>
-    <th style="width:25%">Аутсорс</th>
-  </tr>
+  <div class="section-title">Ремонтні роботи</div>
+  <table class="table grid repair-table">
+    <tr>
+      <th style="width:4%">№</th><th style="width:14%">Артикул послуги</th><th style="width:7%">Кількість</th>
+      <th style="width:4%">№</th><th style="width:14%">Артикул послуги</th><th style="width:7%">Кількість</th>
+      <th style="width:4%">№</th><th style="width:14%">Артикул послуги</th><th style="width:7%">Кількість</th>
+      <th style="width:25%">Аутсорс</th>
+    </tr>
+    <tr>
+      <td>1</td><td></td><td></td>
+      <td>2</td><td></td><td></td>
+      <td>3</td><td></td><td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>4</td><td></td><td></td>
+      <td>5</td><td></td><td></td>
+      <td>6</td><td></td><td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>7</td><td></td><td></td>
+      <td>8</td><td></td><td></td>
+      <td>9</td><td></td><td></td>
+      <td></td>
+    </tr>
+  </table>
 
-  <tr>
-    <td>1</td><td></td><td></td>
-    <td>2</td><td></td><td></td>
-    <td>3</td><td></td><td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>4</td><td></td><td></td>
-    <td>5</td><td></td><td></td>
-    <td>6</td><td></td><td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>7</td><td></td><td></td>
-    <td>8</td><td></td><td></td>
-    <td>9</td><td></td><td></td>
-    <td></td>
-  </tr>
-</table>
+  <div class="section-title">Рекомендації</div>
+  <table class="table grid" style="margin-top:2px;">
+    <tr><td colspan="2" style="height:16px;"></td></tr>
+    <tr><td colspan="2" style="height:16px;"></td></tr>
+    <tr><td colspan="2" style="height:16px;"></td></tr>
+  </table>
 
-<div class="section-title">Рекомендації</div>
-<table class="table grid" style="margin-top:2px;">
-  <tr><td colspan="2" style="height:16px;"></td></tr>
-  <tr><td colspan="2" style="height:16px;"></td></tr>
-  <tr><td colspan="2" style="height:16px;"></td></tr>
-</table>
-
-<table class="table grid" style="margin-top:2px;">
-  <tr>
-    <td class="label" style="width:50%">Дата закриття ремонту</td>
-    <td style="width:50%">2026 р.</td>
-  </tr>
-  <tr>
-    <td class="label">Перевірено за чек-листом</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><input type="checkbox"> Зроблено рахунок</td>
-    <td><input type="checkbox"> Проведено інженеру</td>
-  </tr>
-</table>
+  <table class="table grid" style="margin-top:2px;">
+    <tr>
+      <td class="label" style="width:50%">Дата закриття ремонту</td>
+      <td style="width:50%">2026 р.</td>
+    </tr>
+    <tr>
+      <td class="label">Перевірено за чек-листом</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td><input type="checkbox"> Зроблено рахунок</td>
+      <td><input type="checkbox"> Проведено інженеру</td>
+    </tr>
+  </table>
 </div>
-</body>
-
-
-
 
 <script>
-function formatDateForTable(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}.${month}.${year}`;
-}
-
-const cardRaw = localStorage.getItem("last_equipment_card");
-let card = null;
-try { card = JSON.parse(cardRaw || "null"); } catch (e) {}
-
-const docEl = document.getElementById("docId");
-if (docEl) docEl.textContent = card?.id || "-";
-
-function row(label, value) {
-  return `<tr><td class="label">${label}</td><td>${value || "-"}</td></tr>`;
-}
-
-let html = "";
-
-if (card && card.owner === "company") {
-  html += row("Тип обладнання", card.typeText);
-  html += row("Власник", "Компанія");
-  html += row("Локація (цех / заклад)", card.companyLocation);
-  html += row("Назва обладнання", card.name);
-  html += row("Внутрішній номер", card.internalNumber);
-  html += row("Завдання / проблема", card.task);
-  html += row("Коментар", card.comment);
-  html += row("Дата", formatDateForTable(card.companyDate));
-} else {
-  html += row("Дані", "Не передано дані картки.");
-}
-
-document.getElementById("dataTable").innerHTML = html;
-
   const PWA_KEY_STORAGE = "surpresso_pwa_key";
-  const API_BASE = "";
+  const API_BASE = ""; // тот же домен
 
-  const $ = (s) => document.querySelector(s);
+  function $(id){ return document.getElementById(id); }
 
-  const params = new URLSearchParams(location.search);
-  const id = (params.get("id") || "").trim();
-
-  function getKey() {
-    return localStorage.getItem(PWA_KEY_STORAGE) || "";
-  }
-
-  function ensureKey() {
-    let k = getKey();
+  function getKeyFromUrlOrStorage(){
+    const p = new URLSearchParams(location.search);
+    const k = (p.get("k") || "").trim();
     if (k) return k;
-    k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
-    if (!k) return "";
-    localStorage.setItem(PWA_KEY_STORAGE, k);
-    return k;
+    return (localStorage.getItem(PWA_KEY_STORAGE) || "").trim();
   }
 
-  function headersWithKey() {
-    const k = ensureKey();
+  function headersWithKey(){
+    const k = getKeyFromUrlOrStorage();
     return k ? { "x-surpresso-key": k } : {};
   }
 
-  async function apiGet(url) {
-    const resp = await fetch(url, { headers: headersWithKey() });
-    return await resp.json();
+  function esc(v){
+    if (v === null || v === undefined) return "-";
+    return String(v)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
   }
 
-  async function loadAndRender() {
-    if (!id) return alert("Немає ID");
+  function fmtDate(d){
+    if (!d) return "";
+    const dt = new Date(d);
+    if (isNaN(dt)) return String(d);
+    const dd = String(dt.getDate()).padStart(2,"0");
+    const mm = String(dt.getMonth()+1).padStart(2,"0");
+    const yy = String(dt.getFullYear());
+    return `${dd}.${mm}.${yy}`;
+  }
 
-    const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(id)}`);
-    if (!data.ok) return alert(data.error || "Помилка завантаження");
+  function row(label, value) {
+    return `<tr><td class="label">${esc(label)}</td><td>${esc(value || "-")}</td></tr>`;
+  }
 
-    const eq = data.equipment || {};
+  async function loadAndRender(){
+    const p = new URLSearchParams(location.search);
+    const id = (p.get("id") || "").trim();
 
-    // 👇 ТУТ ТЫ ПОДСТАВЛЯЕШЬ В СВОЙ ШАБЛОН
-    // пример:
-    const elId = document.getElementById("printId");
-    if (elId) elId.textContent = eq.id || "";
+    $("docId").textContent = id || "—";
 
-    // Если нужно вывести фотки на печать:
-    // data.photos = [{imgUrl, caption, ...}]
-    const photosWrap = document.getElementById("printPhotos");
-    if (photosWrap && Array.isArray(data.photos)) {
-      const slice = data.photos.slice(0, 6);
-      photosWrap.innerHTML = slice.map(p => `
-        <div style="width:48%;border:1px solid #eee;border-radius:10px;overflow:hidden;margin-bottom:8px;">
-          <img src="${p.imgUrl || ''}" style="width:100%;height:180px;object-fit:cover;display:block;">
-          <div style="padding:6px 8px;font-size:11px;color:#666">${p.caption || ""}</div>
-        </div>
-      `).join("");
+    if (!id) {
+      $("dataTable").innerHTML = row("Помилка", "Немає id. Відкрий: company-print.html?id=...&k=...");
+      return;
     }
 
-    // ✅ Печать после подстановки
-    setTimeout(() => window.print(), 300);
+    $("loadHint").textContent = "Завантажую…";
+
+    const resp = await fetch(`${API_BASE}/api/equip/${encodeURIComponent(id)}`, {
+      headers: headersWithKey()
+    });
+
+    const data = await resp.json().catch(() => null);
+    if (!data || !data.ok) {
+      $("loadHint").textContent = "";
+      $("dataTable").innerHTML = row("Помилка", (data && data.error) ? data.error : "Not found");
+      return;
+    }
+
+    const eq = data.equipment || {};
+    $("loadHint").textContent = "";
+
+    let html = "";
+    html += row("Тип обладнання", eq.type || "");
+    html += row("Власник", eq.owner === "company" ? "Компанія" : (eq.owner || ""));
+    html += row("Локація (цех / заклад)", eq.companyLocation || "");
+    html += row("Назва обладнання", eq.name || "");
+    html += row("Внутрішній номер", eq.internalNumber || "");
+    html += row("Поточний статус", eq.status || "");
+    html += row("Останній коментар", eq.lastComment || "");
+    html += row("Оновлено", fmtDate(eq.updatedAt || eq.createdAt || ""));
+
+    $("dataTable").innerHTML = html;
   }
 
   loadAndRender();
@@ -545,5 +388,3 @@ document.getElementById("dataTable").innerHTML = html;
 
 </body>
 </html>
-
-
