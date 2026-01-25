@@ -441,89 +441,141 @@
 
 
 <script>
-function fmtDMY(d) {
-  const dt = new Date(d);
-  const day = String(dt.getDate()).padStart(2, "0");
-  const month = String(dt.getMonth() + 1).padStart(2, "0");
-  const year = dt.getFullYear();
-  return `${day}.${month}.${year}`;
+
+/**
+ * company-print.html (COMPANY)
+ * - /company-print.html?id=SP.225&k=... -> грузим из базы (/api/equip/:id)
+ * - без id -> берем localStorage.last_equipment_card (как из equipment.html формы)
+ * - Дата в бланке всегда АКТУАЛЬНАЯ (сегодня)
+ */
+const PWA_KEY_STORAGE = "surpresso_pwa_key";
+
+function getKey(){ return localStorage.getItem(PWA_KEY_STORAGE) || ""; }
+function setKey(k){ if(k) localStorage.setItem(PWA_KEY_STORAGE, k); }
+
+function ensureKey(){
+  let k = getKey();
+  if (k) return k;
+  k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+  if (!k) return "";
+  setKey(k);
+  return k;
 }
 
-// ✅ сегодня всегда актуальная дата
-const TODAY = fmtDMY(new Date());
+function fmtUA(d){
+  const day = String(d.getDate()).padStart(2,"0");
+  const mon = String(d.getMonth()+1).padStart(2,"0");
+  const yr  = d.getFullYear();
+  return `${day}.${mon}.${yr}`;
+}
+function todayUA(){ return fmtUA(new Date()); }
 
-const params = new URLSearchParams(location.search);
-const EQUIP_ID = (params.get("id") || "").trim();
-const K_FROM_URL = (params.get("k") || "").trim();
-
-function row(label, value) {
-  const v = (value !== undefined && value !== null && String(value).trim() !== "") ? String(value) : "-";
-  return `<tr><td class="label">${label}</td><td>${v}</td></tr>`;
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+function row(label, value){
+  const v = (value === 0) ? "0" : (value ? String(value) : "-");
+  return `<tr><td class="label">${label}</td><td>${esc(v)}</td></tr>`;
 }
 
-function getKey() {
-  // если кинули ?k= — используем его
-  // иначе можно брать из localStorage (если у тебя хранится ключ)
-  return K_FROM_URL || localStorage.getItem("surpresso_pwa_key") || "";
-}
+const typeMap = {
+  "grinder": "Гріндер",
+  "pro-coffee": "Професійна кавомашина",
+  "auto-coffee": "Автоматична кавомашина",
+  "osmos": "Система фільтрації води"
+};
 
-async function loadCompanyCard() {
-  if (!EQUIP_ID) {
-    document.getElementById("dataTable").innerHTML =
-      row("Помилка", "Немає ID в URL. Відкрий так: company-print.html?id=SP.225");
-    return;
+async function fetchFromBase(id){
+  const k = ensureKey();
+  if(!k) throw new Error("NO_KEY");
+  const resp = await fetch(`/api/equip/${encodeURIComponent(id)}`, {
+    headers: { "x-surpresso-key": k }
+  });
+  const data = await resp.json().catch(()=>null);
+  if(!data || !data.ok) throw new Error((data && data.error) ? data.error : "Not found");
+  const eq = data.equipment || {};
+
+  // если owner=client -> print
+  if (String(eq.owner) === "client") {
+    const params = new URLSearchParams(location.search);
+    const qk = params.get("k") || k || "";
+    location.replace(`/print.html?id=${encodeURIComponent(id)}${qk ? `&k=${encodeURIComponent(qk)}` : ""}`);
+    return null;
   }
 
-  const k = getKey();
-  if (!k) {
-    document.getElementById("dataTable").innerHTML =
-      row("Помилка", "Немає ключа доступу. Відкрий із equip.html або додай ?k=...");
-    return;
-  }
+  return {
+    owner: "company",
+    id: eq.id || id,
+    type: eq.type || "",
+    typeText: typeMap[eq.type] || eq.type || "",
+    companyLocation: eq.companyLocation || "",
+    name: eq.name || "",
+    internalNumber: eq.internalNumber || "",
+    task: eq.lastComment || "",
+    comment: "",
+    status: eq.status || ""
+  };
+}
 
-  try {
-    const resp = await fetch(`/api/equip/${encodeURIComponent(EQUIP_ID)}?k=${encodeURIComponent(k)}`);
-    const data = await resp.json();
+function loadFromLocal(){
+  const raw = localStorage.getItem("last_equipment_card");
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e){ return null; }
+}
 
-    if (!data.ok) {
-      document.getElementById("dataTable").innerHTML =
-        row("Помилка", data.error || "Not found");
-      return;
-    }
+function render(card){
+  let html = "";
 
-    const eq = data.equipment || {};
-    const owner = String(eq.owner || "").toLowerCase();
-
-    // ✅ защита: если вдруг клиентское открыли на company-print
-    if (owner !== "company") {
-      document.getElementById("dataTable").innerHTML =
-        row("Помилка", "Це не обладнання компанії. Відкрий print.html для клієнта.");
-      return;
-    }
-
-    // ✅ Формируем таблицу (как ты хотел)
-    let html = "";
-    html += row("Тип обладнання", eq.type || "");
+  if(card && card.owner === "company"){
+    html += row("Тип обладнання", card.typeText || card.type || "");
     html += row("Власник", "Компанія");
-    html += row("Локація (цех / заклад)", eq.companyLocation || "");
-    html += row("Назва обладнання", eq.name || "");
-    html += row("Внутрішній номер", eq.internalNumber || "");
-    html += row("Поточний статус", eq.status || "");
-    html += row("Останній коментар", eq.lastComment || "");
-    html += row("Дата", TODAY); // ✅ всегда сегодня
-
-    document.getElementById("dataTable").innerHTML = html;
-
-  } catch (e) {
-    console.error(e);
-    document.getElementById("dataTable").innerHTML =
-      row("Помилка", "Не вдалося завантажити дані з сервера");
+    html += row("Локація (цех / заклад)", card.companyLocation || "");
+    html += row("Назва обладнання", card.name || "");
+    html += row("Внутрішній номер", card.internalNumber || "");
+    html += row("Завдання / проблема", card.task || "");
+    html += row("Коментар", card.comment || "");
+    html += row("Дата", todayUA()); // ✅ всегда сегодня
+    if(card.status) html += row("Поточний статус", card.status);
+  } else {
+    html += row("Помилка", "Немає даних для друку");
   }
+
+  document.getElementById("dataTable").innerHTML = html;
 }
 
-loadCompanyCard();
-</script>
+(async function init(){
+  const params = new URLSearchParams(location.search);
+  const id = (params.get("id") || "").trim();
+  const k  = (params.get("k") || "").trim();
+  if(k) setKey(k);
 
+  try{
+    let card = null;
+    if(id){
+      card = await fetchFromBase(id);
+      if(!card) return; // redirected
+    } else {
+      card = loadFromLocal();
+
+      // если из формы client -> print
+      if(card && card.owner === "client"){
+        location.replace("/print.html");
+        return;
+      }
+      if(card && !card.typeText) card.typeText = typeMap[card.type] || card.type || "";
+    }
+    render(card);
+  } catch(e){
+    console.error(e);
+    document.getElementById("dataTable").innerHTML = row("Помилка", e.message || "Not found");
+  }
+})();
+
+</script>
 
 </body>
 </html>
+
+
