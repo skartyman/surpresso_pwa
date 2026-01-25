@@ -210,11 +210,11 @@ function isClientGiveAwayStatus(status) {
 }
 
 function isCompanyLeavingStatus(status) {
-  // "Уезжает на аренду"
+  // "Уехало на аренду"
   const s = normStatus(status);
   return (
-    s === "уезжает на аренду" ||
-    s.includes("уезжает") ||
+    s === "уехало на аренду" ||
+    s.includes("уехало") ||
     s.includes("виїжджає")
   );
 }
@@ -689,6 +689,7 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
 
