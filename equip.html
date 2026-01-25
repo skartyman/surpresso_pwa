@@ -970,9 +970,9 @@ function printBlank() {
   const page = owner === "company" ? "company-print.html" : "print.html";
 
   // передадим id + ключ доступа (если используешь ?k=... для печатной страницы)
-  const url = `${page}?id=${encodeURIComponent(EQUIPMENT_ID)}${withKeyQuery()}`;
+  const url = `/print.html?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(ensureKey())}`;
+window.open(url, "_blank");
 
-  window.open(url, "_blank");
 }
 
     // ===========================
