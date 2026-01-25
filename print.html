@@ -490,49 +490,392 @@ function formatDateForTable(dateStr) {
     return `${day}.${month}.${year}`;
 }
 
-const cardRaw = localStorage.getItem("last_equipment_card");
-let card = null;
-try { card = JSON.parse(cardRaw || "null"); } catch (e) {}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Surpresso — Бланк прийому (Клієнт)</title>
 
-const docEl = document.getElementById("docId");
-if (docEl) docEl.textContent = card?.id || "-";
+  <style>
+    @page { size: A4; margin: 10mm; }
 
-function row(label, value) {
-  return `<tr><td class="label">${label}</td><td>${value || "-"}</td></tr>`;
-}
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #222;
+      font-size: 12px;
+      margin: 0;
+      background: #fff;
+    }
 
-let html = "";
+    .sheet {
+      width: 100%;
+    }
 
-if (card && card.owner === "client") {
-  html += row("Тип обладнання", card.typeText);
-  html += row("Власник", "Клієнт");
-  html += row("Ім’я клієнта", card.clientName);
-  html += row("Телефон", card.clientPhone);
-  html += row("Адреса / локація", card.clientLocation);
-  html += row("Модель", card.model);
-  html += row("Серійний номер", card.serial);
-  html += row("Проблема / опис", card.problem);
-  html += row("Зовнішні пошкодження", card.condition);
+    .copy {
+      border: 1px solid #eee;
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
 
-  // ✅ Форматуємо дату
-  html += row("Дата прийому", formatDateForTable(card.receivedDate));
+    .copyTitle {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #F2C94C;
+    }
 
-} else if (card && card.owner === "company") {
-  html += row("Тип обладнання", card.typeText);
-  html += row("Власник", "Компанія");
-  html += row("Локація (цех / заклад)", card.companyLocation);
-  html += row("Назва обладнання", card.name);
-  html += row("Внутрішній номер", card.internalNumber);
-  html += row("Завдання / проблема", card.task);
-  html += row("Коментар", card.comment);
+    .logo {
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: 0.2px;
+    }
 
-  // ✅ Форматуємо дату
-  html += row("Дата", formatDateForTable(card.companyDate));
-  
-} else {
-  html += row("Дані", "Не передано дані картки (оновіть сторінку та сформуйте бланк ще раз).");
-}
-document.getElementById("dataTable").innerHTML = html;
+    .sub {
+      color: #666;
+      font-size: 11px;
+    }
+
+    .bigId {
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    h3 {
+      margin: 8px 0 6px;
+      font-size: 13px;
+      border-left: 4px solid #F2C94C;
+      padding-left: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    td {
+      padding: 6px 6px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+
+    td.label {
+      width: 220px;
+      font-weight: 800;
+      color: #222;
+    }
+
+    .muted { color: #666; }
+    .warn { color: #b00; font-weight: 800; }
+
+    .photosGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .ph {
+      border: 1px solid #eee;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fafafa;
+    }
+
+    .ph img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      background: #fafafa;
+    }
+
+    .phCap {
+      padding: 6px 8px;
+      font-size: 11px;
+      color: #666;
+      border-top: 1px solid #eee;
+      background: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .signRow {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .line {
+      border-bottom: 1px solid #222;
+      display: inline-block;
+      width: 260px;
+      height: 14px;
+      vertical-align: bottom;
+    }
+
+    .lineSmall { width: 120px; }
+
+    .cut {
+      border-top: 2px dashed #bbb;
+      margin: 8px 0 8px;
+    }
+
+    .printOnlyNote {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .screenTools {
+      display: none;
+      padding: 10px;
+      max-width: 860px;
+      margin: 10px auto;
+    }
+
+    @media screen {
+      .screenTools { display: block; }
+      .sheet { max-width: 860px; margin: 0 auto; padding: 10px; }
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      background: #F2C94C;
+    }
+
+    .btnGhost { background: #f3f3f3; }
+
+  </style>
+</head>
+
+<body>
+
+  <!-- инструменты только на экране -->
+  <div class="screenTools">
+    <button onclick="window.print()">🖨️ Друк</button>
+    <button class="btnGhost" onclick="location.reload()">⟳ Оновити</button>
+    <div class="printOnlyNote">
+      Якщо відкрили не з <b>equip.html</b>, встав ключ <b>k</b> в URL: <span class="muted">print.html?id=SP.225&k=...</span>
+    </div>
+  </div>
+
+  <div class="sheet">
+
+    <!-- COPY 1 -->
+    <div class="copy">
+      <div class="copyTitle">
+        <div>
+          <div class="logo">Surpresso Service</div>
+          <div class="sub">Бланк прийому обладнання (копія для майстерні)</div>
+        </div>
+        <div class="sub">
+          ID: <span class="bigId" id="printId">—</span>
+        </div>
+      </div>
+
+      <h3>Інформація</h3>
+      <table id="dataTable"></table>
+
+      <div id="photosBlock" style="display:none">
+        <h3>Фото</h3>
+        <div class="photosGrid" id="printPhotos"></div>
+      </div>
+
+      <h3>Підпис</h3>
+      <div class="signRow">
+        <div>Відповідальний: <span class="line"></span></div>
+        <div>Дата: <span class="line lineSmall"></span></div>
+      </div>
+    </div>
+
+    <div class="cut"></div>
+
+    <!-- COPY 2 -->
+    <div class="copy">
+      <div class="copyTitle">
+        <div>
+          <div class="logo">Surpresso Service</div>
+          <div class="sub">Бланк прийому обладнання (копія для клієнта)</div>
+        </div>
+        <div class="sub">
+          ID: <span class="bigId" id="printId2">—</span>
+        </div>
+      </div>
+
+      <h3>Інформація</h3>
+      <table id="dataTableCopy"></table>
+
+      <div id="photosBlock2" style="display:none">
+        <h3>Фото</h3>
+        <div class="photosGrid" id="printPhotos2"></div>
+      </div>
+
+      <h3>Підпис</h3>
+      <div class="signRow">
+        <div>Клієнт: <span class="line"></span></div>
+        <div>Дата: <span class="line lineSmall"></span></div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  // =========================
+  // CONFIG
+  // =========================
+  const PWA_KEY_STORAGE = "surpresso_pwa_key";
+  const API_BASE = ""; // тот же домен
+
+  const params = new URLSearchParams(location.search);
+  const id = (params.get("id") || "").trim();
+
+  // если key в URL - используем его
+  const keyFromUrl = (params.get("k") || "").trim();
+
+  // =========================
+  // KEY / AUTH
+  // =========================
+  function getKey() {
+    return keyFromUrl || (localStorage.getItem(PWA_KEY_STORAGE) || "");
+  }
+
+  function ensureKey() {
+    let k = getKey();
+    if (k) {
+      // если key был в URL — сохраним чтобы дальше работало
+      if (keyFromUrl) localStorage.setItem(PWA_KEY_STORAGE, keyFromUrl);
+      return k;
+    }
+    k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+    if (!k) return "";
+    localStorage.setItem(PWA_KEY_STORAGE, k);
+    return k;
+  }
+
+  function headersWithKey() {
+    const k = ensureKey();
+    return k ? { "x-surpresso-key": k } : {};
+  }
+
+  // =========================
+  // API
+  // =========================
+  async function apiGet(url) {
+    const resp = await fetch(url, { headers: headersWithKey() });
+    return await resp.json();
+  }
+
+  // =========================
+  // RENDER
+  // =========================
+  function esc(v) {
+    if (v === null || v === undefined) return "—";
+    return String(v)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  function fmt(d) {
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt)) return "";
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const yy = String(dt.getFullYear());
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mi = String(dt.getMinutes()).padStart(2, "0");
+      return `${dd}.${mm}.${yy} ${hh}:${mi}`;
+    } catch { return ""; }
+  }
+
+  function row(label, value) {
+    return `<tr><td class="label">${esc(label)}</td><td>${esc(value || "—")}</td></tr>`;
+  }
+
+  async function loadAndRender() {
+    if (!id) {
+      document.body.innerHTML = `<div style="padding:18px" class="warn">Немає ID. Відкрий: <b>print.html?id=...</b></div>`;
+      return;
+    }
+
+    document.getElementById("printId").textContent = id;
+    document.getElementById("printId2").textContent = id;
+
+    const data = await apiGet(`${API_BASE}/api/equip/${encodeURIComponent(id)}`);
+    if (!data.ok) {
+      document.body.innerHTML = `<div style="padding:18px" class="warn">Not found або помилка: <b>${esc(data.error || "unknown")}</b></div>`;
+      return;
+    }
+
+    const eq = data.equipment || {};
+
+    // ВАЖНО: это CLIENT print.html — если owner не client, всё равно напечатаем,
+    // но покажем поля как есть
+    let html = "";
+    html += row("Тип обладнання", eq.type);
+    html += row("Власник", eq.owner === "client" ? "Клієнт" : (eq.owner || "—"));
+
+    html += row("ПІБ клієнта", eq.clientName);
+    html += row("Телефон", eq.clientPhone);
+    html += row("Локація", eq.clientLocation);
+    html += row("Модель", eq.model);
+    html += row("Серійний номер", eq.serial);
+
+    html += row("Поточний статус", eq.status);
+    html += row("Коментар", eq.lastComment);
+
+    html += row("Створено", fmt(eq.createdAt));
+    html += row("Оновлено", fmt(eq.updatedAt));
+
+    document.getElementById("dataTable").innerHTML = html;
+    document.getElementById("dataTableCopy").innerHTML = html;
+
+    // фото
+    const photos = Array.isArray(data.photos) ? data.photos : [];
+    const slice = photos.slice(0, 4);
+
+    if (slice.length) {
+      document.getElementById("photosBlock").style.display = "block";
+      document.getElementById("photosBlock2").style.display = "block";
+
+      const renderPhotos = (wrapId) => {
+        const wrap = document.getElementById(wrapId);
+        wrap.innerHTML = slice.map(p => `
+          <div class="ph">
+            <img src="${esc(p.imgUrl || "")}" alt="Фото">
+            <div class="phCap">${esc(p.caption || "")}</div>
+          </div>
+        `).join("");
+      };
+
+      renderPhotos("printPhotos");
+      renderPhotos("printPhotos2");
+    }
+
+    // автопечать
+    setTimeout(() => window.print(), 350);
+  }
+
+  loadAndRender();
+</script>
+
+</body>
+</html>
+
 
 // PAGE 3 (копія) — 🔥 автоматично
 const copyTable = document.getElementById("dataTableCopy");
@@ -604,4 +947,5 @@ if (copyTable) copyTable.innerHTML = html;
 
 </body>
 </html>
+
 
