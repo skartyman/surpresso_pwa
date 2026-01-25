@@ -502,38 +502,6 @@ body, html {
     const year = d.getFullYear();
     return `${day}.${month}.${year}`;
   }
-function todayIso() {
-  const dt = new Date();
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function isoFromAny(d) {
-  // если уже YYYY-MM-DD
-  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-
-  const dt = new Date(d);
-  if (isNaN(dt)) return "";
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function rowDateInput(label, isoValue) {
-  const v = isoValue || todayIso();
-  return `
-    <tr>
-      <td class="label">${esc(label)}</td>
-      <td>
-        <input class="dateInput" id="dateInput" type="date" value="${esc(v)}"
-          style="font-size:12px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;width:160px;">
-      </td>
-    </tr>
-  `;
-}
 
   function esc(v) {
     if (v === null || v === undefined) return "—";
@@ -638,7 +606,7 @@ function rowDateInput(label, isoValue) {
     html += row("Серійний номер", eq.serial);
     html += row("Проблема / опис", problem);
     html += row("Зовнішні пошкодження", cond);
-    html += row("Дата прийому", formatDateForTable(received));
+    html += row("Дата прийому", formatDateForTable(new Date()));
     html += row("Поточний статус", eq.status);
 
     const tb = document.getElementById("dataTable");
@@ -657,5 +625,6 @@ function rowDateInput(label, isoValue) {
 
 </body>
 </html>
+
 
 
