@@ -114,18 +114,8 @@ body, html {
     z-index: 1;
     pointer-events: none;
   }
-  <style>
-  @media print {
-    .dateInput {
-      border: 0 !important;
-      padding: 0 !important;
-      width: auto !important;
-      appearance: none;
-      -webkit-appearance: none;
-      background: transparent !important;
-    }
- }
 }
+
 /* -------------------------------
    HEADER
 -------------------------------- */
@@ -490,134 +480,148 @@ body, html {
 </body>
 
 <script>
-function formatDateForTable(dateObj) {
-  const d = new Date(dateObj);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}.${month}.${year}`;
-}
 
-// ✅ сегодняшняя дата всегда
-const TODAY = formatDateForTable(new Date());
-
-// ключ как у тебя в equip.html
+/**
+ * print.html (CLIENT)
+ * - /print.html?id=SP.225&k=... -> грузим из базы (/api/equip/:id)
+ * - без id -> берем localStorage.last_equipment_card (как из equipment.html формы)
+ * - Дата в бланке всегда АКТУАЛЬНАЯ (сегодня)
+ */
 const PWA_KEY_STORAGE = "surpresso_pwa_key";
 
-// читаем параметры URL
-const params = new URLSearchParams(location.search);
-const EQUIP_ID = (params.get("id") || "").trim();
-const K_FROM_URL = (params.get("k") || "").trim();
+function getKey(){ return localStorage.getItem(PWA_KEY_STORAGE) || ""; }
+function setKey(k){ if(k) localStorage.setItem(PWA_KEY_STORAGE, k); }
 
-function getKey(){
-  return K_FROM_URL || localStorage.getItem(PWA_KEY_STORAGE) || "";
+function ensureKey(){
+  let k = getKey();
+  if (k) return k;
+  k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
+  if (!k) return "";
+  setKey(k);
+  return k;
 }
 
-function row(label, value) {
-  return `<tr><td class="label">${label}</td><td>${(value && String(value).trim()) ? value : "-"}</td></tr>`;
+function fmtUA(d){
+  const day = String(d.getDate()).padStart(2,"0");
+  const mon = String(d.getMonth()+1).padStart(2,"0");
+  const yr  = d.getFullYear();
+  return `${day}.${mon}.${yr}`;
+}
+function todayUA(){ return fmtUA(new Date()); }
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+function row(label, value){
+  const v = (value === 0) ? "0" : (value ? String(value) : "-");
+  return `<tr><td class="label">${label}</td><td>${esc(v)}</td></tr>`;
 }
 
-async function loadCardFromApi() {
-  if (!EQUIP_ID) {
-    const html = row("Помилка", "Немає ID у посиланні. Відкрий так: print.html?id=SP.225");
-    document.getElementById("dataTable").innerHTML = html;
-    const copyTable = document.getElementById("dataTableCopy");
-    if (copyTable) copyTable.innerHTML = html;
-    return;
+const typeMap = {
+  "grinder": "Гріндер",
+  "pro-coffee": "Професійна кавомашина",
+  "auto-coffee": "Автоматична кавомашина",
+  "osmos": "Система фільтрації води"
+};
+
+async function fetchFromBase(id){
+  const k = ensureKey();
+  if(!k) throw new Error("NO_KEY");
+  const resp = await fetch(`/api/equip/${encodeURIComponent(id)}`, {
+    headers: { "x-surpresso-key": k }
+  });
+  const data = await resp.json().catch(()=>null);
+  if(!data || !data.ok) throw new Error((data && data.error) ? data.error : "Not found");
+  const eq = data.equipment || {};
+
+  // если owner=company -> company-print
+  if (String(eq.owner) === "company") {
+    const params = new URLSearchParams(location.search);
+    const qk = params.get("k") || k || "";
+    location.replace(`/company-print.html?id=${encodeURIComponent(id)}${qk ? `&k=${encodeURIComponent(qk)}` : ""}`);
+    return null;
   }
 
-  const key = getKey();
-  if (!key) {
-    const html = row("Помилка", "Немає ключа доступу. Відкрий із ?k=... або зайди через equip.html");
-    document.getElementById("dataTable").innerHTML = html;
-    const copyTable = document.getElementById("dataTableCopy");
-    if (copyTable) copyTable.innerHTML = html;
-    return;
+  return {
+    owner: "client",
+    id: eq.id || id,
+    type: eq.type || "",
+    typeText: typeMap[eq.type] || eq.type || "",
+    clientName: eq.clientName || "",
+    clientPhone: eq.clientPhone || "",
+    clientLocation: eq.clientLocation || "",
+    model: eq.model || "",
+    serial: eq.serial || "",
+    problem: eq.lastComment || "",
+    condition: "",
+    status: eq.status || ""
+  };
+}
+
+function loadFromLocal(){
+  const raw = localStorage.getItem("last_equipment_card");
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e){ return null; }
+}
+
+function render(card){
+  let html = "";
+
+  if(card && card.owner === "client"){
+    html += row("Тип обладнання", card.typeText || card.type || "");
+    html += row("Власник", "Клієнт");
+    html += row("Ім’я клієнта", card.clientName || "");
+    html += row("Телефон", card.clientPhone || "");
+    html += row("Адреса / локація", card.clientLocation || "");
+    html += row("Модель", card.model || "");
+    html += row("Серійний номер", card.serial || "");
+    html += row("Проблема / опис", card.problem || "");
+    html += row("Зовнішні пошкодження", card.condition || "");
+    html += row("Дата прийому", todayUA()); // ✅ всегда сегодня
+    if(card.status) html += row("Поточний статус", card.status);
+  } else {
+    html += row("Помилка", "Немає даних для друку");
   }
 
-  try {
-    // ✅ берём оборудование по ID
-    const resp = await fetch(`/api/equip/${encodeURIComponent(EQUIP_ID)}?k=${encodeURIComponent(key)}`);
-    const data = await resp.json();
+  document.getElementById("dataTable").innerHTML = html;
+  const copy = document.getElementById("dataTableCopy");
+  if(copy) copy.innerHTML = html;
+}
 
-    if (!data.ok) {
-      const html = row("Помилка", data.error || "Not found");
-      document.getElementById("dataTable").innerHTML = html;
-      const copyTable = document.getElementById("dataTableCopy");
-      if (copyTable) copyTable.innerHTML = html;
-      return;
-    }
+(async function init(){
+  const params = new URLSearchParams(location.search);
+  const id = (params.get("id") || "").trim();
+  const k  = (params.get("k") || "").trim();
+  if(k) setKey(k);
 
-    const eq = data.equipment || {};
-
-    let html = "";
-    const owner = String(eq.owner || "").toLowerCase();
-
-    // ✅ общий блок
-    const typeText = eq.type || "-";
-
-    if (owner === "client") {
-      html += row("Тип обладнання", typeText);
-      html += row("Власник", "Клієнт");
-      html += row("Ім’я клієнта", eq.clientName);
-      html += row("Телефон", eq.clientPhone);
-      html += row("Адреса / локація", eq.clientLocation);
-      html += row("Модель", eq.model);
-      html += row("Серійний номер", eq.serial);
-
-      // Этих полей в GAS у тебя нет — поэтому выводим из lastComment (или "-")
-      html += row("Проблема / опис", eq.lastComment || "-");
-      html += row("Зовнішні пошкодження", "-");
-
-      // ✅ всегда актуальная дата (сегодня)
-      html += row("Дата прийому", TODAY);
-
-      // статус — если хочешь можно добавить
-      html += row("Поточний статус", eq.status || "-");
-
-    } else if (owner === "company") {
-      html += row("Тип обладнання", typeText);
-      html += row("Власник", "Компанія");
-      html += row("Локація (цех / заклад)", eq.companyLocation);
-      html += row("Назва обладнання", eq.name);
-      html += row("Внутрішній номер", eq.internalNumber);
-
-      // так как task/comment тоже нет в EQUIPMENT (у тебя только lastComment)
-      html += row("Завдання / проблема", eq.lastComment || "-");
-      html += row("Коментар", eq.lastComment || "-");
-
-      // ✅ актуальная дата
-      html += row("Дата", TODAY);
-
-      html += row("Поточний статус", eq.status || "-");
-
+  try{
+    let card = null;
+    if(id){
+      card = await fetchFromBase(id);
+      if(!card) return; // redirected
     } else {
-      html += row("Дані", "Не визначено owner у картці. Перевір owner у EQUIPMENT.");
+      card = loadFromLocal();
+
+      // если из формы company -> company-print
+      if(card && card.owner === "company"){
+        location.replace("/company-print.html");
+        return;
+      }
+      if(card && !card.typeText) card.typeText = typeMap[card.type] || card.type || "";
     }
-
-    document.getElementById("dataTable").innerHTML = html;
-
-    // PAGE 3 (копія)
-    const copyTable = document.getElementById("dataTableCopy");
-    if (copyTable) copyTable.innerHTML = html;
-
-  } catch (e) {
-    const html = row("Помилка", "Не вдалося завантажити дані з сервера");
-    document.getElementById("dataTable").innerHTML = html;
-    const copyTable = document.getElementById("dataTableCopy");
-    if (copyTable) copyTable.innerHTML = html;
+    render(card);
+  } catch(e){
     console.error(e);
+    document.getElementById("dataTable").innerHTML = row("Помилка", e.message || "Not found");
+    const copy = document.getElementById("dataTableCopy");
+    if(copy) copy.innerHTML = document.getElementById("dataTable").innerHTML;
   }
-}
+})();
 
-// ✅ старт
-loadCardFromApi();
 </script>
-
 
 </body>
 </html>
-
-
-
 
