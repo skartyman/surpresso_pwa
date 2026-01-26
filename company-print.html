@@ -449,6 +449,11 @@
  * - Дата в бланке всегда АКТУАЛЬНАЯ (сегодня)
  */
 const PWA_KEY_STORAGE = "surpresso_pwa_key";
+const params = new URLSearchParams(location.search);
+
+const taskOverride = (params.get("task") || "").trim();
+const commentOverride = (params.get("comment") || "").trim();
+
 
 function getKey(){ return localStorage.getItem(PWA_KEY_STORAGE) || ""; }
 function setKey(k){ if(k) localStorage.setItem(PWA_KEY_STORAGE, k); }
@@ -534,8 +539,8 @@ function render(card){
     html += row("Локація (цех / заклад)", card.companyLocation || "");
     html += row("Назва обладнання", card.name || "");
     html += row("Внутрішній номер", card.internalNumber || "");
-    html += row("Завдання / проблема", card.task || "");
-    html += row("Коментар", card.comment || "");
+    html += row("Завдання / проблема", taskOverride || card.task || "-");
+    html += row("Коментар", commentOverride || card.comment || card.lastComment || "-");
     html += row("Дата", todayUA()); // ✅ всегда сегодня
     if(card.status) html += row("Поточний статус", card.status);
   } else {
@@ -577,5 +582,6 @@ function render(card){
 
 </body>
 </html>
+
 
 
