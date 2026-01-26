@@ -490,6 +490,8 @@ body, html {
 const params = new URLSearchParams(location.search);
 
 const taskOverride = (params.get("task") || "").trim();
+const commentOverride = (params.get("comment") || "").trim();
+  
 const PWA_KEY_STORAGE = "surpresso_pwa_key";
 
 function getKey(){ return localStorage.getItem(PWA_KEY_STORAGE) || ""; }
@@ -581,7 +583,7 @@ function render(card){
     html += row("Модель", card.model || "");
     html += row("Серійний номер", card.serial || "");
     html += row("Завдання / проблема", taskOverride || card.problem || "-");
-    html += row("Зовнішні пошкодження", card.condition || "");
+    html += row("Коментар", commentOverride || card.comment || card.lastComment || "-");
     html += row("Дата прийому", todayUA()); // ✅ всегда сегодня
     if(card.status) html += row("Поточний статус", card.status);
   } else {
@@ -627,5 +629,6 @@ function render(card){
 
 </body>
 </html>
+
 
 
