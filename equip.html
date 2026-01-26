@@ -1382,11 +1382,39 @@ async function reSendToTelegramAndTrello() {
 $("btnPrint").onclick = () => printBlank();
 
 function printBlank() {
-  const owner = (LAST_EQUIPMENT && LAST_EQUIPMENT.owner) ? LAST_EQUIPMENT.owner : "client";
+  if (!LAST_EQUIPMENT) {
+    alert("Немає даних. Натисни Оновити.");
+    return;
+  }
+
+  const owner = LAST_EQUIPMENT.owner || "client";
   const page = owner === "company" ? "company-print.html" : "print.html";
 
-  const k = ensureKey(); // чтобы печатная страница смогла дернуть /api/equip/:id
-  const url = `/${page}?id=${encodeURIComponent(EQUIPMENT_ID)}&k=${encodeURIComponent(k)}`;
+  // ✅ берем то, что уже есть в базе
+  const baseTask = owner === "company"
+    ? (LAST_EQUIPMENT.task || "")
+    : (LAST_EQUIPMENT.problem || "");
+
+  const baseComment = owner === "company"
+    ? (LAST_EQUIPMENT.comment || LAST_EQUIPMENT.lastComment || "")
+    : (LAST_EQUIPMENT.lastComment || "");
+
+  // ✅ берем то, что сейчас введено на странице (например комментарий к статусу)
+  const liveComment = (document.getElementById("comment")?.value || "").trim();
+
+  // ✅ спрашиваем задачу/проблему прямо перед печатью (удобно!)
+  const task = prompt("Завдання / проблема (для друку):", baseTask) || baseTask;
+
+  // ✅ комментарий: если в поле ввели перед сохранением статуса — его и берем
+  const commentForPrint = prompt("Коментар (для друку):", liveComment || baseComment) || (liveComment || baseComment);
+
+  const k = ensureKey();
+
+  const url =
+    `/${page}?id=${encodeURIComponent(EQUIPMENT_ID)}` +
+    `&k=${encodeURIComponent(k)}` +
+    `&task=${encodeURIComponent(task)}` +
+    `&comment=${encodeURIComponent(commentForPrint)}`;
 
   window.open(url, "_blank");
 }
