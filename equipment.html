@@ -120,7 +120,7 @@
       <div class="field"><label>Модель</label><input id="model"></div>
       <div class="field"><label>Серийный номер</label><input id="serial" type="text" placeholder="000343212"></div>
       <div class="field"><label>Описание проблемы</label><input id="problem"></div>
-      <div class="field"><label>Комментарий</label><input id="comment"></div>
+      <div class="field"><label>Повреждения/label><input id="condition"></div>
       <div class="field"><label>Дата приёма</label><input type="date" id="receivedDate"></div>
 
       <div class="field checkbox-field">
@@ -503,7 +503,7 @@ function getOrCreateEquipId() {
         card.model = v("model");
         card.serial = v("serial");
         card.problem = v("problem");
-        card.comment = v("comment");
+        card.condition = v("condition");
         card.receivedDate = v("receivedDate");
       } else {
         card.companyLocation = v("companyLocation");
@@ -729,7 +729,7 @@ function getOrCreateEquipId() {
         add("Модель:", value("model"));
         add("Серийный номер:", value("serial"));
         add("Проблема:", value("problem"));
-        add("Комментарий:", value("comment"));
+        add("Повреждения:", value("condition"));
         add("Дата приёма:", value("receivedDate"));
       } else {
         add("Локация:", value("companyLocation"));
@@ -799,7 +799,7 @@ function getOrCreateEquipId() {
         card.model = value("model");
         card.serial = String(document.getElementById("serial").value || "").trim();
         card.problem = value("problem");
-        card.comment = value("comment");
+        card.condition = value("condition");
         card.receivedDate = value("receivedDate");
       } else {
         card.companyLocation = value("companyLocation");
@@ -1102,19 +1102,3 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
