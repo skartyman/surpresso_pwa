@@ -487,6 +487,9 @@ body, html {
  * - без id -> берем localStorage.last_equipment_card (как из equipment.html формы)
  * - Дата в бланке всегда АКТУАЛЬНАЯ (сегодня)
  */
+const params = new URLSearchParams(location.search);
+
+const taskOverride = (params.get("task") || "").trim();
 const PWA_KEY_STORAGE = "surpresso_pwa_key";
 
 function getKey(){ return localStorage.getItem(PWA_KEY_STORAGE) || ""; }
@@ -577,7 +580,7 @@ function render(card){
     html += row("Адреса / локація", card.clientLocation || "");
     html += row("Модель", card.model || "");
     html += row("Серійний номер", card.serial || "");
-    html += row("Проблема / опис", card.problem || "");
+    html += row("Завдання / проблема", taskOverride || card.problem || "-");
     html += row("Зовнішні пошкодження", card.condition || "");
     html += row("Дата прийому", todayUA()); // ✅ всегда сегодня
     if(card.status) html += row("Поточний статус", card.status);
@@ -624,4 +627,5 @@ function render(card){
 
 </body>
 </html>
+
 
