@@ -82,7 +82,7 @@
   <button class="btn ghost" type="button" onclick="startQrScan()">📷 Сканировать QR</button>
   <button class="btn primary" type="button" onclick="openEquipmentByInput()">➡️ Открыть</button>
 </div>
-
+      
 <!-- QR SCANNER PANEL -->
 <div id="qrScannerCard" class="card" style="display:none; margin-top:12px;">
   <h2>QR Сканер</h2>
@@ -94,10 +94,11 @@
 
   <div class="row" style="margin-top:10px; gap:8px;">
     <button class="btn ghost" type="button" onclick="stopQrScan()">⏹ Закрыть</button>
+    <button class="btn ghost" id="btnQrTorch" type="button" style="display:none" onclick="toggleQrTorch()">💡 Світло</button>
   </div>
 
   <div class="muted" style="margin-top:6px; font-size:12px; color:#666;">
-    Наведи камеру на QR с ID (например: SURP-12345678)
+    Наведи камеру на QR з ID (наприклад: SP.225)
   </div>
 </div>
     </div>
@@ -212,6 +213,8 @@
 
 let qrStream = null;
 let qrLoopTimer = null;
+let qrTorchOn = false; // ✅ вспышка
+
 
 function normalizeEquipId(raw) {
   if (!raw) return "";
@@ -279,7 +282,22 @@ async function startQrScan() {
     });
 
     video.srcObject = qrStream;
-    await video.play();
+await video.play();
+
+// ✅ показать кнопку вспышки, если поддерживается
+const track = getQrTrack_();
+const caps = track?.getCapabilities ? track.getCapabilities() : {};
+const btnTorch = document.getElementById("btnQrTorch");
+
+if (btnTorch) {
+  if (caps && caps.torch) {
+    btnTorch.style.display = "inline-flex";
+    btnTorch.textContent = "💡 Світло";
+  } else {
+    btnTorch.style.display = "none";
+  }
+}
+
 
     const detector = new BarcodeDetector({ formats: ["qr_code"] });
 
@@ -335,6 +353,9 @@ function stopQrScan() {
   const card = document.getElementById("qrScannerCard");
   const video = document.getElementById("qrVideo");
 
+  // ✅ torch off + hide btn
+  resetQrTorchUI_();
+
   if (qrLoopTimer) {
     cancelAnimationFrame(qrLoopTimer);
     qrLoopTimer = null;
@@ -347,6 +368,42 @@ function stopQrScan() {
 
   if (video) video.srcObject = null;
   if (card) card.style.display = "none";
+}
+
+function getQrTrack_() {
+  if (!qrStream) return null;
+  const tracks = qrStream.getVideoTracks ? qrStream.getVideoTracks() : [];
+  return tracks[0] || null;
+}
+
+async function toggleQrTorch() {
+  const track = getQrTrack_();
+  if (!track) return;
+
+  try {
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) {
+      alert("⚠️ Вспышка не поддерживается на этом устройстве");
+      return;
+    }
+
+    qrTorchOn = !qrTorchOn;
+    await track.applyConstraints({ advanced: [{ torch: qrTorchOn }] });
+
+    const btn = document.getElementById("btnQrTorch");
+    if (btn) btn.textContent = qrTorchOn ? "💡 Світло: ON" : "💡 Світло";
+  } catch (e) {
+    console.error("Torch error:", e);
+  }
+}
+
+function resetQrTorchUI_() {
+  qrTorchOn = false;
+  const btn = document.getElementById("btnQrTorch");
+  if (btn) {
+    btn.textContent = "💡 Світло";
+    btn.style.display = "none";
+  }
 }
 
     // =========================================================
@@ -1045,6 +1102,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
