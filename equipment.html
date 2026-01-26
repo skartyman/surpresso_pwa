@@ -729,7 +729,7 @@ function getOrCreateEquipId() {
         add("Модель:", value("model"));
         add("Серийный номер:", value("serial"));
         add("Проблема:", value("problem"));
-        add("Повреждения:", value("condition"));
+        add("Комментарий:", value("comment"));
         add("Дата приёма:", value("receivedDate"));
       } else {
         add("Локация:", value("companyLocation"));
@@ -799,7 +799,7 @@ function getOrCreateEquipId() {
         card.model = value("model");
         card.serial = String(document.getElementById("serial").value || "").trim();
         card.problem = value("problem");
-        card.condition = value("condition");
+        card.comment = value("comment");
         card.receivedDate = value("receivedDate");
       } else {
         card.companyLocation = value("companyLocation");
@@ -1102,6 +1102,7 @@ window.addEventListener("load", () => {
   </script>
 </body>
 </html>
+
 
 
 
