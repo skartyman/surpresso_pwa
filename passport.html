@@ -107,38 +107,54 @@
       grid-auto-flow:dense;
       gap:8px;
       margin-top:10px;
+      background:#000;
+      padding:8px;
+      border-radius:12px;
     }
     @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(4,1fr)} }
-    @media(max-width:560px){ .photosGrid{grid-template-columns:repeat(2,1fr)} }
 
     .ph{
-      border:1px solid var(--line);
-      border-radius:14px;
+      border:3px solid #000;
+      border-radius:8px;
       overflow:hidden;
-      background:#fafafa;
+      background:#fff;
       grid-column:span 2;
+      display:flex;
+      flex-direction:column;
     }
     .ph.is-wide{ grid-column:span 4; }
     .ph.is-tall{ grid-row:span 2; }
 
     .phMedia{
-      position:relative;
       width:100%;
-      aspect-ratio:4/3;
-      background:#111;
+      background:#fff;
     }
-    .ph.is-wide .phMedia{ aspect-ratio:16/9; }
-    .ph.is-tall .phMedia{ aspect-ratio:3/4; }
 
     .ph img{
       width:100%;
-      height:100%;
-      object-fit:cover;
+      height:auto;
       display:block;
       cursor:pointer;
-      background:#111;
-      position:absolute;
-      inset:0;
+      background:#fff;
+    }
+
+    .cap{
+      font-size:12px;
+      padding:6px 8px 8px;
+      border-top:2px solid #000;
+      word-break:break-word;
+      background:#fff;
+    }
+    .capText{
+      display:block;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .capLink{
+      color:#111;
+      text-decoration:underline;
     }
 
     /* lightbox */
@@ -193,16 +209,28 @@
     }
 
     /* PRINT A4 */
+    @media(max-width:560px){
+      .photosGrid{ grid-template-columns:repeat(2,1fr); }
+      .ph,
+      .ph.is-wide,
+      .ph.is-tall{
+        grid-column:span 2;
+        grid-row:auto;
+      }
+    }
+
     @media print{
       body{ background:#fff; }
       .wrap{ max-width:none; padding:0; }
       .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
       .actions{ display:none !important; }
-      .photosGrid{ grid-template-columns:repeat(6,1fr); }
+      .photosGrid{
+        grid-template-columns:repeat(6,1fr);
+        background:#000;
+        padding:8px;
+        gap:8px;
+      }
       .ph{ break-inside:avoid; }
-      .phMedia{ aspect-ratio:4/3; }
-      .ph.is-wide .phMedia{ aspect-ratio:16/9; }
-      .ph.is-tall .phMedia{ aspect-ratio:3/4; }
     }
 
     @page{
@@ -426,7 +454,8 @@
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
-        const safeCap = esc(cap);
+        const displayCap = /^https?:\/\//i.test(cap) ? "Відкрити фото" : cap;
+        const safeCap = esc(displayCap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 
@@ -453,7 +482,9 @@
                 onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
               />
             </div>
-            <div class="cap">${safeCap}</div>
+            <div class="cap">
+              ${driveUrl ? `<a class="capLink capText" href="${safeDrive}" target="_blank" rel="noopener">${safeCap}</a>` : `<span class="capText">${safeCap}</span>`}
+            </div>
           </div>
         `;
       }).join("");
