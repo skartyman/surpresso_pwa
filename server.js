@@ -406,7 +406,8 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const oldStatus = String(eqBefore.status || "");
 
     // 2) Пишем новый статус в GAS
-    const out = await gasPost({ action: "status", id, newStatus, comment, actor });
+    const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
+    const out = await gasPost({ action: "status", id, newStatus, comment, actor, photos: safePhotos });
 
     // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
     const owner = String(eqBefore.owner || "");
@@ -422,7 +423,6 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         passportLink,
       });
 
-      const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
       await tgSendPhotos(safePhotos, caption);
     }
 
