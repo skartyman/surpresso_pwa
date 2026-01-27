@@ -214,12 +214,19 @@ function isCompanyLeavingStatus(status) {
   const s = normStatus(status);
   return (
     s === "уехало на аренду" ||
+    s === "уехало на подмену" ||
     s.includes("уехало") ||
     s.includes("виїжджає")
   );
 }
 
+function isSoldStatus(status) {
+  const s = normStatus(status);
+  return s === "продано" || s.includes("продано");
+}
+
 function shouldNotifyStatus(eqOwner, newStatus) {
+  if (isSoldStatus(newStatus)) return true;
   if (eqOwner === "client") return isClientGiveAwayStatus(newStatus);
   if (eqOwner === "company") return isCompanyLeavingStatus(newStatus);
   return false;
@@ -406,7 +413,8 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const oldStatus = String(eqBefore.status || "");
 
     // 2) Пишем новый статус в GAS
-    const out = await gasPost({ action: "status", id, newStatus, comment, actor });
+    const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
+    const out = await gasPost({ action: "status", id, newStatus, comment, actor, photos: safePhotos });
 
     // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
     const owner = String(eqBefore.owner || "");
@@ -422,7 +430,6 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         passportLink,
       });
 
-      const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
       await tgSendPhotos(safePhotos, caption);
     }
 
