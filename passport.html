@@ -103,11 +103,10 @@
     /* photos */
     .photosGrid{
       display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:8px;
+      grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+      gap:12px;
       margin-top:10px;
     }
-    @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(2,1fr)} }
     @media(max-width:560px){ .photosGrid{grid-template-columns:1fr} }
 
     .ph{
@@ -116,23 +115,18 @@
       overflow:hidden;
       background:#fafafa;
     }
+
+    .phMedia{
+      width:100%;
+      background:#111;
+    }
     .ph img{
       width:100%;
-      height:190px;
-      object-fit:cover;
+      height:auto;
+      object-fit:contain;
       display:block;
       cursor:pointer;
       background:#111;
-    }
-    .cap{
-      padding:8px 10px;
-      font-size:12px;
-      color:#444;
-      border-top:1px solid var(--line);
-      background:#fff;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
     }
 
     /* lightbox */
@@ -192,8 +186,8 @@
       .wrap{ max-width:none; padding:0; }
       .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
       .actions{ display:none !important; }
-      .ph img{ height:160px; }
       .photosGrid{ grid-template-columns:repeat(3,1fr); }
+      .ph{ break-inside:avoid; }
     }
 
     @page{
@@ -316,16 +310,8 @@
     function getKey() {
       return localStorage.getItem(PWA_KEY_STORAGE) || "";
     }
-    function ensureKey() {
-      let k = getKey();
-      if (k) return k;
-      k = (prompt("Введи ключ доступу (PWA Key):") || "").trim();
-      if (!k) return "";
-      localStorage.setItem(PWA_KEY_STORAGE, k);
-      return k;
-    }
     function headersWithKey() {
-      const k = ensureKey();
+      const k = getKey();
       return k ? { "x-surpresso-key": k } : {};
     }
 
@@ -423,7 +409,7 @@
       $("photos").innerHTML = photos.map((p, i) => {
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
-        const cap = p.caption || `Фото ${i + 1}`;
+        const cap = resolvePhotoTitle(p.caption, i);
         const safeCap = esc(cap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
@@ -434,26 +420,35 @@
             <div class="ph">
               <div style="padding:18px" class="muted">
                 Немає прев’ю.
-                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити</a>` : ""}
+                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити фото</a>` : ""}
               </div>
-              <div class="cap">${safeCap}</div>
             </div>
           `;
         }
 
         return `
           <div class="ph">
-            <img
-              src="${fresh}"
-              alt="${safeCap}"
-              loading="lazy"
-              onclick="openLightbox('${escapeJs(fresh)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
-              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
-            />
-            <div class="cap">${safeCap}</div>
+            <div class="phMedia">
+              <img
+                src="${fresh}"
+                alt=""
+                loading="lazy"
+                onclick="openLightbox('${escapeJs(fresh)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
+                onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю.${driveUrl ? ` <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити фото</a>` : \"\"}</div>';"
+              />
+            </div>
           </div>
         `;
       }).join("");
+    }
+
+    function resolvePhotoTitle(caption, index) {
+      const raw = String(caption || "").trim();
+      if (!raw) return `Фото ${index + 1}`;
+      if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        return `Фото ${index + 1}`;
+      }
+      return raw;
     }
 
     // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
@@ -475,7 +470,7 @@
       }
 
       if (fileId) {
-        const k = ensureKey();
+        const k = getKey();
         const q = k ? `?k=${encodeURIComponent(k)}` : "";
         return `${API_BASE}/proxy-drive/${encodeURIComponent(fileId)}${q}`;
       }

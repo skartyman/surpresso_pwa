@@ -390,7 +390,7 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
 // =======================
 
 // получить паспорт (данные)
-app.get("/api/equip/:id", requirePwaKey, async (req, res) => {
+app.get("/api/equip/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const out = await gasPost({ action: "get", id });
@@ -440,7 +440,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
 });
 
 // proxy drive preview (ORB fix)
-app.get("/proxy-drive/:fileId", requirePwaKey, async (req, res) => {
+app.get("/proxy-drive/:fileId", async (req, res) => {
   const { fileId } = req.params;
   try {
     const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
