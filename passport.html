@@ -425,7 +425,7 @@
         const collageClass = getCollageClass(i);
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
-        const cap = p.caption || `Фото ${i + 1}`;
+        const cap = resolvePhotoTitle(p.caption, i);
         const safeCap = esc(cap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
@@ -436,7 +436,7 @@
             <div class="ph ${collageClass}">
               <div style="padding:18px" class="muted">
                 Немає прев’ю.
-                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити</a>` : ""}
+                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити фото</a>` : ""}
               </div>
             </div>
           `;
