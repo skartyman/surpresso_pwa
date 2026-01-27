@@ -103,28 +103,39 @@
     /* photos */
     .photosGrid{
       display:grid;
-      grid-template-columns:1fr;
-      gap:12px;
+      grid-template-columns:repeat(6,1fr);
+      grid-auto-flow:dense;
+      gap:10px;
       margin-top:10px;
+      background:#000;
+      padding:10px;
+      border-radius:12px;
     }
+    @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(4,1fr)} }
 
     .ph{
-      border:1px solid var(--line);
-      border-radius:12px;
+      border:4px solid #000;
+      border-radius:8px;
       overflow:hidden;
       background:#fff;
+      grid-column:span 2;
       display:flex;
       flex-direction:column;
     }
 
     .phMedia{
       width:100%;
+      aspect-ratio:4/3;
       background:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
     }
 
     .ph img{
       width:100%;
-      height:auto;
+      height:100%;
+      object-fit:contain;
       display:block;
       cursor:pointer;
       background:#fff;
@@ -132,22 +143,15 @@
 
     .cap{
       font-size:12px;
-      padding:8px 10px 10px;
-      border-top:1px solid var(--line);
+      padding:6px 8px 8px;
+      border-top:2px solid #000;
       word-break:break-word;
       background:#fff;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
     }
-    .capTitle{
-      font-weight:700;
-      color:#111;
-    }
+
     .capLink{
       color:#111;
       text-decoration:underline;
-      font-weight:600;
     }
 
     /* lightbox */
@@ -202,12 +206,27 @@
     }
 
     /* PRINT A4 */
+    @media(max-width:560px){
+      .photosGrid{ grid-template-columns:repeat(2,1fr); }
+      .ph,
+      .ph.is-wide,
+      .ph.is-tall{
+        grid-column:span 2;
+        grid-row:auto;
+      }
+    }
+
     @media print{
       body{ background:#fff; }
       .wrap{ max-width:none; padding:0; }
       .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
       .actions{ display:none !important; }
-      .photosGrid{ grid-template-columns:1fr; }
+      .photosGrid{
+        grid-template-columns:repeat(6,1fr);
+        background:#000;
+        padding:10px;
+        gap:10px;
+      }
       .ph{ break-inside:avoid; }
     }
 
@@ -431,7 +450,7 @@
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
-        const displayCap = /^https?:\/\//i.test(cap) ? `Фото ${i + 1}` : cap;
+        const displayCap = /^https?:\/\//i.test(cap) ? "Відкрити фото" : cap;
         const safeCap = esc(displayCap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
@@ -460,8 +479,7 @@
               />
             </div>
             <div class="cap">
-              <span class="capTitle">${safeCap}</span>
-              ${driveUrl ? `<a class="capLink" href="${safeDrive}" target="_blank" rel="noopener">Відкрити фото</a>` : ""}
+              ${driveUrl ? `<a class="capLink" href="${safeDrive}" target="_blank" rel="noopener">${safeCap}</a>` : safeCap}
             </div>
           </div>
         `;
