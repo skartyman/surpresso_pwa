@@ -112,7 +112,6 @@
       border-radius:12px;
     }
     @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(4,1fr)} }
-    @media(max-width:560px){ .photosGrid{grid-template-columns:repeat(2,1fr)} }
 
     .ph{
       border:4px solid #000;
@@ -127,7 +126,6 @@
     .ph.is-tall{ grid-row:span 2; }
 
     .phMedia{
-      position:relative;
       width:100%;
       aspect-ratio:4/3;
       background:#fff;
@@ -135,8 +133,6 @@
       align-items:center;
       justify-content:center;
     }
-    .ph.is-wide .phMedia{ aspect-ratio:16/9; }
-    .ph.is-tall .phMedia{ aspect-ratio:3/4; }
 
     .ph img{
       width:100%;
@@ -212,6 +208,16 @@
     }
 
     /* PRINT A4 */
+    @media(max-width:560px){
+      .photosGrid{ grid-template-columns:repeat(2,1fr); }
+      .ph,
+      .ph.is-wide,
+      .ph.is-tall{
+        grid-column:span 2;
+        grid-row:auto;
+      }
+    }
+
     @media print{
       body{ background:#fff; }
       .wrap{ max-width:none; padding:0; }
@@ -224,9 +230,6 @@
         gap:10px;
       }
       .ph{ break-inside:avoid; }
-      .phMedia{ aspect-ratio:4/3; }
-      .ph.is-wide .phMedia{ aspect-ratio:16/9; }
-      .ph.is-tall .phMedia{ aspect-ratio:3/4; }
     }
 
     @page{
@@ -450,7 +453,8 @@
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
-        const safeCap = esc(cap);
+        const displayCap = /^https?:\/\//i.test(cap) ? "Відкрити фото" : cap;
+        const safeCap = esc(displayCap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 
