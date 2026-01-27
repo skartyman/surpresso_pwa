@@ -122,8 +122,6 @@
       display:flex;
       flex-direction:column;
     }
-    .ph.is-wide{ grid-column:span 4; }
-    .ph.is-tall{ grid-row:span 2; }
 
     .phMedia{
       width:100%;
@@ -449,7 +447,6 @@
       $("photosHint").textContent = `Показано фото: ${photos.length}`;
 
       $("photos").innerHTML = photos.map((p, i) => {
-        const collageClass = getCollageClass(i);
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
@@ -461,17 +458,17 @@
         // если imgUrl пустой — покажем кнопку открыть
         if (!imgUrl) {
           return `
-            <div class="ph ${collageClass}">
+            <div class="ph">
               <div style="padding:18px" class="muted">
                 Немає прев’ю.
-                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити</a>` : ""}
+                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank" rel="noopener">Відкрити</a>` : ""}
               </div>
             </div>
           `;
         }
 
         return `
-          <div class="ph ${collageClass}">
+          <div class="ph">
             <div class="phMedia">
               <img
                 src="${fresh}"
@@ -487,15 +484,6 @@
           </div>
         `;
       }).join("");
-    }
-
-    function getCollageClass(index) {
-      const mod = index % 6;
-      if (mod === 0) return "is-wide";
-      if (mod === 1) return "is-tall";
-      if (mod === 3) return "is-wide";
-      if (mod === 4) return "is-tall";
-      return "";
     }
 
     // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
