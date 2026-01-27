@@ -1037,27 +1037,48 @@ input[type="file"]::file-selector-button:hover{
       const newStatus = $("statusSelect").value;
       const comment = $("comment").value.trim();
       const actor = $("actor").value.trim();
+      const photos = statusPhotos.slice(0, 10);
 
       $("btnStatus").disabled = true;
       $("statusHint").textContent = "Зберігаю...";
-
-      // ✅ отправляем свежие фото вместе со статусом
-      const photos = statusPhotos.slice(0, 10);
 
       const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
         newStatus, comment, actor, photos
       });
 
-      $("btnStatus").disabled = false;
       $("statusHint").textContent = "";
+      if (!out.ok) {
+        $("btnStatus").disabled = false;
+        return alert(out.error || "Помилка");
+      }
 
-      if (!out.ok) return alert(out.error || "Помилка");
+      if (photos.length) {
+        try {
+          for (let i = 0; i < photos.length; i++) {
+            $("statusHint").textContent = `Зберігаю фото ${i + 1} / ${photos.length}...`;
+            const photoOut = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
+              base64: photos[i],
+              caption: ""
+            });
+
+            if (!photoOut.ok) {
+              throw new Error(photoOut.error || `Помилка на фото ${i + 1}`);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+          $("statusHint").textContent = "";
+          $("btnStatus").disabled = false;
+          return alert("❌ " + (e.message || "Помилка завантаження фото"));
+        }
+      }
 
       $("comment").value = "";
 
       // ✅ очищаем "статусные" фото после удачи
       clearStatusPhotos();
 
+      $("btnStatus").disabled = false;
       await load();
     }
 
