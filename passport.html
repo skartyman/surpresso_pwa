@@ -421,10 +421,12 @@
       $("photosHint").textContent = `Показано фото: ${photos.length}`;
 
       $("photos").innerHTML = photos.map((p, i) => {
-        const imgUrl = String(p.imgUrl || "");
         const driveUrl = String(p.url || "");
+        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
         const safeCap = esc(cap);
+        const safeDrive = esc(driveUrl);
+        const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 
         // если imgUrl пустой — покажем кнопку открыть
         if (!imgUrl) {
@@ -432,7 +434,7 @@
             <div class="ph">
               <div style="padding:18px" class="muted">
                 Немає прев’ю.
-                ${driveUrl ? `<br><a href="${esc(driveUrl)}" target="_blank">Відкрити</a>` : ""}
+                ${driveUrl ? `<br><a href="${safeDrive}" target="_blank">Відкрити</a>` : ""}
               </div>
               <div class="cap">${safeCap}</div>
             </div>
@@ -442,16 +444,43 @@
         return `
           <div class="ph">
             <img
-              src="${esc(imgUrl)}"
+              src="${fresh}"
               alt="${safeCap}"
               loading="lazy"
-              onclick="openLightbox('${escapeJs(imgUrl)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
-              onerror="this.onerror=null; this.style.display='none';"
+              onclick="openLightbox('${escapeJs(fresh)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
+              onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
             />
             <div class="cap">${safeCap}</div>
           </div>
         `;
       }).join("");
+    }
+
+    // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
+    function driveToImageUrl(driveUrl) {
+      if (!driveUrl) return "";
+
+      const s = String(driveUrl);
+      let fileId = null;
+
+      if (s.includes("uc?export=view&id=")) {
+        const m = s.match(/id=([^&]+)/i);
+        if (m) fileId = m[1];
+      } else if (s.includes("/file/d/")) {
+        const m = s.match(/\/file\/d\/([^\/]+)\//i);
+        if (m) fileId = m[1];
+      } else if (s.includes("id=")) {
+        const m = s.match(/[?&]id=([^&]+)/i);
+        if (m) fileId = m[1];
+      }
+
+      if (fileId) {
+        const k = ensureKey();
+        const q = k ? `?k=${encodeURIComponent(k)}` : "";
+        return `${API_BASE}/proxy-drive/${encodeURIComponent(fileId)}${q}`;
+      }
+
+      return s;
     }
 
     // ==========================
