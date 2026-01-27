@@ -103,55 +103,34 @@
     /* photos */
     .photosGrid{
       display:grid;
-      grid-template-columns:repeat(6,1fr);
-      grid-auto-flow:dense;
-      gap:10px;
+      grid-template-columns:1fr;
+      gap:12px;
       margin-top:10px;
       background:#000;
       padding:10px;
       border-radius:12px;
     }
-    @media(max-width:900px){ .photosGrid{grid-template-columns:repeat(4,1fr)} }
 
     .ph{
-      border:4px solid #000;
-      border-radius:8px;
+      border:0;
+      border-radius:0;
       overflow:hidden;
-      background:#fff;
-      grid-column:span 2;
+      background:transparent;
       display:flex;
       flex-direction:column;
     }
 
     .phMedia{
       width:100%;
-      aspect-ratio:4/3;
-      background:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      background:transparent;
     }
 
     .ph img{
       width:100%;
-      height:100%;
-      object-fit:contain;
+      height:auto;
       display:block;
       cursor:pointer;
       background:#fff;
-    }
-
-    .cap{
-      font-size:12px;
-      padding:6px 8px 8px;
-      border-top:2px solid #000;
-      word-break:break-word;
-      background:#fff;
-    }
-
-    .capLink{
-      color:#111;
-      text-decoration:underline;
     }
 
     /* lightbox */
@@ -221,13 +200,12 @@
       .wrap{ max-width:none; padding:0; }
       .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
       .actions{ display:none !important; }
-      .photosGrid{
-        grid-template-columns:repeat(6,1fr);
-        background:#000;
-        padding:10px;
-        gap:10px;
-      }
+      .photosGrid{ grid-template-columns:1fr; }
       .ph{ break-inside:avoid; }
+      .ph img{
+        max-height:80mm;
+        object-fit:contain;
+      }
     }
 
     @page{
@@ -450,7 +428,7 @@
         const driveUrl = String(p.url || "");
         const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
         const cap = p.caption || `Фото ${i + 1}`;
-        const displayCap = /^https?:\/\//i.test(cap) ? "Відкрити фото" : cap;
+        const displayCap = /^https?:\/\//i.test(cap) ? `Фото ${i + 1}` : cap;
         const safeCap = esc(displayCap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
@@ -477,9 +455,6 @@
                 onclick="openLightbox('${escapeJs(fresh)}','${escapeJs(driveUrl)}','${escapeJs(cap)}')"
                 onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
               />
-            </div>
-            <div class="cap">
-              ${driveUrl ? `<a class="capLink" href="${safeDrive}" target="_blank" rel="noopener">${safeCap}</a>` : safeCap}
             </div>
           </div>
         `;
