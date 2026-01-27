@@ -214,12 +214,19 @@ function isCompanyLeavingStatus(status) {
   const s = normStatus(status);
   return (
     s === "уехало на аренду" ||
+    s === "уехало на подмену" ||
     s.includes("уехало") ||
     s.includes("виїжджає")
   );
 }
 
+function isSoldStatus(status) {
+  const s = normStatus(status);
+  return s === "продано" || s.includes("продано");
+}
+
 function shouldNotifyStatus(eqOwner, newStatus) {
+  if (isSoldStatus(newStatus)) return true;
   if (eqOwner === "client") return isClientGiveAwayStatus(newStatus);
   if (eqOwner === "company") return isCompanyLeavingStatus(newStatus);
   return false;
