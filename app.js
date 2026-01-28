@@ -721,7 +721,7 @@ function closeKitChoice() {
 }
 
 // ======================
-// 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR + LIVE OCR)
+// 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR)
 // ======================
 function warehouseAlert(text, type = "info", timeout = 2500) {
   const el = document.getElementById("warehouse-alert");
@@ -742,22 +742,9 @@ function warehouseAlert(text, type = "info", timeout = 2500) {
 let WAREHOUSE_MODE = "manual";
 const QTY_STEP = 0.5;
 
-function normalizeOCR(text) {
-  return text
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .replace(/[ОO]/g, "0")
-    .replace(/[ІI]/g, "1")
-    .replace(/[ЅS]/g, "5")
-    .replace(/[ВB]/g, "8");
-}
-
-// ---- shared camera state (one camera for QR/OCR) ----
+// ---- shared camera state ----
 let CAM_STREAM = null;
 let QR_RAF = null;
-
-let OCR_TIMER = null;
-let LAST_OCR_CODE = null;
 
 // ---------- UI helpers ----------
 function updateWarehouseActions() {
@@ -1341,8 +1328,8 @@ async function saveWarehouseTemplate() {
 // ======================
 
 function setWarehouseMode(mode, opts = {}) {
-  // повторное нажатие по текущему режиму QR/OCR => выключить и уйти в manual
-  if (!opts.silent && mode === WAREHOUSE_MODE && (mode === "qr" || mode === "ocr")) {
+  // повторное нажатие по текущему режиму QR => выключить и уйти в manual
+  if (!opts.silent && mode === WAREHOUSE_MODE && mode === "qr") {
     stopLiveAll();
     WAREHOUSE_MODE = "manual";
     mode = "manual";
@@ -1351,15 +1338,14 @@ function setWarehouseMode(mode, opts = {}) {
     WAREHOUSE_MODE = mode;
   }
 
-  ["manual","qr","ocr"].forEach(m => {
+  ["manual","qr"].forEach(m => {
     document.getElementById("wm-" + m)?.classList.toggle("active", m === mode);
   });
 
   const live = document.getElementById("ocr-live");
-  if (live) live.style.display = (mode === "qr" || mode === "ocr") ? "block" : "none";
+  if (live) live.style.display = mode === "qr" ? "block" : "none";
 
   if (mode === "qr") startQRScan();
-  if (mode === "ocr") startLiveOCR();
 }
 
 // ======================
@@ -1387,25 +1373,8 @@ function stopLiveQR() {
   stopCamera();
 }
 
-function stopLiveOCR() {
-  if (OCR_TIMER) {
-    clearInterval(OCR_TIMER);
-    OCR_TIMER = null;
-  }
-  LAST_OCR_CODE = null;
-
-  const hint = document.getElementById("ocr-hint");
-  if (hint) hint.textContent = "";
-
-  stopCamera();
-
-  const live = document.getElementById("ocr-live");
-  if (live) live.style.display = "none";
-}
-
 function stopLiveAll() {
   stopLiveQR();
-  stopLiveOCR();
 }
 
 
@@ -1415,6 +1384,44 @@ function stopLiveAll() {
 
 let LAST_QR_CODE = null;
 let LAST_QR_TS = 0;
+
+function getQRScanRegion(video, frame) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+
+  const videoRect = video.getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+
+  const rectW = videoRect.width;
+  const rectH = videoRect.height;
+  if (!rectW || !rectH) return null;
+
+  const scale = Math.max(rectW / vw, rectH / vh);
+  const displayW = vw * scale;
+  const displayH = vh * scale;
+  const offsetX = (rectW - displayW) / 2;
+  const offsetY = (rectH - displayH) / 2;
+
+  const fx = frameRect.left - videoRect.left;
+  const fy = frameRect.top - videoRect.top;
+  const fw = frameRect.width;
+  const fh = frameRect.height;
+
+  let sx = (fx - offsetX) / scale;
+  let sy = (fy - offsetY) / scale;
+  let sw = fw / scale;
+  let sh = fh / scale;
+
+  sx = Math.max(0, sx);
+  sy = Math.max(0, sy);
+  sw = Math.min(vw - sx, sw);
+  sh = Math.min(vh - sy, sh);
+
+  if (sw <= 0 || sh <= 0) return null;
+
+  return { sx, sy, sw, sh };
+}
 
 async function startQRScan() {
   if (!("BarcodeDetector" in window)) {
@@ -1430,8 +1437,9 @@ async function startQRScan() {
   const live = document.getElementById("ocr-live");
   const video = document.getElementById("ocr-video");
   const hint  = document.getElementById("ocr-hint");
+  const frame = document.getElementById("ocr-frame");
 
-  if (!live || !video) return;
+  if (!live || !video || !frame) return;
 
   live.style.display = "block";
   if (hint) hint.textContent = "Наведи камеру на QR или штрихкод";
@@ -1453,11 +1461,35 @@ async function startQRScan() {
     ]
   });
 
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
   const scan = async () => {
     if (WAREHOUSE_MODE !== "qr") return;
 
     try {
-      const codes = await detector.detect(video);
+      const region = getQRScanRegion(video, frame);
+      if (!region || !ctx) {
+        QR_RAF = requestAnimationFrame(scan);
+        return;
+      }
+
+      canvas.width = Math.floor(region.sw);
+      canvas.height = Math.floor(region.sh);
+
+      ctx.drawImage(
+        video,
+        region.sx,
+        region.sy,
+        region.sw,
+        region.sh,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      const codes = await detector.detect(canvas);
       if (!codes || !codes.length) {
         QR_RAF = requestAnimationFrame(scan);
         return;
@@ -1499,139 +1531,6 @@ async function startQRScan() {
   };
 
   scan();
-}
-
-// ======================
-// 👁 LIVE OCR (Tesseract)
-// ===== OCR STATE =====
-let OCR_HITS = {};
-//let LAST_OCR_CODE = null;
-//let OCR_TIMER = null;
-
-async function startLiveOCR() {
-  if (typeof loadTesseract !== "function") {
-    alert("Tesseract не подключён");
-    setWarehouseMode("manual", { silent: true });
-    return;
-  }
-
-  await loadTesseract();
-  if (!window.Tesseract) {
-    alert("OCR недоступен");
-    setWarehouseMode("manual", { silent: true });
-    return;
-  }
-
-  const live  = document.getElementById("ocr-live");
-  const video = document.getElementById("ocr-video");
-  const hint  = document.getElementById("ocr-hint");
-
-  live.style.display = "block";
-  if (hint) hint.textContent = "Наведи камеру на артикул";
-
-  CAM_STREAM = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  });
-
-  video.srcObject = CAM_STREAM;
-  await video.play();
-
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  OCR_TIMER = setInterval(async () => {
-    if (WAREHOUSE_MODE !== "ocr") return;
-
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    if (!vw || !vh) return;
-
-    // 🔲 область считывания (ТОЧНО В РАМКЕ)
-    const cropX = vw * 0.1;
-    const cropY = vh * 0.35;
-    const cropW = vw * 0.8;
-    const cropH = vh * 0.18;
-
-    canvas.width  = Math.floor(cropW);
-    canvas.height = Math.floor(cropH);
-
-    ctx.filter = "grayscale(1) contrast(1.8)";
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
-    ctx.filter = "none";
-
-    try {
-      const { data } = await Tesseract.recognize(canvas, "eng", {
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-        preserve_interword_spaces: 0
-      });
-
-      const raw = data.text.toUpperCase().replace(/\s+/g, "");
-      console.log("OCR RAW:", raw);
-
-      const candidate = extractBestCode(raw);
-      if (!candidate) {
-        warehouseAlert("👁 Ищу артикул…", "info", 800);
-        return;
-      }
-
-      // ===== стабилизация =====
-      OCR_HITS[candidate] = (OCR_HITS[candidate] || 0) + 1;
-
-      if (OCR_HITS[candidate] < 2) {
-        warehouseAlert(`👁 Видим: ${candidate}`, "info", 800);
-        return;
-      }
-
-      OCR_HITS = {}; // сброс
-
-      if (candidate === LAST_OCR_CODE) return;
-      LAST_OCR_CODE = candidate;
-
-      if (navigator.vibrate) navigator.vibrate(80);
-
-      warehouseAlert(`🔎 Найден код: ${candidate}`, "info", 3000);
-
-      if (confirm(`Добавить запчасть?\n\n${candidate}`)) {
-        const ok = addWarehouseItemByCode(candidate, 1);
-        if (ok) {
-          warehouseAlert(`✅ Добавлено: ${candidate}`, "success", 2000);
-        } else {
-          warehouseAlert(`❌ Нет в прайсе: ${candidate}`, "error", 3000);
-        }
-      } else {
-        warehouseAlert("⏭ Пропущено", "warn", 1000);
-      }
-
-    } catch (e) {
-      console.warn("OCR error:", e);
-    }
-
-  }, 1200);
-}
-
-// ======================
-// 🔎 Extract best code
-// ======================
-
-function extractBestCode(text) {
-  if (!text) return null;
-  text = String(text).toUpperCase();
-
-  // кандидаты 6–24 символа
-  const matches = text.match(/[A-Z0-9]{3,20}/g);
-  if (!matches) return null;
-
-  // ищем точное совпадение с прайсом
-  for (const m of matches) {
-    if (parts.some(p => String(p.code || "").toUpperCase() === m)) {
-      return m;
-    }
-  }
-
-  // если точного нет — вернём самый "похожий" (первый длинный)
-  matches.sort((a,b) => b.length - a.length);
-  return matches[0] || null;
 }
 
 // ======================
