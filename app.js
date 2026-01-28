@@ -836,14 +836,6 @@ function applyKitToCheck() {
 
 
 //Utilits for scanners
-function existsInPrice(code) {
-  const raw = normalizeCode(code);
-  if (!raw) return false;
-
-  return parts.some(p =>
-    normalizeCode(p.code) === raw
-  );
-}
 function normalizeCode(str) {
   return String(str || "")
     .toUpperCase()
@@ -852,7 +844,7 @@ function normalizeCode(str) {
     .trim();
 }
 
-function addWarehouseItemByCode(code, qty = 1) {
+function addWarehouseItemByCode(code, qty = 1, opts = {}) {
   if (!code) return false;
 
   const raw = normalizeCode(code);
@@ -882,7 +874,9 @@ function addWarehouseItemByCode(code, qty = 1) {
   // ⛔ КЛЮЧЕВОЕ МЕСТО (ТО, ЧТО ТЫ ПРОПУСТИЛ)
   if (!found) {
     console.warn("❌ Не найдено в прайсе:", code);
-    warehouseAlert(`❌ Не найдено в прайсе: ${code}`, "error", 4000);
+    if (!opts.silentNotFound) {
+      warehouseAlert(`❌ Не найдено в прайсе: ${code}`, "error", 4000);
+    }
     return false;
   }
 
@@ -1414,11 +1408,11 @@ function stopLiveAll() {
 
 
 // ======================
-// 📷 QR / BARCODE SCAN — FINAL
+// 📷 QR / BARCODE SCAN (simple)
 // ======================
 
-let QR_HITS = {};       // защита от галлюцинаций
 let LAST_QR_CODE = null;
+let LAST_QR_TS = 0;
 
 async function startQRScan() {
   if (!("BarcodeDetector" in window)) {
@@ -1475,62 +1469,22 @@ async function startQRScan() {
         return;
       }
 
-      // 🔁 защита от повторов
-      if (candidate === LAST_QR_CODE) {
+      const now = Date.now();
+      if (candidate === LAST_QR_CODE && now - LAST_QR_TS < 1500) {
         QR_RAF = requestAnimationFrame(scan);
         return;
       }
 
       LAST_QR_CODE = candidate;
-
-      // 🔢 антигаллюцинация: 2 одинаковых подряд
-      QR_HITS[candidate] = (QR_HITS[candidate] || 0) + 1;
-
-      if (QR_HITS[candidate] < 2) {
-        warehouseAlert(`📷 Видим: ${candidate} (подтвердите)`, "info", 800);
-        QR_RAF = requestAnimationFrame(scan);
-        return;
-      }
-
-      QR_HITS = {}; // сброс
-
-      // ⛔ НЕ ИЗ ПРАЙСА — СРАЗУ СТОП
-      if (!existsInPrice(candidate)) {
-        warehouseAlert(
-          `❌ Нет в прайсе: ${candidate}`,
-          "error",
-          3000
-        );
-        QR_RAF = requestAnimationFrame(scan);
-        return;
-      }
+      LAST_QR_TS = now;
 
       // вибрация
       if (navigator.vibrate) navigator.vibrate(60);
 
-      warehouseAlert(`🔎 Найден код: ${candidate}`, "info", 3000);
-
-      setTimeout(() => {
-        if (confirm(`Добавить запчасть?\n\n${candidate}`)) {
-          const ok = addWarehouseItemByCode(candidate, 1);
-
-          if (ok) {
-            warehouseAlert(
-              `✅ Добавлено: ${candidate}`,
-              "success",
-              2500
-            );
-          } else {
-            warehouseAlert(
-              `❌ Ошибка добавления: ${candidate}`,
-              "error",
-              4000
-            );
-          }
-        } else {
-          warehouseAlert("⏭ Пропущено", "warn", 1200);
-        }
-      }, 200);
+      const ok = addWarehouseItemByCode(candidate, 1, { silentNotFound: true });
+      if (ok) {
+        warehouseAlert(`✅ Добавлено: ${candidate}`, "success", 2000);
+      }
 
     } catch (e) {
       console.warn("QR detect error:", e);
