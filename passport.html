@@ -106,6 +106,9 @@
       grid-template-columns:1fr;
       gap:12px;
       margin-top:10px;
+      background:#000;
+      padding:10px;
+      border-radius:12px;
     }
 
     .ph{
@@ -182,6 +185,16 @@
     }
 
     /* PRINT A4 */
+    @media(max-width:560px){
+      .photosGrid{ grid-template-columns:repeat(2,1fr); }
+      .ph,
+      .ph.is-wide,
+      .ph.is-tall{
+        grid-column:span 2;
+        grid-row:auto;
+      }
+    }
+
     @media print{
       body{ background:#fff; }
       .wrap{ max-width:none; padding:0; }
