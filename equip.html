@@ -642,6 +642,28 @@ input[type="file"]::file-selector-button:hover{
             <table id="info"></table>
           </div>
 
+          <!-- SPECS CARD -->
+          <div class="card">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <div style="font-weight:900">Технічні характеристики</div>
+              <div class="muted" id="specsHint"></div>
+            </div>
+
+            <label class="lbl" for="specsInput">Вкажіть специфікації кавомашини</label>
+            <textarea
+              id="specsInput"
+              placeholder="ТЕХНІЧНІ ХАРАКТЕРИСТИКИ&#10;&#10;Модель — E92 Elite&#10;Виробник — Faema&#10;Країна — Італія&#10;Об'ем бойлера — 11 л&#10;Вага — 65 кг&#10;Потужність — 5100 Вт&#10;Напруга — 230/380 В&#10;Розміри (ШхВхГ) — 720x520x560мм&#10;Тип: автомат&#10;Кількість групп: 2&#10;Кількість бойлерів: 1&#10;Помпа вбудована&#10;&#10;Жидкокристалічний дисплей — так&#10;&#10;Тиск на заварюванні — 8,5 bar&#10;Тиск на сліпому ситі — 12 bar"
+            ></textarea>
+
+            <div class="row" style="margin-top:10px; justify-content:flex-end;">
+              <button class="btn btn-yellow" id="btnSaveSpecs">💾 Зберегти характеристики</button>
+            </div>
+
+            <div class="hintLine">
+              Можна вставити готовий список або оформити текст у довільному вигляді.
+            </div>
+          </div>
+
           <!-- PHOTOS CARD -->
           <div class="card">
             <div class="photosHeader">
@@ -748,6 +770,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnUploadPhotos").onclick = uploadPhotosMulti;
       $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
+      $("btnSaveSpecs").onclick = saveSpecs;
 
       $("btnPdf").onclick = () => {
   // ✅ новый паспорт (динамика)
@@ -884,6 +907,9 @@ input[type="file"]::file-selector-button:hover{
 
       $("info").innerHTML = rows.join("");
 
+      // specs
+      loadSpecs(eq);
+
       // photos render (pagination)
       photosPage = 0;
       renderPhotos();
@@ -919,6 +945,42 @@ input[type="file"]::file-selector-button:hover{
 
       if (current && list.includes(current)) sel.value = current;
       else sel.value = list[0] || "";
+    }
+
+    // ===========================
+    // SPECS
+    // ===========================
+    function loadSpecs(eq) {
+      const serverSpecs = String(eq.specs || "").trim();
+      $("specsInput").value = serverSpecs;
+    }
+
+    async function saveSpecs() {
+      const value = $("specsInput").value || "";
+      $("btnSaveSpecs").disabled = true;
+      $("specsHint").textContent = "Зберігаю...";
+
+      try {
+        const out = await apiPost(
+          `${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/specs`,
+          { specs: value }
+        );
+
+        if (!out.ok) throw new Error(out.error || "Помилка збереження");
+
+        if (LAST_EQUIPMENT) LAST_EQUIPMENT.specs = value;
+
+        $("specsHint").textContent = "✅ Збережено в Google Drive";
+        setTimeout(() => {
+          $("specsHint").textContent = "";
+        }, 2000);
+      } catch (e) {
+        console.error(e);
+        $("specsHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка збереження"));
+      } finally {
+        $("btnSaveSpecs").disabled = false;
+      }
     }
 
     // ===========================

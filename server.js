@@ -400,6 +400,18 @@ app.get("/api/equip/:id", async (req, res) => {
   }
 });
 
+// ✅ update specs (Google Drive via GAS)
+app.post("/api/equip/:id/specs", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const specs = String(req.body?.specs ?? "");
+    const out = await gasPost({ action: "specs", id, specs });
+    res.send({ ok: true, ...out });
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
 // ✅ изменить статус + Telegram (при нужных статусах)
 app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
   try {
