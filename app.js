@@ -850,25 +850,27 @@ function addWarehouseItemByCode(code, qty = 1, opts = {}) {
   const raw = normalizeCode(code);
   if (!raw) return false;
 
+  const strictMatch = !!opts.strictMatch;
+
   // 1️⃣ точное совпадение
-  let found = parts.find(p =>
-    normalizeCode(p.code) === raw
-  );
+  let found = parts.find(p => normalizeCode(p.code) === raw);
 
-  // 2️⃣ совпадение по хвосту
-  if (!found) {
-    found = parts.find(p =>
-      normalizeCode(p.code).endsWith(raw) ||
-      raw.endsWith(normalizeCode(p.code))
-    );
-  }
+  if (!strictMatch) {
+    // 2️⃣ совпадение по хвосту
+    if (!found) {
+      found = parts.find(p =>
+        normalizeCode(p.code).endsWith(raw) ||
+        raw.endsWith(normalizeCode(p.code))
+      );
+    }
 
-  // 3️⃣ совпадение по включению
-  if (!found) {
-    found = parts.find(p =>
-      normalizeCode(p.code).includes(raw) ||
-      raw.includes(normalizeCode(p.code))
-    );
+    // 3️⃣ совпадение по включению
+    if (!found) {
+      found = parts.find(p =>
+        normalizeCode(p.code).includes(raw) ||
+        raw.includes(normalizeCode(p.code))
+      );
+    }
   }
 
   // ⛔ КЛЮЧЕВОЕ МЕСТО (ТО, ЧТО ТЫ ПРОПУСТИЛ)
@@ -1481,7 +1483,10 @@ async function startQRScan() {
       // вибрация
       if (navigator.vibrate) navigator.vibrate(60);
 
-      const ok = addWarehouseItemByCode(candidate, 1, { silentNotFound: true });
+      const ok = addWarehouseItemByCode(candidate, 1, {
+        silentNotFound: true,
+        strictMatch: true
+      });
       if (ok) {
         warehouseAlert(`✅ Добавлено: ${candidate}`, "success", 2000);
       }
