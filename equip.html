@@ -163,6 +163,7 @@ textarea{
 
 textarea{
   min-height:84px;
+  overflow:hidden;
   resize:vertical;
 }
 
@@ -771,6 +772,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
       $("btnSaveSpecs").onclick = saveSpecs;
+      $("specsInput").addEventListener("input", () => autoResizeTextarea($("specsInput")));
 
       $("btnPdf").onclick = () => {
   // ✅ новый паспорт (динамика)
@@ -953,6 +955,13 @@ input[type="file"]::file-selector-button:hover{
     function loadSpecs(eq) {
       const serverSpecs = String(eq.specs || "").trim();
       $("specsInput").value = serverSpecs;
+      autoResizeTextarea($("specsInput"));
+    }
+
+    function autoResizeTextarea(textarea) {
+      if (!textarea) return;
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
     }
 
     async function saveSpecs() {
