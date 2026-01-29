@@ -244,6 +244,39 @@ select{
 }
 
 /* =========================
+   SPECS EDITOR
+========================= */
+.specsToolbar{
+  display:none;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+.specsToolbar.is-visible{
+  display:flex;
+}
+.specsEditor{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  outline:none;
+  font-size:13px;
+  color:var(--text);
+  min-height:120px;
+  white-space:pre-wrap;
+}
+.specsEditor[contenteditable="false"]{
+  background:#f9fafb;
+}
+.specsEditor:empty:before{
+  content: attr(placeholder);
+  color:var(--muted);
+  white-space:pre-line;
+}
+
+/* =========================
    PILLS
 ========================= */
 .pill{
@@ -647,7 +680,10 @@ input[type="file"]::file-selector-button:hover{
           <div class="card">
             <div class="row" style="justify-content:space-between; align-items:center;">
               <div style="font-weight:900">Технічні характеристики</div>
-              <div class="muted" id="specsHint"></div>
+              <div class="row" style="gap:8px; align-items:center;">
+                <div class="muted" id="specsHint"></div>
+                <button class="btn btn-ghost" id="btnEditSpecs" type="button"></button>
+              </div>
             </div>
 
             <div class="specsToolbar" role="toolbar" aria-label="Форматування специфікацій">
@@ -661,7 +697,7 @@ input[type="file"]::file-selector-button:hover{
             <div
               id="specsInput"
               class="specsEditor"
-              contenteditable="true"
+              contenteditable="false"
               role="textbox"
               aria-multiline="true"
               placeholder="ТЕХНІЧНІ ХАРАКТЕРИСТИКИ&#10;&#10;Модель — E92 Elite&#10;Виробник — Faema&#10;Країна — Італія&#10;Об'ем бойлера — 11 л&#10;Вага — 65 кг&#10;Потужність — 5100 Вт&#10;Напруга — 230/380 В&#10;Розміри (ШхВхГ) — 720x520x560мм&#10;Тип: автомат&#10;Кількість групп: 2&#10;Кількість бойлерів: 1&#10;Помпа вбудована&#10;&#10;Жидкокристалічний дисплей — так&#10;&#10;Тиск на заварюванні — 8,5 bar&#10;Тиск на сліпому ситі — 12 bar"
@@ -965,7 +1001,13 @@ input[type="file"]::file-selector-button:hover{
     // ===========================
     function initSpecsEditor() {
       const editor = $("specsInput");
+      const editBtn = $("btnEditSpecs");
+      const toolbar = document.querySelector(".specsToolbar");
       if (!editor) return;
+
+      if (editBtn) {
+        editBtn.addEventListener("click", () => setSpecsEditMode(true));
+      }
 
       document.querySelectorAll("[data-specs-cmd]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1005,6 +1047,9 @@ input[type="file"]::file-selector-button:hover{
           editor.innerHTML = "";
         }
       });
+
+      if (toolbar) toolbar.classList.remove("is-visible");
+      setSpecsEditMode(false);
     }
 
     function loadSpecs(eq) {
@@ -1014,6 +1059,8 @@ input[type="file"]::file-selector-button:hover{
 
       if (!serverSpecs) {
         editor.innerHTML = "";
+        updateSpecsActionLabel();
+        setSpecsEditMode(false);
         return;
       }
 
@@ -1022,6 +1069,17 @@ input[type="file"]::file-selector-button:hover{
       } else {
         editor.textContent = serverSpecs;
       }
+
+      updateSpecsActionLabel();
+      setSpecsEditMode(false);
+    }
+
+    function updateSpecsActionLabel() {
+      const editor = $("specsInput");
+      const btn = $("btnEditSpecs");
+      if (!editor || !btn) return;
+      const hasContent = !!editor.textContent.trim();
+      btn.textContent = hasContent ? "✏️ Редагувати" : "➕ Додати";
     }
 
     function normalizeSpecsHtml(html) {
@@ -1030,6 +1088,19 @@ input[type="file"]::file-selector-button:hover{
       const text = wrapper.textContent.replace(/\u00a0/g, " ").trim();
       if (!text) return "";
       return html;
+    }
+
+    function setSpecsEditMode(enabled) {
+      const editor = $("specsInput");
+      const btn = $("btnEditSpecs");
+      const toolbar = document.querySelector(".specsToolbar");
+      if (!editor || !btn || !toolbar) return;
+      editor.setAttribute("contenteditable", enabled ? "true" : "false");
+      toolbar.classList.toggle("is-visible", enabled);
+      btn.disabled = enabled;
+      if (enabled) {
+        editor.focus();
+      }
     }
 
     async function saveSpecs() {
@@ -1051,6 +1122,8 @@ input[type="file"]::file-selector-button:hover{
         setTimeout(() => {
           $("specsHint").textContent = "";
         }, 2000);
+        updateSpecsActionLabel();
+        setSpecsEditMode(false);
       } catch (e) {
         console.error(e);
         $("specsHint").textContent = "";
