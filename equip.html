@@ -650,18 +650,29 @@ input[type="file"]::file-selector-button:hover{
               <div class="muted" id="specsHint"></div>
             </div>
 
+            <div class="specsToolbar" role="toolbar" aria-label="Форматування специфікацій">
+              <button class="btn btn-ghost" type="button" data-specs-cmd="bold"><b>Жирний</b></button>
+              <button class="btn btn-ghost" type="button" data-specs-cmd="h3">Заголовок</button>
+              <button class="btn btn-ghost" type="button" data-specs-cmd="ul">Список</button>
+              <button class="btn btn-ghost" type="button" data-specs-cmd="br">Рядок</button>
+            </div>
+
             <label class="lbl" for="specsInput">Вкажіть специфікації кавомашини</label>
-            <textarea
+            <div
               id="specsInput"
+              class="specsEditor"
+              contenteditable="true"
+              role="textbox"
+              aria-multiline="true"
               placeholder="ТЕХНІЧНІ ХАРАКТЕРИСТИКИ&#10;&#10;Модель — E92 Elite&#10;Виробник — Faema&#10;Країна — Італія&#10;Об'ем бойлера — 11 л&#10;Вага — 65 кг&#10;Потужність — 5100 Вт&#10;Напруга — 230/380 В&#10;Розміри (ШхВхГ) — 720x520x560мм&#10;Тип: автомат&#10;Кількість групп: 2&#10;Кількість бойлерів: 1&#10;Помпа вбудована&#10;&#10;Жидкокристалічний дисплей — так&#10;&#10;Тиск на заварюванні — 8,5 bar&#10;Тиск на сліпому ситі — 12 bar"
-            ></textarea>
+            ></div>
 
             <div class="row" style="margin-top:10px; justify-content:flex-end;">
               <button class="btn btn-yellow" id="btnSaveSpecs">💾 Зберегти характеристики</button>
             </div>
 
             <div class="hintLine">
-              Можна вставити готовий список або оформити текст у довільному вигляді.
+              Можна вставити готовий список або оформити текст: заголовки, жирний текст, списки.
             </div>
           </div>
 
@@ -772,7 +783,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnPrevPhotos").onclick = () => { photosPage--; renderPhotos(); };
       $("btnNextPhotos").onclick = () => { photosPage++; renderPhotos(); };
       $("btnSaveSpecs").onclick = saveSpecs;
-      $("specsInput").addEventListener("input", () => autoResizeTextarea($("specsInput")));
+      initSpecsEditor();
 
       $("btnPdf").onclick = () => {
   // ✅ новый паспорт (динамика)
@@ -952,20 +963,77 @@ input[type="file"]::file-selector-button:hover{
     // ===========================
     // SPECS
     // ===========================
-    function loadSpecs(eq) {
-      const serverSpecs = String(eq.specs || "").trim();
-      $("specsInput").value = serverSpecs;
-      autoResizeTextarea($("specsInput"));
+    function initSpecsEditor() {
+      const editor = $("specsInput");
+      if (!editor) return;
+
+      document.querySelectorAll("[data-specs-cmd]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const cmd = btn.dataset.specsCmd;
+          editor.focus();
+
+          if (cmd === "bold") {
+            document.execCommand("bold");
+            return;
+          }
+
+          if (cmd === "h3") {
+            document.execCommand("formatBlock", false, "h3");
+            return;
+          }
+
+          if (cmd === "ul") {
+            document.execCommand("insertUnorderedList");
+            return;
+          }
+
+          if (cmd === "br") {
+            document.execCommand("insertHTML", false, "<br>");
+          }
+        });
+      });
+
+      editor.addEventListener("paste", (event) => {
+        const text = event.clipboardData?.getData("text/plain");
+        if (text == null) return;
+        event.preventDefault();
+        document.execCommand("insertText", false, text);
+      });
+
+      editor.addEventListener("blur", () => {
+        if (!editor.textContent.trim()) {
+          editor.innerHTML = "";
+        }
+      });
     }
 
-    function autoResizeTextarea(textarea) {
-      if (!textarea) return;
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
+    function loadSpecs(eq) {
+      const serverSpecs = String(eq.specs || "").trim();
+      const editor = $("specsInput");
+      if (!editor) return;
+
+      if (!serverSpecs) {
+        editor.innerHTML = "";
+        return;
+      }
+
+      if (/<[a-z][\s\S]*>/i.test(serverSpecs)) {
+        editor.innerHTML = serverSpecs;
+      } else {
+        editor.textContent = serverSpecs;
+      }
+    }
+
+    function normalizeSpecsHtml(html) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = html;
+      const text = wrapper.textContent.replace(/\u00a0/g, " ").trim();
+      if (!text) return "";
+      return html;
     }
 
     async function saveSpecs() {
-      const value = $("specsInput").value || "";
+      const value = normalizeSpecsHtml($("specsInput").innerHTML || "");
       $("btnSaveSpecs").disabled = true;
       $("specsHint").textContent = "Зберігаю...";
 

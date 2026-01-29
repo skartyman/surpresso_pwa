@@ -143,6 +143,7 @@ body.theme-light .app-header {
 
 .field input,
 textarea,
+.specsEditor,
 .select-ios select,
 .login-input {
   background: var(--surface-2);
@@ -152,6 +153,7 @@ textarea,
 }
 body.theme-light .field input,
 body.theme-light textarea,
+body.theme-light .specsEditor,
 body.theme-light .select-ios select,
 body.theme-light .login-input {
   box-shadow: 0 2px 12px rgba(2,6,23,0.08);
@@ -159,6 +161,7 @@ body.theme-light .login-input {
 
 .field input:focus,
 textarea:focus,
+.specsEditor:focus,
 .select-ios select:focus {
   outline: none;
   border-color: rgba(242,201,76,0.75);
@@ -495,4 +498,3 @@ body.theme-light #parts-info span {
 .shake {
   border-color: rgba(239,68,68,0.85) !important;
 }
-
