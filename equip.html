@@ -1369,17 +1369,56 @@ input[type="file"]::file-selector-button:hover{
     // ===========================
     // ✅ STATUS SAVE (+ fresh photos)
     // ===========================
+    const LOCATION_REQUIRED_STATUSES = [
+      "уехало на аренду",
+      "продано",
+      "уехало на подмену"
+    ];
+
+    function normalizeStatusValue(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function isLocationRequiredStatus(status) {
+      return LOCATION_REQUIRED_STATUSES.includes(normalizeStatusValue(status));
+    }
+
+    function getCurrentLocationForPrompt() {
+      if (!LAST_EQUIPMENT) return "";
+      return (LAST_EQUIPMENT.owner === "company"
+        ? LAST_EQUIPMENT.companyLocation
+        : LAST_EQUIPMENT.clientLocation) || "";
+    }
+
+    function requestLocationForStatus(status) {
+      if (!isLocationRequiredStatus(status)) return "";
+      const location = prompt("Куда уезжает оборудование?", getCurrentLocationForPrompt());
+      if (location === null) return null;
+      return String(location || "").trim();
+    }
+
     async function saveStatus() {
       const newStatus = $("statusSelect").value;
       const comment = $("comment").value.trim();
       const actor = $("actor").value.trim();
       const photos = statusPhotos.slice(0, 10);
+      const location = requestLocationForStatus(newStatus);
+
+      if (location === null) return;
+      if (isLocationRequiredStatus(newStatus) && !location) {
+        alert("Потрібно вказати, куди уїхало обладнання.");
+        return;
+      }
 
       $("btnStatus").disabled = true;
       $("statusHint").textContent = "Зберігаю...";
 
       const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/status`, {
-        newStatus, comment, actor, photos
+        newStatus,
+        comment,
+        actor,
+        photos,
+        location
       });
 
       $("statusHint").textContent = "";
