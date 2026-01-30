@@ -416,7 +416,13 @@ app.post("/api/equip/:id/specs", requirePwaKey, async (req, res) => {
 app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
-    const { newStatus, comment = "", actor = "", photos = [] } = req.body || {};
+    const {
+      newStatus,
+      comment = "",
+      actor = "",
+      photos = [],
+      location = "",
+    } = req.body || {};
     if (!newStatus) return res.status(400).send({ ok: false, error: "no_newStatus" });
 
     // 1) Получим текущий equipment чтобы знать owner + старый статус
@@ -424,17 +430,33 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const eqBefore = before?.equipment || {};
     const oldStatus = String(eqBefore.status || "");
 
-    // 2) Пишем новый статус в GAS
     const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
-    const out = await gasPost({ action: "status", id, newStatus, comment, actor, photos: safePhotos });
+    const trimmedLocation = String(location || "").trim();
+    const owner = String(eqBefore.owner || "");
+    const locationPayload = trimmedLocation
+      ? (owner === "company"
+        ? { companyLocation: trimmedLocation }
+        : { clientLocation: trimmedLocation })
+      : {};
+
+    // 2) Пишем новый статус в GAS
+    const out = await gasPost({
+      action: "status",
+      id,
+      newStatus,
+      comment,
+      actor,
+      photos: safePhotos,
+      location: trimmedLocation,
+      ...locationPayload,
+    });
 
     // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
-    const owner = String(eqBefore.owner || "");
     if (shouldNotifyStatus(owner, newStatus)) {
       const passportLink = buildPassportLink(req, id);
 
       const caption = buildStatusChangeCaption({
-        eq: { ...eqBefore, id },
+        eq: { ...eqBefore, id, ...locationPayload },
         oldStatus,
         newStatus,
         comment,
