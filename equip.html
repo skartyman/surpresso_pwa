@@ -604,7 +604,7 @@ input[type="file"]::file-selector-button:hover{
             </div>
 
             <div class="row" style="margin-top:10px; justify-content:space-between;">
-              <input id="actor" class="compactInput" placeholder="Хто змінив (опц.) напр: Ігор" style="flex:1;min-width:220px"/>
+              <select id="actor" class="compactInput" style="flex:1;min-width:220px"></select>
               <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
               <span class="muted" id="statusHint"></span>
             </div>
@@ -777,6 +777,128 @@ input[type="file"]::file-selector-button:hover{
     // ===========================
     const PWA_KEY_STORAGE = "surpresso_pwa_key";
     const API_BASE = ""; // same domain
+    const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
+    const USER_SHEET_GID = 0;
+
+    let USERS = [];
+
+    function getUserDisplayName(user) {
+      return (user?.name || user?.login || "").trim();
+    }
+
+    function getUniqueUserNames() {
+      const seen = new Set();
+      return USERS.map(getUserDisplayName)
+        .filter(Boolean)
+        .filter(name => {
+          if (seen.has(name)) return false;
+          seen.add(name);
+          return true;
+        });
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let value = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === "\"") {
+          if (inQuotes && next === "\"") {
+            value += "\"";
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && (char === "," || char === "\n")) {
+          row.push(value);
+          value = "";
+
+          if (char === "\n") {
+            rows.push(row);
+            row = [];
+          }
+          continue;
+        }
+
+        if (char === "\r") continue;
+        value += char;
+      }
+
+      row.push(value);
+      rows.push(row);
+      return rows;
+    }
+
+    async function loadUsers() {
+      const url = `https://docs.google.com/spreadsheets/d/${USER_SHEET_ID}/export?format=csv&gid=${USER_SHEET_GID}`;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+
+        const text = await resp.text();
+        const rows = parseCsv(text);
+        const headers = (rows.shift() || []).map(h => h.trim().toLowerCase());
+        USERS = rows
+          .filter(r => r.some(cell => String(cell || "").trim()))
+          .map(r => {
+            const obj = {};
+            headers.forEach((h, idx) => {
+              obj[h] = (r[idx] || "").trim();
+            });
+            return {
+              login: (obj.login || "").trim(),
+              pass: (obj.pass || "").trim(),
+              name: (obj.name || "").trim(),
+              role: (obj.role || "").trim()
+            };
+          });
+
+        populateActorSelect();
+      } catch (e) {
+        console.error("Ошибка загрузки пользователей:", e);
+      }
+    }
+
+    function populateActorSelect() {
+      const select = $("actor");
+      if (!select) return;
+      const names = getUniqueUserNames();
+
+      const savedUser = localStorage.getItem("surp_user");
+      const preferred = savedUser ? getUserDisplayName(JSON.parse(savedUser)) : "";
+      const current = select.value || preferred;
+
+      select.innerHTML = "";
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Хто змінив (опц.)";
+      select.appendChild(placeholder);
+
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (name === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      if (current && !names.includes(current)) {
+        const opt = document.createElement("option");
+        opt.value = current;
+        opt.textContent = current;
+        opt.selected = true;
+        select.appendChild(opt);
+      }
+    }
 
     const PHOTOS_PAGE_SIZE = 10;
 
@@ -836,6 +958,8 @@ input[type="file"]::file-selector-button:hover{
 
       load();
     }
+
+    loadUsers();
 
     // ===========================
     // AUTH
