@@ -506,10 +506,31 @@ th:nth-child(6) {
 .engineer-row .row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.engineer-row input { flex: 1; }
+.engineer-row .select-ios {
+  flex: 1;
+}
+
+.engineer-row .select-ios select {
+  padding: 8px 12px;
+  padding-right: 34px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.engineer-row .select-ios::after {
+  right: 10px;
+  font-size: 14px;
+}
+
+.engineer-row .add-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  font-size: 16px;
+}
 
 .btn.small {
   padding: 6px 10px;

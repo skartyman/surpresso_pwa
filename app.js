@@ -1721,8 +1721,10 @@ function newInvoice() {
   document.getElementById("engineers-container").innerHTML = `
     <div class="field engineer-row">
       <div class="row">
-        <select class="engineer-input"></select>
-        <button class="btn small" onclick="addEngineerField()">+</button>
+        <div class="select-ios">
+          <select class="engineer-input"></select>
+        </div>
+        <button type="button" class="btn primary add-btn engineer-add" onclick="addEngineerField()">+</button>
       </div>
     </div>
   `;
@@ -1740,13 +1742,23 @@ function addEngineerField() {
   div.className = "field engineer-row";
   div.innerHTML = `
     <div class="row">
-      <select class="engineer-input"></select>
-      <button class="btn primary" onclick="addEngineerField()">+</button>
+      <div class="select-ios">
+        <select class="engineer-input"></select>
+      </div>
+      <button type="button" class="btn danger add-btn engineer-remove" onclick="removeEngineerField(this)">−</button>
     </div>
   `;
   cont.appendChild(div);
   const select = div.querySelector(".engineer-input");
   fillEngineerSelect(select);
+}
+
+function removeEngineerField(button) {
+  const rows = [...document.querySelectorAll(".engineer-row")];
+  if (rows.length <= 1) return;
+  const row = button.closest(".engineer-row");
+  if (!row) return;
+  row.remove();
 }
 
 // ======================
