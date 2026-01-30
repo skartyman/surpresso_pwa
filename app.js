@@ -64,6 +64,58 @@ const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwtsXXhRM
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
 
+function getUserDisplayName(user) {
+  return (user?.name || user?.login || "").trim();
+}
+
+function getUniqueUserNames() {
+  const seen = new Set();
+  return USERS.map(getUserDisplayName)
+    .filter(Boolean)
+    .filter(name => {
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+}
+
+function fillEngineerSelect(select, selectedValue = "") {
+  if (!select) return;
+  const names = getUniqueUserNames();
+  const current = selectedValue || select.value || "";
+
+  select.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Выберите инженера";
+  select.appendChild(placeholder);
+
+  names.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if (name === current) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  if (current && !names.includes(current)) {
+    const opt = document.createElement("option");
+    opt.value = current;
+    opt.textContent = current;
+    opt.selected = true;
+    select.appendChild(opt);
+  }
+}
+
+function populateEngineerSelects(preferredName = "") {
+  const selects = [...document.querySelectorAll(".engineer-input")];
+  selects.forEach((sel, idx) => {
+    const desired = idx === 0 ? preferredName : "";
+    fillEngineerSelect(sel, desired);
+  });
+}
+
 // Глобальные массивы
 let parts = [];
 let services = [];
@@ -166,7 +218,7 @@ function addEngineerIfNotExists(name) {
   const exists = inputs.some(i => i.value.trim() === name);
 
   if (!exists) {
-    inputs[0].value = name;
+    fillEngineerSelect(inputs[0], name);
   }
 }
 
@@ -175,6 +227,7 @@ function addEngineerIfNotExists(name) {
 // ======================
 async function initLogin() {
   await loadUsers();
+  populateEngineerSelects();
 
   // если пользователь уже входил — восстанавливаем
   const saved = localStorage.getItem("surp_user");
@@ -1668,11 +1721,12 @@ function newInvoice() {
   document.getElementById("engineers-container").innerHTML = `
     <div class="field engineer-row">
       <div class="row">
-        <input type="text" class="engineer-input" placeholder="Фамилия инженера" />
+        <select class="engineer-input"></select>
         <button class="btn small" onclick="addEngineerField()">+</button>
       </div>
     </div>
   `;
+  populateEngineerSelects();
 
   renderTable();
 }
@@ -1686,11 +1740,13 @@ function addEngineerField() {
   div.className = "field engineer-row";
   div.innerHTML = `
     <div class="row">
-      <input type="text" class="engineer-input" placeholder="Фамилия инженера" />
+      <select class="engineer-input"></select>
       <button class="btn primary" onclick="addEngineerField()">+</button>
     </div>
   `;
   cont.appendChild(div);
+  const select = div.querySelector(".engineer-input");
+  fillEngineerSelect(select);
 }
 
 // ======================
