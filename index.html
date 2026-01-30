@@ -122,10 +122,17 @@
     </div>
 
     <!-- live QR -->
-    <div id="ocr-live" style="display:none; position:relative; margin-bottom:12px">
-      <video id="ocr-video" autoplay playsinline muted></video>
-      <div id="ocr-frame"></div>
-      <div id="ocr-hint"></div>
+    <div id="ocr-live" class="ocr-layout" style="display:none;">
+      <div class="ocr-camera">
+        <video id="ocr-video" autoplay playsinline muted></video>
+        <div id="ocr-frame"></div>
+        <div id="ocr-hint"></div>
+      </div>
+      <div class="ocr-side">
+        <div class="ocr-side-title">Результаты</div>
+        <div id="ocr-result" class="ocr-result muted">Ожидание сканирования…</div>
+        <div id="warehouse-alert"></div>
+      </div>
     </div>
     <!-- ВВОД КАК У ЗАПЧАСТЕЙ -->
     <div class="row">
@@ -353,7 +360,6 @@
   <button id="hard-refresh-btn" class="footer-refresh">
     ♻ Обновить
   </button>
-  <div id="warehouse-alert"></div>
 </footer>
 
   <script src="app.js"></script>

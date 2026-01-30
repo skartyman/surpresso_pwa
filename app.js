@@ -792,6 +792,14 @@ function warehouseAlert(text, type = "info", timeout = 2500) {
   }
 }
 
+function updateOcrResult(text, state = "info") {
+  const el = document.getElementById("ocr-result");
+  if (!el) return;
+
+  el.textContent = text;
+  el.className = `ocr-result ${state}`;
+}
+
 let WAREHOUSE_MODE = "manual";
 const QTY_STEP = 0.5;
 
@@ -1496,6 +1504,7 @@ async function startQRScan() {
 
   live.style.display = "block";
   if (hint) hint.textContent = "Наведи камеру на QR или штрихкод";
+  updateOcrResult("Ожидание сканирования…", "info");
 
   CAM_STREAM = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "environment" }
@@ -1574,6 +1583,10 @@ async function startQRScan() {
       });
       if (ok) {
         warehouseAlert(`✅ Добавлено: ${candidate}`, "success", 2000);
+        updateOcrResult(`✅ ${candidate}`, "success");
+      } else {
+        warehouseAlert(`⚠️ Не найдено: ${candidate}`, "warn", 2500);
+        updateOcrResult(`⚠️ Не найдено: ${candidate}`, "warn");
       }
 
     } catch (e) {
