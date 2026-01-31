@@ -683,7 +683,6 @@ input[type="file"]::file-selector-button:hover{
             <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
               <select id="approvalActor" class="compactInput" style="flex:1;min-width:220px"></select>
               <button class="btn btn-yellow" id="btnApprovalSend">✅ Відправити запит</button>
-              <button class="btn btn-ghost" id="btnApprovalEstimate">💰 Запитати попередню вартість</button>
             </div>
 
             <div class="muted" style="margin-top:6px">
@@ -748,6 +747,7 @@ input[type="file"]::file-selector-button:hover{
 
               <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
                 <input type="file" id="photoFiles" accept="image/*" multiple />
+                <button class="btn btn-ghost" id="btnPhotoAlbum">🖼️ Фотоальбом</button>
                 <button class="btn btn-yellow" id="btnUploadPhotos">📤 Додати фото в базу</button>
               </div>
             </div>
@@ -989,7 +989,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnAddStatusFiles").onclick = addStatusFiles;
       $("btnClearStatusPhotos").onclick = clearStatusPhotos;
       $("btnApprovalSend").onclick = sendApprovalRequest;
-      $("btnApprovalEstimate").onclick = sendEstimateRequest;
+      $("btnPhotoAlbum").onclick = sendPhotoAlbum;
 
       load();
     }
@@ -1560,6 +1560,8 @@ input[type="file"]::file-selector-button:hover{
 
     async function sendApprovalRequest() {
       const text = String($("approvalText")?.value || "").trim();
+      const actor = String($("approvalActor")?.value || "").trim();
+
       if (!text) {
         alert("Вкажи текст запиту");
         return;
@@ -1567,16 +1569,7 @@ input[type="file"]::file-selector-button:hover{
       await postApprovalRequest(text);
     }
 
-    async function sendEstimateRequest() {
-      const text = "Потрібно погодити попередню вартість ремонту. Вкажіть, будь ласка, суму/ліміт.";
-      await postApprovalRequest(text);
-    }
-
-    async function postApprovalRequest(text) {
-      const actor = String($("approvalActor")?.value || "").trim();
-
       $("btnApprovalSend").disabled = true;
-      $("btnApprovalEstimate").disabled = true;
       $("approvalHint").textContent = "Відправляю...";
 
       try {
@@ -1587,15 +1580,15 @@ input[type="file"]::file-selector-button:hover{
 
         if (!out.ok) throw new Error(out.error || "Помилка відправки");
 
-        if (!out.sent) {
-          $("approvalHint").textContent = "⚠️ Немає підписників Telegram для цього ID";
-          return;
+        if (Number(out.sent || 0) <= 0) {
+          $("approvalHint").textContent = "⚠️ Немає підписників";
+          alert("⚠️ Запит не доставлено — клієнт ще не підписаний на паспорт.");
+        } else {
+          $("approvalHint").textContent = "✅ Запит відправлено";
+          setTimeout(() => {
+            $("approvalHint").textContent = "";
+          }, 2000);
         }
-
-        $("approvalHint").textContent = "✅ Запит відправлено";
-        setTimeout(() => {
-          $("approvalHint").textContent = "";
-        }, 2000);
         $("approvalText").value = "";
       } catch (e) {
         console.error(e);
@@ -1603,7 +1596,35 @@ input[type="file"]::file-selector-button:hover{
         alert("❌ " + (e.message || "Помилка відправки"));
       } finally {
         $("btnApprovalSend").disabled = false;
-        $("btnApprovalEstimate").disabled = false;
+      }
+    }
+
+    async function sendPhotoAlbum() {
+      if (!allPhotos.length) {
+        alert("Фото відсутні — фотоальбом не створено.");
+        return;
+      }
+
+      $("btnPhotoAlbum").disabled = true;
+      $("photosHint").textContent = "Створюю фотоальбом...";
+
+      try {
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo-album`, {
+          limit: 10
+        });
+
+        if (!out.ok) throw new Error(out.error || "Помилка створення фотоальбому");
+
+        $("photosHint").textContent = `✅ Фотоальбом відправлено (${out.sent || 0} фото)`;
+        setTimeout(() => {
+          $("photosHint").textContent = "";
+        }, 2500);
+      } catch (e) {
+        console.error(e);
+        $("photosHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка створення фотоальбому"));
+      } finally {
+        $("btnPhotoAlbum").disabled = false;
       }
     }
 

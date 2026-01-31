@@ -176,6 +176,32 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
   console.log("TG RESPONSE:", await tgResp.text());
 }
 
+async function tgSendPhotoUrlsTo(botToken, chatId, photoUrls, caption) {
+  if (!botToken || !chatId) return;
+
+  if (!photoUrls || photoUrls.length === 0) {
+    if (caption) await tgSendTextTo(botToken, chatId, caption);
+    return;
+  }
+
+  const media = photoUrls.map((url, i) => ({
+    type: "photo",
+    media: url,
+    caption: i === photoUrls.length - 1 ? caption : "",
+  }));
+
+  const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      media,
+    }),
+  });
+
+  console.log("TG RESPONSE:", await tgResp.text());
+}
+
 function parseBase64Data(dataUrl, fallbackExt) {
   const raw = String(dataUrl || "");
   const match = raw.match(/^data:([^;]+);base64,(.+)$/);
@@ -289,16 +315,31 @@ function buildPassportLinkFromBase(baseUrl, id, { isPublic = false } = {}) {
   return `${trimmed}/${page}?id=${encodeURIComponent(id)}`;
 }
 
-const MAIN_MENU_LABELS = [
-  "паспорт",
-  "статус",
-  "история",
-  "связаться",
-  "отписка",
-  "фотоальбом",
-  "попередня вартість ремонту",
-  "попередня вартість",
-];
+function extractDriveFileId(driveUrl) {
+  if (!driveUrl) return "";
+  const s = String(driveUrl);
+  if (s.includes("uc?export=view&id=")) {
+    const m = s.match(/id=([^&]+)/i);
+    return m ? m[1] : "";
+  }
+  if (s.includes("/file/d/")) {
+    const m = s.match(/\/file\/d\/([^\/]+)\//i);
+    return m ? m[1] : "";
+  }
+  if (s.includes("id=")) {
+    const m = s.match(/[?&]id=([^&]+)/i);
+    return m ? m[1] : "";
+  }
+  return "";
+}
+
+function buildProxyDriveUrl(req, driveUrl) {
+  const fileId = extractDriveFileId(driveUrl);
+  if (!fileId) return driveUrl;
+  return `${req.protocol}://${req.get("host")}/proxy-drive/${encodeURIComponent(fileId)}`;
+}
+
+const MAIN_MENU_LABELS = ["паспорт", "статус", "история", "связаться", "отписка"];
 const CONTACT_MENU_LABELS = ["позвонить", "написать менеджеру", "написать в сервис", "назад"];
 const FINAL_MENU_LABELS = ["відписатися", "оцінити", "питання"];
 
@@ -802,7 +843,11 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
       `🆔 ID: ${id}\n` +
       `📝 ${text}`;
 
-    const notifyResults = await Promise.all(
+    if (!chatIds.length) {
+      return res.send({ ok: true, requestId, sent: 0, warning: "no_subscribers" });
+    }
+
+    await Promise.all(
       chatIds.map((chatId) =>
         tgNotifyTextTo(chatId, message, buildApprovalMarkup({ requestId, equipmentId: id }))
       )
@@ -854,6 +899,42 @@ app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
       });
     }
     res.send(out);
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+app.post("/api/equip/:id/photo-album", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const limit = Number(req.body?.limit || 10);
+    const out = await gasPost({ action: "get", id });
+    const photos = Array.isArray(out?.photos) ? out.photos : [];
+    const trimmed = photos.filter(Boolean);
+
+    if (!trimmed.length) {
+      return res.status(400).send({ ok: false, error: "no_photos" });
+    }
+
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 10) : 10;
+    const selected = trimmed.slice(-safeLimit);
+    const photoUrls = selected
+      .map((p) => String(p.imgUrl || "").trim() || buildProxyDriveUrl(req, p.url))
+      .filter(Boolean);
+
+    if (!photoUrls.length) {
+      return res.status(400).send({ ok: false, error: "no_photo_urls" });
+    }
+
+    const passportLink = buildPassportLink(req, id, { isPublic: true });
+    const caption =
+      `📸 Фотоальбом\n` +
+      `🆔 ID: ${id}\n` +
+      (passportLink ? `🔗 Паспорт: ${passportLink}` : "");
+
+    await tgSendPhotoUrlsTo(TG_BOT, TG_CHAT, photoUrls, caption);
+
+    res.send({ ok: true, sent: photoUrls.length });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
