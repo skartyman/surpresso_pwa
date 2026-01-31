@@ -981,7 +981,7 @@ app.post("/tg/webhook", async (req, res) => {
       const pending = pendingServiceMessages.get(chatId) || {};
       pendingServiceMessages.delete(chatId);
       const equipmentId = pending.equipmentId || (await getLatestEquipmentIdForChat(chatId));
-      const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: true });
+      const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: false });
       const adminMessage = [
         "📩 Повідомлення від клієнта",
         `🆔 Equipment ID: ${equipmentId || "—"}`,
