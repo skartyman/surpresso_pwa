@@ -126,17 +126,22 @@ function tgApiUrl(botToken, method) {
 }
 
 async function tgSendTextTo(botToken, chatId, text, replyMarkup) {
-  if (!botToken || !chatId) return;
-  await fetch(tgApiUrl(botToken, "sendMessage"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true,
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
-  }).catch(() => {});
+  if (!botToken || !chatId) return false;
+  try {
+    const resp = await fetch(tgApiUrl(botToken, "sendMessage"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        disable_web_page_preview: true,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function tgSendPhotosTo(botToken, chatId, photos, caption) {
