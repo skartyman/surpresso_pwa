@@ -76,6 +76,19 @@
       gap:6px;
     }
 
+    .tgLink{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:#111;
+      color:#fff;
+      font-size:12px;
+      text-decoration:none;
+    }
+    .tgLink:hover{ opacity:.9; }
+
     table{
       width:100%;
       border-collapse:collapse;
@@ -386,11 +399,13 @@
       // info rows
       const rows = [];
       const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
+      const addHtml = (k, html) => rows.push(`<tr><td class="lbl">${k}</td><td>${html}</td></tr>`);
       const personalHiddenLabel = "Персональні дані приховано";
 
       add("ID", eq.id || EQUIPMENT_ID);
       add("Тип", eq.type || "—");
       add("Власник", eq.owner || "—");
+      addHtml("Telegram", buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID));
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
 
@@ -475,6 +490,12 @@
           </div>
         `;
       }).join("");
+    }
+
+    function buildTelegramSubscribeLink(id) {
+      const safeId = encodeURIComponent(String(id || ""));
+      const url = `https://t.me/SurpressoServicebot?start=eq_${safeId}`;
+      return `<a class="tgLink" href="${url}" target="_blank" rel="noopener">🔔 Підписатися</a>`;
     }
 
     // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
