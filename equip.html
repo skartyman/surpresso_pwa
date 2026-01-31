@@ -748,6 +748,7 @@ input[type="file"]::file-selector-button:hover{
 
               <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
                 <input type="file" id="photoFiles" accept="image/*" multiple />
+                <button class="btn btn-ghost" id="btnPhotoAlbum">🖼️ Фотоальбом</button>
                 <button class="btn btn-yellow" id="btnUploadPhotos">📤 Додати фото в базу</button>
               </div>
             </div>
@@ -989,6 +990,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnAddStatusFiles").onclick = addStatusFiles;
       $("btnClearStatusPhotos").onclick = clearStatusPhotos;
       $("btnApprovalSend").onclick = sendApprovalRequest;
+      $("btnPhotoAlbum").onclick = sendPhotoAlbum;
 
       load();
     }
@@ -1585,10 +1587,15 @@ input[type="file"]::file-selector-button:hover{
 
         if (!out.ok) throw new Error(out.error || "Помилка відправки");
 
-        $("approvalHint").textContent = "✅ Запит відправлено";
-        setTimeout(() => {
-          $("approvalHint").textContent = "";
-        }, 2000);
+        if (Number(out.sent || 0) <= 0) {
+          $("approvalHint").textContent = "⚠️ Немає підписників";
+          alert("⚠️ Запит не доставлено — клієнт ще не підписаний на паспорт.");
+        } else {
+          $("approvalHint").textContent = "✅ Запит відправлено";
+          setTimeout(() => {
+            $("approvalHint").textContent = "";
+          }, 2000);
+        }
         $("approvalText").value = "";
       } catch (e) {
         console.error(e);
@@ -1596,6 +1603,35 @@ input[type="file"]::file-selector-button:hover{
         alert("❌ " + (e.message || "Помилка відправки"));
       } finally {
         $("btnApprovalSend").disabled = false;
+      }
+    }
+
+    async function sendPhotoAlbum() {
+      if (!allPhotos.length) {
+        alert("Фото відсутні — фотоальбом не створено.");
+        return;
+      }
+
+      $("btnPhotoAlbum").disabled = true;
+      $("photosHint").textContent = "Створюю фотоальбом...";
+
+      try {
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo-album`, {
+          limit: 10
+        });
+
+        if (!out.ok) throw new Error(out.error || "Помилка створення фотоальбому");
+
+        $("photosHint").textContent = `✅ Фотоальбом відправлено (${out.sent || 0} фото)`;
+        setTimeout(() => {
+          $("photosHint").textContent = "";
+        }, 2500);
+      } catch (e) {
+        console.error(e);
+        $("photosHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка створення фотоальбому"));
+      } finally {
+        $("btnPhotoAlbum").disabled = false;
       }
     }
 
