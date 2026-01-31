@@ -1,4 +1,3 @@
-
 /***********************
  * Surpresso Equipment — GAS Backend
  * Only SERVER can write/read (secret)
@@ -39,6 +38,9 @@ const COMPANY_STATUSES = [
 const DEFAULT_STATUS_CLIENT  = "Прийнято на ремонт";
 const DEFAULT_STATUS_COMPANY = "Приехало после аренды";
 const TEXT_COLS = ["clientPhone", "serial", "internalNumber", "id"];
+
+// ===== Telegram subscriptions =====
+const SUBSCRIPTIONS_SHEET = "subscriptions";
 
 
 // =========================
@@ -123,7 +125,7 @@ function doPost(e) {
     if (action === "createOnly") return json_(createOnly_(data.card || {}));
     if (action === "create")  return json_(upsertEquipment_(data.card || {}));
     if (action === "get")     return json_(getBundle_(data.id));
-    if (action === "status")  return json_(setStatus_(data.id, data.newStatus, data.comment || "", data.actor || ""));
+    if (action === "status")  return json_(setStatus_(data.id, data.newStatus, data.comment || "", data.actor || "", data.location || ""));
     if (action === "photo")   return json_(addPhoto_(data.id, data.base64, data.caption || ""));
     if (action === "pdf")     return json_(generatePassportPdfA4_(data.id));
     if (action === "specs")  return json_(setSpecs_(data.id, data.specs || ""));
@@ -131,6 +133,9 @@ function doPost(e) {
       const owner = String(data.owner || "client");
       return json_({ ok: true, statuses: getStatusesForOwner_(owner) });
     }
+    if (action === "subscribe") return json_(subscribeEquipment_(data));
+    if (action === "unsubscribe") return json_(unsubscribeEquipment_(data));
+    if (action === "subscribers") return json_(getEquipmentSubscribers_(data));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -252,7 +257,7 @@ function getBundle_(id) {
 // =========================
 // STATUS update
 // =========================
-function setStatus_(id, newStatus, comment, actor) {
+function setStatus_(id, newStatus, comment, actor, location) {
   if (!id) return { ok: false, error: "No id" };
   if (!newStatus) return { ok: false, error: "No newStatus" };
 
@@ -268,6 +273,15 @@ function setStatus_(id, newStatus, comment, actor) {
   setCell_(sh, found.row, "status", String(newStatus));
   setCell_(sh, found.row, "updatedAt", now);
   setCell_(sh, found.row, "lastComment", comment || "");
+
+  if (location) {
+    const owner = String(found.values.owner || "");
+    if (owner === "company") {
+      setCell_(sh, found.row, "companyLocation", location);
+    } else {
+      setCell_(sh, found.row, "clientLocation", location);
+    }
+  }
 
   appendStatusLog_(id, oldStatus, String(newStatus), comment || "", actor || "");
 
@@ -327,39 +341,6 @@ function addPhoto_(id, base64, caption) {
 }
 
 
-function driveFileToDataUrl_(fileId) {
-  if (!fileId) return "";
-  
-  try {
-    const file = DriveApp.getFileById(fileId);
-    let blob = file.getBlob();
-    
-    // Спроба конвертації в JPEG (найкращий формат для PDF)
-    try {
-      blob = blob.getAs(MimeType.JPEG);
-    } catch (e) {
-      Logger.log(`Не вдалося конвертувати в JPEG файл ${fileId}: ${e}`);
-      // Якщо не вийшло — беремо оригінал
-    }
-    
-    const bytes = blob.getBytes();
-    const sizeKB = Math.round(bytes.length / 1024);
-    
-    if (sizeKB > 1200) {  // > ~1.2 MB — великий файл, PDF може "заглохнути"
-      Logger.log(`Файл ${fileId} завеликий: ${sizeKB} KB → fallback thumbnail`);
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`; // або повернути порожню строку
-    }
-    
-    const b64 = Utilities.base64Encode(bytes);
-    const mime = blob.getContentType() || MimeType.JPEG;
-    
-    Logger.log(`Base64 успішно створено для ${fileId}: ${sizeKB} KB`);
-    return `data:${mime};base64,${b64}`;
-  } catch (e) {
-    Logger.log(`Помилка base64 для ${fileId}: ${e}`);
-    return "";  // або thumbnail як запасний варіант
-  }
-}
 // =========================
 // PDF A4 (использует pdf_a4.html)
 // =========================
@@ -750,32 +731,116 @@ function json_(obj) {
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
-function driveFileToDataUrl_(fileId) {
-  if (!fileId) return "";
-  try {
-    const file = DriveApp.getFileById(fileId);
-    
-    // Пробуем как JPEG
-    let blob;
-    try {
-      blob = file.getBlob().getAs(MimeType.JPEG);
-    } catch (e) {
-      // Если не получилось — берём оригинал
-      blob = file.getBlob();
+
+// =========================
+// Telegram subscriptions (Google Sheets)
+// =========================
+function subscribeEquipment_(payload) {
+  const equipmentId = String(payload.id || "").trim();
+  const chatId = String(payload.chatId || "").trim();
+  if (!equipmentId || !chatId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateSubscriptionsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idx = buildSubscriptionsIndex_(headers);
+
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[idx.equipmentId] || "") === equipmentId && String(row[idx.chatId] || "") === chatId) {
+      rowIndex = i + 1;
+      break;
     }
-    
-    const bytes = blob.getBytes();
-    if (bytes.length > 3 * 1024 * 1024) { // > 3MB → слишком большой
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
-    }
-    
-    const b64 = Utilities.base64Encode(bytes);
-    const mime = blob.getContentType() || "image/jpeg";
-    return `data:${mime};base64,${b64}`;
-  } catch (e) {
-    Logger.log("Base64 failed for " + fileId + ": " + e);
-    // fallback на thumbnail
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
   }
+
+  const user = payload.user || {};
+  const values = [
+    equipmentId,
+    chatId,
+    user.id || "",
+    user.username || "",
+    user.firstName || "",
+    user.lastName || "",
+    new Date(),
+  ];
+
+  if (rowIndex === -1) {
+    sheet.appendRow(values);
+  } else {
+    sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
+  }
+
+  return { ok: true };
 }
 
+function unsubscribeEquipment_(payload) {
+  const equipmentId = String(payload.id || "").trim();
+  const chatId = String(payload.chatId || "").trim();
+  if (!equipmentId || !chatId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateSubscriptionsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idx = buildSubscriptionsIndex_(headers);
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    const row = data[i];
+    if (String(row[idx.equipmentId] || "") === equipmentId && String(row[idx.chatId] || "") === chatId) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+
+  return { ok: true };
+}
+
+function getEquipmentSubscribers_(payload) {
+  const equipmentId = String(payload.id || "").trim();
+  if (!equipmentId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateSubscriptionsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idx = buildSubscriptionsIndex_(headers);
+
+  const subscribers = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[idx.equipmentId] || "") === equipmentId) {
+      const chatId = String(row[idx.chatId] || "").trim();
+      if (chatId) subscribers.push(chatId);
+    }
+  }
+
+  return { ok: true, subscribers };
+}
+
+function getOrCreateSubscriptionsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SUBSCRIPTIONS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(SUBSCRIPTIONS_SHEET);
+    sheet.appendRow([
+      "equipmentId",
+      "chatId",
+      "userId",
+      "username",
+      "firstName",
+      "lastName",
+      "subscribedAt",
+    ]);
+  }
+  return sheet;
+}
+
+function buildSubscriptionsIndex_(headers) {
+  const normalized = headers.map((h) => String(h || "").trim());
+  const idx = {
+    equipmentId: normalized.indexOf("equipmentId"),
+    chatId: normalized.indexOf("chatId"),
+  };
+  if (idx.equipmentId === -1 || idx.chatId === -1) {
+    throw new Error("subscriptions sheet has invalid headers");
+  }
+  return idx;
+}
