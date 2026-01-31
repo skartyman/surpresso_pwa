@@ -31,6 +31,7 @@ const GAS_SECRET = process.env.GAS_SECRET || "";         // длинная ст�
 const TG_BOT = process.env.TG_BOT_TOKEN || "";
 const TG_CHAT = process.env.TG_CHAT_ID || "";
 const TG_NOTIFY_BOT = process.env.TG_NOTIFY_BOT_TOKEN || "";
+const TG_NOTIFY_BOT_USERNAME = process.env.TG_NOTIFY_BOT_USERNAME || "";
 const TG_NOTIFY_CHAT_ID =
   process.env.TG_NOTIFY_CHAT_ID ||
   process.env.ADMIN_CHAT_ID ||
@@ -692,7 +693,7 @@ app.get("/api/equip/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const out = await gasPost({ action: "get", id });
-    res.send(out);
+    res.send({ ...out, tgBotUsername: TG_NOTIFY_BOT_USERNAME });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
