@@ -847,7 +847,7 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
       return res.send({ ok: true, requestId, sent: 0, warning: "no_subscribers" });
     }
 
-    await Promise.all(
+    const notifyResults = await Promise.all(
       chatIds.map((chatId) =>
         tgNotifyTextTo(chatId, message, buildApprovalMarkup({ requestId, equipmentId: id }))
       )
