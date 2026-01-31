@@ -708,7 +708,7 @@
       add("ID", eq.id || EQUIPMENT_ID);
       add("Тип", typeLabel || "—");
       add("Власник", ownerLabel || "—");
-      const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID);
+      const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID, data.tgBotUsername);
       $("telegramSubscribe").innerHTML = tgLink;
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
@@ -825,9 +825,10 @@
       }).join("");
     }
 
-    function buildTelegramSubscribeLink(id) {
+    function buildTelegramSubscribeLink(id, botUsername) {
       const safeId = encodeURIComponent(String(id || ""));
-      const url = `https://t.me/SurpressoServicebot?start=eq_${safeId}`;
+      const safeBot = String(botUsername || "SurpressoServicebot").replace(/^@/, "");
+      const url = `https://t.me/${encodeURIComponent(safeBot)}?start=eq_${safeId}`;
       return `<a class="tgLink btn-dark" href="${url}" target="_blank" rel="noopener">🔔 Підписатися</a>`;
     }
 
