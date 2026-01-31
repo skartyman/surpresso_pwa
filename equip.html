@@ -650,24 +650,6 @@ input[type="file"]::file-selector-button:hover{
               <div id="statusPreview" class="previewGrid" style="display:none"></div>
             </div>
 
-            <!-- VIDEO FOR STATUS -->
-            <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-              <div style="font-weight:800;">🎥 Коротке відео до статусу</div>
-              <div class="muted" style="margin-top:4px">
-                Відео піде в бот повідомлень клієнта разом зі зміною статусу (рекомендуємо до 20 МБ).
-              </div>
-
-              <div class="row" style="margin-top:10px; justify-content:space-between">
-                <div class="row" style="gap:8px;">
-                  <input type="file" id="statusVideoFiles" accept="video/*" />
-                  <button class="btn btn-yellow" id="btnAddStatusVideo">➕ Додати відео</button>
-                  <button class="btn btn-danger" id="btnClearStatusVideo" style="display:none">🗑 Очистити</button>
-                </div>
-              </div>
-
-              <div id="statusVideoHint" class="muted" style="margin-top:8px"></div>
-              <div id="statusVideoPreview" class="previewGrid" style="display:none"></div>
-            </div>
           </div>
 
           <!-- RE-INTAKE CARD -->
@@ -685,6 +667,27 @@ input[type="file"]::file-selector-button:hover{
 
             <div class="muted" style="margin-top:6px">
               Выбери 3–5 свежих фото (можно больше) и отправь повторно как новый приём.
+            </div>
+          </div>
+
+          <!-- APPROVAL REQUEST CARD -->
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <div style="font-weight:900;">Запит на погодження</div>
+              <div class="muted" id="approvalHint"></div>
+            </div>
+
+            <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
+              <textarea id="approvalText" placeholder="Опиши, що потрібно погодити (сума, роботи, деталі)" style="flex:1;min-width:240px"></textarea>
+            </div>
+
+            <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
+              <select id="approvalActor" class="compactInput" style="flex:1;min-width:220px"></select>
+              <button class="btn btn-yellow" id="btnApprovalSend">✅ Відправити запит</button>
+            </div>
+
+            <div class="muted" style="margin-top:6px">
+              Запит піде клієнту в Telegram із кнопками підтвердження.
             </div>
           </div>
 
@@ -894,36 +897,40 @@ input[type="file"]::file-selector-button:hover{
     }
 
     function populateActorSelect() {
-      const select = $("actor");
-      if (!select) return;
+      const selects = [$("actor"), $("approvalActor")].filter(Boolean);
+      if (!selects.length) return;
       const names = getUniqueUserNames();
 
       const savedUser = localStorage.getItem("surp_user");
       const preferred = savedUser ? getUserDisplayName(JSON.parse(savedUser)) : "";
-      const current = select.value || preferred;
+      const current = selects[0]?.value || preferred;
 
-      select.innerHTML = "";
+      selects.forEach((select) => {
+        select.innerHTML = "";
 
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = "Хто змінив (опц.)";
-      select.appendChild(placeholder);
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = select.id === "approvalActor"
+          ? "Хто відправив (опц.)"
+          : "Хто змінив (опц.)";
+        select.appendChild(placeholder);
 
-      names.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        if (name === current) opt.selected = true;
-        select.appendChild(opt);
+        names.forEach(name => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          if (name === current) opt.selected = true;
+          select.appendChild(opt);
+        });
+
+        if (current && !names.includes(current)) {
+          const opt = document.createElement("option");
+          opt.value = current;
+          opt.textContent = current;
+          opt.selected = true;
+          select.appendChild(opt);
+        }
       });
-
-      if (current && !names.includes(current)) {
-        const opt = document.createElement("option");
-        opt.value = current;
-        opt.textContent = current;
-        opt.selected = true;
-        select.appendChild(opt);
-      }
     }
 
     const PHOTOS_PAGE_SIZE = 10;
@@ -981,8 +988,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnTorch").onclick = toggleTorch;
       $("btnAddStatusFiles").onclick = addStatusFiles;
       $("btnClearStatusPhotos").onclick = clearStatusPhotos;
-      $("btnAddStatusVideo").onclick = addStatusVideo;
-      $("btnClearStatusVideo").onclick = clearStatusVideo;
+      $("btnApprovalSend").onclick = sendApprovalRequest;
 
       load();
     }
@@ -1430,7 +1436,6 @@ input[type="file"]::file-selector-button:hover{
       const comment = $("comment").value.trim();
       const actor = $("actor").value.trim();
       const photos = statusPhotos.slice(0, 10);
-      const videos = statusVideos.slice(0, 1);
       const location = requestLocationForStatus(newStatus);
 
       if (location === null) return;
@@ -1447,7 +1452,6 @@ input[type="file"]::file-selector-button:hover{
         comment,
         actor,
         photos,
-        videos,
         location
       });
 
@@ -1482,7 +1486,6 @@ input[type="file"]::file-selector-button:hover{
 
       // ✅ очищаем "статусные" фото после удачи
       clearStatusPhotos();
-      clearStatusVideo();
 
       $("btnStatus").disabled = false;
       await load();
@@ -1492,7 +1495,6 @@ input[type="file"]::file-selector-button:hover{
     // ✅ STATUS PHOTOS: камера + галерея
     // ===========================
     let statusPhotos = []; // base64
-    let statusVideos = []; // base64
     let camStream = null;
     let torchOn = false;
 
@@ -1532,42 +1534,6 @@ input[type="file"]::file-selector-button:hover{
       updateStatusPhotosUI();
     }
 
-    function updateStatusVideosUI() {
-      const has = statusVideos.length > 0;
-      $("statusVideoPreview").style.display = has ? "grid" : "none";
-      $("btnClearStatusVideo").style.display = has ? "inline-flex" : "none";
-      $("statusVideoHint").textContent = has ? `Обрано відео: ${statusVideos.length}` : "";
-      renderStatusVideosPreview();
-    }
-
-    function renderStatusVideosPreview() {
-      if (!statusVideos.length) {
-        $("statusVideoPreview").innerHTML = "";
-        return;
-      }
-
-      $("statusVideoPreview").innerHTML = statusVideos.map((b64, idx) => {
-        return `
-          <div class="prevItem">
-            <video src="${b64}" controls playsinline></video>
-            <button class="prevDel" onclick="removeStatusVideo(${idx})">✕</button>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function removeStatusVideo(idx) {
-      statusVideos.splice(idx, 1);
-      updateStatusVideosUI();
-    }
-
-    function clearStatusVideo() {
-      statusVideos = [];
-      const input = $("statusVideoFiles");
-      if (input) input.value = "";
-      updateStatusVideosUI();
-    }
-
     async function addStatusFiles() {
       const input = $("statusPhotoFiles");
       const files = input && input.files ? Array.from(input.files) : [];
@@ -1599,39 +1565,42 @@ input[type="file"]::file-selector-button:hover{
       }
     }
 
-    async function addStatusVideo() {
-      const input = $("statusVideoFiles");
-      const files = input && input.files ? Array.from(input.files) : [];
-      if (!files.length) return alert("Оберіть відео");
+    async function sendApprovalRequest() {
+      const text = String($("approvalText")?.value || "").trim();
+      const actor = String($("approvalActor")?.value || "").trim();
 
-      const MAX = 1;
-      const MAX_MB = 20;
-      if (files.length > MAX || statusVideos.length >= MAX) {
-        alert(`Можна додати лише ${MAX} відео`);
-        input.value = "";
+      if (!text) {
+        alert("Вкажи текст запиту");
         return;
       }
 
-      const file = files[0];
-      if (file.size > MAX_MB * 1024 * 1024) {
-        alert(`Відео завелике. Максимум ${MAX_MB} МБ`);
-        input.value = "";
-        return;
-      }
-
-      $("statusVideoHint").textContent = "Додаю відео...";
+      $("btnApprovalSend").disabled = true;
+      $("approvalHint").textContent = "Відправляю...";
 
       try {
-        const base64 = await fileToBase64(file);
-        statusVideos = [base64];
-        $("statusVideoHint").textContent = "";
-        updateStatusVideosUI();
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/approval`, {
+          text,
+          actor
+        });
+
+        if (!out.ok) throw new Error(out.error || "Помилка відправки");
+
+        if (!out.sent) {
+          $("approvalHint").textContent = "⚠️ Немає підписників Telegram для цього ID";
+          return;
+        }
+
+        $("approvalHint").textContent = "✅ Запит відправлено";
+        setTimeout(() => {
+          $("approvalHint").textContent = "";
+        }, 2000);
+        $("approvalText").value = "";
       } catch (e) {
         console.error(e);
-        $("statusVideoHint").textContent = "";
-        alert("❌ Не вдалося додати відео");
+        $("approvalHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка відправки"));
       } finally {
-        input.value = "";
+        $("btnApprovalSend").disabled = false;
       }
     }
 
