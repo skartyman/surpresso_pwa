@@ -1220,7 +1220,7 @@ app.post("/tg/webhook", async (req, res) => {
         .filter(Boolean)
         .join("\n");
 
-      await tgSendText(lines);
+      await tgNotifyAdminText(lines);
       await tgNotifyTextTo(chatId, "✅ Запит передано в сервіс. Ми зв’яжемося з вами.", buildMainMenuMarkup());
       return res.send({ ok: true });
     }
