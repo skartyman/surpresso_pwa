@@ -30,6 +30,7 @@ const GAS_SECRET = process.env.GAS_SECRET || "";         // длинная ст�
 // Telegram
 const TG_BOT = process.env.TG_BOT_TOKEN || "";
 const TG_CHAT = process.env.TG_CHAT_ID || "";
+const TG_WEBHOOK_SECRET = process.env.TG_WEBHOOK_SECRET || "";
 
 // Trello
 const TRELLO_KEY = process.env.TRELLO_KEY || "";
@@ -104,24 +105,24 @@ async function gasPost(payload) {
 // =======================
 // HELPERS: Telegram send
 // =======================
-async function tgSendText(text) {
-  if (!TG_BOT || !TG_CHAT) return;
+async function tgSendTextTo(chatId, text) {
+  if (!TG_BOT || !chatId) return;
   await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: TG_CHAT,
+      chat_id: chatId,
       text,
       disable_web_page_preview: true,
     }),
   }).catch(() => {});
 }
 
-async function tgSendPhotos(photos, caption) {
-  if (!TG_BOT || !TG_CHAT) return;
+async function tgSendPhotosTo(chatId, photos, caption) {
+  if (!TG_BOT || !chatId) return;
 
   if (!photos || photos.length === 0) {
-    if (caption) await tgSendText(caption);
+    if (caption) await tgSendTextTo(chatId, caption);
     return;
   }
 
@@ -144,7 +145,7 @@ async function tgSendPhotos(photos, caption) {
     });
   });
 
-  tgForm.append("chat_id", TG_CHAT);
+  tgForm.append("chat_id", chatId);
   tgForm.append("media", JSON.stringify(media));
 
   const tgResp = await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMediaGroup`, {
@@ -153,6 +154,14 @@ async function tgSendPhotos(photos, caption) {
   });
 
   console.log("TG RESPONSE:", await tgResp.text());
+}
+
+async function tgSendText(text) {
+  return tgSendTextTo(TG_CHAT, text);
+}
+
+async function tgSendPhotos(photos, caption) {
+  return tgSendPhotosTo(TG_CHAT, photos, caption);
 }
 
 // =======================
@@ -227,9 +236,60 @@ function isSoldStatus(status) {
 
 function shouldNotifyStatus(eqOwner, newStatus) {
   if (isSoldStatus(newStatus)) return true;
-  if (eqOwner === "client") return isClientGiveAwayStatus(newStatus);
+  if (eqOwner === "client") return true;
   if (eqOwner === "company") return isCompanyLeavingStatus(newStatus);
   return false;
+}
+
+async function getSubscriberChatIds(equipmentId) {
+  if (!equipmentId || !GAS_WEBAPP_URL || !GAS_SECRET) return [];
+  try {
+    const out = await gasPost({ action: "subscribers", id: equipmentId });
+    const list = out?.subscribers || out?.items || [];
+    return Array.isArray(list)
+      ? list.map((entry) => String(entry.chatId || entry).trim()).filter(Boolean)
+      : [];
+  } catch (err) {
+    console.error("SUBSCRIBERS LOAD ERROR:", err);
+    return [];
+  }
+}
+
+async function notifySubscribers({ equipmentId, photos, caption }) {
+  const chatIds = await getSubscriberChatIds(equipmentId);
+  if (!chatIds.length) return;
+  await Promise.all(
+    chatIds.map((chatId) => tgSendPhotosTo(chatId, photos, caption))
+  );
+}
+
+function buildPhotoAddedCaption({ eq, passportLink }) {
+  const who = eq.owner === "company" ? "🔴 Обладнання компанії" : "🟢 Обладнання клієнта";
+
+  let body = `${who}\n🆔 ID: ${eq.id || ""}\n`;
+
+  if (eq.owner === "client") {
+    body +=
+      `👤 ${eq.clientName || ""}\n` +
+      `📞 ${eq.clientPhone || ""}\n` +
+      `⚙️ ${eq.model || ""}\n` +
+      `🔢 ${eq.serial || ""}\n`;
+  } else {
+    body +=
+      `📍 ${eq.companyLocation || ""}\n` +
+      `🛠 ${eq.name || ""}\n` +
+      `🔢 № ${eq.internalNumber || ""}\n`;
+  }
+
+  body += `\n📸 Додано нове фото\n🔗 Паспорт: ${passportLink}`;
+  return body;
+}
+
+function parseTelegramCommand(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const [cmd, payload] = raw.split(/\s+/);
+  return { cmd, payload };
 }
 
 function buildStatusChangeCaption({ eq, oldStatus, newStatus, comment, actor, passportLink }) {
@@ -452,7 +512,8 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     });
 
     // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
-    if (shouldNotifyStatus(owner, newStatus)) {
+    const statusChanged = normStatus(oldStatus) !== normStatus(newStatus);
+    if (statusChanged && shouldNotifyStatus(owner, newStatus)) {
       const passportLink = buildPassportLink(req, id);
 
       const caption = buildStatusChangeCaption({
@@ -464,7 +525,11 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         passportLink,
       });
 
-      await tgSendPhotos(safePhotos, caption);
+      if (owner === "client") {
+        await notifySubscribers({ equipmentId: id, photos: safePhotos, caption });
+      } else {
+        await tgSendPhotos(safePhotos, caption);
+      }
     }
 
     res.send({ ok: true, ...out });
@@ -496,6 +561,21 @@ app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
     const id = String(req.params.id || "").trim();
     const { base64, caption = "" } = req.body || {};
     const out = await gasPost({ action: "photo", id, base64, caption });
+    const before = await gasPost({ action: "get", id });
+    const eq = before?.equipment || {};
+
+    if (eq.owner === "client") {
+      const passportLink = buildPassportLink(req, id);
+      const tgCaption = buildPhotoAddedCaption({
+        eq: { ...eq, id },
+        passportLink,
+      });
+      await notifySubscribers({
+        equipmentId: id,
+        photos: base64 ? [base64] : [],
+        caption: tgCaption,
+      });
+    }
     res.send(out);
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
@@ -541,6 +621,90 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
     res.send({ ok: true, registry: out, photosUploaded: photos.length });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+// =======================
+// 2.6) Telegram webhook
+// =======================
+app.post("/tg/webhook", async (req, res) => {
+  try {
+    if (TG_WEBHOOK_SECRET) {
+      const secret = req.headers["x-telegram-bot-api-secret-token"];
+      if (String(secret || "") !== String(TG_WEBHOOK_SECRET)) {
+        return res.status(401).send({ ok: false });
+      }
+    }
+
+    const update = req.body || {};
+    const message = update.message || update.edited_message || {};
+    const text = message.text || "";
+    const chatId = message.chat?.id;
+    const user = message.from || {};
+
+    if (!chatId) return res.send({ ok: true });
+
+    const parsed = parseTelegramCommand(text);
+    if (!parsed) return res.send({ ok: true });
+
+    const { cmd, payload } = parsed;
+    const token = String(payload || "").trim();
+    const match = token.match(/^eq_(.+)$/i);
+    const equipmentId = match ? match[1] : "";
+
+    if (cmd === "/start" && equipmentId) {
+      if (!GAS_WEBAPP_URL || !GAS_SECRET) {
+        await tgSendTextTo(chatId, "Підписка тимчасово недоступна.");
+        return res.send({ ok: true });
+      }
+
+      await gasPost({
+        action: "subscribe",
+        id: equipmentId,
+        chatId: String(chatId),
+        user: {
+          id: user.id,
+          username: user.username,
+          firstName: user.first_name,
+          lastName: user.last_name,
+        },
+      });
+
+      await tgSendTextTo(
+        chatId,
+        `✅ Ви підписались на обладнання ${equipmentId}.\nЯкщо потрібно відписатися: /stop eq_${equipmentId}`
+      );
+
+      return res.send({ ok: true });
+    }
+
+    if ((cmd === "/stop" || cmd === "/unsubscribe") && equipmentId) {
+      if (!GAS_WEBAPP_URL || !GAS_SECRET) {
+        await tgSendTextTo(chatId, "Підписка тимчасово недоступна.");
+        return res.send({ ok: true });
+      }
+
+      await gasPost({
+        action: "unsubscribe",
+        id: equipmentId,
+        chatId: String(chatId),
+      });
+
+      await tgSendTextTo(chatId, `❌ Ви відписались від обладнання ${equipmentId}.`);
+      return res.send({ ok: true });
+    }
+
+    if (cmd === "/start") {
+      await tgSendTextTo(
+        chatId,
+        "Щоб підписатися, відкрийте паспорт обладнання та натисніть кнопку Telegram."
+      );
+    }
+
+    return res.send({ ok: true });
+  } catch (err) {
+    console.error("TG WEBHOOK ERROR:", err);
+    return res.status(500).send({ ok: false });
   }
 });
 
