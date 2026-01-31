@@ -502,6 +502,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const before = await gasPost({ action: "get", id });
     const eqBefore = before?.equipment || {};
     const oldStatus = String(eqBefore.status || "");
+    const oldComment = String(eqBefore.lastComment || "");
 
     const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
     const trimmedLocation = String(location || "").trim();
@@ -526,7 +527,9 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
 
     // 3) Если это триггерный статус — шлем в TG (свежие фото с телефона если есть)
     const statusChanged = normStatus(oldStatus) !== normStatus(newStatus);
-    if (statusChanged && shouldNotifyStatus(owner, newStatus)) {
+    const trimmedComment = String(comment || "").trim();
+    const commentChanged = trimmedComment && trimmedComment !== String(oldComment || "").trim();
+    if ((statusChanged || commentChanged) && shouldNotifyStatus(owner, newStatus)) {
       const passportLink = buildPassportLink(req, id);
 
       const caption = buildStatusChangeCaption({
