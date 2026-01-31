@@ -590,7 +590,6 @@ input[type="file"]::file-selector-button:hover{
             <div class="row" style="margin-top:10px">
               <span class="pill" id="pillOwner">owner: —</span>
               <span class="pill" id="pillType">type: —</span>
-              <a class="pill link" id="driveFolderLink" href="#" target="_blank" style="display:none">📁 Drive папка</a>
             </div>
           </div>
 
@@ -1080,14 +1079,6 @@ input[type="file"]::file-selector-button:hover{
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
 
-      // Drive folder link
-      if (eq.folderUrl) {
-        $("driveFolderLink").href = eq.folderUrl;
-        $("driveFolderLink").style.display = "inline-flex";
-      } else {
-        $("driveFolderLink").style.display = "none";
-      }
-
       // statuses by owner
       const statuses = buildStatusesFor(eq);
       fillStatuses(statuses, eq.status);
@@ -1575,6 +1566,8 @@ input[type="file"]::file-selector-button:hover{
         alert("Вкажи текст запиту");
         return;
       }
+      await postApprovalRequest(text);
+    }
 
       $("btnApprovalSend").disabled = true;
       $("approvalHint").textContent = "Відправляю...";

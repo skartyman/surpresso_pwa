@@ -352,6 +352,7 @@ function buildMainMenuMarkup() {
     keyboard: [
       ["Паспорт", "Статус"],
       ["История", "Связаться"],
+      ["Фотоальбом", "Попередня вартість ремонту"],
       ["Отписка"],
     ],
     resize_keyboard: true,
@@ -825,6 +826,7 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
     const id = String(req.params.id || "").trim();
     const { text = "", actor = "" } = req.body || {};
     if (!id || !text) return res.status(400).send({ ok: false, error: "missing_fields" });
+    if (!TG_NOTIFY_BOT) return res.status(500).send({ ok: false, error: "tg_notify_bot_missing" });
 
     const requestId = crypto.randomUUID();
     await gasPost({
@@ -851,7 +853,8 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
       )
     );
 
-    res.send({ ok: true, requestId, sent: chatIds.length });
+    const sent = notifyResults.filter(Boolean).length;
+    res.send({ ok: true, requestId, sent });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
@@ -1179,6 +1182,46 @@ app.post("/tg/webhook", async (req, res) => {
         return res.send({ ok: true });
       }
       await tgNotifyTextTo(chatId, `🔗 Паспорт: ${passportLink}`, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "фотоальбом") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      const out = await gasPost({ action: "get", id: equipmentId });
+      const eq = out?.equipment || {};
+      if (!eq.folderUrl) {
+        await tgNotifyTextTo(chatId, "Фотоальбом поки недоступний.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      await tgNotifyTextTo(chatId, `📸 Фотоальбом: ${eq.folderUrl}`, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "попередня вартість ремонту" || normalized === "попередня вартість") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      const out = await gasPost({ action: "get", id: equipmentId });
+      const eq = out?.equipment || {};
+      const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: true });
+      const lines = [
+        "💰 Запит попередньої вартості ремонту",
+        `🆔 ID: ${equipmentId}`,
+        eq.clientName ? `👤 ${eq.clientName}` : "",
+        eq.clientPhone ? `📞 ${eq.clientPhone}` : "",
+        passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await tgSendText(lines);
+      await tgNotifyTextTo(chatId, "✅ Запит передано в сервіс. Ми зв’яжемося з вами.", buildMainMenuMarkup());
       return res.send({ ok: true });
     }
 
