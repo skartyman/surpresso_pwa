@@ -106,6 +106,41 @@
       font-weight:800;
       border:1px solid rgba(242, 201, 76, 0.5);
     }
+    .statusHighlight{
+      margin-top:12px;
+      display:flex;
+      gap:16px;
+      align-items:stretch;
+      background:#f8f9fb;
+      border:1px solid #e6e9ef;
+      border-radius:14px;
+      padding:12px 14px;
+    }
+    .statusBlock{
+      flex:1;
+      min-width:0;
+    }
+    .statusLabel{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+    .statusValue{
+      font-size:15px;
+      font-weight:800;
+      color:#111;
+      word-break:break-word;
+    }
+    .statusDivider{
+      width:1px;
+      background:#e2e6ee;
+      align-self:stretch;
+    }
+    .statusComment{
+      font-weight:600;
+      color:#222;
+    }
 
     .hero{
       display:grid;
@@ -449,14 +484,26 @@
     <div class="card actions">
       <div class="row" style="justify-content:space-between">
         <div class="row">
-          <span class="pill" id="pillOwner">owner: —</span>
-          <span class="pill" id="pillType">type: —</span>
-          <span class="pill">статус: <b id="curStatusMobile">—</b></span>
+          <span class="pill" id="pillOwner">Власник: —</span>
+          <span class="pill" id="pillType">Тип: —</span>
+          <span class="pill">Статус: <b id="curStatusMobile">—</b></span>
         </div>
 
         <div class="row">
           <button class="btn" id="btnRefresh">⟳ Оновити</button>
           <button class="btn btn-yellow" id="btnPrint">🖨 Друк A4</button>
+        </div>
+      </div>
+
+      <div class="statusHighlight">
+        <div class="statusBlock">
+          <span class="statusLabel">Поточний статус</span>
+          <div class="statusValue" id="curStatusTop">—</div>
+        </div>
+        <div class="statusDivider" aria-hidden="true"></div>
+        <div class="statusBlock">
+          <span class="statusLabel">Останній коментар</span>
+          <div class="statusValue statusComment" id="lastCommentTop">—</div>
         </div>
       </div>
 
@@ -625,19 +672,23 @@
       const eq = data.equipment || {};
       const photos = Array.isArray(data.photos) ? data.photos : [];
       const log = Array.isArray(data.log) ? data.log : [];
+      const ownerLabel = mapOwner(eq.owner);
+      const typeLabel = mapType(eq.type);
 
       $("curStatus").textContent = eq.status || "—";
       $("curStatusMobile").textContent = eq.status || "—";
+      $("curStatusTop").textContent = eq.status || "—";
+      $("lastCommentTop").textContent = eq.lastComment || "—";
       $("updatedAt").textContent = eq.updatedAt ? ("Оновлено: " + fmt(eq.updatedAt)) : "";
 
-      $("pillOwner").textContent = "owner: " + (eq.owner || "—");
-      $("pillType").textContent = "type: " + (eq.type || "—");
+      $("pillOwner").textContent = "Власник: " + (ownerLabel || "—");
+      $("pillType").textContent = "Тип: " + (typeLabel || "—");
 
       $("heroTitle").textContent = eq.name || "Паспорт обладнання";
       $("heroId").textContent = `ID: ${eq.id || EQUIPMENT_ID}`;
       $("heroUpdated").textContent = eq.updatedAt ? `Оновлено: ${fmt(eq.updatedAt)}` : "Оновлено: —";
-      $("heroType").textContent = eq.type || "—";
-      $("heroOwner").textContent = eq.owner || "—";
+      $("heroType").textContent = typeLabel || "—";
+      $("heroOwner").textContent = ownerLabel || "—";
       $("heroLocation").textContent = eq.owner === "client" ? (eq.clientLocation || "—") : (eq.companyLocation || "—");
       $("heroModel").textContent = eq.model || eq.name || "—";
 
@@ -648,10 +699,9 @@
       const personalHiddenLabel = "Персональні дані приховано";
 
       add("ID", eq.id || EQUIPMENT_ID);
-      add("Тип", eq.type || "—");
-      add("Власник", eq.owner || "—");
+      add("Тип", typeLabel || "—");
+      add("Власник", ownerLabel || "—");
       const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID);
-      addHtml("Telegram", tgLink);
       $("telegramSubscribe").innerHTML = tgLink;
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
@@ -691,6 +741,23 @@
           </tr>
         `).join("")
         : `<tr><td class="muted">Немає записів</td></tr>`;
+    }
+
+    function mapOwner(owner) {
+      if (!owner) return "";
+      const map = {
+        client: "Клієнт",
+        company: "Компанія",
+      };
+      return map[owner] || owner;
+    }
+
+    function mapType(type) {
+      if (!type) return "";
+      const map = {
+        "auto-coffee": "Автоматична кавомашина",
+      };
+      return map[type] || type;
     }
 
     function renderPhotos(photos) {
