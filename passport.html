@@ -8,16 +8,19 @@
   <style>
     :root{
       --yellow:#F2C94C;
-      --text:#222;
-      --muted:#666;
-      --line:#eee;
+      --text:#1b1b1b;
+      --muted:#6b6f76;
+      --line:#ececec;
       --card:#fff;
+      --shadow:0 12px 28px rgba(17, 17, 17, 0.08);
+      --blue:#2f80ed;
+      --dark:#1f2328;
     }
 
     body{
       font-family: "Segoe UI", system-ui, Arial, sans-serif;
       margin:0;
-      background:#f7f7f7;
+      background:#f6f7fb;
       color:var(--text);
       font-size:14px;
     }
@@ -25,29 +28,47 @@
     .wrap{
       max-width:980px;
       margin:0 auto;
-      padding:16px;
+      padding:18px 16px 40px;
     }
 
     .card{
       background:var(--card);
       border:1px solid var(--line);
-      border-radius:16px;
-      padding:14px;
+      border-radius:18px;
+      padding:16px;
       margin-top:12px;
       overflow:hidden;
+      box-shadow:var(--shadow);
     }
 
     .top{
       display:flex;
       gap:12px;
-      align-items:flex-end;
+      align-items:center;
       justify-content:space-between;
-      border-bottom:2px solid var(--yellow);
-      padding-bottom:10px;
+      padding:14px 16px;
+      background:linear-gradient(120deg, #23272f, #2d313a 45%, #3b3f48);
+      border-radius:20px;
+      color:#fff;
+      box-shadow:0 18px 32px rgba(17, 17, 17, 0.2);
     }
 
-    .logo{ font-size:20px; font-weight:900; }
-    .sub{ font-size:12px; color:var(--muted); }
+    .logo{
+      font-size:18px;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .logo img{
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      background:#fff;
+      padding:6px;
+      box-shadow:0 6px 16px rgba(0,0,0,.25);
+    }
+    .sub{ font-size:12px; color:rgba(255,255,255,.75); }
 
     .row{
       display:flex;
@@ -65,6 +86,10 @@
       background:#f1f1f1;
     }
     .btn-yellow{ background:var(--yellow); }
+    .btn-dark{
+      background:#1f2328;
+      color:#fff;
+    }
 
     .pill{
       background:#f4f4f4;
@@ -74,6 +99,87 @@
       display:inline-flex;
       align-items:center;
       gap:6px;
+    }
+    .pill-status{
+      background:rgba(242, 201, 76, 0.2);
+      color:#000;
+      font-weight:800;
+      border:1px solid rgba(242, 201, 76, 0.5);
+    }
+
+    .hero{
+      display:grid;
+      grid-template-columns:1.1fr 1fr;
+      gap:16px;
+      align-items:stretch;
+    }
+    .heroMedia{
+      border-radius:16px;
+      overflow:hidden;
+      background:#f0f2f6;
+      min-height:220px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      border:1px solid #e3e6eb;
+    }
+    .heroMedia img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .heroBadge{
+      position:absolute;
+      bottom:12px;
+      left:12px;
+      background:rgba(31, 35, 40, 0.85);
+      color:#fff;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .heroInfo h1{
+      margin:0 0 6px;
+      font-size:20px;
+    }
+    .heroMeta{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:12px;
+    }
+    .heroList{
+      display:grid;
+      gap:8px;
+      font-size:13px;
+    }
+    .heroList b{
+      color:#111;
+    }
+
+    .infoGrid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:12px;
+    }
+    .infoCard{
+      background:#f8f9fb;
+      border:1px solid #ebedf2;
+      border-radius:14px;
+      padding:12px 14px;
+    }
+    .infoCard span{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
     }
 
     .tgLink{
@@ -88,6 +194,40 @@
       text-decoration:none;
     }
     .tgLink:hover{ opacity:.9; }
+
+    .tgCard{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:16px;
+      align-items:center;
+      padding:18px;
+      background:linear-gradient(130deg, #eef5ff, #f9fbff);
+      border:1px solid #d8e6ff;
+    }
+    .tgArt{
+      width:64px;
+      height:64px;
+      border-radius:18px;
+      background:#2f80ed;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 12px 20px rgba(47, 128, 237, 0.25);
+    }
+    .tgArt svg{
+      width:36px;
+      height:36px;
+      fill:#fff;
+    }
+    .tgText h3{
+      margin:0 0 6px;
+      font-size:16px;
+    }
+    .tgText p{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+    }
 
     table{
       width:100%;
@@ -116,34 +256,64 @@
     /* photos */
     .photosGrid{
       display:grid;
-      grid-template-columns:1fr;
+      grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
       gap:12px;
       margin-top:10px;
-      background:#000;
-      padding:10px;
-      border-radius:12px;
+      background:#f4f5f9;
+      padding:12px;
+      border-radius:14px;
     }
 
     .ph{
       border:0;
-      border-radius:0;
+      border-radius:14px;
       overflow:hidden;
-      background:transparent;
+      background:#fff;
+      border:1px solid #e3e6eb;
       display:flex;
       flex-direction:column;
     }
 
     .phMedia{
       width:100%;
-      background:transparent;
+      background:#fff;
     }
 
     .ph img{
       width:100%;
-      height:auto;
+      height:160px;
+      object-fit:cover;
       display:block;
       cursor:pointer;
       background:#fff;
+    }
+    .phFooter{
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .phFooter span{
+      font-size:12px;
+      color:var(--muted);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .phBtn{
+      border-radius:999px;
+      border:1px solid #d8dbe0;
+      background:#fff;
+      padding:6px 10px;
+      font-size:11px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .phBtn.is-active{
+      background:var(--yellow);
+      border-color:var(--yellow);
+      color:#111;
     }
 
     /* lightbox */
@@ -198,20 +368,30 @@
     }
 
     /* PRINT A4 */
+    @media(max-width:860px){
+      .hero{
+        grid-template-columns:1fr;
+      }
+      .infoGrid{
+        grid-template-columns:1fr;
+      }
+      .tgCard{
+        grid-template-columns:1fr;
+        text-align:center;
+      }
+      .tgCard .tgArt{
+        margin:0 auto;
+      }
+    }
+
     @media(max-width:560px){
       .photosGrid{ grid-template-columns:repeat(2,1fr); }
-      .ph,
-      .ph.is-wide,
-      .ph.is-tall{
-        grid-column:span 2;
-        grid-row:auto;
-      }
     }
 
     @media print{
       body{ background:#fff; }
       .wrap{ max-width:none; padding:0; }
-      .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; }
+      .card{ border:0; border-radius:0; padding:0; margin:0 0 10px; box-shadow:none; }
       .actions{ display:none !important; }
       .photosGrid{
         grid-template-columns:repeat(2,1fr);
@@ -247,13 +427,22 @@
   <div class="wrap">
     <div class="top">
       <div>
-        <div class="logo">Surpresso Service</div>
-        <div class="sub">Паспорт обладнання (динамічний)</div>
+        <div class="logo">
+          <img src="icons/192.png" alt="Surpresso" />
+          <div>
+            <div>Surpresso</div>
+            <div class="sub">Service & Rental</div>
+          </div>
+        </div>
+        <div class="sub" style="margin-top:6px">Паспорт обладнання</div>
       </div>
 
-      <div class="sub">
-        ID: <b id="eqId">—</b><br />
-        <span class="muted" id="updatedAt"></span>
+      <div class="row" style="justify-content:flex-end">
+        <span class="pill pill-status">● <span id="curStatus">—</span></span>
+        <div class="sub" style="text-align:right">
+          ID: <b id="eqId">—</b><br />
+          <span class="muted" id="updatedAt"></span>
+        </div>
       </div>
     </div>
 
@@ -262,7 +451,7 @@
         <div class="row">
           <span class="pill" id="pillOwner">owner: —</span>
           <span class="pill" id="pillType">type: —</span>
-          <span class="pill">статус: <b id="curStatus">—</b></span>
+          <span class="pill">статус: <b id="curStatusMobile">—</b></span>
         </div>
 
         <div class="row">
@@ -281,6 +470,51 @@
     </div>
 
     <div id="main" style="display:none">
+      <div class="card hero">
+        <div class="heroMedia">
+          <img id="mainPhoto" src="" alt="Головне фото" />
+          <div class="heroBadge">⭐ Обкладинка</div>
+        </div>
+        <div class="heroInfo">
+          <h1 id="heroTitle">Паспорт обладнання</h1>
+          <div class="heroMeta">
+            <span id="heroId">ID: —</span>
+            <span id="heroUpdated">Оновлено: —</span>
+          </div>
+          <div class="infoGrid">
+            <div class="infoCard">
+              <span>Тип</span>
+              <b id="heroType">—</b>
+            </div>
+            <div class="infoCard">
+              <span>Власник</span>
+              <b id="heroOwner">—</b>
+            </div>
+            <div class="infoCard">
+              <span>Локація</span>
+              <b id="heroLocation">—</b>
+            </div>
+            <div class="infoCard">
+              <span>Модель</span>
+              <b id="heroModel">—</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card tgCard">
+        <div class="tgArt" aria-hidden="true">
+          <svg viewBox="0 0 240 240" role="img" aria-label="Telegram">
+            <path d="M209.8 48.6c-4.4-3.6-10.5-4.6-16.9-2.4L42.7 104.9c-6.4 2.2-10.5 6.4-11.2 11.6-.7 5.1 2.2 9.9 7.9 13l34.9 18.4 16.6 50.3c1.7 5.1 6.5 8.5 12.1 8.7h.5c5.4 0 10.3-2.8 12.9-7.4l22.4-40.6 46.7 34.4c4.5 3.3 10.1 4.2 15.4 2.3 5.3-1.9 9.2-6.2 10.4-11.7l29.5-128.5c1.4-6.1-.7-12.3-5.5-16.6zM94.6 142.7l-3.4 40.2-12.2-36.8 79.6-71.3-63.9 67.9z"/>
+          </svg>
+        </div>
+        <div class="tgText">
+          <h3>Підписка на Telegram-сповіщення</h3>
+          <p>Отримуйте статуси ремонту, ETA та коментарі по цьому обладнанню.</p>
+        </div>
+        <div id="telegramSubscribe"></div>
+      </div>
+
       <div class="card">
         <h2>Інформація</h2>
         <table id="info"></table>
@@ -331,6 +565,8 @@
     const API_BASE = "";
 
     const $ = (id) => document.getElementById(id);
+    const coverKey = (id) => `surpresso_cover_${id}`;
+    let CURRENT_PHOTOS = [];
 
     // ==========================
     // ID
@@ -391,10 +627,19 @@
       const log = Array.isArray(data.log) ? data.log : [];
 
       $("curStatus").textContent = eq.status || "—";
+      $("curStatusMobile").textContent = eq.status || "—";
       $("updatedAt").textContent = eq.updatedAt ? ("Оновлено: " + fmt(eq.updatedAt)) : "";
 
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
+
+      $("heroTitle").textContent = eq.name || "Паспорт обладнання";
+      $("heroId").textContent = `ID: ${eq.id || EQUIPMENT_ID}`;
+      $("heroUpdated").textContent = eq.updatedAt ? `Оновлено: ${fmt(eq.updatedAt)}` : "Оновлено: —";
+      $("heroType").textContent = eq.type || "—";
+      $("heroOwner").textContent = eq.owner || "—";
+      $("heroLocation").textContent = eq.owner === "client" ? (eq.clientLocation || "—") : (eq.companyLocation || "—");
+      $("heroModel").textContent = eq.model || eq.name || "—";
 
       // info rows
       const rows = [];
@@ -405,7 +650,9 @@
       add("ID", eq.id || EQUIPMENT_ID);
       add("Тип", eq.type || "—");
       add("Власник", eq.owner || "—");
-      addHtml("Telegram", buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID));
+      const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID);
+      addHtml("Telegram", tgLink);
+      $("telegramSubscribe").innerHTML = tgLink;
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
 
@@ -450,10 +697,16 @@
       if (!photos.length) {
         $("photosHint").textContent = "Фото відсутні";
         $("photos").innerHTML = "";
+        $("mainPhoto").src = "";
+        $("mainPhoto").alt = "Фото відсутні";
         return;
       }
 
       $("photosHint").textContent = `Показано фото: ${photos.length}`;
+      CURRENT_PHOTOS = photos;
+
+      const saved = getSavedCover(photos);
+      setMainPhoto(saved.index);
 
       $("photos").innerHTML = photos.map((p, i) => {
         const driveUrl = String(p.url || "");
@@ -463,6 +716,8 @@
         const safeCap = esc(displayCap);
         const safeDrive = esc(driveUrl);
         const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
+        const isCover = saved.index === i;
+        const buttonLabel = isCover ? "Головне" : "На обкладинку";
 
         // если imgUrl пустой — покажем кнопку открыть
         if (!imgUrl) {
@@ -487,6 +742,10 @@
                 onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentElement.innerHTML='<div style=&quot;padding:10px&quot; class=&quot;muted&quot;>Не вдалося завантажити прев’ю. <a target=_blank href=&quot;${safeDrive}&quot;>Відкрити</a></div>';"
               />
             </div>
+            <div class="phFooter">
+              <span title="${safeCap}">${safeCap}</span>
+              <button class="phBtn ${isCover ? "is-active" : ""}" onclick="setMainPhoto(${i})">${buttonLabel}</button>
+            </div>
           </div>
         `;
       }).join("");
@@ -495,7 +754,7 @@
     function buildTelegramSubscribeLink(id) {
       const safeId = encodeURIComponent(String(id || ""));
       const url = `https://t.me/SurpressoServicebot?start=eq_${safeId}`;
-      return `<a class="tgLink" href="${url}" target="_blank" rel="noopener">🔔 Підписатися</a>`;
+      return `<a class="tgLink btn-dark" href="${url}" target="_blank" rel="noopener">🔔 Підписатися</a>`;
     }
 
     // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
@@ -559,6 +818,42 @@
       e.stopPropagation();
       if (!LB_DRIVE_URL) return;
       window.open(LB_DRIVE_URL, "_blank");
+    }
+
+    // ==========================
+    // COVER PHOTO
+    // ==========================
+    function getSavedCover(photos) {
+      const raw = localStorage.getItem(coverKey(EQUIPMENT_ID));
+      if (!raw) return { index: 0 };
+      try {
+        const saved = JSON.parse(raw);
+        const idx = photos.findIndex((p) => String(p.url || "") === String(saved.url || ""));
+        if (idx >= 0) return { index: idx };
+      } catch (e) {
+        return { index: 0 };
+      }
+      return { index: 0 };
+    }
+
+    function setMainPhoto(index) {
+      const photo = CURRENT_PHOTOS[index];
+      if (!photo) return;
+      const driveUrl = String(photo.url || "");
+      const imgUrl = String(photo.imgUrl || "") || driveToImageUrl(driveUrl);
+      const cap = photo.caption || `Фото ${index + 1}`;
+      const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
+
+      $("mainPhoto").src = fresh;
+      $("mainPhoto").alt = cap;
+      localStorage.setItem(coverKey(EQUIPMENT_ID), JSON.stringify({ url: driveUrl || imgUrl || "" }));
+
+      const buttons = document.querySelectorAll(".phBtn");
+      buttons.forEach((btn, idx) => {
+        const isActive = idx === index;
+        btn.classList.toggle("is-active", isActive);
+        btn.textContent = isActive ? "Головне" : "На обкладинку";
+      });
     }
 
     // ==========================
