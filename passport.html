@@ -421,6 +421,13 @@
 
     @media(max-width:560px){
       .photosGrid{ grid-template-columns:repeat(2,1fr); }
+      .actions .action-buttons{
+        width:100%;
+      }
+      .actions .action-buttons .btn{
+        flex:1 1 calc(50% - 5px);
+        text-align:center;
+      }
     }
 
     @media print{
@@ -482,14 +489,14 @@
     </div>
 
     <div class="card actions">
-      <div class="row" style="justify-content:space-between">
-        <div class="row">
-          <span class="pill" id="pillOwner">Власник: —</span>
-          <span class="pill" id="pillType">Тип: —</span>
-          <span class="pill">Статус: <b id="curStatusMobile">—</b></span>
+        <div class="row" style="justify-content:space-between">
+          <div class="row">
+          <span class="pill" id="pillOwner">—</span>
+          <span class="pill" id="pillType">—</span>
+          <span class="pill"><b id="curStatusMobile">—</b></span>
         </div>
 
-        <div class="row">
+        <div class="row action-buttons">
           <button class="btn" id="btnRefresh">⟳ Оновити</button>
           <button class="btn btn-yellow" id="btnPrint">🖨 Друк A4</button>
         </div>
@@ -681,8 +688,8 @@
       $("lastCommentTop").textContent = eq.lastComment || "—";
       $("updatedAt").textContent = eq.updatedAt ? ("Оновлено: " + fmt(eq.updatedAt)) : "";
 
-      $("pillOwner").textContent = "Власник: " + (ownerLabel || "—");
-      $("pillType").textContent = "Тип: " + (typeLabel || "—");
+      $("pillOwner").textContent = ownerLabel || "—";
+      $("pillType").textContent = typeLabel || "—";
 
       $("heroTitle").textContent = eq.name || "Паспорт обладнання";
       $("heroId").textContent = `ID: ${eq.id || EQUIPMENT_ID}`;
