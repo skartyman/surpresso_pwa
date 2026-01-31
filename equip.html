@@ -1566,9 +1566,10 @@ input[type="file"]::file-selector-button:hover{
         alert("Вкажи текст запиту");
         return;
       }
-      await postApprovalRequest(text);
+      await postApprovalRequest(text, actor);
     }
 
+    async function postApprovalRequest(text, actor) {
       $("btnApprovalSend").disabled = true;
       $("approvalHint").textContent = "Відправляю...";
 
