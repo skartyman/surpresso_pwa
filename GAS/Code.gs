@@ -765,13 +765,15 @@ function subscribeEquipment_(payload) {
     new Date(),
   ];
 
-  if (rowIndex === -1) {
+  const alreadySubscribed = rowIndex !== -1;
+
+  if (!alreadySubscribed) {
     sheet.appendRow(values);
   } else {
     sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
   }
 
-  return { ok: true };
+  return { ok: true, alreadySubscribed };
 }
 
 function unsubscribeEquipment_(payload) {
