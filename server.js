@@ -257,8 +257,9 @@ function buildCaption(card) {
   return caption;
 }
 
-function buildPassportLink(req, id) {
-  return `${req.protocol}://${req.get("host")}/equip.html?id=${encodeURIComponent(id)}`;
+function buildPassportLink(req, id, { isPublic = false } = {}) {
+  const page = isPublic ? "passport.html" : "equip.html";
+  return `${req.protocol}://${req.get("host")}/${page}?id=${encodeURIComponent(id)}`;
 }
 
 // =======================
@@ -588,7 +589,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const trimmedComment = String(comment || "").trim();
     const commentChanged = trimmedComment && trimmedComment !== String(oldComment || "").trim();
     if ((statusChanged || commentChanged) && shouldNotifyStatus(owner, newStatus)) {
-      const passportLink = buildPassportLink(req, id);
+      const passportLink = buildPassportLink(req, id, { isPublic: owner === "client" });
 
       const caption = buildStatusChangeCaption({
         eq: { ...eqBefore, id, ...locationPayload },
@@ -655,7 +656,7 @@ app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
     const eq = before?.equipment || {};
 
     if (eq.owner === "client") {
-      const passportLink = buildPassportLink(req, id);
+      const passportLink = buildPassportLink(req, id, { isPublic: true });
       const tgCaption = buildPhotoAddedCaption({
         eq: { ...eq, id },
         passportLink,
