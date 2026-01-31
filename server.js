@@ -30,6 +30,7 @@ const GAS_SECRET = process.env.GAS_SECRET || "";         // длинная ст�
 // Telegram
 const TG_BOT = process.env.TG_BOT_TOKEN || "";
 const TG_CHAT = process.env.TG_CHAT_ID || "";
+const TG_NOTIFY_BOT = process.env.TG_NOTIFY_BOT_TOKEN || "";
 const TG_WEBHOOK_SECRET = process.env.TG_WEBHOOK_SECRET || "";
 
 // Trello
@@ -105,9 +106,13 @@ async function gasPost(payload) {
 // =======================
 // HELPERS: Telegram send
 // =======================
-async function tgSendTextTo(chatId, text) {
-  if (!TG_BOT || !chatId) return;
-  await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+function tgApiUrl(botToken, method) {
+  return `https://api.telegram.org/bot${botToken}/${method}`;
+}
+
+async function tgSendTextTo(botToken, chatId, text) {
+  if (!botToken || !chatId) return;
+  await fetch(tgApiUrl(botToken, "sendMessage"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -118,11 +123,11 @@ async function tgSendTextTo(chatId, text) {
   }).catch(() => {});
 }
 
-async function tgSendPhotosTo(chatId, photos, caption) {
-  if (!TG_BOT || !chatId) return;
+async function tgSendPhotosTo(botToken, chatId, photos, caption) {
+  if (!botToken || !chatId) return;
 
   if (!photos || photos.length === 0) {
-    if (caption) await tgSendTextTo(chatId, caption);
+    if (caption) await tgSendTextTo(botToken, chatId, caption);
     return;
   }
 
@@ -148,7 +153,7 @@ async function tgSendPhotosTo(chatId, photos, caption) {
   tgForm.append("chat_id", chatId);
   tgForm.append("media", JSON.stringify(media));
 
-  const tgResp = await fetch(`https://api.telegram.org/bot${TG_BOT}/sendMediaGroup`, {
+  const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
     method: "POST",
     body: tgForm,
   });
@@ -157,11 +162,19 @@ async function tgSendPhotosTo(chatId, photos, caption) {
 }
 
 async function tgSendText(text) {
-  return tgSendTextTo(TG_CHAT, text);
+  return tgSendTextTo(TG_BOT, TG_CHAT, text);
 }
 
 async function tgSendPhotos(photos, caption) {
-  return tgSendPhotosTo(TG_CHAT, photos, caption);
+  return tgSendPhotosTo(TG_BOT, TG_CHAT, photos, caption);
+}
+
+async function tgNotifyTextTo(chatId, text) {
+  return tgSendTextTo(TG_NOTIFY_BOT, chatId, text);
+}
+
+async function tgNotifyPhotosTo(chatId, photos, caption) {
+  return tgSendPhotosTo(TG_NOTIFY_BOT, chatId, photos, caption);
 }
 
 // =======================
@@ -259,7 +272,7 @@ async function notifySubscribers({ equipmentId, photos, caption }) {
   const chatIds = await getSubscriberChatIds(equipmentId);
   if (!chatIds.length) return;
   await Promise.all(
-    chatIds.map((chatId) => tgSendPhotosTo(chatId, photos, caption))
+    chatIds.map((chatId) => tgNotifyPhotosTo(chatId, photos, caption))
   );
 }
 
@@ -654,7 +667,7 @@ app.post("/tg/webhook", async (req, res) => {
 
     if (cmd === "/start" && equipmentId) {
       if (!GAS_WEBAPP_URL || !GAS_SECRET) {
-        await tgSendTextTo(chatId, "Підписка тимчасово недоступна.");
+        await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
         return res.send({ ok: true });
       }
 
@@ -670,7 +683,7 @@ app.post("/tg/webhook", async (req, res) => {
         },
       });
 
-      await tgSendTextTo(
+      await tgNotifyTextTo(
         chatId,
         `✅ Ви підписались на обладнання ${equipmentId}.\nЯкщо потрібно відписатися: /stop eq_${equipmentId}`
       );
@@ -680,7 +693,7 @@ app.post("/tg/webhook", async (req, res) => {
 
     if ((cmd === "/stop" || cmd === "/unsubscribe") && equipmentId) {
       if (!GAS_WEBAPP_URL || !GAS_SECRET) {
-        await tgSendTextTo(chatId, "Підписка тимчасово недоступна.");
+        await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
         return res.send({ ok: true });
       }
 
@@ -690,12 +703,12 @@ app.post("/tg/webhook", async (req, res) => {
         chatId: String(chatId),
       });
 
-      await tgSendTextTo(chatId, `❌ Ви відписались від обладнання ${equipmentId}.`);
+      await tgNotifyTextTo(chatId, `❌ Ви відписались від обладнання ${equipmentId}.`);
       return res.send({ ok: true });
     }
 
     if (cmd === "/start") {
-      await tgSendTextTo(
+      await tgNotifyTextTo(
         chatId,
         "Щоб підписатися, відкрийте паспорт обладнання та натисніть кнопку Telegram."
       );
