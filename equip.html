@@ -1585,11 +1585,6 @@ input[type="file"]::file-selector-button:hover{
 
         if (!out.ok) throw new Error(out.error || "Помилка відправки");
 
-        if (!out.sent) {
-          $("approvalHint").textContent = "⚠️ Немає підписників Telegram для цього ID";
-          return;
-        }
-
         $("approvalHint").textContent = "✅ Запит відправлено";
         setTimeout(() => {
           $("approvalHint").textContent = "";
