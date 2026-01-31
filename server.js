@@ -161,6 +161,46 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
   console.log("TG RESPONSE:", await tgResp.text());
 }
 
+function parseBase64Data(dataUrl, fallbackExt) {
+  const raw = String(dataUrl || "");
+  const match = raw.match(/^data:([^;]+);base64,(.+)$/);
+  const mime = match ? match[1] : "";
+  const data = match ? match[2] : raw.replace(/^data:video\/\w+;base64,/, "");
+  const ext = mime.includes("webm") ? "webm" : mime.includes("mp4") ? "mp4" : fallbackExt;
+  return {
+    buffer: Buffer.from(data, "base64"),
+    filename: `video.${ext}`,
+    mime,
+  };
+}
+
+async function tgSendVideoTo(botToken, chatId, video, caption) {
+  if (!botToken || !chatId || !video) return;
+
+  const tgForm = new FormData();
+  const payload = parseBase64Data(video, "mp4");
+
+  tgForm.append("chat_id", chatId);
+  tgForm.append("video", payload.buffer, { filename: payload.filename });
+  if (caption) tgForm.append("caption", caption);
+
+  const tgResp = await fetch(tgApiUrl(botToken, "sendVideo"), {
+    method: "POST",
+    body: tgForm,
+  });
+
+  console.log("TG VIDEO RESPONSE:", await tgResp.text());
+}
+
+async function tgSendVideosTo(botToken, chatId, videos, caption) {
+  if (!botToken || !chatId) return;
+  const list = Array.isArray(videos) ? videos : [];
+  for (let i = 0; i < list.length; i++) {
+    const withCaption = i === 0 ? caption : "";
+    await tgSendVideoTo(botToken, chatId, list[i], withCaption);
+  }
+}
+
 async function tgSendText(text) {
   return tgSendTextTo(TG_BOT, TG_CHAT, text);
 }
@@ -169,12 +209,20 @@ async function tgSendPhotos(photos, caption) {
   return tgSendPhotosTo(TG_BOT, TG_CHAT, photos, caption);
 }
 
+async function tgSendVideos(videos, caption) {
+  return tgSendVideosTo(TG_BOT, TG_CHAT, videos, caption);
+}
+
 async function tgNotifyTextTo(chatId, text) {
   return tgSendTextTo(TG_NOTIFY_BOT, chatId, text);
 }
 
 async function tgNotifyPhotosTo(chatId, photos, caption) {
   return tgSendPhotosTo(TG_NOTIFY_BOT, chatId, photos, caption);
+}
+
+async function tgNotifyVideosTo(chatId, videos, caption) {
+  return tgSendVideosTo(TG_NOTIFY_BOT, chatId, videos, caption);
 }
 
 // =======================
@@ -273,6 +321,14 @@ async function notifySubscribers({ equipmentId, photos, caption }) {
   if (!chatIds.length) return;
   await Promise.all(
     chatIds.map((chatId) => tgNotifyPhotosTo(chatId, photos, caption))
+  );
+}
+
+async function notifySubscribersVideos({ equipmentId, videos, caption }) {
+  const chatIds = await getSubscriberChatIds(equipmentId);
+  if (!chatIds.length) return;
+  await Promise.all(
+    chatIds.map((chatId) => tgNotifyVideosTo(chatId, videos, caption))
   );
 }
 
@@ -494,6 +550,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
       comment = "",
       actor = "",
       photos = [],
+      videos = [],
       location = "",
     } = req.body || {};
     if (!newStatus) return res.status(400).send({ ok: false, error: "no_newStatus" });
@@ -505,6 +562,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const oldComment = String(eqBefore.lastComment || "");
 
     const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
+    const safeVideos = Array.isArray(videos) ? videos.slice(0, 1) : [];
     const trimmedLocation = String(location || "").trim();
     const owner = String(eqBefore.owner || "");
     const locationPayload = trimmedLocation
@@ -541,10 +599,26 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         passportLink,
       });
 
+      const videoCaption = safePhotos.length ? "" : caption;
+
       if (owner === "client") {
-        await notifySubscribers({ equipmentId: id, photos: safePhotos, caption });
+        if (safePhotos.length) {
+          await notifySubscribers({ equipmentId: id, photos: safePhotos, caption });
+        } else if (caption) {
+          await notifySubscribers({ equipmentId: id, photos: [], caption });
+        }
+        if (safeVideos.length) {
+          await notifySubscribersVideos({ equipmentId: id, videos: safeVideos, caption: videoCaption });
+        }
       } else {
-        await tgSendPhotos(safePhotos, caption);
+        if (safePhotos.length) {
+          await tgSendPhotos(safePhotos, caption);
+        } else if (caption) {
+          await tgSendText(caption);
+        }
+        if (safeVideos.length) {
+          await tgSendVideos(safeVideos, videoCaption);
+        }
       }
     }
 
