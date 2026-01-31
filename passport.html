@@ -386,6 +386,7 @@
       // info rows
       const rows = [];
       const add = (k, v) => rows.push(`<tr><td class="lbl">${k}</td><td>${esc(v)}</td></tr>`);
+      const personalHiddenLabel = "Персональні дані приховано";
 
       add("ID", eq.id || EQUIPMENT_ID);
       add("Тип", eq.type || "—");
@@ -394,8 +395,8 @@
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
 
       if (eq.owner === "client") {
-        add("Клієнт", eq.clientName || "—");
-        add("Телефон", eq.clientPhone || "—");
+        add("Клієнт", personalHiddenLabel);
+        add("Телефон", personalHiddenLabel);
         add("Локація", eq.clientLocation || "—");
         add("Модель", eq.model || "—");
         add("Серійний", eq.serial || "—");
