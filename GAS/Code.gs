@@ -136,6 +136,10 @@ function doPost(e) {
     if (action === "subscribe") return json_(subscribeEquipment_(data));
     if (action === "unsubscribe") return json_(unsubscribeEquipment_(data));
     if (action === "subscribers") return json_(getEquipmentSubscribers_(data));
+    if (action === "subscriptionByChat") return json_(getSubscriptionByChat_(data));
+    if (action === "history") return json_(getStatusHistory_(data));
+    if (action === "approvalRequest") return json_(recordApprovalRequest_(data));
+    if (action === "approvalResponse") return json_(recordApprovalResponse_(data));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -815,6 +819,163 @@ function getEquipmentSubscribers_(payload) {
   }
 
   return { ok: true, subscribers };
+}
+
+function getSubscriptionByChat_(payload) {
+  const chatId = String(payload.chatId || "").trim();
+  if (!chatId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateSubscriptionsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idx = buildSubscriptionsIndex_(headers);
+  const idxSubscribedAt = headers.indexOf("subscribedAt");
+
+  let latest = null;
+  let latestTs = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[idx.chatId] || "") === chatId) {
+      const ts = idxSubscribedAt > -1 ? new Date(row[idxSubscribedAt]).getTime() : 0;
+      if (!latest || ts >= latestTs) {
+        latest = row;
+        latestTs = ts;
+      }
+    }
+  }
+
+  return { ok: true, equipmentId: latest ? String(latest[idx.equipmentId] || "").trim() : "" };
+}
+
+function getStatusHistory_(payload) {
+  const equipmentId = String(payload.id || "").trim();
+  const limit = Math.max(1, Number(payload.limit || 5));
+  if (!equipmentId) return { ok: false, error: "missing_fields" };
+  const items = getStatusLogById_(equipmentId).slice(0, limit);
+  return { ok: true, items };
+}
+
+function getOrCreateApprovalsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName("approvals");
+  if (!sheet) {
+    sheet = ss.insertSheet("approvals");
+    sheet.appendRow([
+      "requestId",
+      "equipmentId",
+      "message",
+      "actor",
+      "createdAt",
+      "status",
+      "response",
+      "responseAt",
+      "chatId",
+      "userId",
+      "username",
+      "firstName",
+      "lastName",
+    ]);
+  }
+  return sheet;
+}
+
+function recordApprovalRequest_(payload) {
+  const requestId = String(payload.requestId || "").trim();
+  const equipmentId = String(payload.equipmentId || "").trim();
+  if (!requestId || !equipmentId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateApprovalsSheet_();
+  sheet.appendRow([
+    requestId,
+    equipmentId,
+    String(payload.message || ""),
+    String(payload.actor || ""),
+    new Date(),
+    "pending",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
+  return { ok: true };
+}
+
+function recordApprovalResponse_(payload) {
+  const requestId = String(payload.requestId || "").trim();
+  const equipmentId = String(payload.equipmentId || "").trim();
+  const answer = String(payload.answer || "").trim();
+  const chatId = String(payload.chatId || "").trim();
+  if (!requestId || !equipmentId || !answer || !chatId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateApprovalsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idx = {
+    requestId: headers.indexOf("requestId"),
+    equipmentId: headers.indexOf("equipmentId"),
+    status: headers.indexOf("status"),
+    response: headers.indexOf("response"),
+    responseAt: headers.indexOf("responseAt"),
+    chatId: headers.indexOf("chatId"),
+    userId: headers.indexOf("userId"),
+    username: headers.indexOf("username"),
+    firstName: headers.indexOf("firstName"),
+    lastName: headers.indexOf("lastName"),
+  };
+
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (
+      String(row[idx.requestId] || "") === requestId &&
+      String(row[idx.equipmentId] || "") === equipmentId
+    ) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  const user = payload.user || {};
+  if (rowIndex === -1) {
+    sheet.appendRow([
+      requestId,
+      equipmentId,
+      "",
+      "",
+      "",
+      "answered",
+      answer,
+      new Date(),
+      chatId,
+      user.id || "",
+      user.username || "",
+      user.firstName || "",
+      user.lastName || "",
+    ]);
+    return { ok: true };
+  }
+
+  const updates = [];
+  updates[idx.status] = "answered";
+  updates[idx.response] = answer;
+  updates[idx.responseAt] = new Date();
+  updates[idx.chatId] = chatId;
+  updates[idx.userId] = user.id || "";
+  updates[idx.username] = user.username || "";
+  updates[idx.firstName] = user.firstName || "";
+  updates[idx.lastName] = user.lastName || "";
+
+  for (let i = 0; i < updates.length; i++) {
+    if (updates[i] !== undefined) {
+      sheet.getRange(rowIndex, i + 1).setValue(updates[i]);
+    }
+  }
+
+  return { ok: true };
 }
 
 function getOrCreateSubscriptionsSheet_() {

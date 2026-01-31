@@ -31,7 +31,21 @@ const GAS_SECRET = process.env.GAS_SECRET || "";         // длинная ст�
 const TG_BOT = process.env.TG_BOT_TOKEN || "";
 const TG_CHAT = process.env.TG_CHAT_ID || "";
 const TG_NOTIFY_BOT = process.env.TG_NOTIFY_BOT_TOKEN || "";
+const TG_NOTIFY_CHAT_ID =
+  process.env.TG_NOTIFY_CHAT_ID ||
+  process.env.ADMIN_CHAT_ID ||
+  "";
 const TG_WEBHOOK_SECRET = process.env.TG_WEBHOOK_SECRET || "";
+const SUPPORT_PHONE = process.env.SUPPORT_PHONE || "073-123-18-18";
+const MANAGER_LINK =
+  process.env.MANAGER_LINK ||
+  process.env.SUPPORT_GROUP_LINK ||
+  "https://t.me/SurpressoService";
+const PASSPORT_BASE_URL =
+  process.env.PASSPORT_BASE_URL ||
+  process.env.PUBLIC_APP_URL ||
+  process.env.APP_URL ||
+  "";
 
 // Trello
 const TRELLO_KEY = process.env.TRELLO_KEY || "";
@@ -110,7 +124,7 @@ function tgApiUrl(botToken, method) {
   return `https://api.telegram.org/bot${botToken}/${method}`;
 }
 
-async function tgSendTextTo(botToken, chatId, text) {
+async function tgSendTextTo(botToken, chatId, text, replyMarkup) {
   if (!botToken || !chatId) return;
   await fetch(tgApiUrl(botToken, "sendMessage"), {
     method: "POST",
@@ -119,6 +133,7 @@ async function tgSendTextTo(botToken, chatId, text) {
       chat_id: chatId,
       text,
       disable_web_page_preview: true,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     }),
   }).catch(() => {});
 }
@@ -205,6 +220,11 @@ async function tgSendText(text) {
   return tgSendTextTo(TG_BOT, TG_CHAT, text);
 }
 
+async function tgNotifyAdminText(text) {
+  if (!TG_NOTIFY_CHAT_ID) return;
+  return tgSendTextTo(TG_NOTIFY_BOT, TG_NOTIFY_CHAT_ID, text);
+}
+
 async function tgSendPhotos(photos, caption) {
   return tgSendPhotosTo(TG_BOT, TG_CHAT, photos, caption);
 }
@@ -213,8 +233,8 @@ async function tgSendVideos(videos, caption) {
   return tgSendVideosTo(TG_BOT, TG_CHAT, videos, caption);
 }
 
-async function tgNotifyTextTo(chatId, text) {
-  return tgSendTextTo(TG_NOTIFY_BOT, chatId, text);
+async function tgNotifyTextTo(chatId, text, replyMarkup) {
+  return tgSendTextTo(TG_NOTIFY_BOT, chatId, text, replyMarkup);
 }
 
 async function tgNotifyPhotosTo(chatId, photos, caption) {
@@ -260,6 +280,77 @@ function buildCaption(card) {
 function buildPassportLink(req, id, { isPublic = false } = {}) {
   const page = isPublic ? "passport.html" : "equip.html";
   return `${req.protocol}://${req.get("host")}/${page}?id=${encodeURIComponent(id)}`;
+}
+
+function buildPassportLinkFromBase(baseUrl, id, { isPublic = false } = {}) {
+  if (!baseUrl) return "";
+  const trimmed = String(baseUrl).replace(/\/+$/, "");
+  const page = isPublic ? "passport.html" : "equip.html";
+  return `${trimmed}/${page}?id=${encodeURIComponent(id)}`;
+}
+
+const MAIN_MENU_LABELS = ["паспорт", "статус", "история", "связаться", "отписка"];
+const CONTACT_MENU_LABELS = ["позвонить", "написать менеджеру", "написать в сервис", "назад"];
+const FINAL_MENU_LABELS = ["відписатися", "оцінити", "питання"];
+
+function normalizeMenuText(text) {
+  return String(text || "").trim().toLowerCase();
+}
+
+function buildMainMenuMarkup() {
+  return {
+    keyboard: [
+      ["Паспорт", "Статус"],
+      ["История", "Связаться"],
+      ["Отписка"],
+    ],
+    resize_keyboard: true,
+  };
+}
+
+function buildContactMenuMarkup() {
+  return {
+    keyboard: [
+      ["Позвонить", "Написать менеджеру"],
+      ["Написать в сервис"],
+      ["Назад"],
+    ],
+    resize_keyboard: true,
+  };
+}
+
+function buildFinalMenuMarkup() {
+  return {
+    keyboard: [["Відписатися", "Оцінити", "Питання"]],
+    resize_keyboard: true,
+  };
+}
+
+function buildApprovalMarkup({ requestId, equipmentId }) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "Так", callback_data: `approval:${requestId}:${equipmentId}:yes` },
+        { text: "Ні", callback_data: `approval:${requestId}:${equipmentId}:no` },
+      ],
+      [
+        { text: "Вартість", callback_data: `approval:${requestId}:${equipmentId}:cost` },
+        { text: "Уточнення", callback_data: `approval:${requestId}:${equipmentId}:question` },
+      ],
+    ],
+  };
+}
+
+async function sendMainMenu(chatId, text = "Головне меню") {
+  return tgNotifyTextTo(chatId, text, buildMainMenuMarkup());
+}
+
+async function sendContactMenu(chatId, text = "Оберіть спосіб зв’язку") {
+  return tgNotifyTextTo(chatId, text, buildContactMenuMarkup());
+}
+
+async function sendFinalMenu(chatId, text = "Ремонт завершён") {
+  return tgNotifyTextTo(chatId, text, buildFinalMenuMarkup());
 }
 
 // =======================
@@ -317,19 +408,32 @@ async function getSubscriberChatIds(equipmentId) {
   }
 }
 
-async function notifySubscribers({ equipmentId, photos, caption }) {
+async function notifySubscribers({ equipmentId, photos, caption, replyMarkup }) {
   const chatIds = await getSubscriberChatIds(equipmentId);
   if (!chatIds.length) return;
   await Promise.all(
-    chatIds.map((chatId) => tgNotifyPhotosTo(chatId, photos, caption))
+    chatIds.map(async (chatId) => {
+      await tgNotifyPhotosTo(chatId, photos, caption);
+      if (!photos?.length && caption && replyMarkup) {
+        await tgNotifyTextTo(chatId, "Меню", replyMarkup);
+      }
+      if (photos?.length && replyMarkup) {
+        await tgNotifyTextTo(chatId, "Меню", replyMarkup);
+      }
+    })
   );
 }
 
-async function notifySubscribersVideos({ equipmentId, videos, caption }) {
+async function notifySubscribersVideos({ equipmentId, videos, caption, replyMarkup }) {
   const chatIds = await getSubscriberChatIds(equipmentId);
   if (!chatIds.length) return;
   await Promise.all(
-    chatIds.map((chatId) => tgNotifyVideosTo(chatId, videos, caption))
+    chatIds.map(async (chatId) => {
+      await tgNotifyVideosTo(chatId, videos, caption);
+      if (replyMarkup) {
+        await tgNotifyTextTo(chatId, "Меню", replyMarkup);
+      }
+    })
   );
 }
 
@@ -360,6 +464,19 @@ function parseTelegramCommand(text) {
   if (!raw) return null;
   const [cmd, payload] = raw.split(/\s+/);
   return { cmd, payload };
+}
+
+const pendingServiceMessages = new Map();
+
+async function getLatestEquipmentIdForChat(chatId) {
+  if (!chatId || !GAS_WEBAPP_URL || !GAS_SECRET) return "";
+  try {
+    const out = await gasPost({ action: "subscriptionByChat", chatId: String(chatId) });
+    return String(out?.equipmentId || "").trim();
+  } catch (err) {
+    console.error("SUBSCRIPTION LOOKUP ERROR:", err);
+    return "";
+  }
 }
 
 function buildStatusChangeCaption({ eq, oldStatus, newStatus, comment, actor, passportLink }) {
@@ -590,6 +707,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const commentChanged = trimmedComment && trimmedComment !== String(oldComment || "").trim();
     if ((statusChanged || commentChanged) && shouldNotifyStatus(owner, newStatus)) {
       const passportLink = buildPassportLink(req, id, { isPublic: owner === "client" });
+      const mainMenuMarkup = buildMainMenuMarkup();
 
       const caption = buildStatusChangeCaption({
         eq: { ...eqBefore, id, ...locationPayload },
@@ -604,12 +722,34 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
 
       if (owner === "client") {
         if (safePhotos.length) {
-          await notifySubscribers({ equipmentId: id, photos: safePhotos, caption });
+          await notifySubscribers({
+            equipmentId: id,
+            photos: safePhotos,
+            caption,
+            replyMarkup: mainMenuMarkup,
+          });
         } else if (caption) {
-          await notifySubscribers({ equipmentId: id, photos: [], caption });
+          await notifySubscribers({
+            equipmentId: id,
+            photos: [],
+            caption,
+            replyMarkup: mainMenuMarkup,
+          });
         }
         if (safeVideos.length) {
-          await notifySubscribersVideos({ equipmentId: id, videos: safeVideos, caption: videoCaption });
+          await notifySubscribersVideos({
+            equipmentId: id,
+            videos: safeVideos,
+            caption: videoCaption,
+            replyMarkup: mainMenuMarkup,
+          });
+        }
+
+        if (statusChanged && isClientGiveAwayStatus(newStatus)) {
+          const chatIds = await getSubscriberChatIds(id);
+          await Promise.all(
+            chatIds.map((chatId) => sendFinalMenu(chatId))
+          );
         }
       } else {
         if (safePhotos.length) {
@@ -624,6 +764,40 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     }
 
     res.send({ ok: true, ...out });
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+// ✅ approval request (service -> client bot)
+app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { text = "", actor = "" } = req.body || {};
+    if (!id || !text) return res.status(400).send({ ok: false, error: "missing_fields" });
+
+    const requestId = crypto.randomUUID();
+    await gasPost({
+      action: "approvalRequest",
+      requestId,
+      equipmentId: id,
+      message: String(text || ""),
+      actor: String(actor || ""),
+    });
+
+    const chatIds = await getSubscriberChatIds(id);
+    const message =
+      `🛠 Потрібне погодження\n` +
+      `🆔 ID: ${id}\n` +
+      `📝 ${text}`;
+
+    await Promise.all(
+      chatIds.map((chatId) =>
+        tgNotifyTextTo(chatId, message, buildApprovalMarkup({ requestId, equipmentId: id }))
+      )
+    );
+
+    res.send({ ok: true, requestId, sent: chatIds.length });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
@@ -728,6 +902,51 @@ app.post("/tg/webhook", async (req, res) => {
     }
 
     const update = req.body || {};
+    if (update.callback_query) {
+      const callback = update.callback_query;
+      const data = String(callback.data || "");
+      const chatId = callback.message?.chat?.id;
+      const user = callback.from || {};
+      if (chatId && data.startsWith("approval:")) {
+        const [, requestId, equipmentId, answer] = data.split(":");
+        const normalizedAnswer = String(answer || "").trim();
+        await gasPost({
+          action: "approvalResponse",
+          requestId,
+          equipmentId,
+          answer: normalizedAnswer,
+          chatId: String(chatId),
+          user: {
+            id: user.id,
+            username: user.username,
+            firstName: user.first_name,
+            lastName: user.last_name,
+          },
+        });
+
+        const answerLabel = {
+          yes: "Так",
+          no: "Ні",
+          cost: "Вартість",
+          question: "Уточнення",
+        }[normalizedAnswer] || normalizedAnswer;
+
+        await tgNotifyAdminText(
+          `✅ Відповідь клієнта\n🆔 ID: ${equipmentId}\n💬 ${answerLabel}\n👤 @${user.username || "—"}`
+        );
+        await tgNotifyTextTo(chatId, "Прийнято ✅", buildMainMenuMarkup());
+      }
+
+      if (callback.id) {
+        await fetch(tgApiUrl(TG_NOTIFY_BOT, "answerCallbackQuery"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ callback_query_id: callback.id }),
+        }).catch(() => {});
+      }
+      return res.send({ ok: true });
+    }
+
     const message = update.message || update.edited_message || {};
     const text = message.text || "";
     const chatId = message.chat?.id;
@@ -735,65 +954,245 @@ app.post("/tg/webhook", async (req, res) => {
 
     if (!chatId) return res.send({ ok: true });
 
-    const parsed = parseTelegramCommand(text);
-    if (!parsed) return res.send({ ok: true });
-
-    const { cmd, payload } = parsed;
-    const token = String(payload || "").trim();
-    const match = token.match(/^eq_(.+)$/i);
-    const equipmentId = match ? match[1] : "";
-
-    if (cmd === "/start" && equipmentId) {
-      if (!GAS_WEBAPP_URL || !GAS_SECRET) {
-        await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
-        return res.send({ ok: true });
-      }
-
-      const subscription = await gasPost({
-        action: "subscribe",
-        id: equipmentId,
-        chatId: String(chatId),
-        user: {
-          id: user.id,
-          username: user.username,
-          firstName: user.first_name,
-          lastName: user.last_name,
-        },
-      });
-
-      if (subscription?.alreadySubscribed) {
-        await tgNotifyTextTo(chatId, "Ви вже підписані на сповіщення про перебіг ремонту.");
-      } else {
+    if (TG_NOTIFY_CHAT_ID && String(chatId) === String(TG_NOTIFY_CHAT_ID)) {
+      const replyText = message.reply_to_message?.text || "";
+      const matchChat = replyText.match(/Chat ID:\s*(\d+)/i);
+      const clientChatId = matchChat ? matchChat[1] : "";
+      if (clientChatId && text) {
         await tgNotifyTextTo(
-          chatId,
-          "Ваше обладнання прийнято на ремонт до Surpresso Service. Ви підписані на сповіщення про перебіг ремонту."
+          clientChatId,
+          `💬 Відповідь менеджера:\n${text}`,
+          buildMainMenuMarkup()
         );
       }
-
       return res.send({ ok: true });
     }
 
-    if ((cmd === "/stop" || cmd === "/unsubscribe") && equipmentId) {
-      if (!GAS_WEBAPP_URL || !GAS_SECRET) {
-        await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
+    const normalized = normalizeMenuText(text);
+
+    if (
+      pendingServiceMessages.has(chatId) &&
+      text &&
+      !text.startsWith("/") &&
+      !MAIN_MENU_LABELS.includes(normalized) &&
+      !CONTACT_MENU_LABELS.includes(normalized) &&
+      !FINAL_MENU_LABELS.includes(normalized)
+    ) {
+      const pending = pendingServiceMessages.get(chatId) || {};
+      pendingServiceMessages.delete(chatId);
+      const equipmentId = pending.equipmentId || (await getLatestEquipmentIdForChat(chatId));
+      const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: true });
+      const adminMessage = [
+        "📩 Повідомлення від клієнта",
+        `🆔 Equipment ID: ${equipmentId || "—"}`,
+        `👤 ${user.first_name || ""} ${user.last_name || ""} (@${user.username || "—"})`,
+        `💬 ${text}`,
+        passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+        `Chat ID: ${chatId}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await tgNotifyAdminText(adminMessage);
+      await tgNotifyTextTo(chatId, "Прийнято ✅", buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    const parsed = parseTelegramCommand(text);
+    if (parsed?.cmd) {
+      const { cmd, payload } = parsed;
+      const token = String(payload || "").trim();
+      const match = token.match(/^eq_(.+)$/i);
+      const equipmentId = match ? match[1] : "";
+
+      if (cmd === "/start" && equipmentId) {
+        if (!GAS_WEBAPP_URL || !GAS_SECRET) {
+          await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
+          return res.send({ ok: true });
+        }
+
+        const subscription = await gasPost({
+          action: "subscribe",
+          id: equipmentId,
+          chatId: String(chatId),
+          user: {
+            id: user.id,
+            username: user.username,
+            firstName: user.first_name,
+            lastName: user.last_name,
+          },
+        });
+
+        if (subscription?.alreadySubscribed) {
+          await tgNotifyTextTo(
+            chatId,
+            "Ви вже підписані на сповіщення про перебіг ремонту.",
+            buildMainMenuMarkup()
+          );
+        } else {
+          await tgNotifyTextTo(
+            chatId,
+            "Ваше обладнання прийнято на ремонт до Surpresso Service. Ви підписані на сповіщення про перебіг ремонту.",
+            buildMainMenuMarkup()
+          );
+        }
+
         return res.send({ ok: true });
       }
 
+      if (cmd === "/stop" || cmd === "/unsubscribe") {
+        const idToUnsub = equipmentId || (await getLatestEquipmentIdForChat(chatId));
+        if (!idToUnsub) {
+          await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+          return res.send({ ok: true });
+        }
+
+        if (!GAS_WEBAPP_URL || !GAS_SECRET) {
+          await tgNotifyTextTo(chatId, "Підписка тимчасово недоступна.");
+          return res.send({ ok: true });
+        }
+
+        await gasPost({
+          action: "unsubscribe",
+          id: idToUnsub,
+          chatId: String(chatId),
+        });
+
+        await tgNotifyTextTo(
+          chatId,
+          `❌ Ви відписались від обладнання ${idToUnsub}.`,
+          buildMainMenuMarkup()
+        );
+        return res.send({ ok: true });
+      }
+
+      if (cmd === "/start") {
+        await tgNotifyTextTo(
+          chatId,
+          "Щоб підписатися, відкрийте паспорт обладнання та натисніть кнопку Telegram.",
+          buildMainMenuMarkup()
+        );
+        return res.send({ ok: true });
+      }
+    }
+
+    if (!text) return res.send({ ok: true });
+
+    if (normalized === "паспорт") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: true });
+      if (!passportLink) {
+        await tgNotifyTextTo(chatId, "Паспорт тимчасово недоступний.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      await tgNotifyTextTo(chatId, `🔗 Паспорт: ${passportLink}`, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "статус") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      const out = await gasPost({ action: "get", id: equipmentId });
+      const eq = out?.equipment || {};
+      const statusText = [
+        "🔎 Поточний статус",
+        `🆔 ID: ${equipmentId}`,
+        `🔧 ${eq.status || "—"}`,
+        eq.lastComment ? `📝 ${eq.lastComment}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await tgNotifyTextTo(chatId, statusText, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "история") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
+      const history = await gasPost({ action: "history", id: equipmentId, limit: 5 });
+      const rows = Array.isArray(history?.items) ? history.items : [];
+      const lines = rows.map((entry) => {
+        const ts = entry.ts ? `📅 ${entry.ts}` : "";
+        const status = `🔁 ${entry.oldStatus || "—"} → ${entry.newStatus || "—"}`;
+        const comment = entry.comment ? `📝 ${entry.comment}` : "";
+        const actor = entry.actor ? `👷 ${entry.actor}` : "";
+        return [ts, status, comment, actor].filter(Boolean).join("\n");
+      });
+      const historyText =
+        lines.length > 0
+          ? `📜 Історія\n${lines.join("\n\n")}`
+          : "Історія поки порожня.";
+      await tgNotifyTextTo(chatId, historyText, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "связаться") {
+      await sendContactMenu(chatId);
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "позвонить") {
+      await tgNotifyTextTo(chatId, `📞 Телефон: ${SUPPORT_PHONE}`, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "написать менеджеру") {
+      await tgNotifyTextTo(chatId, `💬 Менеджер: ${MANAGER_LINK}`, buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "написать в сервис") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      pendingServiceMessages.set(chatId, { equipmentId });
+      await tgNotifyTextTo(
+        chatId,
+        "Напишіть ваше повідомлення — передамо в сервіс.",
+        buildMainMenuMarkup()
+      );
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "назад") {
+      await sendMainMenu(chatId);
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "отписка" || normalized === "відписатися") {
+      const equipmentId = await getLatestEquipmentIdForChat(chatId);
+      if (!equipmentId) {
+        await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
+        return res.send({ ok: true });
+      }
       await gasPost({
         action: "unsubscribe",
         id: equipmentId,
         chatId: String(chatId),
       });
-
-      await tgNotifyTextTo(chatId, `❌ Ви відписались від обладнання ${equipmentId}.`);
+      await tgNotifyTextTo(
+        chatId,
+        `❌ Ви відписались від обладнання ${equipmentId}.`,
+        buildMainMenuMarkup()
+      );
       return res.send({ ok: true });
     }
 
-    if (cmd === "/start") {
-      await tgNotifyTextTo(
-        chatId,
-        "Щоб підписатися, відкрийте паспорт обладнання та натисніть кнопку Telegram."
-      );
+    if (normalized === "оцінити") {
+      await tgNotifyTextTo(chatId, "Дякуємо за оцінку! ⭐️", buildMainMenuMarkup());
+      return res.send({ ok: true });
+    }
+
+    if (normalized === "питання") {
+      await sendContactMenu(chatId, "Маєте питання? Оберіть спосіб зв’язку.");
+      return res.send({ ok: true });
     }
 
     return res.send({ ok: true });
