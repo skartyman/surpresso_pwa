@@ -749,7 +749,7 @@ app.post("/tg/webhook", async (req, res) => {
         return res.send({ ok: true });
       }
 
-      await gasPost({
+      const subscription = await gasPost({
         action: "subscribe",
         id: equipmentId,
         chatId: String(chatId),
@@ -761,10 +761,14 @@ app.post("/tg/webhook", async (req, res) => {
         },
       });
 
-      await tgNotifyTextTo(
-        chatId,
-        `✅ Ви підписались на обладнання ${equipmentId}.\nЯкщо потрібно відписатися: /stop eq_${equipmentId}`
-      );
+      if (subscription?.alreadySubscribed) {
+        await tgNotifyTextTo(chatId, "Ви вже підписані на сповіщення про перебіг ремонту.");
+      } else {
+        await tgNotifyTextTo(
+          chatId,
+          "Ваше обладнання прийнято на ремонт до Surpresso Service. Ви підписані на сповіщення про перебіг ремонту."
+        );
+      }
 
       return res.send({ ok: true });
     }
