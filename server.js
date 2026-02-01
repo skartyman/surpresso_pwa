@@ -345,8 +345,8 @@ function buildProxyDriveUrl(req, driveUrl) {
   return `${req.protocol}://${req.get("host")}/proxy-drive/${encodeURIComponent(fileId)}`;
 }
 
-const MAIN_MENU_LABELS = ["паспорт", "статус", "история", "связаться", "отписка"];
-const CONTACT_MENU_LABELS = ["позвонить", "написать менеджеру", "написать в сервис", "назад"];
+const MAIN_MENU_LABELS = ["паспорт", "статус", "історія", "зв’язатися", "відписатися"];
+const CONTACT_MENU_LABELS = ["зателефонувати", "написати менеджеру", "написати в сервіс", "назад"];
 const FINAL_MENU_LABELS = ["відписатися", "оцінити", "питання"];
 
 function normalizeMenuText(text) {
@@ -357,9 +357,9 @@ function buildMainMenuMarkup() {
   return {
     keyboard: [
       ["Паспорт", "Статус"],
-      ["История", "Связаться"],
+      ["Історія", "Зв’язатися"],
       ["Фотоальбом", "Попередня вартість ремонту"],
-      ["Отписка"],
+      ["Відписатися"],
     ],
     resize_keyboard: true,
   };
@@ -368,8 +368,8 @@ function buildMainMenuMarkup() {
 function buildContactMenuMarkup() {
   return {
     keyboard: [
-      ["Позвонить", "Написать менеджеру"],
-      ["Написать в сервис"],
+      ["Зателефонувати", "Написати менеджеру"],
+      ["Написати в сервіс"],
       ["Назад"],
     ],
     resize_keyboard: true,
@@ -399,10 +399,6 @@ function buildApprovalMarkup({ requestId, equipmentId }) {
         },
       ],
       [
-        {
-          text: "Вартість",
-          callback_data: `approval:${safeRequestId}:${safeEquipmentId}:cost`,
-        },
         {
           text: "Уточнення",
           callback_data: `approval:${safeRequestId}:${safeEquipmentId}:q`,
