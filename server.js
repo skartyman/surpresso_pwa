@@ -385,15 +385,28 @@ function buildFinalMenuMarkup() {
 
 function buildApprovalMarkup({ requestId, equipmentId }) {
   const safeRequestId = String(requestId || "").trim();
+  const safeEquipmentId = String(equipmentId || "").trim();
   return {
     inline_keyboard: [
       [
-        { text: "Так", callback_data: `approval:${safeRequestId}:yes` },
-        { text: "Ні", callback_data: `approval:${safeRequestId}:no` },
+        {
+          text: "Так",
+          callback_data: `approval:${safeRequestId}:${safeEquipmentId}:yes`,
+        },
+        {
+          text: "Ні",
+          callback_data: `approval:${safeRequestId}:${safeEquipmentId}:no`,
+        },
       ],
       [
-        { text: "Вартість", callback_data: `approval:${safeRequestId}:cost` },
-        { text: "Уточнення", callback_data: `approval:${safeRequestId}:question` },
+        {
+          text: "Вартість",
+          callback_data: `approval:${safeRequestId}:${safeEquipmentId}:cost`,
+        },
+        {
+          text: "Уточнення",
+          callback_data: `approval:${safeRequestId}:${safeEquipmentId}:q`,
+        },
       ],
     ],
   };
@@ -1011,7 +1024,8 @@ app.post("/tg/webhook", async (req, res) => {
         const parts = data.split(":");
         const requestId = parts[1] || "";
         const rawAnswer = parts[3] ? parts[3] : parts[2];
-        const normalizedAnswer = String(rawAnswer || "").trim();
+        const normalizedAnswer =
+          rawAnswer === "q" ? "question" : String(rawAnswer || "").trim();
         let equipmentId = parts[2] || "";
 
         if (parts.length === 3 && requestId) {
