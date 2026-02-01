@@ -38,6 +38,7 @@ const COMPANY_STATUSES = [
 const DEFAULT_STATUS_CLIENT  = "Прийнято на ремонт";
 const DEFAULT_STATUS_COMPANY = "Приехало после аренды";
 const TEXT_COLS = ["clientPhone", "serial", "internalNumber", "id"];
+const SUBSCRIPTIONS_TEXT_COLS = ["equipmentId", "chatId", "userId", "username", "firstName", "lastName"];
 
 // ===== Telegram subscriptions =====
 const SUBSCRIPTIONS_SHEET = "subscriptions";
@@ -748,6 +749,7 @@ function subscribeEquipment_(payload) {
   const data = sheet.getDataRange().getValues();
   const headers = data[0] || [];
   const idx = buildSubscriptionsIndex_(headers);
+  setSubscriptionsTextFormat_(sheet);
 
   let rowIndex = -1;
   for (let i = 1; i < data.length; i++) {
@@ -760,19 +762,20 @@ function subscribeEquipment_(payload) {
 
   const user = payload.user || {};
   const values = [
-    equipmentId,
-    chatId,
-    user.id || "",
-    user.username || "",
-    user.firstName || "",
-    user.lastName || "",
+    String(equipmentId),
+    String(chatId),
+    String(user.id || ""),
+    String(user.username || ""),
+    String(user.firstName || ""),
+    String(user.lastName || ""),
     new Date(),
   ];
 
   const alreadySubscribed = rowIndex !== -1;
 
   if (!alreadySubscribed) {
-    sheet.appendRow(values);
+    const nextRow = sheet.getLastRow() + 1;
+    sheet.getRange(nextRow, 1, 1, values.length).setValues([values]);
   } else {
     sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
   }
@@ -993,6 +996,7 @@ function getOrCreateSubscriptionsSheet_() {
       "subscribedAt",
     ]);
   }
+  setSubscriptionsTextFormat_(sheet);
   return sheet;
 }
 
@@ -1006,4 +1010,14 @@ function buildSubscriptionsIndex_(headers) {
     throw new Error("subscriptions sheet has invalid headers");
   }
   return idx;
+}
+
+function setSubscriptionsTextFormat_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
+  SUBSCRIPTIONS_TEXT_COLS.forEach((name) => {
+    const colIndex = headers.indexOf(name);
+    if (colIndex > -1) {
+      sheet.getRange(2, colIndex + 1, sheet.getMaxRows() - 1, 1).setNumberFormat("@");
+    }
+  });
 }
