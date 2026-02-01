@@ -384,15 +384,16 @@ function buildFinalMenuMarkup() {
 }
 
 function buildApprovalMarkup({ requestId, equipmentId }) {
+  const safeRequestId = String(requestId || "").trim();
   return {
     inline_keyboard: [
       [
-        { text: "Так", callback_data: `approval:${requestId}:${equipmentId}:yes` },
-        { text: "Ні", callback_data: `approval:${requestId}:${equipmentId}:no` },
+        { text: "Так", callback_data: `approval:${safeRequestId}:yes` },
+        { text: "Ні", callback_data: `approval:${safeRequestId}:no` },
       ],
       [
-        { text: "Вартість", callback_data: `approval:${requestId}:${equipmentId}:cost` },
-        { text: "Уточнення", callback_data: `approval:${requestId}:${equipmentId}:question` },
+        { text: "Вартість", callback_data: `approval:${safeRequestId}:cost` },
+        { text: "Уточнення", callback_data: `approval:${safeRequestId}:question` },
       ],
     ],
   };
@@ -1007,12 +1008,24 @@ app.post("/tg/webhook", async (req, res) => {
       const chatId = callback.message?.chat?.id;
       const user = callback.from || {};
       if (chatId && data.startsWith("approval:")) {
-        const [, requestId, equipmentId, answer] = data.split(":");
-        const normalizedAnswer = String(answer || "").trim();
+        const parts = data.split(":");
+        const requestId = parts[1] || "";
+        const rawAnswer = parts[3] ? parts[3] : parts[2];
+        const normalizedAnswer = String(rawAnswer || "").trim();
+        let equipmentId = parts.length >= 4 ? (parts[2] || "") : "";
+        let lookupEquipmentId = "";
+
+        if (parts.length === 3 && requestId) {
+          const lookup = await gasPost({
+            action: "approvalLookup",
+            requestId,
+          });
+          lookupEquipmentId = String(lookup?.equipmentId || "").trim();
+        }
         await gasPost({
           action: "approvalResponse",
           requestId,
-          equipmentId,
+          equipmentId: equipmentId || lookupEquipmentId,
           answer: normalizedAnswer,
           chatId: String(chatId),
           user: {
@@ -1030,8 +1043,10 @@ app.post("/tg/webhook", async (req, res) => {
           question: "Уточнення",
         }[normalizedAnswer] || normalizedAnswer;
 
+        const resolvedId = equipmentId || lookupEquipmentId || requestId;
+        const idLabel = equipmentId || lookupEquipmentId ? `🆔 ID: ${resolvedId}` : `🧾 Запит: ${resolvedId}`;
         await tgNotifyAdminText(
-          `✅ Відповідь клієнта\n🆔 ID: ${equipmentId}\n💬 ${answerLabel}\n👤 @${user.username || "—"}`
+          `✅ Відповідь клієнта\n${idLabel}\n💬 ${answerLabel}\n👤 @${user.username || "—"}`
         );
         await tgNotifyTextTo(chatId, "Прийнято ✅", buildMainMenuMarkup());
       }

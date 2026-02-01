@@ -141,6 +141,7 @@ function doPost(e) {
     if (action === "history") return json_(getStatusHistory_(data));
     if (action === "approvalRequest") return json_(recordApprovalRequest_(data));
     if (action === "approvalResponse") return json_(recordApprovalResponse_(data));
+    if (action === "approvalLookup") return json_(getApprovalEquipmentId_(data));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -431,13 +432,15 @@ function getStatusesForOwner_(owner) {
 // HELPERS: sheet access by name OR ID
 // =========================
 function getSheetAny_(ss, nameOrId) {
-  const asNum = Number(nameOrId);
-  if (!Number.isNaN(asNum) && String(nameOrId).trim() !== "") {
-    const sh = ss.getSheetById(asNum);
-    if (!sh) throw new Error("Sheet not found by ID: " + nameOrId);
-    return sh;
+  const raw = String(nameOrId ?? "").trim();
+  if (raw && /^\d+$/.test(raw)) {
+    const asNum = Number(raw);
+    if (Number.isSafeInteger(asNum)) {
+      const shById = ss.getSheetById(asNum);
+      if (shById) return shById;
+    }
   }
-  const sh = ss.getSheetByName(nameOrId);
+  const sh = ss.getSheetByName(raw);
   if (!sh) throw new Error("Sheet not found by name: " + nameOrId);
   return sh;
 }
@@ -909,10 +912,10 @@ function recordApprovalRequest_(payload) {
 
 function recordApprovalResponse_(payload) {
   const requestId = String(payload.requestId || "").trim();
-  const equipmentId = String(payload.equipmentId || "").trim();
+  let equipmentId = String(payload.equipmentId || "").trim();
   const answer = String(payload.answer || "").trim();
   const chatId = String(payload.chatId || "").trim();
-  if (!requestId || !equipmentId || !answer || !chatId) return { ok: false, error: "missing_fields" };
+  if (!requestId || !answer || !chatId) return { ok: false, error: "missing_fields" };
 
   const sheet = getOrCreateApprovalsSheet_();
   const data = sheet.getDataRange().getValues();
@@ -933,11 +936,11 @@ function recordApprovalResponse_(payload) {
   let rowIndex = -1;
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    if (
-      String(row[idx.requestId] || "") === requestId &&
-      String(row[idx.equipmentId] || "") === equipmentId
-    ) {
+    const rowRequestId = String(row[idx.requestId] || "");
+    const rowEquipmentId = String(row[idx.equipmentId] || "");
+    if (rowRequestId === requestId && (!equipmentId || rowEquipmentId === equipmentId)) {
       rowIndex = i + 1;
+      if (!equipmentId) equipmentId = rowEquipmentId;
       break;
     }
   }
@@ -979,6 +982,30 @@ function recordApprovalResponse_(payload) {
   }
 
   return { ok: true };
+}
+
+function getApprovalEquipmentId_(payload) {
+  const requestId = String(payload.requestId || "").trim();
+  if (!requestId) return { ok: false, error: "missing_fields" };
+
+  const sheet = getOrCreateApprovalsSheet_();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || [];
+  const idxRequestId = headers.indexOf("requestId");
+  const idxEquipmentId = headers.indexOf("equipmentId");
+
+  if (idxRequestId === -1 || idxEquipmentId === -1) {
+    return { ok: false, error: "invalid_headers" };
+  }
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    const row = data[i];
+    if (String(row[idxRequestId] || "") === requestId) {
+      return { ok: true, equipmentId: String(row[idxEquipmentId] || "").trim() };
+    }
+  }
+
+  return { ok: false, error: "not_found" };
 }
 
 function getOrCreateSubscriptionsSheet_() {
