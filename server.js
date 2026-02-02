@@ -152,34 +152,39 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
     return;
   }
 
-  const tgForm = new FormData();
-  const media = [];
+  try {
+    const tgForm = new FormData();
+    const media = [];
 
-  photos.forEach((base64, i) => {
-    const fileId = `file${i}.jpg`;
-    const buffer = Buffer.from(
-      String(base64).replace(/^data:image\/\w+;base64,/, ""),
-      "base64"
-    );
+    photos.forEach((base64, i) => {
+      const fileId = `file${i}.jpg`;
+      const buffer = Buffer.from(
+        String(base64).replace(/^data:image\/\w+;base64,/, ""),
+        "base64"
+      );
 
-    tgForm.append(fileId, buffer, { filename: fileId });
+      tgForm.append(fileId, buffer, { filename: fileId });
 
-    media.push({
-      type: "photo",
-      media: `attach://${fileId}`,
-      caption: i === photos.length - 1 ? caption : "",
+      media.push({
+        type: "photo",
+        media: `attach://${fileId}`,
+        caption: i === photos.length - 1 ? caption : "",
+      });
     });
-  });
 
-  tgForm.append("chat_id", chatId);
-  tgForm.append("media", JSON.stringify(media));
+    tgForm.append("chat_id", chatId);
+    tgForm.append("media", JSON.stringify(media));
 
-  const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
-    method: "POST",
-    body: tgForm,
-  });
+    const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
+      method: "POST",
+      body: tgForm,
+    });
 
-  console.log("TG RESPONSE:", await tgResp.text());
+    console.log("TG RESPONSE:", await tgResp.text());
+  } catch (err) {
+    console.error("TG PHOTOS ERROR:", err);
+    return false;
+  }
 }
 
 async function tgSendPhotoUrlsTo(botToken, chatId, photoUrls, caption) {
@@ -190,22 +195,27 @@ async function tgSendPhotoUrlsTo(botToken, chatId, photoUrls, caption) {
     return;
   }
 
-  const media = photoUrls.map((url, i) => ({
-    type: "photo",
-    media: url,
-    caption: i === photoUrls.length - 1 ? caption : "",
-  }));
+  try {
+    const media = photoUrls.map((url, i) => ({
+      type: "photo",
+      media: url,
+      caption: i === photoUrls.length - 1 ? caption : "",
+    }));
 
-  const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      media,
-    }),
-  });
+    const tgResp = await fetch(tgApiUrl(botToken, "sendMediaGroup"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        media,
+      }),
+    });
 
-  console.log("TG RESPONSE:", await tgResp.text());
+    console.log("TG RESPONSE:", await tgResp.text());
+  } catch (err) {
+    console.error("TG PHOTO URLS ERROR:", err);
+    return false;
+  }
 }
 
 function parseBase64Data(dataUrl, fallbackExt) {
@@ -224,19 +234,24 @@ function parseBase64Data(dataUrl, fallbackExt) {
 async function tgSendVideoTo(botToken, chatId, video, caption) {
   if (!botToken || !chatId || !video) return;
 
-  const tgForm = new FormData();
-  const payload = parseBase64Data(video, "mp4");
+  try {
+    const tgForm = new FormData();
+    const payload = parseBase64Data(video, "mp4");
 
-  tgForm.append("chat_id", chatId);
-  tgForm.append("video", payload.buffer, { filename: payload.filename });
-  if (caption) tgForm.append("caption", caption);
+    tgForm.append("chat_id", chatId);
+    tgForm.append("video", payload.buffer, { filename: payload.filename });
+    if (caption) tgForm.append("caption", caption);
 
-  const tgResp = await fetch(tgApiUrl(botToken, "sendVideo"), {
-    method: "POST",
-    body: tgForm,
-  });
+    const tgResp = await fetch(tgApiUrl(botToken, "sendVideo"), {
+      method: "POST",
+      body: tgForm,
+    });
 
-  console.log("TG VIDEO RESPONSE:", await tgResp.text());
+    console.log("TG VIDEO RESPONSE:", await tgResp.text());
+  } catch (err) {
+    console.error("TG VIDEO ERROR:", err);
+    return false;
+  }
 }
 
 async function tgSendVideosTo(botToken, chatId, videos, caption) {
@@ -809,6 +824,16 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
             caption: videoCaption,
             replyMarkup: mainMenuMarkup,
           });
+        }
+        if (statusChanged && isClientGiveAwayStatus(newStatus)) {
+          if (safePhotos.length) {
+            await tgSendPhotos(safePhotos, caption);
+          } else if (caption) {
+            await tgSendText(caption);
+          }
+          if (safeVideos.length) {
+            await tgSendVideos(safeVideos, videoCaption);
+          }
         }
 
         if (statusChanged && isClientGiveAwayStatus(newStatus)) {
