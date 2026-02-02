@@ -422,6 +422,20 @@ function buildApprovalMarkup({ requestId, equipmentId }) {
   };
 }
 
+function buildReplyClientMarkup(clientChatId) {
+  const safeChatId = String(clientChatId || "").trim();
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: "↩️ Ответить клиенту",
+          callback_data: `reply_client:${safeChatId}`,
+        },
+      ],
+    ],
+  };
+}
+
 async function sendMainMenu(chatId, text = "Головне меню") {
   return tgNotifyTextTo(chatId, text, buildMainMenuMarkup());
 }
@@ -548,6 +562,7 @@ function parseTelegramCommand(text) {
 }
 
 const pendingServiceMessages = new Map();
+const pendingAdminReplies = new Map();
 
 async function getLatestEquipmentIdForChat(chatId) {
   if (!chatId || !GAS_WEBAPP_URL || !GAS_SECRET) return "";
@@ -1055,6 +1070,16 @@ app.post("/tg/webhook", async (req, res) => {
       const data = String(callback.data || "");
       const chatId = callback.message?.chat?.id;
       const user = callback.from || {};
+      if (chatId && data.startsWith("reply_client:")) {
+        const clientChatId = data.split(":")[1] || "";
+        if (clientChatId) {
+          pendingAdminReplies.set(String(chatId), { clientChatId });
+          await tgNotifyTextTo(
+            chatId,
+            "Ок, напишите ответ одним сообщением. Отмена: /cancel"
+          );
+        }
+      }
       if (chatId && data.startsWith("approval:")) {
         const parts = data.split(":");
         const requestId = parts[1] || "";
@@ -1119,6 +1144,25 @@ app.post("/tg/webhook", async (req, res) => {
     if (!chatId) return res.send({ ok: true });
 
     if (TG_NOTIFY_CHAT_ID && String(chatId) === String(TG_NOTIFY_CHAT_ID)) {
+      const trimmedText = String(text || "").trim();
+      if (pendingAdminReplies.has(String(chatId))) {
+        if (trimmedText === "/cancel") {
+          pendingAdminReplies.delete(String(chatId));
+          await tgNotifyTextTo(chatId, "Відмінено.");
+          return res.send({ ok: true });
+        }
+        if (trimmedText && !trimmedText.startsWith("/")) {
+          const pending = pendingAdminReplies.get(String(chatId));
+          pendingAdminReplies.delete(String(chatId));
+          await tgNotifyTextTo(
+            pending.clientChatId,
+            `💬 Відповідь менеджера:\n${trimmedText}`,
+            buildMainMenuMarkup()
+          );
+          await tgNotifyTextTo(chatId, "✅ Відправлено клієнту.");
+          return res.send({ ok: true });
+        }
+      }
       const replyText = message.reply_to_message?.text || "";
       const matchChat = replyText.match(/Chat ID:\s*(\d+)/i);
       const clientChatId = matchChat ? matchChat[1] : "";
@@ -1156,7 +1200,11 @@ app.post("/tg/webhook", async (req, res) => {
       ]
         .filter(Boolean)
         .join("\n");
-      await tgNotifyAdminText(adminMessage);
+      await tgNotifyTextTo(
+        TG_NOTIFY_CHAT_ID,
+        adminMessage,
+        buildReplyClientMarkup(chatId)
+      );
       await tgNotifyTextTo(chatId, "Прийнято ✅", buildMainMenuMarkup());
       return res.send({ ok: true });
     }
