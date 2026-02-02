@@ -345,7 +345,7 @@ function buildProxyDriveUrl(req, driveUrl) {
   return `${req.protocol}://${req.get("host")}/proxy-drive/${encodeURIComponent(fileId)}`;
 }
 
-const MAIN_MENU_LABELS = ["паспорт", "статус", "історія", "зв’язатися", "відписатися"];
+const MAIN_MENU_LABELS = ["паспорт", "статус", "історія", "зв’язатися"];
 const CONTACT_MENU_LABELS = ["зателефонувати", "написати менеджеру", "написати в сервіс", "назад"];
 const FINAL_MENU_LABELS = ["відписатися", "оцінити", "питання"];
 
@@ -359,7 +359,6 @@ function buildMainMenuMarkup() {
       ["Паспорт", "Статус"],
       ["Історія", "Зв’язатися"],
       ["Фотоальбом", "Попередня вартість ремонту"],
-      ["Відписатися"],
     ],
     resize_keyboard: true,
   };
