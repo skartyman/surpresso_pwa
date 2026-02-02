@@ -746,6 +746,19 @@ app.get("/api/equip/:id", async (req, res) => {
   }
 });
 
+app.get("/api/equip/search", requirePwaKey, async (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+    const limit = Number(req.query.limit || 20);
+    if (!query) return res.send({ ok: true, results: [] });
+
+    const out = await gasPost({ action: "search", query, limit });
+    res.send(out);
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
 // ✅ update specs (Google Drive via GAS)
 app.post("/api/equip/:id/specs", requirePwaKey, async (req, res) => {
   try {

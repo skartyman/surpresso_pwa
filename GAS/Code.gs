@@ -126,6 +126,7 @@ function doPost(e) {
     if (action === "createOnly") return json_(createOnly_(data.card || {}));
     if (action === "create")  return json_(upsertEquipment_(data.card || {}));
     if (action === "get")     return json_(getBundle_(data.id));
+    if (action === "search")  return json_(searchEquipment_(data.query, data.limit));
     if (action === "status")  return json_(setStatus_(data.id, data.newStatus, data.comment || "", data.actor || "", data.location || ""));
     if (action === "photo")   return json_(addPhoto_(data.id, data.base64, data.caption || ""));
     if (action === "pdf")     return json_(generatePassportPdfA4_(data.id));
@@ -480,6 +481,66 @@ return data
     caption: r[idxCap] || ""
   }))
   .reverse();
+}
+
+// =========================
+// SEARCH
+// =========================
+function normalizeSearchText_(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^0-9a-zа-яёіїєґ]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function searchEquipment_(query, limit) {
+  const normalizedQuery = normalizeSearchText_(query);
+  if (!normalizedQuery) return { ok: true, results: [] };
+
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sh = getSheetAny_(ss, SH_EQUIPMENT);
+  const data = sh.getDataRange().getValues();
+  const head = data.shift();
+  const results = [];
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (!row || row.length === 0) continue;
+
+    const eq = rowToObj_(head, row);
+    const haystack = normalizeSearchText_([
+      stripTextPrefix_(eq.id),
+      stripTextPrefix_(eq.clientName),
+      stripTextPrefix_(eq.clientLocation),
+      stripTextPrefix_(eq.companyLocation),
+      stripTextPrefix_(eq.name),
+      stripTextPrefix_(eq.model),
+      stripTextPrefix_(eq.serial),
+      stripTextPrefix_(eq.internalNumber)
+    ].join(" "));
+
+    if (!haystack.includes(normalizedQuery)) continue;
+
+    results.push({
+      id: stripTextPrefix_(eq.id),
+      owner: eq.owner || "",
+      type: eq.type || "",
+      status: eq.status || "",
+      clientName: stripTextPrefix_(eq.clientName),
+      clientLocation: stripTextPrefix_(eq.clientLocation),
+      companyLocation: stripTextPrefix_(eq.companyLocation),
+      name: stripTextPrefix_(eq.name),
+      model: stripTextPrefix_(eq.model),
+      serial: stripTextPrefix_(eq.serial),
+      internalNumber: stripTextPrefix_(eq.internalNumber)
+    });
+
+    if (results.length >= safeLimit) break;
+  }
+
+  return { ok: true, results };
 }
 
 
