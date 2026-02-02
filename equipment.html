@@ -75,13 +75,17 @@
 
 <div class="field">
   <label>ID / Серийный / Внутренний №</label>
-  <input id="equipLookupId" placeholder="Например: 2P.109 или 22010488" />
+  <input id="equipLookupId" placeholder="Например: 2P.109 или Juliam's Coffee" />
 </div>
 
 <div class="row" style="gap:8px; margin-top:8px;">
   <button class="btn ghost" type="button" onclick="startQrScan()">📷 Сканировать QR</button>
   <button class="btn primary" type="button" onclick="openEquipmentByInput()">➡️ Открыть</button>
+  <button class="btn ghost" type="button" onclick="searchEquipmentByQuery()">🔍 Найти</button>
 </div>
+
+<div id="equipSearchMeta" class="muted" style="margin-top:8px; font-size:12px; color:#666;"></div>
+<div id="equipSearchResults" style="display:none; margin-top:10px;"></div>
       
 <!-- QR SCANNER PANEL -->
 <div id="qrScannerCard" class="card" style="display:none; margin-top:12px;">
@@ -249,6 +253,126 @@ function openEquipmentByInput() {
   const id = normalizeEquipId(v);
   if (!id) return alert("Введи ID оборудования");
   openEquipmentPageById(id);
+}
+
+// ============================
+// SEARCH (по базе)
+// ============================
+let equipSearchTimer = null;
+
+function buildEquipmentTitle_(item) {
+  const name = String(item.name || item.model || "").trim();
+  if (name) return name;
+  return "Оборудование";
+}
+
+function buildEquipmentMeta_(item) {
+  const parts = [];
+  const location = String(item.companyLocation || item.clientLocation || "").trim();
+  const clientName = String(item.clientName || "").trim();
+  const serial = String(item.serial || "").trim();
+  const internal = String(item.internalNumber || "").trim();
+
+  if (location) parts.push(`Локация: ${location}`);
+  if (clientName) parts.push(`Клиент: ${clientName}`);
+  if (internal) parts.push(`Внутр. №: ${internal}`);
+  if (serial) parts.push(`Серийный №: ${serial}`);
+
+  return parts.join(" • ");
+}
+
+function renderEquipmentSearchResults_(items, query) {
+  const container = document.getElementById("equipSearchResults");
+  const meta = document.getElementById("equipSearchMeta");
+  if (!container || !meta) return;
+
+  if (!query) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    meta.textContent = "";
+    return;
+  }
+
+  meta.textContent = `Результаты для: «${query}»`;
+
+  container.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.style.padding = "10px 0";
+    empty.textContent = "Ничего не найдено.";
+    container.appendChild(empty);
+    container.style.display = "block";
+    return;
+  }
+
+  items.forEach(item => {
+    const row = document.createElement("div");
+    row.style.padding = "10px 12px";
+    row.style.border = "1px solid #eee";
+    row.style.borderRadius = "10px";
+    row.style.marginBottom = "8px";
+    row.style.background = "#fff";
+
+    const title = document.createElement("div");
+    title.style.fontWeight = "600";
+    title.textContent = buildEquipmentTitle_(item);
+
+    const info = document.createElement("div");
+    info.style.fontSize = "12px";
+    info.style.color = "#666";
+    info.style.marginTop = "4px";
+    info.textContent = buildEquipmentMeta_(item);
+
+    const idLine = document.createElement("div");
+    idLine.style.fontSize = "12px";
+    idLine.style.marginTop = "6px";
+    idLine.textContent = `ID: ${item.id || "—"}`;
+
+    const openBtn = document.createElement("button");
+    openBtn.className = "btn ghost";
+    openBtn.type = "button";
+    openBtn.style.marginTop = "8px";
+    openBtn.textContent = "Открыть карточку";
+    openBtn.onclick = () => openEquipmentPageById(item.id);
+
+    row.appendChild(title);
+    if (info.textContent) row.appendChild(info);
+    row.appendChild(idLine);
+    row.appendChild(openBtn);
+    container.appendChild(row);
+  });
+
+  container.style.display = "block";
+}
+
+async function searchEquipmentByQuery() {
+  const input = document.getElementById("equipLookupId");
+  const raw = input ? input.value : "";
+  const query = String(raw || "").trim();
+
+  if (query.length < 2) {
+    renderEquipmentSearchResults_([], "");
+    return alert("Введи минимум 2 символа для поиска");
+  }
+
+  const meta = document.getElementById("equipSearchMeta");
+  if (meta) meta.textContent = "Ищу в базе...";
+
+  try {
+    const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(query)}`);
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(text || "search_failed");
+    }
+    const data = await resp.json();
+    renderEquipmentSearchResults_(data.results || [], query);
+  } catch (err) {
+    console.error(err);
+    if (meta) meta.textContent = "";
+    alert("Не удалось выполнить поиск");
+  }
 }
 
 // ============================
@@ -1094,6 +1218,30 @@ window.addEventListener("load", () => {
   const receivedDate = document.getElementById("receivedDate");
   if (companyDate) companyDate.value = today;
   if (receivedDate) receivedDate.value = today;
+
+  const equipLookupInput = document.getElementById("equipLookupId");
+  if (equipLookupInput) {
+    equipLookupInput.addEventListener("input", () => {
+      const query = String(equipLookupInput.value || "").trim();
+      if (equipSearchTimer) clearTimeout(equipSearchTimer);
+
+      if (query.length < 2) {
+        renderEquipmentSearchResults_([], "");
+        return;
+      }
+
+      equipSearchTimer = setTimeout(() => {
+        searchEquipmentByQuery();
+      }, 400);
+    });
+
+    equipLookupInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchEquipmentByQuery();
+      }
+    });
+  }
 
   bindSaveButtons();
   showStep("step1");
