@@ -556,7 +556,7 @@
         </div>
       </div>
 
-      <div class="card tgCard">
+      <div class="card tgCard" id="tgCard">
         <div class="tgArt" aria-hidden="true">
           <svg viewBox="0 0 240 240" role="img" aria-label="Telegram">
             <path d="M209.8 48.6c-4.4-3.6-10.5-4.6-16.9-2.4L42.7 104.9c-6.4 2.2-10.5 6.4-11.2 11.6-.7 5.1 2.2 9.9 7.9 13l34.9 18.4 16.6 50.3c1.7 5.1 6.5 8.5 12.1 8.7h.5c5.4 0 10.3-2.8 12.9-7.4l22.4-40.6 46.7 34.4c4.5 3.3 10.1 4.2 15.4 2.3 5.3-1.9 9.2-6.2 10.4-11.7l29.5-128.5c1.4-6.1-.7-12.3-5.5-16.6zM94.6 142.7l-3.4 40.2-12.2-36.8 79.6-71.3-63.9 67.9z"/>
@@ -708,8 +708,15 @@
       add("ID", eq.id || EQUIPMENT_ID);
       add("Тип", typeLabel || "—");
       add("Власник", ownerLabel || "—");
-      const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID, data.tgBotUsername);
-      $("telegramSubscribe").innerHTML = tgLink;
+      const tgCard = $("tgCard");
+      if (eq.owner === "company") {
+        tgCard.style.display = "none";
+        $("telegramSubscribe").innerHTML = "";
+      } else {
+        const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID, data.tgBotUsername);
+        $("telegramSubscribe").innerHTML = tgLink;
+        tgCard.style.display = "";
+      }
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
 
