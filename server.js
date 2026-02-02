@@ -786,6 +786,17 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
     const statusChanged = normStatus(oldStatus) !== normStatus(newStatus);
     const trimmedComment = String(comment || "").trim();
     const commentChanged = trimmedComment && trimmedComment !== String(oldComment || "").trim();
+    console.log("[CHECK]", {
+      id,
+      owner,
+      oldStatus,
+      newStatus,
+      statusChanged,
+      commentChanged,
+      shouldNotify: shouldNotifyStatus(owner, newStatus),
+      isGiveAway: isClientGiveAwayStatus(newStatus),
+    });
+
     if ((statusChanged || commentChanged) && shouldNotifyStatus(owner, newStatus)) {
       const passportLink = buildPassportLink(req, id, { isPublic: owner === "client" });
       const mainMenuMarkup = buildMainMenuMarkup();
@@ -802,6 +813,10 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
       const videoCaption = safePhotos.length ? "" : caption;
 
       if (owner === "client") {
+        console.log("[CLIENT_FLOW]", {
+          toNotifyBot: true,
+          toAdminBotOnGiveAway: statusChanged && isClientGiveAwayStatus(newStatus),
+        });
         if (safePhotos.length) {
           await notifySubscribers({
             equipmentId: id,
