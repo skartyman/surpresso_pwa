@@ -360,12 +360,15 @@ function buildProxyDriveUrl(req, driveUrl) {
   return `${req.protocol}://${req.get("host")}/proxy-drive/${encodeURIComponent(fileId)}`;
 }
 
-const MAIN_MENU_LABELS = ["паспорт", "статус", "історія", "зв’язатися"];
+const MAIN_MENU_LABELS = ["паспорт", "статус", "історія", "зв'язатися"];
 const CONTACT_MENU_LABELS = ["зателефонувати", "написати менеджеру", "написати в сервіс", "назад"];
 const FINAL_MENU_LABELS = ["відписатися", "оцінити", "питання"];
 
 function normalizeMenuText(text) {
-  return String(text || "").trim().toLowerCase();
+  return String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[’ʻ`´ʼ]/g, "'");
 }
 
 function buildMainMenuMarkup() {
@@ -1364,7 +1367,7 @@ app.post("/tg/webhook", async (req, res) => {
       return res.send({ ok: true });
     }
 
-    if (normalized === "история") {
+    if (normalized === "история" || normalized === "історія") {
       const equipmentId = await getLatestEquipmentIdForChat(chatId);
       if (!equipmentId) {
         await tgNotifyTextTo(chatId, "Не знайшли активну підписку.", buildMainMenuMarkup());
@@ -1387,22 +1390,22 @@ app.post("/tg/webhook", async (req, res) => {
       return res.send({ ok: true });
     }
 
-    if (normalized === "связаться") {
+    if (normalized === "связаться" || normalized === "зв'язатися") {
       await sendContactMenu(chatId);
       return res.send({ ok: true });
     }
 
-    if (normalized === "позвонить") {
+    if (normalized === "позвонить" || normalized === "зателефонувати") {
       await tgNotifyTextTo(chatId, `📞 Телефон: ${SUPPORT_PHONE}`, buildMainMenuMarkup());
       return res.send({ ok: true });
     }
 
-    if (normalized === "написать менеджеру") {
+    if (normalized === "написать менеджеру" || normalized === "написати менеджеру") {
       await tgNotifyTextTo(chatId, `💬 Менеджер: ${MANAGER_LINK}`, buildMainMenuMarkup());
       return res.send({ ok: true });
     }
 
-    if (normalized === "написать в сервис") {
+    if (normalized === "написать в сервис" || normalized === "написати в сервіс") {
       const equipmentId = await getLatestEquipmentIdForChat(chatId);
       pendingServiceMessages.set(chatId, { equipmentId });
       await tgNotifyTextTo(
