@@ -1338,11 +1338,18 @@ app.post("/tg/webhook", async (req, res) => {
         eq.clientName ? `👤 ${eq.clientName}` : "",
         eq.clientPhone ? `📞 ${eq.clientPhone}` : "",
         passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+        `Chat ID: ${chatId}`,
       ]
         .filter(Boolean)
         .join("\n");
 
-      await tgNotifyAdminText(lines);
+      if (TG_NOTIFY_CHAT_ID) {
+        await tgNotifyTextTo(
+          TG_NOTIFY_CHAT_ID,
+          lines,
+          buildReplyClientMarkup(chatId)
+        );
+      }
       await tgNotifyTextTo(chatId, "✅ Запит передано в сервіс. Ми зв’яжемося з вами.", buildMainMenuMarkup());
       return res.send({ ok: true });
     }
