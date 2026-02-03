@@ -78,14 +78,13 @@
   <input id="equipLookupId" placeholder="Например: 2P.109 или Juliam's Coffee" />
 </div>
 
-<div class="row" style="gap:8px; margin-top:8px;">
+<div class="row equip-action-row" style="margin-top:8px;">
   <button class="btn ghost" type="button" onclick="startQrScan()">📷 Сканировать QR</button>
   <button class="btn primary" type="button" onclick="openEquipmentByInput()">➡️ Открыть</button>
-  <button class="btn ghost" type="button" onclick="searchEquipmentByQuery()">🔍 Найти</button>
 </div>
 
-<div id="equipSearchMeta" class="muted" style="margin-top:8px; font-size:12px; color:#666;"></div>
-<div id="equipSearchResults" style="display:none; margin-top:10px;"></div>
+<div id="equipSearchMeta" class="muted equip-search-meta"></div>
+<div id="equipSearchResults" class="equip-search-results" style="display:none;"></div>
       
 <!-- QR SCANNER PANEL -->
 <div id="qrScannerCard" class="card" style="display:none; margin-top:12px;">
@@ -309,11 +308,7 @@ function renderEquipmentSearchResults_(items, query) {
 
   items.forEach(item => {
     const row = document.createElement("div");
-    row.style.padding = "10px 12px";
-    row.style.border = "1px solid #eee";
-    row.style.borderRadius = "10px";
-    row.style.marginBottom = "8px";
-    row.style.background = "#fff";
+    row.className = "equip-search-result";
 
     const title = document.createElement("div");
     title.style.fontWeight = "600";
@@ -331,9 +326,8 @@ function renderEquipmentSearchResults_(items, query) {
     idLine.textContent = `ID: ${item.id || "—"}`;
 
     const openBtn = document.createElement("button");
-    openBtn.className = "btn ghost";
+    openBtn.className = "btn ghost equip-search-open-btn";
     openBtn.type = "button";
-    openBtn.style.marginTop = "8px";
     openBtn.textContent = "Открыть карточку";
     openBtn.onclick = () => openEquipmentPageById(item.id);
 
@@ -367,7 +361,7 @@ async function searchEquipmentByQuery(options = {}) {
   if (meta) meta.textContent = "Ищу в базе...";
 
   if (silent && !sessionStorage.getItem("surpresso_pwa_key")) {
-    if (meta) meta.textContent = "Нажмите «Найти», чтобы выполнить поиск.";
+    if (meta) meta.textContent = "Введите ключ доступа для поиска.";
     return;
   }
 
@@ -397,7 +391,7 @@ async function searchEquipmentByQuery(options = {}) {
       } else if (message.includes("unauthorized")) {
         meta.textContent = "Нет доступа. Проверьте ключ и повторите поиск.";
       } else {
-        meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+        meta.textContent = "Ошибка поиска. Попробуйте еще раз.";
       }
     }
     if (!silent) {

@@ -204,6 +204,12 @@ textarea {
   flex-wrap: nowrap;
 }
 
+.equip-action-row .btn {
+  flex: 1 1 0;
+  min-height: 40px;
+  font-weight: 600;
+}
+
 /* важно для flex-строк: разрешаем full-полю сжиматься */
 .field.full {
   flex: 1 1 auto;
@@ -287,6 +293,34 @@ textarea {
 .btn-row .btn-surpresso {
   flex: 1;
   min-width: 220px;
+}
+
+/* ============================================================
+   EQUIPMENT SEARCH
+============================================================ */
+
+.equip-search-meta {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.equip-search-results {
+  margin-top: 10px;
+}
+
+.equip-search-result {
+  padding: 12px 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  border-width: 1px;
+  border-style: solid;
+  background: var(--surface);
+  border-color: var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.equip-search-open-btn {
+  margin-top: 10px;
 }
 /* ============================================================
    TABLE (no theme)
