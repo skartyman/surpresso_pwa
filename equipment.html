@@ -366,6 +366,11 @@ async function searchEquipmentByQuery(options = {}) {
   const meta = document.getElementById("equipSearchMeta");
   if (meta) meta.textContent = "Ищу в базе...";
 
+  if (silent && !sessionStorage.getItem("surpresso_pwa_key")) {
+    if (meta) meta.textContent = "Нажмите «Найти», чтобы выполнить поиск.";
+    return;
+  }
+
   try {
     const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(query)}`);
     if (!resp.ok) {
@@ -376,8 +381,10 @@ async function searchEquipmentByQuery(options = {}) {
     renderEquipmentSearchResults_(data.results || [], query);
   } catch (err) {
     console.error(err);
-    if (meta) meta.textContent = "";
-    alert("Не удалось выполнить поиск");
+    if (meta) meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+    if (!silent) {
+      alert("Не удалось выполнить поиск");
+    }
   }
 }
 
