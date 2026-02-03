@@ -360,7 +360,7 @@ async function searchEquipmentByQuery(options = {}) {
   const meta = document.getElementById("equipSearchMeta");
   if (meta) meta.textContent = "Ищу в базе...";
 
-  if (silent && !sessionStorage.getItem("surpresso_pwa_key")) {
+  if (silent && !localStorage.getItem("surpresso_pwa_key")) {
     if (meta) meta.textContent = "Введите ключ доступа для поиска.";
     return;
   }
@@ -559,11 +559,11 @@ function resetQrTorchUI_() {
     // ✅ AUTH: PWA -> SERVER (x-surpresso-key)
     // =========================================================
     function getPwaKey() {
-      let key = sessionStorage.getItem("surpresso_pwa_key");
+      let key = localStorage.getItem("surpresso_pwa_key");
       if (!key) {
-        key = (prompt("Введи ключ доступа (PWA Key):") || "b78214820561570fae5f86ba7e62ed078a5e451ac25a35d4b2beec3ac5f097f0").trim();
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
         if (!key) throw new Error("NO_PWA_KEY");
-        sessionStorage.setItem("surpresso_pwa_key", key);
+        localStorage.setItem("surpresso_pwa_key", key);
       }
       return key;
     }
