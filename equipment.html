@@ -347,31 +347,71 @@ function renderEquipmentSearchResults_(items, query) {
   container.style.display = "block";
 }
 
-async function searchEquipmentByQuery() {
+async function searchEquipmentByQuery(options = {}) {
+  const { silent = false } = options;
   const input = document.getElementById("equipLookupId");
   const raw = input ? input.value : "";
   const query = String(raw || "").trim();
 
   if (query.length < 2) {
     renderEquipmentSearchResults_([], "");
-    return alert("Введи минимум 2 символа для поиска");
+    const meta = document.getElementById("equipSearchMeta");
+    if (meta) meta.textContent = "Введите минимум 2 символа для поиска";
+    if (!silent) {
+      return alert("Введи минимум 2 символа для поиска");
+    }
+    return;
   }
 
   const meta = document.getElementById("equipSearchMeta");
   if (meta) meta.textContent = "Ищу в базе...";
 
+  if (silent && !sessionStorage.getItem("surpresso_pwa_key")) {
+    if (meta) meta.textContent = "Нажмите «Найти», чтобы выполнить поиск.";
+    return;
+  }
+
   try {
     const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(query)}`);
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new Error(text || "search_failed");
+      let errorMessage = text;
+      if (resp.status === 404) {
+        errorMessage = "NOT_FOUND";
+      }
+      if (text) {
+        try {
+          const payload = JSON.parse(text);
+          errorMessage = payload?.error || payload?.message || text;
+        } catch {
+          errorMessage = text;
+        }
+      }
+      throw new Error(errorMessage || "search_failed");
     }
     const data = await resp.json();
     renderEquipmentSearchResults_(data.results || [], query);
   } catch (err) {
     console.error(err);
-    if (meta) meta.textContent = "";
-    alert("Не удалось выполнить поиск");
+    const message = String(err?.message || "");
+    if (meta) {
+      if (message.includes("NO_PWA_KEY")) {
+        meta.textContent = "Введите ключ доступа, затем повторите поиск.";
+      } else if (message.includes("unauthorized")) {
+        meta.textContent = "Нет доступа. Проверьте ключ и повторите поиск.";
+      } else if (message.includes("NOT_FOUND") || message.includes("Not Found")) {
+        meta.textContent = "Сервис поиска недоступен (404). Проверьте адрес страницы.";
+      } else {
+        meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+      }
+    }
+    if (!silent) {
+      if (message.includes("NOT_FOUND") || message.includes("Not Found")) {
+        alert("Сервис поиска недоступен (404). Проверьте адрес страницы.");
+      } else {
+        alert(message ? `Не удалось выполнить поиск: ${message}` : "Не удалось выполнить поиск");
+      }
+    }
   }
 }
 
@@ -1231,7 +1271,7 @@ window.addEventListener("load", () => {
       }
 
       equipSearchTimer = setTimeout(() => {
-        searchEquipmentByQuery();
+        searchEquipmentByQuery({ silent: true });
       }, 400);
     });
 
