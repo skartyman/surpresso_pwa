@@ -376,9 +376,6 @@ async function searchEquipmentByQuery(options = {}) {
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       let errorMessage = text;
-      if (resp.status === 404) {
-        errorMessage = "NOT_FOUND";
-      }
       if (text) {
         try {
           const payload = JSON.parse(text);
@@ -399,18 +396,12 @@ async function searchEquipmentByQuery(options = {}) {
         meta.textContent = "Введите ключ доступа, затем повторите поиск.";
       } else if (message.includes("unauthorized")) {
         meta.textContent = "Нет доступа. Проверьте ключ и повторите поиск.";
-      } else if (message.includes("NOT_FOUND") || message.includes("Not Found")) {
-        meta.textContent = "Сервис поиска недоступен (404). Проверьте адрес страницы.";
       } else {
         meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
       }
     }
     if (!silent) {
-      if (message.includes("NOT_FOUND") || message.includes("Not Found")) {
-        alert("Сервис поиска недоступен (404). Проверьте адрес страницы.");
-      } else {
-        alert(message ? `Не удалось выполнить поиск: ${message}` : "Не удалось выполнить поиск");
-      }
+      alert(message ? `Не удалось выполнить поиск: ${message}` : "Не удалось выполнить поиск");
     }
   }
 }
