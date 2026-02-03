@@ -735,17 +735,6 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
 // 2) GAS proxy endpoints (PWA -> NODE -> GAS)
 // =======================
 
-// получить паспорт (данные)
-app.get("/api/equip/:id", async (req, res) => {
-  try {
-    const id = String(req.params.id || "").trim();
-    const out = await gasPost({ action: "get", id });
-    res.send({ ...out, tgBotUsername: TG_NOTIFY_BOT_USERNAME });
-  } catch (e) {
-    res.status(500).send({ ok: false, error: String(e) });
-  }
-});
-
 app.get("/api/equip/search", requirePwaKey, async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -754,6 +743,17 @@ app.get("/api/equip/search", requirePwaKey, async (req, res) => {
 
     const out = await gasPost({ action: "search", query, limit });
     res.send(out);
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+// получить паспорт (данные)
+app.get("/api/equip/:id", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const out = await gasPost({ action: "get", id });
+    res.send({ ...out, tgBotUsername: TG_NOTIFY_BOT_USERNAME });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
