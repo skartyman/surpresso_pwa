@@ -347,18 +347,29 @@ function renderEquipmentSearchResults_(items, query) {
   container.style.display = "block";
 }
 
-async function searchEquipmentByQuery() {
+async function searchEquipmentByQuery(options = {}) {
+  const { silent = false } = options;
   const input = document.getElementById("equipLookupId");
   const raw = input ? input.value : "";
   const query = String(raw || "").trim();
 
   if (query.length < 2) {
     renderEquipmentSearchResults_([], "");
-    return alert("Введи минимум 2 символа для поиска");
+    const meta = document.getElementById("equipSearchMeta");
+    if (meta) meta.textContent = "Введите минимум 2 символа для поиска";
+    if (!silent) {
+      return alert("Введи минимум 2 символа для поиска");
+    }
+    return;
   }
 
   const meta = document.getElementById("equipSearchMeta");
   if (meta) meta.textContent = "Ищу в базе...";
+
+  if (silent && !sessionStorage.getItem("surpresso_pwa_key")) {
+    if (meta) meta.textContent = "Нажмите «Найти», чтобы выполнить поиск.";
+    return;
+  }
 
   try {
     const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(query)}`);
@@ -370,8 +381,10 @@ async function searchEquipmentByQuery() {
     renderEquipmentSearchResults_(data.results || [], query);
   } catch (err) {
     console.error(err);
-    if (meta) meta.textContent = "";
-    alert("Не удалось выполнить поиск");
+    if (meta) meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+    if (!silent) {
+      alert("Не удалось выполнить поиск");
+    }
   }
 }
 
@@ -1231,7 +1244,7 @@ window.addEventListener("load", () => {
       }
 
       equipSearchTimer = setTimeout(() => {
-        searchEquipmentByQuery();
+        searchEquipmentByQuery({ silent: true });
       }, 400);
     });
 
