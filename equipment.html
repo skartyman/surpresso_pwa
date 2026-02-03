@@ -375,15 +375,33 @@ async function searchEquipmentByQuery(options = {}) {
     const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(query)}`);
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new Error(text || "search_failed");
+      let errorMessage = text;
+      if (text) {
+        try {
+          const payload = JSON.parse(text);
+          errorMessage = payload?.error || payload?.message || text;
+        } catch {
+          errorMessage = text;
+        }
+      }
+      throw new Error(errorMessage || "search_failed");
     }
     const data = await resp.json();
     renderEquipmentSearchResults_(data.results || [], query);
   } catch (err) {
     console.error(err);
-    if (meta) meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+    const message = String(err?.message || "");
+    if (meta) {
+      if (message.includes("NO_PWA_KEY")) {
+        meta.textContent = "Введите ключ доступа, затем повторите поиск.";
+      } else if (message.includes("unauthorized")) {
+        meta.textContent = "Нет доступа. Проверьте ключ и повторите поиск.";
+      } else {
+        meta.textContent = "Ошибка поиска. Нажмите «Найти» и попробуйте снова.";
+      }
+    }
     if (!silent) {
-      alert("Не удалось выполнить поиск");
+      alert(message ? `Не удалось выполнить поиск: ${message}` : "Не удалось выполнить поиск");
     }
   }
 }
