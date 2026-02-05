@@ -1394,6 +1394,23 @@ app.post("/tg/webhook", async (req, res) => {
         const caption = buildSubscriptionCaption(eq, passportLink);
         await tgNotifyTextTo(chatId, [intro, caption].filter(Boolean).join("\n\n"), buildMainMenuMarkup());
 
+        if (!subscription?.alreadySubscribed && TG_NOTIFY_CHAT_ID) {
+          const adminMessage = [
+            "🔔 Нова підписка на бот сповіщень",
+            `🆔 Equipment ID: ${equipmentId}`,
+            `👤 ${user.first_name || ""} ${user.last_name || ""} (@${user.username || "—"})`,
+            passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+            `Chat ID: ${chatId}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+          await tgNotifyTextTo(
+            TG_NOTIFY_CHAT_ID,
+            adminMessage,
+            buildReplyClientMarkup(chatId)
+          );
+        }
+
         return res.send({ ok: true });
       }
 
