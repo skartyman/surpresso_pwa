@@ -231,6 +231,20 @@ function parseBase64Data(dataUrl, fallbackExt) {
   };
 }
 
+function parseBase64File(dataUrl, fallbackExt, fallbackMime) {
+  const raw = String(dataUrl || "");
+  const match = raw.match(/^data:([^;]+);base64,(.+)$/);
+  const mime = match ? match[1] : fallbackMime || "application/octet-stream";
+  const data = match ? match[2] : raw;
+  const extFromMime = mime.split("/")[1] || "";
+  const ext = extFromMime || fallbackExt || "bin";
+  return {
+    buffer: Buffer.from(data, "base64"),
+    filename: `file.${ext}`,
+    mime,
+  };
+}
+
 async function tgSendVideoTo(botToken, chatId, video, caption) {
   if (!botToken || !chatId || !video) return;
 
@@ -250,6 +264,32 @@ async function tgSendVideoTo(botToken, chatId, video, caption) {
     console.log("TG VIDEO RESPONSE:", await tgResp.text());
   } catch (err) {
     console.error("TG VIDEO ERROR:", err);
+    return false;
+  }
+}
+
+async function tgSendDocumentTo(botToken, chatId, fileDataUrl, caption) {
+  if (!botToken || !chatId || !fileDataUrl) return false;
+  try {
+    const payload = parseBase64File(fileDataUrl, "pdf", "application/pdf");
+    const tgForm = new FormData();
+
+    tgForm.append("chat_id", chatId);
+    tgForm.append("document", payload.buffer, {
+      filename: payload.filename,
+      contentType: payload.mime,
+    });
+    if (caption) tgForm.append("caption", caption);
+
+    const tgResp = await fetch(tgApiUrl(botToken, "sendDocument"), {
+      method: "POST",
+      body: tgForm,
+    });
+
+    console.log("TG DOCUMENT RESPONSE:", await tgResp.text());
+    return tgResp.ok;
+  } catch (err) {
+    console.error("TG DOCUMENT ERROR:", err);
     return false;
   }
 }
@@ -290,6 +330,10 @@ async function tgNotifyPhotosTo(chatId, photos, caption) {
 
 async function tgNotifyVideosTo(chatId, videos, caption) {
   return tgSendVideosTo(TG_NOTIFY_BOT, chatId, videos, caption);
+}
+
+async function tgNotifyDocumentTo(chatId, fileDataUrl, caption) {
+  return tgSendDocumentTo(TG_NOTIFY_BOT, chatId, fileDataUrl, caption);
 }
 
 // =======================
@@ -469,6 +513,11 @@ function isClientGiveAwayStatus(status) {
   );
 }
 
+function isReadyStatus(status) {
+  const s = normStatus(status);
+  return s === "готово" || s.includes("готово");
+}
+
 function isCompanyLeavingStatus(status) {
   // "Уехало на аренду"
   const s = normStatus(status);
@@ -536,25 +585,13 @@ async function notifySubscribersVideos({ equipmentId, videos, caption, replyMark
 }
 
 function buildPhotoAddedCaption({ eq, passportLink }) {
-  const who = eq.owner === "company" ? "🔴 Обладнання компанії" : "🟢 Обладнання клієнта";
-
-  let body = `${who}\n🆔 ID: ${eq.id || ""}\n`;
-
-  if (eq.owner === "client") {
-    body +=
-      `👤 ${eq.clientName || ""}\n` +
-      `📞 ${eq.clientPhone || ""}\n` +
-      `⚙️ ${eq.model || ""}\n` +
-      `🔢 ${eq.serial || ""}\n`;
-  } else {
-    body +=
-      `📍 ${eq.companyLocation || ""}\n` +
-      `🛠 ${eq.name || ""}\n` +
-      `🔢 № ${eq.internalNumber || ""}\n`;
-  }
-
-  body += `\n📸 Додано нове фото\n🔗 Паспорт: ${passportLink}`;
-  return body;
+  return [
+    "📸 Додано фото",
+    `🆔 ID: ${eq.id || ""}`,
+    passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function parseTelegramCommand(text) {
@@ -608,6 +645,47 @@ function buildStatusChangeCaption({ eq, oldStatus, newStatus, comment, actor, pa
     `\n🔗 Паспорт: ${passportLink}`;
 
   return head + body + extra;
+}
+
+function buildSubscriberStatusCaption({ oldStatus, newStatus, comment, passportLink }) {
+  const lines = [
+    `🔔 Змінено статус: ${oldStatus || "—"} → ${newStatus || "—"}`,
+    comment ? `📝 ${comment}` : "",
+  ].filter(Boolean);
+
+  if (isReadyStatus(newStatus)) {
+    lines.push("✅ Техніка готова.");
+    lines.push("Запрошуємо забрати техніку.");
+  }
+
+  if (passportLink) lines.push(`🔗 Паспорт: ${passportLink}`);
+  return lines.join("\n");
+}
+
+function buildSubscriptionCaption(eq, passportLink) {
+  const isClient = eq.owner === "client";
+  const head = isClient ? "🟢 Прийом від клієнта" : "🔴 Обладнання компанії";
+  const lines = [
+    head,
+    `🆔 ID: ${eq.id || ""}`,
+    `🔧 Статус: ${eq.status || "—"}`,
+  ];
+
+  if (isClient) {
+    lines.push(`👤 ${eq.clientName || ""}`);
+    lines.push(`📞 ${eq.clientPhone || ""}`);
+    lines.push(`📍 ${eq.clientLocation || ""}`);
+    lines.push(`⚙️ ${eq.model || ""}`);
+    lines.push(`🔢 ${eq.serial || ""}`);
+  } else {
+    lines.push(`📍 ${eq.companyLocation || ""}`);
+    lines.push(`🛠 ${eq.name || ""}`);
+    lines.push(`🔢 № ${eq.internalNumber || ""}`);
+  }
+
+  if (eq.lastComment) lines.push(`📝 ${eq.lastComment}`);
+  if (passportLink) lines.push(`🔗 Паспорт: ${passportLink}`);
+  return lines.filter(Boolean).join("\n");
 }
 
 // =======================
@@ -832,7 +910,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
       const passportLink = buildPassportLink(req, id, { isPublic: owner === "client" });
       const mainMenuMarkup = buildMainMenuMarkup();
 
-      const caption = buildStatusChangeCaption({
+      const adminCaption = buildStatusChangeCaption({
         eq: { ...eqBefore, id, ...locationPayload },
         oldStatus,
         newStatus,
@@ -840,8 +918,15 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         actor,
         passportLink,
       });
+      const clientCaption = buildSubscriberStatusCaption({
+        oldStatus,
+        newStatus,
+        comment,
+        passportLink,
+      });
 
-      const videoCaption = safePhotos.length ? "" : caption;
+      const clientVideoCaption = safePhotos.length ? "" : clientCaption;
+      const adminVideoCaption = safePhotos.length ? "" : adminCaption;
 
       if (owner === "client") {
         console.log("[CLIENT_FLOW]", {
@@ -852,14 +937,14 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
           await notifySubscribers({
             equipmentId: id,
             photos: safePhotos,
-            caption,
+            caption: clientCaption,
             replyMarkup: mainMenuMarkup,
           });
-        } else if (caption) {
+        } else if (clientCaption) {
           await notifySubscribers({
             equipmentId: id,
             photos: [],
-            caption,
+            caption: clientCaption,
             replyMarkup: mainMenuMarkup,
           });
         }
@@ -867,18 +952,18 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
           await notifySubscribersVideos({
             equipmentId: id,
             videos: safeVideos,
-            caption: videoCaption,
+            caption: clientVideoCaption,
             replyMarkup: mainMenuMarkup,
           });
         }
         if (statusChanged && isClientGiveAwayStatus(newStatus)) {
           if (safePhotos.length) {
-            await tgSendPhotos(safePhotos, caption);
-          } else if (caption) {
-            await tgSendText(caption);
+            await tgSendPhotos(safePhotos, adminCaption);
+          } else if (adminCaption) {
+            await tgSendText(adminCaption);
           }
           if (safeVideos.length) {
-            await tgSendVideos(safeVideos, videoCaption);
+            await tgSendVideos(safeVideos, adminVideoCaption);
           }
         }
 
@@ -890,12 +975,12 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
         }
       } else {
         if (safePhotos.length) {
-          await tgSendPhotos(safePhotos, caption);
-        } else if (caption) {
-          await tgSendText(caption);
+          await tgSendPhotos(safePhotos, adminCaption);
+        } else if (adminCaption) {
+          await tgSendText(adminCaption);
         }
         if (safeVideos.length) {
-          await tgSendVideos(safeVideos, videoCaption);
+          await tgSendVideos(safeVideos, adminVideoCaption);
         }
       }
     }
@@ -910,7 +995,7 @@ app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
 app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
-    const { text = "", actor = "" } = req.body || {};
+    const { text = "", actor = "", photos = [] } = req.body || {};
     if (!id || !text) return res.status(400).send({ ok: false, error: "missing_fields" });
     if (!TG_NOTIFY_BOT) return res.status(500).send({ ok: false, error: "tg_notify_bot_missing" });
 
@@ -924,6 +1009,7 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
     });
 
     const chatIds = await getSubscriberChatIds(id);
+    const safePhotos = Array.isArray(photos) ? photos.slice(0, 2) : [];
     const message =
       `🛠 Потрібне погодження\n` +
       `🆔 ID: ${id}\n` +
@@ -934,9 +1020,13 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
     }
 
     const notifyResults = await Promise.all(
-      chatIds.map((chatId) =>
-        tgNotifyTextTo(chatId, message, buildApprovalMarkup({ requestId, equipmentId: id }))
-      )
+      chatIds.map(async (chatId) => {
+        if (safePhotos.length) {
+          await tgNotifyPhotosTo(chatId, safePhotos, message);
+          return tgNotifyTextTo(chatId, "Підтвердіть, будь ласка:", buildApprovalMarkup({ requestId, equipmentId: id }));
+        }
+        return tgNotifyTextTo(chatId, message, buildApprovalMarkup({ requestId, equipmentId: id }));
+      })
     );
 
     const sent = notifyResults.filter(Boolean).length;
@@ -967,12 +1057,19 @@ app.get("/proxy-drive/:fileId", async (req, res) => {
 app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
-    const { base64, caption = "" } = req.body || {};
-    const out = await gasPost({ action: "photo", id, base64, caption });
+    const { base64, photos, caption = "", skipNotify = false } = req.body || {};
+    const list = base64 ? [base64] : Array.isArray(photos) ? photos.filter(Boolean) : [];
+    if (!list.length) return res.status(400).send({ ok: false, error: "no_photos" });
+
+    const uploads = [];
+    for (let i = 0; i < list.length; i++) {
+      const result = await gasPost({ action: "photo", id, base64: list[i], caption });
+      uploads.push(result);
+    }
     const before = await gasPost({ action: "get", id });
     const eq = before?.equipment || {};
 
-    if (eq.owner === "client") {
+    if (eq.owner === "client" && !skipNotify) {
       const passportLink = buildPassportLink(req, id, { isPublic: true });
       const tgCaption = buildPhotoAddedCaption({
         eq: { ...eq, id },
@@ -980,11 +1077,50 @@ app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
       });
       await notifySubscribers({
         equipmentId: id,
-        photos: base64 ? [base64] : [],
+        photos: list,
         caption: tgCaption,
+        replyMarkup: buildMainMenuMarkup(),
       });
     }
-    res.send(out);
+    res.send({ ok: true, items: uploads });
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+app.post("/api/equip/:id/invoice", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { text = "", file = "" } = req.body || {};
+    if (!id || (!text && !file)) {
+      return res.status(400).send({ ok: false, error: "missing_fields" });
+    }
+
+    const chatIds = await getSubscriberChatIds(id);
+    if (!chatIds.length) return res.send({ ok: true, sent: 0, warning: "no_subscribers" });
+
+    const passportLink = buildPassportLink(req, id, { isPublic: true });
+    const caption = [
+      "💳 Рахунок",
+      `🆔 ID: ${id}`,
+      text ? `📝 ${text}` : "",
+      passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const notifyResults = await Promise.all(
+      chatIds.map(async (chatId) => {
+        if (file) {
+          await tgNotifyDocumentTo(chatId, file, caption);
+          return tgNotifyTextTo(chatId, "Меню", buildMainMenuMarkup());
+        }
+        return tgNotifyTextTo(chatId, caption, buildMainMenuMarkup());
+      })
+    );
+
+    const sent = notifyResults.filter(Boolean).length;
+    res.send({ ok: true, sent });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
@@ -1249,20 +1385,14 @@ app.post("/tg/webhook", async (req, res) => {
             lastName: user.last_name,
           },
         });
-
-        if (subscription?.alreadySubscribed) {
-          await tgNotifyTextTo(
-            chatId,
-            "Ви вже підписані на сповіщення про перебіг ремонту.",
-            buildMainMenuMarkup()
-          );
-        } else {
-          await tgNotifyTextTo(
-            chatId,
-            "Ваше обладнання прийнято на ремонт до Surpresso Service. Ви підписані на сповіщення про перебіг ремонту.",
-            buildMainMenuMarkup()
-          );
-        }
+        const data = await gasPost({ action: "get", id: equipmentId });
+        const eq = data?.equipment || {};
+        const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: true });
+        const intro = subscription?.alreadySubscribed
+          ? "Ви вже підписані на сповіщення про перебіг ремонту."
+          : "Ви підписані на сповіщення про перебіг ремонту.";
+        const caption = buildSubscriptionCaption(eq, passportLink);
+        await tgNotifyTextTo(chatId, [intro, caption].filter(Boolean).join("\n\n"), buildMainMenuMarkup());
 
         return res.send({ ok: true });
       }
