@@ -239,6 +239,13 @@
       background:linear-gradient(130deg, #eef5ff, #f9fbff);
       border:1px solid #d8e6ff;
     }
+    .tgCard.is-clickable{
+      cursor:pointer;
+    }
+    .tgCard.is-clickable:focus-visible{
+      outline:2px solid #2f80ed;
+      outline-offset:3px;
+    }
     .tgArt{
       width:64px;
       height:64px;
@@ -732,11 +739,27 @@
       const tgCard = $("tgCard");
       if (eq.owner === "company") {
         tgCard.style.display = "none";
+        tgCard.classList.remove("is-clickable");
+        tgCard.onclick = null;
+        tgCard.onkeydown = null;
+        tgCard.removeAttribute("role");
+        tgCard.removeAttribute("tabindex");
         $("telegramSubscribe").innerHTML = "";
       } else {
-        const tgLink = buildTelegramSubscribeLink(eq.id || EQUIPMENT_ID, data.tgBotUsername);
-        $("telegramSubscribe").innerHTML = tgLink;
+        const tgUrl = buildTelegramSubscribeUrl(eq.id || EQUIPMENT_ID, data.tgBotUsername);
+        $("telegramSubscribe").innerHTML = buildTelegramSubscribeButton();
+        tgCard.dataset.tgUrl = tgUrl;
+        tgCard.classList.add("is-clickable");
         tgCard.style.display = "";
+        tgCard.setAttribute("role", "button");
+        tgCard.setAttribute("tabindex", "0");
+        tgCard.onclick = () => window.open(tgUrl, "_blank", "noopener");
+        tgCard.onkeydown = (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            tgCard.click();
+          }
+        };
       }
 
       if (String(eq.isContract) === "true") add("Обслуговування", "За договором ✅");
@@ -853,11 +876,14 @@
       }).join("");
     }
 
-    function buildTelegramSubscribeLink(id, botUsername) {
+    function buildTelegramSubscribeUrl(id, botUsername) {
       const safeId = encodeURIComponent(String(id || ""));
       const safeBot = String(botUsername || "SurpressoServicebot").replace(/^@/, "");
-      const url = `https://t.me/${encodeURIComponent(safeBot)}?start=eq_${safeId}`;
-      return `<a class="tgLink btn-dark" href="${url}" target="_blank" rel="noopener">🔔 Підписатися</a>`;
+      return `https://t.me/${encodeURIComponent(safeBot)}?start=eq_${safeId}`;
+    }
+
+    function buildTelegramSubscribeButton() {
+      return `<span class="tgLink btn-dark">🔔 Підписатися</span>`;
     }
 
     // ✅ Превью через твой серверный proxy (без заголовков в img -> используем ?k=...)
