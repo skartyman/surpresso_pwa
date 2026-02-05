@@ -4,28 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Surpresso — Паспорт</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="gradient.css" />
 <style>
-:root{
-  --bg:#f3f4f6;
-  --card:#ffffff;
-  --text:#111827;
-  --muted:#6b7280;
-  --border:#e5e7eb;
-  --accent:#F2C94C;
-  --accent-2:#111827;
-  --shadow: 0 10px 30px rgba(0,0,0,.06);
-  --radius: 16px;
-
-  --ring: 0 0 0 3px rgba(242,201,76,.25);
-}
-
 *{box-sizing:border-box}
 html,body{
   margin:0;
   padding:0;
-  background:var(--bg);
-  color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
 }
 
 a{color:inherit}
@@ -55,7 +40,7 @@ a.link:hover{text-decoration:underline}
   margin:0;
   letter-spacing:.2px;
   text-transform:uppercase;
-  color:var(--muted);
+  color:var(--text-3);
 }
 .pageTitle{
   font-size:22px;
@@ -64,14 +49,14 @@ a.link:hover{text-decoration:underline}
 }
 .sub{
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   margin-top:2px;
 }
 .idBadge{
   padding:6px 10px;
   border-radius:999px;
   border:1px solid var(--border);
-  background:#fff;
+  background:var(--surface-2);
   font-size:12px;
   font-weight:700;
 }
@@ -80,17 +65,6 @@ a.link:hover{text-decoration:underline}
   display:flex;
   flex-direction:column;
   gap:2px;
-}
-
-/* =========================
-   CARDS
-========================= */
-.card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  padding:14px;
 }
 
 /* small section title inside cards */
@@ -105,11 +79,11 @@ a.link:hover{text-decoration:underline}
 .sectionTitle::before{
   content:"";
   width:10px;height:10px;border-radius:4px;
-  background:var(--accent);
+  background:var(--brand-0);
   display:inline-block;
 }
 
-.muted{color:var(--muted);font-size:12px}
+.muted{color:var(--text-3);font-size:12px}
 .small{font-size:12px}
 
 .cardHeader{
@@ -125,7 +99,7 @@ a.link:hover{text-decoration:underline}
 }
 .cardDesc{
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   margin-top:2px;
 }
 
@@ -133,7 +107,7 @@ a.link:hover{text-decoration:underline}
   padding:12px;
   border-radius:12px;
   border:1px dashed var(--border);
-  background:#f9fafb;
+  background:var(--surface);
 }
 .blockTitle{
   font-weight:800;
@@ -142,7 +116,7 @@ a.link:hover{text-decoration:underline}
 }
 .blockDesc{
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   margin-bottom:8px;
 }
 
@@ -173,6 +147,19 @@ a.link:hover{text-decoration:underline}
   gap:10px;
   flex-wrap:wrap;
 }
+.action-row{
+  width:100%;
+}
+.action-row .btn{
+  flex:1 1 180px;
+  min-width:160px;
+}
+@media (max-width: 720px){
+  .action-row .btn{
+    flex:1 1 100%;
+    min-width:100%;
+  }
+}
 .grid{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -201,7 +188,7 @@ a.link:hover{text-decoration:underline}
 ========================= */
 label.lbl{
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   display:block;
   margin-bottom:6px;
 }
@@ -217,7 +204,7 @@ textarea{
   padding:10px 12px;
   border:1px solid var(--border);
   border-radius:12px;
-  background:#fff;
+  background:var(--surface-2);
   outline:none;
   font-size:13px;
   color:var(--text);
@@ -233,7 +220,7 @@ input:focus,
 select:focus,
 textarea:focus{
   border-color: rgba(242,201,76,.9);
-  box-shadow: var(--ring);
+  box-shadow: var(--glow);
 }
 
 .compactInput{
@@ -259,53 +246,6 @@ select{
 }
 
 /* =========================
-   BUTTONS
-========================= */
-.btn{
-  border:1px solid var(--border);
-  background:#fff;
-  color:var(--text);
-  padding:9px 12px;
-  border-radius:12px;
-  font-size:13px;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  transition: transform .05s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
-  user-select:none;
-  white-space:nowrap;
-}
-
-.btn:hover{
-  border-color:#d1d5db;
-  box-shadow: 0 6px 18px rgba(0,0,0,.06);
-}
-.btn:active{transform: translateY(1px)}
-.btn:disabled{
-  opacity:.55;
-  cursor:not-allowed;
-  box-shadow:none;
-}
-
-.btn-yellow{
-  background:var(--accent);
-  border-color:rgba(0,0,0,.12);
-  font-weight:800;
-}
-
-.btn-ghost{
-  background:transparent;
-}
-
-.btn-danger{
-  border-color:#fecaca;
-  background:#fff;
-  color:#991b1b;
-}
-
-/* =========================
    SPECS EDITOR
 ========================= */
 .specsToolbar{
@@ -322,7 +262,7 @@ select{
   padding:10px 12px;
   border:1px solid var(--border);
   border-radius:12px;
-  background:#fff;
+  background:var(--surface-2);
   outline:none;
   font-size:13px;
   color:var(--text);
@@ -330,11 +270,11 @@ select{
   white-space:pre-wrap;
 }
 .specsEditor[contenteditable="false"]{
-  background:#f9fafb;
+  background:var(--surface);
 }
 .specsEditor:empty:before{
   content: attr(placeholder);
-  color:var(--muted);
+  color:var(--text-3);
   white-space:pre-line;
 }
 
@@ -348,9 +288,9 @@ select{
   padding:6px 10px;
   border-radius:999px;
   border:1px solid var(--border);
-  background:#fafafa;
+  background:var(--surface);
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
 }
 .pill b{color:var(--text)}
 
@@ -382,7 +322,7 @@ select{
 }
 #info td.lbl{
   width:38%;
-  color:var(--muted);
+  color:var(--text-3);
   font-size:12px;
   padding-right:10px;
 }
@@ -417,7 +357,7 @@ select{
   border:1px solid var(--border);
   border-radius:14px;
   overflow:hidden;
-  background:#fff;
+  background:var(--surface-2);
 }
 .ph img{
   width:100%;
@@ -429,7 +369,7 @@ select{
 .ph .cap{
   padding:8px 10px;
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   border-top:1px solid var(--border);
 }
 
@@ -443,7 +383,7 @@ select{
 }
 .pagerInfo{
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   padding:0 6px;
 }
 
@@ -455,15 +395,15 @@ input[type="file"]{
   width:auto;
   max-width:100%;
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
   padding:6px;
   border-radius:12px;
   border:1px solid var(--border);
-  background:#fff;
+  background:var(--surface-2);
 }
 input[type="file"]::file-selector-button{
   border:1px solid var(--border);
-  background:#fff;
+  background:var(--surface);
   padding:8px 10px;
   border-radius:12px;
   cursor:pointer;
@@ -494,7 +434,7 @@ input[type="file"]::file-selector-button:hover{
   border:1px solid var(--border);
   border-radius:14px;
   overflow:hidden;
-  background:#fff;
+  background:var(--surface-2);
 }
 .prevItem img{
   width:100%;
@@ -551,7 +491,7 @@ input[type="file"]::file-selector-button:hover{
 .hintLine{
   margin-top:8px;
   font-size:12px;
-  color:var(--muted);
+  color:var(--text-3);
 }
 
 /* =========================
@@ -641,10 +581,10 @@ input[type="file"]::file-selector-button:hover{
                 <div class="cardTitle">Поточний стан</div>
                 <div class="cardDesc">Швидкий огляд і дії з паспортом</div>
               </div>
-              <div class="row">
-                <button class="btn btn-ghost" id="btnPdf">📄 PDF A4</button>
-                <button class="btn btn-yellow" id="btnRefresh">⟳ Оновити</button>
-                <button class="btn btn-ghost" id="btnPrint">🖨 Бланк</button>
+              <div class="row action-row">
+                <button class="btn ghost" id="btnPdf">📄 Паспорт оборудования</button>
+                <button class="btn primary" id="btnRefresh">⟳ Оновити</button>
+                <button class="btn ghost" id="btnPrint">🖨 Бланк</button>
               </div>
             </div>
 
@@ -683,7 +623,7 @@ input[type="file"]::file-selector-button:hover{
 
             <div class="row" style="margin-top:10px; justify-content:space-between;">
               <select id="actor" class="compactInput" style="flex:1;min-width:220px"></select>
-              <button class="btn btn-yellow" id="btnStatus">✅ Зберегти статус</button>
+              <button class="btn primary" id="btnStatus">✅ Зберегти статус</button>
               <span class="muted" id="statusHint"></span>
             </div>
 
@@ -696,15 +636,15 @@ input[type="file"]::file-selector-button:hover{
 
               <div class="row" style="margin-top:10px; justify-content:space-between">
                 <div class="row" style="gap:8px;">
-                  <button class="btn btn-ghost" id="btnCamToggle">📷 Камера</button>
-                  <button class="btn btn-ghost" id="btnTorch" style="display:none">💡 Світло</button>
-                  <button class="btn btn-ghost" id="btnCapture" style="display:none">📸 Зняти</button>
-                  <button class="btn btn-danger" id="btnClearStatusPhotos" style="display:none">🗑 Очистити</button>
+                  <button class="btn ghost" id="btnCamToggle">📷 Камера</button>
+                  <button class="btn ghost" id="btnTorch" style="display:none">💡 Світло</button>
+                  <button class="btn ghost" id="btnCapture" style="display:none">📸 Зняти</button>
+                  <button class="btn danger" id="btnClearStatusPhotos" style="display:none">🗑 Очистити</button>
                 </div>
 
                 <div class="row" style="gap:8px;">
                   <input type="file" id="statusPhotoFiles" accept="image/*" multiple />
-                  <button class="btn btn-yellow" id="btnAddStatusFiles">➕ Додати з галереї</button>
+                  <button class="btn primary" id="btnAddStatusFiles">➕ Додати з галереї</button>
                 </div>
               </div>
 
@@ -736,7 +676,7 @@ input[type="file"]::file-selector-button:hover{
             <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
               <input type="file" id="reFiles" accept="image/*" multiple />
               <input id="reComment" placeholder="Комментарий (напр: повернулось з оренди)" style="flex:1;min-width:220px"/>
-              <button class="btn btn-yellow" id="btnReSend">📩 В TG + Trello</button>
+              <button class="btn primary" id="btnReSend">📩 В TG + Trello</button>
             </div>
 
             <div class="muted" style="margin-top:6px">
@@ -765,7 +705,7 @@ input[type="file"]::file-selector-button:hover{
 
             <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
               <select id="approvalActor" class="compactInput" style="flex:1;min-width:220px"></select>
-              <button class="btn btn-yellow" id="btnApprovalSend">✅ Відправити запит</button>
+              <button class="btn primary" id="btnApprovalSend">✅ Відправити запит</button>
             </div>
 
             <div class="muted" style="margin-top:6px">
@@ -799,15 +739,15 @@ input[type="file"]::file-selector-button:hover{
               </div>
               <div class="row" style="gap:8px; align-items:center;">
                 <div class="muted" id="specsHint"></div>
-                <button class="btn btn-ghost" id="btnEditSpecs" type="button"></button>
+                <button class="btn ghost" id="btnEditSpecs" type="button"></button>
               </div>
             </div>
 
             <div class="specsToolbar" role="toolbar" aria-label="Форматування специфікацій">
-              <button class="btn btn-ghost" type="button" data-specs-cmd="bold"><b>Жирний</b></button>
-              <button class="btn btn-ghost" type="button" data-specs-cmd="h3">Заголовок</button>
-              <button class="btn btn-ghost" type="button" data-specs-cmd="ul">Список</button>
-              <button class="btn btn-ghost" type="button" data-specs-cmd="br">Рядок</button>
+              <button class="btn ghost" type="button" data-specs-cmd="bold"><b>Жирний</b></button>
+              <button class="btn ghost" type="button" data-specs-cmd="h3">Заголовок</button>
+              <button class="btn ghost" type="button" data-specs-cmd="ul">Список</button>
+              <button class="btn ghost" type="button" data-specs-cmd="br">Рядок</button>
             </div>
 
             <label class="lbl" for="specsInput">Вкажіть специфікації кавомашини</label>
@@ -821,7 +761,7 @@ input[type="file"]::file-selector-button:hover{
             ></div>
 
             <div class="row" style="margin-top:10px; justify-content:flex-end;">
-              <button class="btn btn-yellow" id="btnSaveSpecs">💾 Зберегти характеристики</button>
+              <button class="btn primary" id="btnSaveSpecs">💾 Зберегти характеристики</button>
             </div>
 
             <div class="hintLine">
@@ -845,7 +785,7 @@ input[type="file"]::file-selector-button:hover{
 
             <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap;align-items:center;">
               <input type="file" id="invoiceFile" accept=".pdf,image/*" />
-              <button class="btn btn-yellow" id="btnInvoiceSend">📄 Відправити рахунок</button>
+              <button class="btn primary" id="btnInvoiceSend">📄 Відправити рахунок</button>
             </div>
 
             <div class="muted" style="margin-top:6px">
@@ -862,8 +802,8 @@ input[type="file"]::file-selector-button:hover{
               </div>
               <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
                 <input type="file" id="photoFiles" accept="image/*" multiple />
-                <button class="btn btn-ghost" id="btnPhotoAlbum">🖼️ Фотоальбом</button>
-                <button class="btn btn-yellow" id="btnUploadPhotos">📤 Додати фото в базу</button>
+                <button class="btn ghost" id="btnPhotoAlbum">🖼️ Фотоальбом</button>
+                <button class="btn primary" id="btnUploadPhotos">📤 Додати фото в базу</button>
               </div>
             </div>
 
@@ -875,9 +815,9 @@ input[type="file"]::file-selector-button:hover{
               <div class="muted" id="photosHint"></div>
 
               <div class="pager">
-                <button class="btn btn-ghost" id="btnPrevPhotos">←</button>
+                <button class="btn ghost" id="btnPrevPhotos">←</button>
                 <div class="pagerInfo" id="photosPageInfo">Фото: 0</div>
-                <button class="btn btn-ghost" id="btnNextPhotos">→</button>
+                <button class="btn ghost" id="btnNextPhotos">→</button>
               </div>
             </div>
 
