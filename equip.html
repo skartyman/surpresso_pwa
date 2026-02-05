@@ -482,8 +482,59 @@ input[type="file"]::file-selector-button:hover{
 }
 #camVideo{
   width:100%;
-  height:auto;
+  height:100%;
   display:block;
+  object-fit:cover;
+}
+.cameraControls{
+  position:absolute;
+  inset:auto 0 0 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:10px;
+  background:linear-gradient(to top, rgba(0,0,0,.7), rgba(0,0,0,0));
+}
+.cameraControlsGroup{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex:1;
+}
+.cameraControlsGroup.center{
+  justify-content:center;
+}
+.cameraControlsGroup.right{
+  justify-content:flex-end;
+}
+.cameraBtn{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(17,24,39,.8);
+  border:1px solid rgba(255,255,255,.2);
+  color:#fff;
+  font-size:20px;
+  line-height:1;
+}
+.cameraBtn:hover{
+  background:rgba(17,24,39,.95);
+}
+.cameraBtn.capture{
+  width:56px;
+  height:56px;
+  font-size:22px;
+  background:rgba(242,201,76,.95);
+  color:#111827;
+  border-color:rgba(0,0,0,.12);
+}
+.cameraBtn.capture:hover{
+  background:rgba(242,201,76,1);
 }
 .cameraControls{
   position:absolute;
@@ -1833,7 +1884,8 @@ input[type="file"]::file-selector-button:hover{
         }
         torchOn = !torchOn;
         await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-        $("btnTorch").textContent = torchOn ? "💡 Світло: ON" : "💡 Світло";
+        $("btnTorch").textContent = "💡";
+        $("btnTorch").title = torchOn ? "Світло: ON" : "Світло";
       } catch (e) {
         console.error(e);
       }
