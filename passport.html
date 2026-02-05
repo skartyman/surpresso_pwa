@@ -895,7 +895,8 @@
     function openLightbox(imgUrl, driveUrl, title) {
       LB_DRIVE_URL = driveUrl || "";
       $("lbImg").src = imgUrl || "";
-      $("lbTitle").textContent = title || "Фото";
+      const displayTitle = /^https?:\/\//i.test(String(title || "")) ? "Фото" : (title || "Фото");
+      $("lbTitle").textContent = displayTitle;
       $("lightbox").style.display = "flex";
       $("lbOpenDrive").style.display = LB_DRIVE_URL ? "inline-flex" : "none";
     }
