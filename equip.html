@@ -479,6 +479,7 @@ input[type="file"]::file-selector-button:hover{
   overflow:hidden;
   background:#000;
   position:relative;
+  aspect-ratio:16/9;
 }
 #camVideo{
   width:100%;
@@ -724,12 +725,14 @@ input[type="file"]::file-selector-button:hover{
                 <video id="camVideo" autoplay playsinline></video>
                 <canvas id="camCanvas" style="display:none;"></canvas>
                 <div class="cameraControls">
-                  <div class="row" style="gap:8px;">
-                    <button class="btn ghost" id="btnTorch" style="display:none">💡 Світло</button>
+                  <div class="cameraControlsGroup">
+                    <button class="cameraBtn" id="btnTorch" style="display:none" title="Світло">💡</button>
                   </div>
-                  <div class="row" style="gap:8px;">
-                    <button class="btn ghost" id="btnCapture" style="display:none">📸 Зняти</button>
-                    <button class="btn ghost" id="btnCamToggle" style="display:none">⏹ Закрити</button>
+                  <div class="cameraControlsGroup center">
+                    <button class="cameraBtn capture" id="btnCapture" style="display:none" title="Зняти">📸</button>
+                  </div>
+                  <div class="cameraControlsGroup right">
+                    <button class="cameraBtn" id="btnCamToggle" style="display:none" title="Закрити">⏹</button>
                   </div>
                 </div>
               </div>
