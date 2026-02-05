@@ -1212,6 +1212,11 @@ input[type="file"]::file-selector-button:hover{
       
       allPhotos = Array.isArray(data.photos) ? data.photos : [];
       const log = data.log || [];
+      const subscriberCount = Number(data.subscriberCount || 0);
+      const botAvailable = Boolean(data.tgBotUsername);
+      const subscriptionLabel = botAvailable
+        ? (subscriberCount > 0 ? `✅ Підписаний (${subscriberCount})` : "❌ Не підписаний")
+        : "⚠️ Бот недоступний";
 
       CURRENT_OWNER = eq.owner || "";
 
@@ -1239,6 +1244,7 @@ input[type="file"]::file-selector-button:hover{
         add("Локація", eq.clientLocation || "—");
         add("Модель", eq.model || "—");
         add("Серійний", eq.serial || "—");
+        add("Підписка на бот", subscriptionLabel);
       } else {
         add("Локація (заклад/цех)", eq.companyLocation || "—");
         add("Назва", eq.name || "—");
