@@ -367,10 +367,13 @@
       gap:10px;
       align-items:center;
       justify-content:space-between;
+      flex-wrap:wrap;
       color:#fff;
       margin-bottom:10px;
     }
     .lbTitle{
+      flex:1 1 auto;
+      min-width:0;
       font-weight:800;
       font-size:14px;
       opacity:.95;
@@ -378,7 +381,12 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
-    .lbBtns{ display:flex; gap:8px; flex-wrap:wrap; }
+    .lbBtns{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
     .lbBtn{
       background:rgba(255,255,255,.14);
       color:#fff;
@@ -400,6 +408,19 @@
       object-fit:contain;
       display:block;
       background:#111;
+    }
+    @media(max-width:520px){
+      .lbTop{
+        flex-direction:column;
+        align-items:stretch;
+      }
+      .lbBtns{ width:100%; }
+      .lbBtn{
+        flex:1 1 auto;
+        padding:6px 8px;
+        font-size:12px;
+        text-align:center;
+      }
     }
 
     /* PRINT A4 */
