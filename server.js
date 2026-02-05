@@ -831,7 +831,12 @@ app.get("/api/equip/:id", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const out = await gasPost({ action: "get", id });
-    res.send({ ...out, tgBotUsername: TG_NOTIFY_BOT_USERNAME });
+    const subscriberChatIds = await getSubscriberChatIds(id);
+    res.send({
+      ...out,
+      tgBotUsername: TG_NOTIFY_BOT_USERNAME,
+      subscriberCount: subscriberChatIds.length
+    });
   } catch (e) {
     res.status(500).send({ ok: false, error: String(e) });
   }
