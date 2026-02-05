@@ -50,15 +50,36 @@ a.link:hover{text-decoration:underline}
 }
 
 .logo{
-  font-size:18px;
-  font-weight:900;
+  font-size:14px;
+  font-weight:800;
   margin:0;
   letter-spacing:.2px;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.pageTitle{
+  font-size:22px;
+  font-weight:900;
+  margin:4px 0 2px;
 }
 .sub{
   font-size:12px;
   color:var(--muted);
   margin-top:2px;
+}
+.idBadge{
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:#fff;
+  font-size:12px;
+  font-weight:700;
+}
+
+.pageMeta{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
 }
 
 /* =========================
@@ -90,6 +111,40 @@ a.link:hover{text-decoration:underline}
 
 .muted{color:var(--muted);font-size:12px}
 .small{font-size:12px}
+
+.cardHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.cardTitle{
+  font-weight:900;
+  font-size:15px;
+}
+.cardDesc{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:2px;
+}
+
+.block{
+  padding:12px;
+  border-radius:12px;
+  border:1px dashed var(--border);
+  background:#f9fafb;
+}
+.blockTitle{
+  font-weight:800;
+  font-size:13px;
+  margin-bottom:6px;
+}
+.blockDesc{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
 
 /* =========================
    LAYOUT COLUMNS
@@ -132,6 +187,13 @@ a.link:hover{text-decoration:underline}
   flex-wrap:wrap;
   gap:8px;
   justify-content:flex-end;
+}
+
+.pillGroup{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
 }
 
 /* =========================
@@ -551,11 +613,12 @@ input[type="file"]::file-selector-button:hover{
 
     <!-- TOP -->
     <div class="top">
-      <div>
+      <div class="pageMeta">
         <div class="logo">Surpresso Service</div>
-        <div class="sub">Паспорт / статус обладнання</div>
+        <div class="pageTitle">Керування обладнанням</div>
+        <div class="sub">Паспорт, статуси, фото та запити в одному місці</div>
       </div>
-      <div class="sub">ID: <b id="eqId">—</b></div>
+      <div class="idBadge">ID: <b id="eqId">—</b></div>
     </div>
 
     <!-- NO ID -->
@@ -573,13 +636,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- STATUS HEADER CARD -->
           <div class="card">
-            <div class="bar" style="justify-content:space-between">
+            <div class="cardHeader">
               <div>
-                <div class="muted">Поточний статус</div>
-                <div style="font-size:18px;font-weight:900" id="curStatus">—</div>
-                <div class="muted" id="updatedAt"></div>
+                <div class="cardTitle">Поточний стан</div>
+                <div class="cardDesc">Швидкий огляд і дії з паспортом</div>
               </div>
-
               <div class="row">
                 <button class="btn btn-ghost" id="btnPdf">📄 PDF A4</button>
                 <button class="btn btn-yellow" id="btnRefresh">⟳ Оновити</button>
@@ -587,7 +648,13 @@ input[type="file"]::file-selector-button:hover{
               </div>
             </div>
 
-            <div class="row" style="margin-top:10px">
+            <div>
+              <div class="muted">Поточний статус</div>
+              <div style="font-size:18px;font-weight:900" id="curStatus">—</div>
+              <div class="muted" id="updatedAt"></div>
+            </div>
+
+            <div class="pillGroup">
               <span class="pill" id="pillOwner">owner: —</span>
               <span class="pill" id="pillType">type: —</span>
             </div>
@@ -595,7 +662,12 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- CHANGE STATUS CARD -->
           <div class="card">
-            <div style="font-weight:900; margin-bottom:10px;">Зміна статусу</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Зміна статусу</div>
+                <div class="cardDesc">Фіксуй прогрес та додавай коментарі</div>
+              </div>
+            </div>
 
             <div class="grid">
               <div>
@@ -616,9 +688,9 @@ input[type="file"]::file-selector-button:hover{
             </div>
 
             <!-- PHOTO FOR STATUS -->
-            <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-              <div style="font-weight:800;">📸 Фото до зміни статусу</div>
-              <div class="muted" style="margin-top:4px">
+            <div class="block" style="margin-top:14px">
+              <div class="blockTitle">📸 Фото до зміни статусу</div>
+              <div class="blockDesc">
                 Це фото піде разом зі зміною статусу на сервер. Сервер сам вирішить, чи робити постинг у Telegram.
               </div>
 
@@ -653,8 +725,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- RE-INTAKE CARD -->
           <div class="card">
-            <div class="row" style="justify-content:space-between;align-items:center">
-              <div style="font-weight:900;">Повторний прийом (TG + Trello)</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Повторний прийом (TG + Trello)</div>
+                <div class="cardDesc">Створи новий прийом без дублювання даних</div>
+              </div>
               <div class="muted" id="reHint"></div>
             </div>
 
@@ -671,8 +746,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- APPROVAL REQUEST CARD -->
           <div class="card">
-            <div class="row" style="justify-content:space-between;align-items:center">
-              <div style="font-weight:900;">Запит на погодження</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Запит на погодження</div>
+                <div class="cardDesc">Погодження робіт або сум з клієнтом</div>
+              </div>
               <div class="muted" id="approvalHint"></div>
             </div>
 
@@ -702,8 +780,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- INFO CARD -->
           <div class="card">
-            <div class="row" style="justify-content:space-between">
-              <div style="font-weight:900">Інформація</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Інформація</div>
+                <div class="cardDesc">Основні дані про обладнання та клієнта</div>
+              </div>
               <div class="muted" id="infoHint"></div>
             </div>
             <table id="info"></table>
@@ -711,8 +792,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- SPECS CARD -->
           <div class="card">
-            <div class="row" style="justify-content:space-between; align-items:center;">
-              <div style="font-weight:900">Технічні характеристики</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Технічні характеристики</div>
+                <div class="cardDesc">Оновлюй специфікації для паспорту</div>
+              </div>
               <div class="row" style="gap:8px; align-items:center;">
                 <div class="muted" id="specsHint"></div>
                 <button class="btn btn-ghost" id="btnEditSpecs" type="button"></button>
@@ -747,8 +831,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- INVOICE CARD -->
           <div class="card">
-            <div class="row" style="justify-content:space-between;align-items:center">
-              <div style="font-weight:900">Рахунок</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Рахунок</div>
+                <div class="cardDesc">Відправ рахунок клієнту текстом чи файлом</div>
+              </div>
               <div class="muted" id="invoiceHint"></div>
             </div>
 
@@ -768,9 +855,11 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- PHOTOS CARD -->
           <div class="card">
-            <div class="photosHeader">
-              <div style="font-weight:900">Фото (з бази)</div>
-
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Фото (з бази)</div>
+                <div class="cardDesc">Останні матеріали для клієнта та контролю стану</div>
+              </div>
               <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
                 <input type="file" id="photoFiles" accept="image/*" multiple />
                 <button class="btn btn-ghost" id="btnPhotoAlbum">🖼️ Фотоальбом</button>
@@ -797,7 +886,12 @@ input[type="file"]::file-selector-button:hover{
 
           <!-- LOG CARD -->
           <div class="card">
-            <div style="font-weight:900">Історія статусів</div>
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Історія статусів</div>
+                <div class="cardDesc">Хронологія змін з коментарями</div>
+              </div>
+            </div>
             <table id="log"></table>
           </div>
 
