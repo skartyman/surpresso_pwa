@@ -680,6 +680,11 @@ input[type="file"]::file-selector-button:hover{
               <textarea id="approvalText" placeholder="Опиши, що потрібно погодити (сума, роботи, деталі)" style="flex:1;min-width:240px"></textarea>
             </div>
 
+            <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap;align-items:center;">
+              <input type="file" id="approvalPhotoFiles" accept="image/*" multiple />
+              <div class="muted">Додай 1–2 фото за потреби</div>
+            </div>
+
             <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
               <select id="approvalActor" class="compactInput" style="flex:1;min-width:220px"></select>
               <button class="btn btn-yellow" id="btnApprovalSend">✅ Відправити запит</button>
@@ -737,6 +742,27 @@ input[type="file"]::file-selector-button:hover{
 
             <div class="hintLine">
               Можна вставити готовий список або оформити текст: заголовки, жирний текст, списки.
+            </div>
+          </div>
+
+          <!-- INVOICE CARD -->
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <div style="font-weight:900">Рахунок</div>
+              <div class="muted" id="invoiceHint"></div>
+            </div>
+
+            <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">
+              <textarea id="invoiceText" placeholder="Текстовий рахунок (сума, роботи, реквізити)" style="flex:1;min-width:240px"></textarea>
+            </div>
+
+            <div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap;align-items:center;">
+              <input type="file" id="invoiceFile" accept=".pdf,image/*" />
+              <button class="btn btn-yellow" id="btnInvoiceSend">📄 Відправити рахунок</button>
+            </div>
+
+            <div class="muted" style="margin-top:6px">
+              Можна надіслати текстом, файлом або разом.
             </div>
           </div>
 
@@ -990,6 +1016,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnClearStatusPhotos").onclick = clearStatusPhotos;
       $("btnApprovalSend").onclick = sendApprovalRequest;
       $("btnPhotoAlbum").onclick = sendPhotoAlbum;
+      $("btnInvoiceSend").onclick = sendInvoice;
 
       load();
     }
@@ -1456,16 +1483,15 @@ input[type="file"]::file-selector-button:hover{
 
       if (photos.length) {
         try {
-          for (let i = 0; i < photos.length; i++) {
-            $("statusHint").textContent = `Зберігаю фото ${i + 1} / ${photos.length}...`;
-            const photoOut = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
-              base64: photos[i],
-              caption: ""
-            });
+          $("statusHint").textContent = `Зберігаю ${photos.length} фото...`;
+          const photoOut = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
+            photos,
+            caption: "",
+            skipNotify: true
+          });
 
-            if (!photoOut.ok) {
-              throw new Error(photoOut.error || `Помилка на фото ${i + 1}`);
-            }
+          if (!photoOut.ok) {
+            throw new Error(photoOut.error || "Помилка на фото");
           }
         } catch (e) {
           console.error(e);
@@ -1561,22 +1587,33 @@ input[type="file"]::file-selector-button:hover{
     async function sendApprovalRequest() {
       const text = String($("approvalText")?.value || "").trim();
       const actor = String($("approvalActor")?.value || "").trim();
+      const files = Array.from($("approvalPhotoFiles")?.files || []);
 
       if (!text) {
         alert("Вкажи текст запиту");
         return;
       }
-      await postApprovalRequest(text, actor);
+      if (files.length > 2) {
+        if (!confirm("Можна додати максимум 2 фото. Відправити тільки перші 2?")) return;
+      }
+      const limited = files.slice(0, 2);
+      const photos = [];
+      for (let i = 0; i < limited.length; i++) {
+        photos.push(await fileToBase64(limited[i]));
+      }
+
+      await postApprovalRequest(text, actor, photos);
     }
 
-    async function postApprovalRequest(text, actor) {
+    async function postApprovalRequest(text, actor, photos) {
       $("btnApprovalSend").disabled = true;
       $("approvalHint").textContent = "Відправляю...";
 
       try {
         const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/approval`, {
           text,
-          actor
+          actor,
+          photos
         });
 
         if (!out.ok) throw new Error(out.error || "Помилка відправки");
@@ -1591,6 +1628,8 @@ input[type="file"]::file-selector-button:hover{
           }, 2000);
         }
         $("approvalText").value = "";
+        const photoInput = $("approvalPhotoFiles");
+        if (photoInput) photoInput.value = "";
       } catch (e) {
         console.error(e);
         $("approvalHint").textContent = "";
@@ -1626,6 +1665,49 @@ input[type="file"]::file-selector-button:hover{
         alert("❌ " + (e.message || "Помилка створення фотоальбому"));
       } finally {
         $("btnPhotoAlbum").disabled = false;
+      }
+    }
+
+    async function sendInvoice() {
+      const text = String($("invoiceText")?.value || "").trim();
+      const fileInput = $("invoiceFile");
+      const file = fileInput?.files?.[0] || null;
+
+      if (!text && !file) {
+        alert("Додай текст або файл рахунку.");
+        return;
+      }
+
+      $("btnInvoiceSend").disabled = true;
+      $("invoiceHint").textContent = "Відправляю...";
+
+      try {
+        const fileData = file ? await fileToBase64(file) : "";
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/invoice`, {
+          text,
+          file: fileData
+        });
+
+        if (!out.ok) throw new Error(out.error || "Помилка відправки");
+
+        if (Number(out.sent || 0) <= 0) {
+          $("invoiceHint").textContent = "⚠️ Немає підписників";
+          alert("⚠️ Рахунок не доставлено — клієнт ще не підписаний на паспорт.");
+        } else {
+          $("invoiceHint").textContent = "✅ Рахунок відправлено";
+          setTimeout(() => {
+            $("invoiceHint").textContent = "";
+          }, 2000);
+        }
+
+        $("invoiceText").value = "";
+        if (fileInput) fileInput.value = "";
+      } catch (e) {
+        console.error(e);
+        $("invoiceHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка відправки"));
+      } finally {
+        $("btnInvoiceSend").disabled = false;
       }
     }
 
@@ -1746,18 +1828,20 @@ input[type="file"]::file-selector-button:hover{
       $("photosHint").textContent = `Завантажую ${toUpload.length} фото...`;
 
       try {
+        const photos = [];
         for (let i = 0; i < toUpload.length; i++) {
-          $("photosHint").textContent = `Завантажую фото ${i + 1} / ${toUpload.length}...`;
-          const base64 = await fileToBase64(toUpload[i]);
+          $("photosHint").textContent = `Готую фото ${i + 1} / ${toUpload.length}...`;
+          photos.push(await fileToBase64(toUpload[i]));
+        }
 
-          const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
-            base64,
-            caption: ""
-          });
+        $("photosHint").textContent = `Завантажую ${photos.length} фото...`;
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
+          photos,
+          caption: ""
+        });
 
-          if (!out.ok) {
-            throw new Error(out.error || `Помилка на фото ${i + 1}`);
-          }
+        if (!out.ok) {
+          throw new Error(out.error || "Помилка на фото");
         }
 
         $("photosHint").textContent = "✅ Фото додано";
