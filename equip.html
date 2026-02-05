@@ -479,7 +479,6 @@ input[type="file"]::file-selector-button:hover{
   overflow:hidden;
   background:#000;
   position:relative;
-  aspect-ratio:16 / 9;
 }
 #camVideo{
   width:100%;
@@ -536,6 +535,24 @@ input[type="file"]::file-selector-button:hover{
 }
 .cameraBtn.capture:hover{
   background:rgba(242,201,76,1);
+}
+.cameraControls{
+  position:absolute;
+  inset:auto 0 0 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:10px;
+  background:linear-gradient(to top, rgba(0,0,0,.7), rgba(0,0,0,0));
+}
+.cameraControls .btn{
+  background:rgba(17,24,39,.8);
+  border-color:rgba(255,255,255,.2);
+  color:#fff;
+}
+.cameraControls .btn:hover{
+  background:rgba(17,24,39,.95);
 }
 
 /* =========================
@@ -707,14 +724,12 @@ input[type="file"]::file-selector-button:hover{
                 <video id="camVideo" autoplay playsinline></video>
                 <canvas id="camCanvas" style="display:none;"></canvas>
                 <div class="cameraControls">
-                  <div class="cameraControlsGroup left">
-                    <button class="cameraBtn" id="btnTorch" style="display:none" aria-label="Світло" title="Світло">💡</button>
+                  <div class="row" style="gap:8px;">
+                    <button class="btn ghost" id="btnTorch" style="display:none">💡 Світло</button>
                   </div>
-                  <div class="cameraControlsGroup center">
-                    <button class="cameraBtn capture" id="btnCapture" style="display:none" aria-label="Зняти" title="Зняти">●</button>
-                  </div>
-                  <div class="cameraControlsGroup right">
-                    <button class="cameraBtn" id="btnCamToggle" style="display:none" aria-label="Закрити" title="Закрити">⏹</button>
+                  <div class="row" style="gap:8px;">
+                    <button class="btn ghost" id="btnCapture" style="display:none">📸 Зняти</button>
+                    <button class="btn ghost" id="btnCamToggle" style="display:none">⏹ Закрити</button>
                   </div>
                 </div>
               </div>
