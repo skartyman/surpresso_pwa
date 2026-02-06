@@ -416,6 +416,9 @@ input[type="file"]::file-selector-button:hover{
   border-color:#d1d5db;
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
 }
+.fileBtn input[type="file"]{
+  display:none;
+}
 
 /* =========================
    STATUS PREVIEW GRID (с галереи/камеры)
@@ -479,7 +482,7 @@ input[type="file"]::file-selector-button:hover{
   overflow:hidden;
   background:#000;
   position:relative;
-  aspect-ratio:16/9;
+  aspect-ratio:4/3;
 }
 #camVideo{
   width:100%;
@@ -739,6 +742,10 @@ input[type="file"]::file-selector-button:hover{
 
                 <div class="row" style="gap:8px;">
                   <input type="file" id="statusPhotoFiles" accept="image/*" multiple />
+                  <label class="btn ghost fileBtn">
+                    📷 HD фото
+                    <input type="file" id="statusPhotoHdFile" accept="image/*" capture="environment" />
+                  </label>
                   <button class="btn primary" id="btnAddStatusFiles">➕ Додати з галереї</button>
                 </div>
               </div>
@@ -1154,6 +1161,7 @@ input[type="file"]::file-selector-button:hover{
       $("btnCapture").onclick = captureStatusPhoto;
       $("btnTorch").onclick = toggleTorch;
       $("btnAddStatusFiles").onclick = addStatusFiles;
+      $("statusPhotoHdFile").onchange = addStatusHdFile;
       $("btnClearStatusPhotos").onclick = clearStatusPhotos;
       $("btnApprovalSend").onclick = sendApprovalRequest;
       $("btnPhotoAlbum").onclick = sendPhotoAlbum;
@@ -1732,6 +1740,33 @@ input[type="file"]::file-selector-button:hover{
       }
     }
 
+    async function addStatusHdFile() {
+      const input = $("statusPhotoHdFile");
+      const file = input?.files?.[0];
+      if (!file) return;
+
+      const MAX = 10;
+      if (statusPhotos.length >= MAX) {
+        alert(`Максимум ${MAX} фото для статусу`);
+        input.value = "";
+        return;
+      }
+
+      $("statusPhotosHint").textContent = "Додаю HD фото...";
+      try {
+        const base64 = await fileToBase64(file);
+        statusPhotos.push(base64);
+        $("statusPhotosHint").textContent = "";
+        updateStatusPhotosUI();
+      } catch (e) {
+        console.error(e);
+        $("statusPhotosHint").textContent = "";
+        alert("❌ Не вдалося додати HD фото");
+      } finally {
+        input.value = "";
+      }
+    }
+
     async function sendApprovalRequest() {
       const text = String($("approvalText")?.value || "").trim();
       const actor = String($("approvalActor")?.value || "").trim();
@@ -1864,8 +1899,9 @@ input[type="file"]::file-selector-button:hover{
         camStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+            aspectRatio: 4 / 3
           },
           audio: false
         });
@@ -1934,7 +1970,7 @@ input[type="file"]::file-selector-button:hover{
       const c = $("camCanvas");
       const sourceWidth = v.videoWidth || 1280;
       const sourceHeight = v.videoHeight || 720;
-      const targetAspect = 16 / 9;
+      const targetAspect = 4 / 3;
 
       let cropWidth = sourceWidth;
       let cropHeight = sourceHeight;
@@ -1957,7 +1993,7 @@ input[type="file"]::file-selector-button:hover{
       ctx.drawImage(v, cropX, cropY, cropWidth, cropHeight, 0, 0, c.width, c.height);
 
       // сжимаем разумно чтобы не взорвать лимиты
-      const dataURL = c.toDataURL("image/jpeg", 0.88);
+      const dataURL = c.toDataURL("image/jpeg", 0.92);
 
       const MAX = 10;
       if (statusPhotos.length >= MAX) {
