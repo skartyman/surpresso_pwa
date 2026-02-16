@@ -193,7 +193,7 @@
       <h2>Камера (Live)</h2>
 
       <video id="cameraVideo" autoplay playsinline
-        style="width:100%; border-radius:12px; background:#000; max-height:400px; object-fit:cover;"></video>
+        style="width:100%; border-radius:12px; background:#000; max-height:400px; aspect-ratio:4/3; object-fit:cover;"></video>
       <canvas id="cameraCanvas" style="display:none;"></canvas>
 
       <div class="row" style="margin-top:10px; gap:2px;">
@@ -746,7 +746,8 @@ function getOrCreateEquipId() {
           video: {
             facingMode: { ideal: "environment" },
             width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            height: { ideal: 1440 },
+            aspectRatio: 4 / 3
           }
         });
 
@@ -786,11 +787,29 @@ function getOrCreateEquipId() {
       const video = document.getElementById("cameraVideo");
       const canvas = document.getElementById("cameraCanvas");
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const sourceWidth = video.videoWidth || 1280;
+      const sourceHeight = video.videoHeight || 720;
+      const targetAspect = 4 / 3;
+
+      let cropWidth = sourceWidth;
+      let cropHeight = sourceHeight;
+      let cropX = 0;
+      let cropY = 0;
+
+      const sourceAspect = sourceWidth / sourceHeight;
+      if (sourceAspect > targetAspect) {
+        cropWidth = Math.round(sourceHeight * targetAspect);
+        cropX = Math.round((sourceWidth - cropWidth) / 2);
+      } else if (sourceAspect < targetAspect) {
+        cropHeight = Math.round(sourceWidth / targetAspect);
+        cropY = Math.round((sourceHeight - cropHeight) / 2);
+      }
+
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
 
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0);
+      ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
 
       const dataURL = canvas.toDataURL("image/jpeg", 1.0);
       capturedPhotos.push(dataURL);
