@@ -1147,3 +1147,53 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 
 
 
+
+.parts-request-card {
+  width: min(96vw, 980px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.parts-request-search {
+  margin-bottom: 2px;
+}
+
+.parts-request-table-wrap {
+  overflow: auto;
+  max-height: 56vh;
+  border: 1px solid rgba(127,127,127,0.25);
+  border-radius: 10px;
+}
+
+.parts-request-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.parts-request-table th,
+.parts-request-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(127,127,127,0.2);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.parts-request-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  backdrop-filter: blur(3px);
+}
+
+.parts-request-table td:first-child,
+.parts-request-table th:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.parts-request-qty {
+  width: 86px;
+}

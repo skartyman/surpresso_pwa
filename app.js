@@ -124,6 +124,8 @@ let kit = []; // набор со склада
 let warehouseTemplates = [];
 let templatesPanelOpen = false;
 let editingTemplateId = null;
+let partsRequestSelected = new Map();
+let partsRequestFilter = "";
 // ===== Templates: ID + local cache =====
 const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
 
@@ -2051,6 +2053,115 @@ document.getElementById("save-btn").addEventListener("click", async () => {
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), fileName);
 });
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getFilteredPartsForRequest() {
+  const q = partsRequestFilter.trim().toLowerCase();
+  if (!q) return parts;
+
+  return parts.filter(p =>
+    String(p.code || "").toLowerCase().includes(q) ||
+    String(p.name || "").toLowerCase().includes(q)
+  );
+}
+
+function renderPartsRequestTable() {
+  const body = document.getElementById("parts-request-body");
+  if (!body) return;
+
+  const filtered = getFilteredPartsForRequest();
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="6" class="muted">Ничего не найдено.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filtered.map(p => {
+    const code = String(p.code || "").trim();
+    const key = code || String(p.name || "").trim();
+    const selectedQty = Number(partsRequestSelected.get(key) || 1);
+    const isChecked = partsRequestSelected.has(key);
+
+    return `
+      <tr>
+        <td><input type="checkbox" data-pr-code="${escapeHtml(key)}" ${isChecked ? "checked" : ""}></td>
+        <td>${escapeHtml(code)}</td>
+        <td>${escapeHtml(p.name || "")}</td>
+        <td>${Number(p.price || 0).toFixed(2)}</td>
+        <td>${escapeHtml(p.stock || "—")}</td>
+        <td>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            class="parts-request-qty"
+            data-pr-code="${escapeHtml(key)}"
+            value="${Math.max(1, selectedQty)}"
+          />
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function openPartsRequestModal() {
+  partsRequestFilter = "";
+  const searchEl = document.getElementById("parts-request-search");
+  if (searchEl) searchEl.value = "";
+
+  const modal = document.getElementById("parts-request-modal");
+  if (!modal) return;
+
+  renderPartsRequestTable();
+  modal.classList.remove("hidden");
+}
+
+function closePartsRequestModal() {
+  const modal = document.getElementById("parts-request-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
+
+async function sharePartsRequestText() {
+  if (partsRequestSelected.size === 0) {
+    alert("Выберите хотя бы одну запчасть для заявки.");
+    return;
+  }
+
+  const lines = [];
+  for (const [code, qty] of partsRequestSelected.entries()) {
+    lines.push(`${code} x ${qty}`);
+  }
+
+  const text = lines.join("\n");
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Заявка на запчасти",
+        text
+      });
+      return;
+    } catch (e) {
+      console.log("Share parts request error:", e);
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Текст заявки скопирован.");
+  } catch (err) {
+    alert("Не удалось скопировать. Вот текст:\n\n" + text);
+  }
+}
+
 function generateShareText() {
   let txt = "📄 Surpresso Service — Чек\n\n";
 
@@ -2338,6 +2449,51 @@ attachSuggest(
   const refreshBtn = document.getElementById("hard-refresh-btn");
   if (refreshBtn) {
     refreshBtn.onclick = hardRefreshApp;
+  }
+
+  const openPartsRequestBtn = document.getElementById("open-parts-request-btn");
+  if (openPartsRequestBtn) {
+    openPartsRequestBtn.addEventListener("click", openPartsRequestModal);
+  }
+
+  const partsRequestSearch = document.getElementById("parts-request-search");
+  if (partsRequestSearch) {
+    partsRequestSearch.addEventListener("input", e => {
+      partsRequestFilter = e.target.value || "";
+      renderPartsRequestTable();
+    });
+  }
+
+  const partsRequestBody = document.getElementById("parts-request-body");
+  if (partsRequestBody) {
+    partsRequestBody.addEventListener("change", e => {
+      const target = e.target;
+      const code = target?.dataset?.prCode;
+      if (!code) return;
+
+      if (target.matches('input[type="checkbox"]')) {
+        if (target.checked) {
+          const qtyInput = partsRequestBody.querySelector(`input.parts-request-qty[data-pr-code="${CSS.escape(code)}"]`);
+          const qty = Math.max(1, Number(qtyInput?.value || 1));
+          partsRequestSelected.set(code, qty);
+        } else {
+          partsRequestSelected.delete(code);
+        }
+      }
+
+      if (target.matches(".parts-request-qty")) {
+        const qty = Math.max(1, Number(target.value || 1));
+        target.value = qty;
+        if (partsRequestSelected.has(code)) {
+          partsRequestSelected.set(code, qty);
+        }
+      }
+    });
+  }
+
+  const sharePartsRequestBtn = document.getElementById("share-parts-request-btn");
+  if (sharePartsRequestBtn) {
+    sharePartsRequestBtn.addEventListener("click", sharePartsRequestText);
   }
 
   document.getElementById("add-part").onclick =

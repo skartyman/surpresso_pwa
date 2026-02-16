@@ -222,6 +222,12 @@
         🗑 Очистить
       </button>
     </div>
+
+    <div class="row mt-12">
+      <button id="open-parts-request-btn" class="btn ghost wide" type="button">
+        🧾 Заявка на запчасти
+      </button>
+    </div>
   </div>
 <!-- Mini modal:............................................................ Replace / Add -->
 <div id="kit-choice-modal" class="mini-modal hidden">
@@ -237,6 +243,42 @@
       <button type="button" class="btn ghost" onclick="closeKitChoice()">Отмена</button>
       <button type="button" class="btn ghost danger" id="kit-choice-replace-btn">Заменить</button>
       <button type="button" class="btn primary" id="kit-choice-add-btn">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Заявка на запчасти -->
+<div id="parts-request-modal" class="mini-modal hidden">
+  <div class="mini-modal__backdrop" onclick="closePartsRequestModal()"></div>
+
+  <div class="mini-modal__card parts-request-card" role="dialog" aria-modal="true">
+    <div class="mini-modal__title">Заявка на запчасти</div>
+    <div class="mini-modal__text">Выберите позиции и укажите нужное количество.</div>
+
+    <div class="field full parts-request-search">
+      <label>Поиск</label>
+      <input id="parts-request-search" type="text" placeholder="Код или название" />
+    </div>
+
+    <div class="parts-request-table-wrap">
+      <table class="parts-request-table">
+        <thead>
+          <tr>
+            <th>+</th>
+            <th>Код</th>
+            <th>Наименование</th>
+            <th>Цена</th>
+            <th>Остаток</th>
+            <th>Нужно</th>
+          </tr>
+        </thead>
+        <tbody id="parts-request-body"></tbody>
+      </table>
+    </div>
+
+    <div class="mini-modal__actions">
+      <button type="button" class="btn ghost" onclick="closePartsRequestModal()">Закрыть</button>
+      <button type="button" id="share-parts-request-btn" class="btn primary">Поделиться</button>
     </div>
   </div>
 </div>
