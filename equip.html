@@ -1585,12 +1585,76 @@ input[type="file"]::file-selector-button:hover{
       "уехало на подмену"
     ];
 
+    const AUTO_RESEND_STATUSES = [
+      "приехало после аренды",
+      "приехало с подмены"
+    ];
+
     function normalizeStatusValue(value) {
       return String(value || "").trim().toLowerCase();
     }
 
     function isLocationRequiredStatus(status) {
       return LOCATION_REQUIRED_STATUSES.includes(normalizeStatusValue(status));
+    }
+
+    function isAutoResendStatus(status) {
+      return AUTO_RESEND_STATUSES.includes(normalizeStatusValue(status));
+    }
+
+    function buildSendEquipmentCard(extraComment = "") {
+      if (!LAST_EQUIPMENT?.id) return null;
+
+      const eq = LAST_EQUIPMENT;
+      const card = {
+        id: String(eq.id || "").trim(),
+        owner: eq.owner || "client",
+        type: eq.type || "",
+        isContract: String(eq.isContract) === "true" || eq.isContract === true,
+      };
+
+      if (card.owner === "client") {
+        card.clientName = eq.clientName || "";
+        card.clientPhone = eq.clientPhone || "";
+        card.clientLocation = eq.clientLocation || "";
+        card.model = eq.model || "";
+        card.serial = eq.serial || "";
+        card.problem = "";
+        card.condition = "";
+      } else {
+        card.companyLocation = eq.companyLocation || "";
+        card.name = eq.name || "";
+        card.internalNumber = eq.internalNumber || "";
+        card.task = "";
+        card.comment = "";
+      }
+
+      const cleanComment = String(extraComment || "").trim();
+      if (cleanComment) {
+        if (card.owner === "client") card.problem = cleanComment;
+        else card.comment = cleanComment;
+      }
+
+      return card;
+    }
+
+    async function sendEquipmentToTelegramAndTrello({ photos = [], comment = "" }) {
+      const card = buildSendEquipmentCard(comment);
+      if (!card) throw new Error("Немає даних обладнання. Натисни Оновити.");
+
+      const resp = await fetch(`${API_BASE}/send-equipment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headersWithKey(),
+        },
+        body: JSON.stringify({ card, photos }),
+      });
+
+      if (!resp.ok) {
+        const t = await resp.text().catch(() => "");
+        throw new Error("Server error: " + t.slice(0, 200));
+      }
     }
 
     function getCurrentLocationForPrompt() {
@@ -1612,6 +1676,7 @@ input[type="file"]::file-selector-button:hover{
       const comment = $("comment").value.trim();
       const actor = $("actor").value.trim();
       const photos = statusPhotos.slice(0, 10);
+      const shouldAutoResend = isAutoResendStatus(newStatus);
       const location = requestLocationForStatus(newStatus);
 
       if (location === null) return;
@@ -1654,6 +1719,18 @@ input[type="file"]::file-selector-button:hover{
           $("statusHint").textContent = "";
           $("btnStatus").disabled = false;
           return alert("❌ " + (e.message || "Помилка завантаження фото"));
+        }
+      }
+
+      if (shouldAutoResend) {
+        try {
+          $("statusHint").textContent = "Відправляю в TG + Trello...";
+          await sendEquipmentToTelegramAndTrello({ photos, comment });
+        } catch (e) {
+          console.error(e);
+          $("statusHint").textContent = "";
+          $("btnStatus").disabled = false;
+          return alert("⚠️ Статус збережено, але TG + Trello не відправлено: " + (e.message || "Помилка"));
         }
       }
 
@@ -2134,42 +2211,7 @@ async function reSendToTelegramAndTrello() {
     $("btnReSend").disabled = true;
     $("reHint").textContent = "Відправляю...";
 
-    // ✅ Собираем card ТАК ЖЕ, как /send-equipment ожидает
-    const eq = LAST_EQUIPMENT;
-
-    const card = {
-      id: String(eq.id || "").trim(),
-      owner: eq.owner || "client",
-      type: eq.type || "",
-      isContract: String(eq.isContract) === "true" || eq.isContract === true,
-    };
-
-    // дополняем поля по owner
-    if (card.owner === "client") {
-      card.clientName = eq.clientName || "";
-      card.clientPhone = eq.clientPhone || "";
-      card.clientLocation = eq.clientLocation || "";
-      card.model = eq.model || "";
-      card.serial = eq.serial || "";
-      // problem/condition можно оставить пустыми или дописать коммент
-      card.problem = "";
-      card.condition = "";
-    } else {
-      card.companyLocation = eq.companyLocation || "";
-      card.name = eq.name || "";
-      card.internalNumber = eq.internalNumber || "";
-      card.task = "";
-      card.comment = "";
-    }
-
-    // ✅ добавим комментарий (в lastComment / caption)
     const extra = String($("reComment").value || "").trim();
-    if (extra) {
-      // сервер в buildCaption читает разные поля
-      // поэтому кладём туда, где он точно покажет:
-      if (card.owner === "client") card.problem = extra;
-      else card.comment = extra;
-    }
 
     // ✅ файлы -> base64
     const photos = [];
@@ -2178,20 +2220,7 @@ async function reSendToTelegramAndTrello() {
       photos.push(await fileToBase64(files[i]));
     }
 
-    // ✅ отправляем ровно как “кнопка приёма”
-    const resp = await fetch(`${API_BASE}/send-equipment`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...headersWithKey(),
-      },
-      body: JSON.stringify({ card, photos }),
-    });
-
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      throw new Error("Server error: " + t.slice(0, 200));
-    }
+    await sendEquipmentToTelegramAndTrello({ photos, comment: extra });
 
     $("reHint").textContent = "✅ Відправлено в TG + Trello";
     setTimeout(() => $("reHint").textContent = "", 2500);
