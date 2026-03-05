@@ -411,6 +411,10 @@ function isCodeLikeQuery(q) {
 function normalizeSearch(str) {
   let s = String(str || "").toLowerCase();
 
+  // приводим составные символы к базовой форме:
+  // "й" -> "и", "ё" -> "е" (и т.п.) чтобы запрос и данные сравнивались одинаково
+  s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+
   // синонимы микрофарад
   s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
 
@@ -422,7 +426,6 @@ function normalizeSearch(str) {
 function tokenizeQuery(q) {
   return String(q || "")
     .toLowerCase()
-    .normalize("NFKD")
     .replace(/µf/g, "uf")
     .replace(/мкф/g, "uf")
     .split(/[\s,.;:|/\\()+\-_]+/g)
@@ -2504,7 +2507,6 @@ attachSuggest(
 
   document.getElementById("new-btn").onclick = newInvoice;
 });
-
 
 
 
