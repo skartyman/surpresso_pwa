@@ -843,15 +843,20 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   }
 
   .header-decor {
-    top: 0;
-    width: 58%;
-    height: 150px;
+    top: -4px;
+    width: 72%;
+    height: 180px;
   }
 
   .header-decor::before {
-    top: 8px;
-    width: min(35vw, 160px);
-    height: 92px;
+    top: 12px;
+    right: 10px;
+    width: min(48vw, 220px);
+    height: 120px;
+  }
+
+  .header-branch {
+    transform: rotate(-1deg) scale(1.2);
   }
 }
 
