@@ -758,29 +758,54 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 
 .header-decor {
   position: absolute;
-  top: -6px;
-  right: 0;
-  width: 180px;
-  height: 120px;
+  top: -10px;
+  right: -6px;
+  width: 230px;
+  height: 150px;
   pointer-events: none;
   z-index: 30;
 }
 
+.header-decor::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 170px;
+  height: 120px;
+  background: radial-gradient(ellipse at center, rgba(255, 191, 69, 0.38) 0%, rgba(255, 191, 69, 0.15) 35%, rgba(255, 191, 69, 0) 72%);
+  filter: blur(4px);
+  z-index: 0;
+}
+
 .header-branch {
   position: absolute;
-  top: 0;
-  right: 0px;
-  width: 180px;
-  transform: rotate(-2deg);
+  top: -2px;
+  right: 0;
+  width: 220px;
+  transform: rotate(-1deg);
+  z-index: 1;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
 }
 
 /* mobile adaptation */
 @media (max-width: 480px) {
   .header-decor {
-    width: 140px;
-    height: 90px;
+    top: -6px;
+    right: -4px;
+    width: 190px;
+    height: 120px;
   }
-  .header-branch { width: 140px; }
+
+  .header-decor::before {
+    top: 10px;
+    width: 130px;
+    height: 92px;
+  }
+
+  .header-branch {
+    width: 178px;
+  }
 }
 
 /* ============================================================
