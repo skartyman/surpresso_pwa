@@ -14,19 +14,29 @@
 <body>
   <!-- HEADER -->
   <header class="app-header">
-    <div class="header-decor">
-      <img src="icons/branch-blossom.png" class="header-branch" alt="Декоративная ветвь">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="" />
     </div>
 
-    <div class="logo-brand">
-      <img src="icons/logo-service.png" alt="Surpresso Service" />
-    </div>
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="icons/logo-service.png" alt="Surpresso Service" />
+      </div>
 
-    <div class="nav-bar">
-      <button class="nav-btn" onclick="goBack()">⬅ Назад</button>
-      <button class="nav-btn" onclick="goHome()">🏠 Домой</button>
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">Чеки на ремонт / сервис</div>
+      </div>
     </div>
   </header>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="goBack()">⬅ Назад</button>
+    <button class="nav-btn" onclick="goHome()">🏠 Домой</button>
+  </div>
 
   <!-- MAIN -->
   <div class="app-main">
