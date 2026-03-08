@@ -857,7 +857,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   }
 
   .header-decor::before {
-    top: 12px;
+    top: 6px;
     right: 10px;
     width: min(48vw, 220px);
     height: 220px;
