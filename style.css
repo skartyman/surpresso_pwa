@@ -790,7 +790,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 
 .header-decor {
   position: absolute;
-  top: -8px;
+  top: -5px;
   right: 0;
   width: clamp(320px, 72vw, 560px);
   height: clamp(210px, 36vw, 320px);
@@ -864,8 +864,8 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   }
 
   .header-branch {
-    right: -13%;
-    width: 128%;
+    right: 1%;
+    width: 180%;
     transform: rotate(-1.2deg) scale(1.08);
   }
 }
