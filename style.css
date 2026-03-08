@@ -779,7 +779,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 
 .app-header {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .header-decor {
@@ -796,7 +796,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   content: "";
   position: absolute;
   top: 16px;
-  right: 24px;
+  right: 0px;
   width: min(35vw, 420px);
   height: 250px;
   background: radial-gradient(ellipse at center, rgba(255, 191, 69, 0.38) 0%, rgba(255, 191, 69, 0.15) 35%, rgba(255, 191, 69, 0) 72%);
