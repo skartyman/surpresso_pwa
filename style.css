@@ -792,10 +792,8 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   position: absolute;
   top: -8px;
   right: 0;
-  width: clamp(320px, 80vw, 560px);
-  height: clamp(210px, 50vw, 320px);
-  transform-origin: right center;
-  transform: scaleX(1.08);
+  width: clamp(320px, 72vw, 560px);
+  height: clamp(210px, 36vw, 320px);
   pointer-events: none;
   z-index: 1;
 }
@@ -815,19 +813,19 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .header-branch {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 100%;
+  right: -2%;
+  width: 222%;
   height: 100%;
   object-fit: contain;
   object-position: right top;
-  transform-origin: right center;
-  transform: scaleX(1.1) rotate(-1.2deg);
+  transform-origin: right top;
+  transform: rotate(-1.2deg) scale(1.06);
   z-index: 1;
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
 }
 
 /* mobile adaptation */
-@media (max-width: 480px) {
+@media (max-width: 680px) {
   .app-header {
     min-height: 112px;
     padding: 10px 12px;
@@ -853,11 +851,9 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 
   .header-decor {
     top: -8px;
-    right: 0;
-    width: clamp(320px, 88vw, 430px);
-    height: clamp(210px, 58vw, 320px);
-    transform-origin: right center;
-    transform: scaleX(1.08);
+    right: -5%;
+    width: clamp(260px, 82vw, 390px);
+    height: clamp(180px, 58vw, 280px);
   }
 
   .header-decor::before {
@@ -868,10 +864,9 @@ td.editable-qty.editing .qty-input { display: inline-block; }
   }
 
   .header-branch {
-    right: 0;
-    width: 100%;
-    transform-origin: right center;
-    transform: scaleX(1.1) rotate(-1.2deg);
+    right: -13%;
+    width: 128%;
+    transform: rotate(-1.2deg) scale(1.08);
   }
 }
 
