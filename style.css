@@ -779,7 +779,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 
 .app-header {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .header-decor {
