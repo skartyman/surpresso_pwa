@@ -813,8 +813,8 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 .header-branch {
   position: absolute;
   top: 0;
-  right: -10%;
-  width: 122%;
+  right: -2%;
+  width: 222%;
   height: 100%;
   object-fit: contain;
   object-position: right top;
@@ -825,7 +825,7 @@ td.editable-qty.editing .qty-input { display: inline-block; }
 }
 
 /* mobile adaptation */
-@media (max-width: 480px) {
+@media (max-width: 680px) {
   .app-header {
     min-height: 112px;
     padding: 10px 12px;
