@@ -1311,18 +1311,27 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 .recount-page {
-  padding-top: 56px;
+  padding-top: 0;
+}
+
+.recount-header {
+  min-height: 84px;
+  padding: 8px 12px;
+}
+
+.recount-header .logo-brand img {
+  height: 56px;
 }
 
 .recount-toolbar {
   position: sticky;
-  top: 0;
+  top: 84px;
   z-index: 100;
   display: flex;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--card-bg, #11161d);
-  border-bottom: 1px solid var(--line, rgba(255,255,255,.08));
+  background: var(--surface-solid);
+  border-bottom: 1px solid var(--border);
 }
 
 .recount-toolbar .btn {

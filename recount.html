@@ -5,12 +5,28 @@
   <title>Переучет склада</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/style.css?v=1.1.4" />
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 </head>
 <body class="recount-page">
+  <header class="app-header recount-header">
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="icons/logo-service.png" alt="Surpresso Service" />
+      </div>
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">Переучет склада</div>
+      </div>
+    </div>
+  </header>
+
   <header class="recount-toolbar">
     <a href="/index.html" class="btn ghost" title="Назад">←</a>
     <button id="save-recount-btn" class="btn ghost" type="button" title="Сохранить">💾</button>
@@ -69,6 +85,16 @@
     <div id="warehouse-alert"></div>
   </main>
 
+  <script>
+    (function () {
+      const saved = localStorage.getItem("surp_theme") || "dark";
+      const effective = saved === "auto"
+        ? ((window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark")
+        : saved;
+      document.body.classList.toggle("theme-light", effective === "light");
+      document.body.classList.toggle("theme-dark", effective === "dark");
+    })();
+  </script>
   <script src="/recount.js"></script>
 </body>
 </html>
