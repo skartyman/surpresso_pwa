@@ -49,7 +49,12 @@ function normalizeRows(rows) {
     const stock = cleanStock(pick(["залишок", "налич", "stock", "остат"]));
     const cell = String(pick(["комірка", "ячейк", "cell", "shelf"]) || "").trim();
 
-    if (!code || !name) return;
+    const hasName = Boolean(name);
+    const hasCode = Boolean(code);
+
+    if (!hasName) return;
+    if (!hasCode && stock <= 0) return;
+
     out.push({ code, name, stock, cell });
   });
 
