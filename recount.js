@@ -120,7 +120,6 @@ function buildRecountSession() {
   if (from) {
     mode = "range";
     scoped = parts
-      .filter(p => cleanStock(p.stock) > 0)
       .filter(p => isCellInRange(p.cell, from, to));
   } else {
     scoped = parts
@@ -313,5 +312,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     const idx = Number(e.target?.dataset?.recountIdx);
     if (!Number.isFinite(idx) || !recountSession?.items[idx]) return;
     recountSession.items[idx].fact = Math.max(0, Number(e.target.value || 0));
+  });
+
+  document.getElementById("recount-body")?.addEventListener("focusin", e => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== "number") return;
+    if (input.value === "0") {
+      input.value = "";
+      return;
+    }
+    input.select();
+  });
+
+  document.getElementById("recount-body")?.addEventListener("focusout", e => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== "number") return;
+    if (input.value === "") input.value = "0";
   });
 });

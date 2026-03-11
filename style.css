@@ -1307,7 +1307,7 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 .recount-table input[type="number"] {
-  width: 90px;
+  width: 45px;
 }
 
 .recount-page {
@@ -1324,15 +1324,16 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 .recount-toolbar {
-  position: sticky;
-  top: 84px;
-  z-index: 100;
+  position: static;
+  z-index: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  padding: 6px 10px;
-  background: var(--surface-solid);
-  border-bottom: 1px solid var(--border);
+  width: min(560px, calc(100% - 20px));
+  margin: 6px 0 0 10px;
+  padding: 0;
+  background: transparent;
+  border-bottom: 0;
 }
 
 .recount-toolbar .btn {
