@@ -1327,7 +1327,8 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   position: sticky;
   top: 84px;
   z-index: 100;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   padding: 6px 10px;
   background: var(--surface-solid);
@@ -1335,7 +1336,8 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 .recount-toolbar .btn {
-  min-height: 32px;
+  min-height: 38px;
+  width: 100%;
   padding: 4px 10px;
   font-size: 16px;
 }
@@ -1352,6 +1354,20 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 
 .recount-table-wrap {
   overflow-x: auto;
+}
+
+
+@media (max-width: 760px) {
+  .recount-range-card .row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .recount-range-card .row .field,
+  .recount-range-card .row .btn {
+    width: 100%;
+  }
 }
 
 .recount-table th,

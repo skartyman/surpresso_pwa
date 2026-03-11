@@ -123,7 +123,9 @@ function buildRecountSession() {
       .filter(p => cleanStock(p.stock) > 0)
       .filter(p => isCellInRange(p.cell, from, to));
   } else {
-    scoped = parts.filter(p => !String(p.cell || "").trim());
+    scoped = parts
+      .filter(p => cleanStock(p.stock) > 0)
+      .filter(p => !String(p.cell || "").trim());
   }
 
   scoped.sort(sortByCellThenCode);
@@ -156,7 +158,7 @@ function updateSessionMeta() {
     const right = recountSession.rangeTo ? recountSession.rangeTo : "до конца файла";
     meta.textContent = `Диапазон: ${recountSession.rangeFrom} — ${right}. Позиции: ${recountSession.items.length}`;
   } else {
-    meta.textContent = `Режим без диапазона: позиции без ячейки. Позиции: ${recountSession.items.length}`;
+    meta.textContent = `Режим без диапазона: позиции без ячейки с ненулевым остатком. Позиции: ${recountSession.items.length}`;
   }
 }
 
