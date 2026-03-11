@@ -1329,7 +1329,7 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  width: min(560px, calc(100% - 20px));
+  width: clamp(220px, 50vw, 560px);
   margin: 6px 0 0 10px;
   padding: 0;
   background: transparent;
