@@ -207,9 +207,13 @@
       <div class="row" style="margin-top:10px; gap:2px;">
         <button class="btn primary" onclick="startCamera()">▶️ Вкл</button>
         <button class="btn ghost" onclick="capturePhoto()">📸 Фото</button>
+        <button class="btn ghost" type="button" onclick="openGalleryPicker()">🖼 Галерея</button>
         <button class="btn ghost" onclick="stopCamera()">⏹ Стоп</button>
         <button class="btn ghost" onclick="toggleFlash()">💡Свет</button>
+        <button class="btn ghost" id="btnHdMode" type="button" onclick="toggleHdMode()">HD: OFF</button>
       </div>
+
+      <input id="galleryInput" type="file" accept="image/*" multiple style="display:none;">
 
       <div id="capturedPhotos" style="margin-top:10px; display:none;"></div>
     </div>
@@ -745,18 +749,48 @@ function getOrCreateEquipId() {
     let cameraStream = null;
     let capturedPhotos = [];
     let flashOn = false;
+    let hdModeEnabled = false;
+
+    function getCameraConstraints() {
+      if (hdModeEnabled) {
+        return {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          aspectRatio: 4 / 3
+        };
+      }
+
+      return {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1440 },
+        aspectRatio: 4 / 3
+      };
+    }
+
+    function updateHdModeButton() {
+      const btn = document.getElementById("btnHdMode");
+      if (!btn) return;
+      btn.textContent = hdModeEnabled ? "HD: ON" : "HD: OFF";
+    }
+
+    function initGalleryInput() {
+      const input = document.getElementById("galleryInput");
+      if (!input) return;
+
+      input.addEventListener("change", handleGalleryPhotos);
+      updateHdModeButton();
+    }
+
+    document.addEventListener("DOMContentLoaded", initGalleryInput);
 
     async function startCamera() {
       if (cameraStream) return;
 
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1440 },
-            aspectRatio: 4 / 3
-          }
+          video: getCameraConstraints()
         });
 
         const video = document.getElementById("cameraVideo");
@@ -795,6 +829,11 @@ function getOrCreateEquipId() {
       const video = document.getElementById("cameraVideo");
       const canvas = document.getElementById("cameraCanvas");
 
+      if (!video || !video.videoWidth) {
+        alert("Сначала включите камеру");
+        return;
+      }
+
       const sourceWidth = video.videoWidth || 1280;
       const sourceHeight = video.videoHeight || 720;
       const targetAspect = 4 / 3;
@@ -822,6 +861,41 @@ function getOrCreateEquipId() {
       const dataURL = canvas.toDataURL("image/jpeg", 1.0);
       capturedPhotos.push(dataURL);
       renderCapturedPhotos();
+    }
+
+    function openGalleryPicker() {
+      const input = document.getElementById("galleryInput");
+      if (!input) return;
+      input.click();
+    }
+
+    function handleGalleryPhotos(event) {
+      const files = Array.from(event?.target?.files || []);
+      if (!files.length) return;
+
+      files.forEach(file => {
+        if (!file.type.startsWith("image/")) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result || "");
+          if (!dataUrl) return;
+          capturedPhotos.push(dataUrl);
+          renderCapturedPhotos();
+        };
+        reader.readAsDataURL(file);
+      });
+
+      event.target.value = "";
+    }
+
+    async function toggleHdMode() {
+      hdModeEnabled = !hdModeEnabled;
+      updateHdModeButton();
+
+      if (!cameraStream) return;
+
+      stopCamera();
+      await startCamera();
     }
 
     function renderCapturedPhotos() {
