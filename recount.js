@@ -250,19 +250,23 @@ async function exportRecountExcel() {
       : "без ячейки"
   ]);
   ws.addRow([]);
-  ws.addRow(["Ячейка", "Артикул", "Факт", "Наименование", "Сист. остаток"]);
+  ws.addRow(["Ячейка", "Артикул", "Наименование", "Системный остаток", "Факт", "Разница"]);
 
   recountSession.items.forEach(it => {
+    const stock = Number(it.stock || 0);
+    const fact = Number(it.fact || 0);
+
     ws.addRow([
       it.cell || "",
       it.code,
-      Number(it.fact || 0),
       it.name || "",
-      Number(it.stock || 0)
+      stock,
+      fact,
+      Number((fact - stock).toFixed(2))
     ]);
   });
 
-  ws.columns = [{ width: 14 }, { width: 18 }, { width: 12 }, { width: 54 }, { width: 14 }];
+  ws.columns = [{ width: 14 }, { width: 18 }, { width: 54 }, { width: 18 }, { width: 12 }, { width: 12 }];
 
   const fileName = `recount_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.xlsx`;
   const buffer = await wb.xlsx.writeBuffer();
