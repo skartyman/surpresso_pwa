@@ -415,6 +415,49 @@ function normalizeMenuText(text) {
     .replace(/[’ʻ`´ʼ]/g, "'");
 }
 
+async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [] }) {
+  if (!(TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID)) {
+    throw new Error("Trello is not configured");
+  }
+
+  const createCard = await fetch(
+    `https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idList: TRELLO_LIST_ID,
+        name,
+        desc,
+        idLabels: labelId ? [labelId] : [],
+      }),
+    }
+  );
+
+  const cardData = await createCard.json();
+  if (!cardData?.id) throw new Error("Trello card was not created");
+
+  const safePhotos = Array.isArray(photos) ? photos : [];
+  for (let i = 0; i < safePhotos.length; i++) {
+    const buffer = Buffer.from(
+      String(safePhotos[i]).replace(/^data:image\/\w+;base64,/, ""),
+      "base64"
+    );
+
+    const attachForm = new FormData();
+    attachForm.append("key", TRELLO_KEY);
+    attachForm.append("token", TRELLO_TOKEN);
+    attachForm.append("file", buffer, `photo${i}.jpg`);
+
+    await fetch(
+      `https://api.trello.com/1/cards/${cardData.id}/attachments`,
+      { method: "POST", body: attachForm }
+    );
+  }
+
+  return cardData.id;
+}
+
 function buildMainMenuMarkup() {
   return {
     keyboard: [
@@ -762,50 +805,71 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
         `\n\n🔗 Паспорт: ${passportLink}\n` +
         `\n📸 Фото прикріплені в Telegram.`;
 
-      const createCard = await fetch(
-        `https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idList: TRELLO_LIST_ID,
-            name: trelloName,
-            desc,
-            idLabels: labelId ? [labelId] : [],
-          }),
-        }
-      );
-
-      const cardData = await createCard.json();
-      console.log("TRELLO CARD CREATED:", cardData);
-
-      if (!cardData?.id) throw new Error("Trello card was not created");
-      trelloCardId = cardData.id;
-
-      for (let i = 0; i < photos.length; i++) {
-        const buffer = Buffer.from(
-          String(photos[i]).replace(/^data:image\/\w+;base64,/, ""),
-          "base64"
-        );
-
-        const attachForm = new FormData();
-        attachForm.append("key", TRELLO_KEY);
-        attachForm.append("token", TRELLO_TOKEN);
-        attachForm.append("file", buffer, `photo${i}.jpg`);
-
-        const attachResp = await fetch(
-          `https://api.trello.com/1/cards/${trelloCardId}/attachments`,
-          { method: "POST", body: attachForm }
-        );
-
-        console.log("TRELLO PHOTO UPLOAD:", await attachResp.text());
+      trelloCardId = await createTrelloCardWithPhotos({
+        name: trelloName,
+        desc,
+        labelId,
+        photos,
+      });
       }
-    }
 
     res.send({ ok: true, trelloCardId, registry });
   } catch (err) {
     console.error("SERVER ERROR:", err);
     res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/equip/:id/trello-task", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { task = "", photos = [], actor = "" } = req.body || {};
+    const taskText = String(task || "").trim();
+
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!taskText) return res.status(400).send({ ok: false, error: "no_task" });
+
+    const before = await gasPost({ action: "get", id });
+    const eq = before?.equipment || {};
+    const owner = String(eq.owner || "");
+    const safePhotos = Array.isArray(photos) ? photos.slice(0, 10) : [];
+
+    const newStatus = "В роботі";
+    await gasPost({
+      action: "status",
+      id,
+      newStatus,
+      comment: taskText,
+      actor: String(actor || "").trim(),
+      photos: [],
+    });
+
+    const labelId = pickLabel(eq);
+    const passportLink = buildPassportLink(req, id, { isPublic: owner === "client" });
+    const title = owner === "company"
+      ? `🧩 Нова задача: ${eq.name || "Обладнання"} | №:${eq.internalNumber || id}`
+      : `🧩 Нова задача: ${eq.clientName || "Клієнт"} | ${eq.model || id}`;
+
+    const descLines = [
+      "🛠 Нова задача для готового обладнання",
+      `🆔 ID: ${id}`,
+      `📌 Статус: ${newStatus}`,
+      `📝 Задача: ${taskText}`,
+      actor ? `👷 Виконавець: ${String(actor).trim()}` : "",
+      passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+    ].filter(Boolean);
+
+    const trelloCardId = await createTrelloCardWithPhotos({
+      name: title,
+      desc: descLines.join("\n"),
+      labelId,
+      photos: safePhotos,
+    });
+
+    return res.send({ ok: true, trelloCardId, status: newStatus });
+  } catch (err) {
+    console.error("TRELLO TASK ERROR:", err);
+    return res.status(500).send({ ok: false, error: String(err) });
   }
 });
 
