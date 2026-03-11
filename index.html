@@ -125,6 +125,57 @@
     <div class="warehouse-modes">
       <button id="wm-manual" class="active" onclick="setWarehouseMode('manual')">🔍 Ввод</button>
       <button id="wm-qr" onclick="setWarehouseMode('qr')">📷 QR</button>
+      <button id="wm-recount" type="button" onclick="toggleRecountPanel()">🧮 Переучет склада</button>
+    </div>
+
+    <div id="warehouse-recount" class="warehouse-recount" style="display:none;">
+      <div class="warehouse-recount__setup">
+        <div class="field">
+          <label>Склад</label>
+          <input id="recount-warehouse" type="text" placeholder="Например: Центральный" />
+        </div>
+        <div class="field">
+          <label>Диапазон от</label>
+          <input id="recount-range-from" type="text" placeholder="1.1" />
+        </div>
+        <div class="field">
+          <label>Диапазон до</label>
+          <input id="recount-range-to" type="text" placeholder="1.5" />
+        </div>
+        <button id="start-recount-btn" class="btn primary" type="button">Старт сессии</button>
+      </div>
+
+      <div id="recount-session" class="warehouse-recount__session" style="display:none;">
+        <div id="recount-session-meta" class="muted"></div>
+        <div class="recount-actions-row">
+          <button id="save-recount-btn" class="btn primary" type="button">Сохранить</button>
+          <button id="add-found-btn" class="btn ghost" type="button">Добавить найденный товар</button>
+          <button id="finish-recount-btn" class="btn ghost" type="button">Завершить участок</button>
+          <button id="export-recount-btn" class="btn ghost" type="button">Экспорт в Excel</button>
+        </div>
+
+        <div id="recount-found-form" class="recount-found-form" style="display:none;">
+          <input id="recount-found-code" type="text" placeholder="Артикул" />
+          <input id="recount-found-cell" type="text" placeholder="Комірка" />
+          <input id="recount-found-fact" type="number" min="0" step="0.01" value="0" placeholder="Факт" />
+          <button id="recount-found-apply" class="btn primary" type="button">Добавить</button>
+        </div>
+
+        <div class="parts-request-table-wrap">
+          <table class="parts-request-table recount-table">
+            <thead>
+              <tr>
+                <th>Артикул</th>
+                <th>Комірка</th>
+                <th>Найменування</th>
+                <th>Од. вим</th>
+                <th>Факт</th>
+              </tr>
+            </thead>
+            <tbody id="recount-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- live QR -->
@@ -413,7 +464,6 @@
   <script src="app.js"></script>
 </body>
 </html>
-
 
 
 

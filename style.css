@@ -1273,3 +1273,39 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 .parts-request-qty {
   width: 86px;
 }
+
+.warehouse-recount {
+  border: 1px dashed rgba(127,127,127,.35);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.warehouse-recount__setup {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.warehouse-recount__session {
+  margin-top: 10px;
+}
+
+.recount-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.recount-found-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.recount-table input[type="number"] {
+  width: 90px;
+}

@@ -2057,6 +2057,190 @@ document.getElementById("save-btn").addEventListener("click", async () => {
   saveAs(new Blob([buffer]), fileName);
 });
 
+
+
+// ======================
+// Переучет склада
+// ======================
+let recountSession = null;
+
+function normalizeCellPath(raw) {
+  const str = String(raw || "").trim().replace(/,/g, ".");
+  if (!str) return [];
+  return str.split('.').map(x => x.trim()).filter(Boolean).map(x => Number.parseInt(x, 10)).filter(Number.isFinite);
+}
+
+function compareCellPath(a, b) {
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+  }
+  return 0;
+}
+
+function isCellInRange(cell, from, to) {
+  const path = normalizeCellPath(cell);
+  const left = normalizeCellPath(from);
+  const right = normalizeCellPath(to);
+  if (!path.length || !left.length || !right.length) return false;
+
+  const min = compareCellPath(left, right) <= 0 ? left : right;
+  const max = compareCellPath(left, right) <= 0 ? right : left;
+
+  return compareCellPath(path, min) >= 0 && compareCellPath(path, max) <= 0;
+}
+
+function toggleRecountPanel() {
+  const panel = document.getElementById('warehouse-recount');
+  if (!panel) return;
+  const open = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = open ? 'block' : 'none';
+}
+
+function renderRecountTable() {
+  const body = document.getElementById('recount-body');
+  if (!body || !recountSession) return;
+
+  if (!recountSession.items.length) {
+    body.innerHTML = '<tr><td colspan="5" class="muted">Товары не найдены по диапазону.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = recountSession.items.map((row, idx) => `
+    <tr>
+      <td>${escapeHtml(row.code)}</td>
+      <td>${escapeHtml(row.cell || '—')}</td>
+      <td>${escapeHtml(row.name || '')}</td>
+      <td>${escapeHtml(row.unit || 'шт')}</td>
+      <td><input type="number" min="0" step="0.01" data-recount-idx="${idx}" value="${Number(row.fact || 0)}"></td>
+    </tr>
+  `).join('');
+}
+
+function startRecountSession() {
+  const warehouse = document.getElementById('recount-warehouse')?.value.trim();
+  const from = document.getElementById('recount-range-from')?.value.trim();
+  const to = document.getElementById('recount-range-to')?.value.trim();
+
+  if (!warehouse || !from || !to) {
+    warehouseAlert('Заполните склад и диапазон', 'warn', 2500);
+    return;
+  }
+
+  const scoped = parts.filter(p => isCellInRange(p.cell, from, to));
+
+  recountSession = {
+    warehouse,
+    rangeFrom: from,
+    rangeTo: to,
+    startedAt: new Date().toISOString(),
+    status: 'active',
+    items: scoped.map(p => ({
+      code: p.code,
+      cell: p.cell || '',
+      name: p.name || '',
+      unit: p.unit || 'шт',
+      fact: 0,
+      systemStock: p.stock || '',
+      priceInternal: Number(p.price || 0)
+    }))
+  };
+
+  const sessionBox = document.getElementById('recount-session');
+  const meta = document.getElementById('recount-session-meta');
+  if (sessionBox) sessionBox.style.display = 'block';
+  if (meta) meta.textContent = `Склад: ${warehouse} • Диапазон: ${from}–${to} • Строк: ${recountSession.items.length}`;
+
+  renderRecountTable();
+  warehouseAlert('Сессия переучета запущена', 'success', 2200);
+}
+
+function addFoundRecountItem() {
+  if (!recountSession) return;
+
+  const code = document.getElementById('recount-found-code')?.value.trim();
+  const cell = document.getElementById('recount-found-cell')?.value.trim();
+  const fact = Math.max(0, Number(document.getElementById('recount-found-fact')?.value || 0));
+
+  if (!code) {
+    warehouseAlert('Укажите артикул', 'warn', 2200);
+    return;
+  }
+
+  const catalog = parts.find(p => String(p.code || '').trim() === code);
+  if (!catalog) {
+    warehouseAlert('Можно добавить только существующий артикул', 'error', 2800);
+    return;
+  }
+
+  const existing = recountSession.items.find(x => x.code === code && (cell ? x.cell === cell : true));
+  if (existing) {
+    existing.fact = +(Number(existing.fact || 0) + fact).toFixed(2);
+  } else {
+    recountSession.items.push({
+      code: catalog.code,
+      cell: cell || catalog.cell || '',
+      name: catalog.name || '',
+      unit: catalog.unit || 'шт',
+      fact: +fact.toFixed(2),
+      systemStock: catalog.stock || '',
+      priceInternal: Number(catalog.price || 0)
+    });
+  }
+
+  renderRecountTable();
+  warehouseAlert('Найденный товар добавлен', 'success', 2000);
+}
+
+function saveRecountSession() {
+  if (!recountSession) return;
+  localStorage.setItem('surp_recount_session', JSON.stringify(recountSession));
+  warehouseAlert('Сессия сохранена', 'success', 1800);
+}
+
+function finishRecountSession() {
+  if (!recountSession) return;
+  recountSession.status = 'completed';
+  recountSession.finishedAt = new Date().toISOString();
+  saveRecountSession();
+  warehouseAlert('Участок завершен', 'success', 2200);
+}
+
+async function exportRecountExcel() {
+  if (!recountSession) {
+    warehouseAlert('Нет активной сессии', 'warn', 2000);
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Переучет');
+
+  ws.addRow(['Склад', recountSession.warehouse]);
+  ws.addRow(['Диапазон', `${recountSession.rangeFrom} - ${recountSession.rangeTo}`]);
+  ws.addRow(['Статус', recountSession.status]);
+  ws.addRow([]);
+  ws.addRow(['Артикул', 'Комірка', 'Найменування', 'Од. вим', 'Факт', 'Сист. залишок', 'Внутр. ціна']);
+
+  recountSession.items.forEach(it => {
+    ws.addRow([
+      it.code,
+      it.cell || '',
+      it.name || '',
+      it.unit || 'шт',
+      Number(it.fact || 0),
+      it.systemStock || '',
+      Number(it.priceInternal || 0)
+    ]);
+  });
+
+  ws.columns = [{width:16},{width:12},{width:48},{width:10},{width:10},{width:14},{width:14}];
+  const fileName = `recount_${Date.now()}.xlsx`;
+  const buffer = await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), fileName);
+}
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -2318,6 +2502,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   loadKit();
   loadWarehouseTemplates();
 
+  try {
+    recountSession = JSON.parse(localStorage.getItem("surp_recount_session") || "null");
+    if (recountSession?.items?.length) {
+      const sessionBox = document.getElementById("recount-session");
+      const meta = document.getElementById("recount-session-meta");
+      if (sessionBox) sessionBox.style.display = "block";
+      if (meta) meta.textContent = `Склад: ${recountSession.warehouse} • Диапазон: ${recountSession.rangeFrom}–${recountSession.rangeTo} • Строк: ${recountSession.items.length}`;
+      renderRecountTable();
+    }
+  } catch (e) {
+    recountSession = null;
+  }
+
 
   attachSuggest("parts-input", "parts-suggest", parts);
   attachSuggest("services-input", "services-suggest", services);
@@ -2359,6 +2556,41 @@ attachSuggest(
   if (refreshBtn) {
     refreshBtn.onclick = hardRefreshApp;
   }
+
+  const startRecountBtn = document.getElementById("start-recount-btn");
+  if (startRecountBtn) {
+    startRecountBtn.addEventListener("click", startRecountSession);
+  }
+
+  const recountBody = document.getElementById("recount-body");
+  if (recountBody) {
+    recountBody.addEventListener("input", e => {
+      const idx = Number(e.target?.dataset?.recountIdx);
+      if (!Number.isFinite(idx) || !recountSession?.items[idx]) return;
+      recountSession.items[idx].fact = Math.max(0, Number(e.target.value || 0));
+    });
+  }
+
+  const saveRecountBtn = document.getElementById("save-recount-btn");
+  if (saveRecountBtn) saveRecountBtn.addEventListener("click", saveRecountSession);
+
+  const finishRecountBtn = document.getElementById("finish-recount-btn");
+  if (finishRecountBtn) finishRecountBtn.addEventListener("click", finishRecountSession);
+
+  const exportRecountBtn = document.getElementById("export-recount-btn");
+  if (exportRecountBtn) exportRecountBtn.addEventListener("click", exportRecountExcel);
+
+  const addFoundBtn = document.getElementById("add-found-btn");
+  if (addFoundBtn) {
+    addFoundBtn.addEventListener("click", () => {
+      const form = document.getElementById("recount-found-form");
+      if (!form) return;
+      form.style.display = form.style.display === "none" ? "grid" : "none";
+    });
+  }
+
+  const recountFoundApply = document.getElementById("recount-found-apply");
+  if (recountFoundApply) recountFoundApply.addEventListener("click", addFoundRecountItem);
 
   const openPartsRequestBtn = document.getElementById("open-parts-request-btn");
   if (openPartsRequestBtn) {
