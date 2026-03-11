@@ -2065,9 +2065,11 @@ document.getElementById("save-btn").addEventListener("click", async () => {
 let recountSession = null;
 
 function normalizeCellPath(raw) {
-  const str = String(raw || "").trim().replace(/,/g, ".");
+  const str = String(raw || "").trim();
   if (!str) return [];
-  return str.split('.').map(x => x.trim()).filter(Boolean).map(x => Number.parseInt(x, 10)).filter(Number.isFinite);
+  const chunks = str.match(/\d+/g);
+  if (!chunks) return [];
+  return chunks.map(x => Number.parseInt(x, 10)).filter(Number.isFinite);
 }
 
 function compareCellPath(a, b) {
