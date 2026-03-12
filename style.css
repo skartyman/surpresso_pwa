@@ -1306,6 +1306,10 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   margin-bottom: 10px;
 }
 
+.recount-found-form .btn {
+  align-self: end;
+}
+
 .recount-table input[type="number"] {
   width: 45px;
 }
@@ -1367,6 +1371,14 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 
   .recount-range-card .row .field,
   .recount-range-card .row .btn {
+    width: 100%;
+  }
+
+  .recount-found-form {
+    grid-template-columns: 1fr;
+  }
+
+  .recount-found-form .btn {
     width: 100%;
   }
 }
