@@ -125,7 +125,8 @@ function buildRecountSession() {
   if (from) {
     mode = "range";
     scoped = parts
-      .filter(p => isCellInRange(p.cell, from, to));
+      .filter(p => isCellInRange(p.cell, from, to))
+      .filter(p => cleanStock(p.stock) > 0);
   } else {
     scoped = parts
       .filter(p => cleanStock(p.stock) > 0)
