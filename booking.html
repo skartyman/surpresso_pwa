@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tables { display: grid; grid-template-columns: repeat(3, minmax(80px, 1fr)); gap: 10px; max-width: 360px; }
+    .table-btn { border: 1px solid #ccc; border-radius: 10px; padding: 12px; background: #fff; cursor: pointer; }
+    .table-btn.selected { border-color: #0b7a00; background: #e9fae8; }
+    .table-btn.busy { border-color: #8f1d2f; background: #fee9ec; color: #8f1d2f; cursor: not-allowed; }
+    .table-btn.held { border-color: #996b00; background: #fff4dc; color: #996b00; cursor: not-allowed; }
+    #status { margin-top: 12px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>Booking</h1>
+  <div class="controls">
+    <label>Date <input id="date" type="date" /></label>
+    <label>From <input id="timeFrom" type="time" value="18:00" /></label>
+    <label>To <input id="timeTo" type="time" value="20:00" /></label>
+    <button id="loadAvailability">Load availability</button>
+  </div>
+
+  <div class="tables" id="tables"></div>
+  <div id="status">Pick date and time, then click "Load availability".</div>
+
+  <script>
+    const mapId = "main";
+    const tableIds = ["T1", "T2", "T3", "T4", "T5", "T6"];
+    const state = { selectedTableId: null, busyTableIds: new Set(), heldTableIds: new Set() };
+
+    const tablesRoot = document.getElementById("tables");
+    const dateEl = document.getElementById("date");
+    const timeFromEl = document.getElementById("timeFrom");
+    const timeToEl = document.getElementById("timeTo");
+    const statusEl = document.getElementById("status");
+
+    dateEl.value = new Date().toISOString().slice(0, 10);
+
+    function renderTables() {
+      tablesRoot.innerHTML = "";
+      tableIds.forEach((tableId) => {
+        const btn = document.createElement("button");
+        btn.className = "table-btn";
+        btn.type = "button";
+        btn.textContent = tableId;
+
+        const isBusy = state.busyTableIds.has(tableId);
+        const isHeld = state.heldTableIds.has(tableId);
+        const isDisabled = isBusy || isHeld;
+
+        if (isBusy) btn.classList.add("busy");
+        if (isHeld) btn.classList.add("held");
+        if (state.selectedTableId === tableId) btn.classList.add("selected");
+
+        btn.disabled = isDisabled;
+        btn.addEventListener("click", () => {
+          if (isDisabled) return;
+          state.selectedTableId = tableId;
+          renderTables();
+        });
+
+        tablesRoot.appendChild(btn);
+      });
+    }
+
+    async function loadAvailability() {
+      const date = dateEl.value;
+      const timeFrom = timeFromEl.value;
+      const timeTo = timeToEl.value;
+      if (!date || !timeFrom || !timeTo) {
+        statusEl.textContent = "Please select date and time range.";
+        return;
+      }
+
+      const url = `/api/maps/${encodeURIComponent(mapId)}/availability?date=${encodeURIComponent(date)}&timeFrom=${encodeURIComponent(timeFrom)}&timeTo=${encodeURIComponent(timeTo)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        statusEl.textContent = data.message || data.error || "Unable to load availability.";
+        return;
+      }
+
+      state.busyTableIds = new Set(data.busyTableIds || []);
+      state.heldTableIds = new Set(data.heldTableIds || []);
+
+      if (state.selectedTableId && (state.busyTableIds.has(state.selectedTableId) || state.heldTableIds.has(state.selectedTableId))) {
+        state.selectedTableId = null;
+      }
+
+      statusEl.textContent = `Busy: ${state.busyTableIds.size}, Held: ${state.heldTableIds.size}`;
+      renderTables();
+    }
+
+    document.getElementById("loadAvailability").addEventListener("click", loadAvailability);
+    renderTables();
+  </script>
+</body>
+</html>
