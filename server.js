@@ -66,6 +66,74 @@ const TEMPLATE_SAVE_URL =
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 
 // =======================
+// DEMO BOOKING STORAGE
+// =======================
+const ACTIVE_RESERVATION_STATUSES = new Set([
+  "PENDING",
+  "AWAITING_PAYMENT",
+  "CONFIRMED",
+]);
+
+const mapTables = new Map([
+  ["main", ["T1", "T2", "T3", "T4", "T5", "T6"]],
+]);
+
+const reservations = [];
+
+function normalizeTimeValue(value) {
+  const [hours, minutes] = String(value || "").split(":").map((part) => Number.parseInt(part, 10));
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function hasTimeOverlap(aFrom, aTo, bFrom, bTo) {
+  return aFrom < bTo && aTo > bFrom;
+}
+
+function isReservationBlocking(reservation) {
+  return ACTIVE_RESERVATION_STATUSES.has(String(reservation.status || "").toUpperCase());
+}
+
+function collectAvailability({ mapId, reservationDate, timeFrom, timeTo }) {
+  const heldTableIds = [];
+  const busyTableIds = [];
+
+  const requestedFrom = normalizeTimeValue(timeFrom);
+  const requestedTo = normalizeTimeValue(timeTo);
+
+  if (requestedFrom === null || requestedTo === null || requestedFrom >= requestedTo) {
+    return { heldTableIds, busyTableIds, invalidTime: true };
+  }
+
+  const mapTableIds = mapTables.get(mapId) || [];
+  for (const reservation of reservations) {
+    if (reservation.mapId !== mapId) continue;
+    if (reservation.reservationDate !== reservationDate) continue;
+    if (!isReservationBlocking(reservation)) continue;
+
+    const reservationFrom = normalizeTimeValue(reservation.timeFrom);
+    const reservationTo = normalizeTimeValue(reservation.timeTo);
+    if (reservationFrom === null || reservationTo === null) continue;
+    if (!hasTimeOverlap(reservationFrom, reservationTo, requestedFrom, requestedTo)) continue;
+
+    if (reservation.status === "PENDING" || reservation.status === "AWAITING_PAYMENT") {
+      heldTableIds.push(reservation.tableId);
+      continue;
+    }
+
+    busyTableIds.push(reservation.tableId);
+  }
+
+  const dedupe = (list) => [...new Set(list)].filter((id) => mapTableIds.includes(id));
+  return {
+    heldTableIds: dedupe(heldTableIds),
+    busyTableIds: dedupe(busyTableIds),
+    invalidTime: false,
+  };
+}
+
+// =======================
 // HELPERS: auth
 // =======================
 function requirePwaKey(req, res, next) {
@@ -1875,6 +1943,102 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
   }
 });
 
+app.get("/api/maps/:mapId/availability", async (req, res) => {
+  const { mapId } = req.params;
+  const { date, timeFrom, timeTo } = req.query;
+
+  const reservationDate = String(date || "").trim();
+  const from = String(timeFrom || "").trim();
+  const to = String(timeTo || "").trim();
+
+  if (!reservationDate || !from || !to) {
+    return res.status(400).send({
+      ok: false,
+      error: "missing_parameters",
+      message: "date, timeFrom and timeTo are required",
+    });
+  }
+
+  const availability = collectAvailability({ mapId, reservationDate, timeFrom: from, timeTo: to });
+  if (availability.invalidTime) {
+    return res.status(400).send({
+      ok: false,
+      error: "invalid_time_range",
+      message: "timeFrom/timeTo must be valid HH:mm and timeFrom < timeTo",
+    });
+  }
+
+  return res.send({
+    busyTableIds: availability.busyTableIds,
+    heldTableIds: availability.heldTableIds,
+  });
+});
+
+app.post("/api/reservations", async (req, res) => {
+  const {
+    mapId = "main",
+    tableId,
+    reservationDate,
+    timeFrom,
+    timeTo,
+    status = "PENDING",
+    customerName,
+  } = req.body || {};
+
+  if (!tableId || !reservationDate || !timeFrom || !timeTo) {
+    return res.status(400).send({
+      ok: false,
+      error: "missing_fields",
+      message: "tableId, reservationDate, timeFrom and timeTo are required",
+    });
+  }
+
+  const normalizedStatus = String(status).toUpperCase();
+  const requestedFrom = normalizeTimeValue(timeFrom);
+  const requestedTo = normalizeTimeValue(timeTo);
+
+  if (requestedFrom === null || requestedTo === null || requestedFrom >= requestedTo) {
+    return res.status(400).send({ ok: false, error: "invalid_time_range" });
+  }
+
+  const conflict = reservations.find((existing) => {
+    if (existing.tableId !== tableId) return false;
+    if (existing.reservationDate !== reservationDate) return false;
+    if (!ACTIVE_RESERVATION_STATUSES.has(String(existing.status || "").toUpperCase())) return false;
+
+    const existingFrom = normalizeTimeValue(existing.timeFrom);
+    const existingTo = normalizeTimeValue(existing.timeTo);
+    if (existingFrom === null || existingTo === null) return false;
+
+    return hasTimeOverlap(existingFrom, existingTo, requestedFrom, requestedTo);
+  });
+
+  if (conflict) {
+    return res.status(409).send({
+      ok: false,
+      error: "reservation_conflict",
+      message: "Selected table is already reserved for this time range",
+      conflictReservationId: conflict.id,
+    });
+  }
+
+  const newReservation = {
+    id: crypto.randomUUID(),
+    mapId,
+    tableId,
+    reservationDate,
+    timeFrom,
+    timeTo,
+    status: normalizedStatus,
+    customerName: customerName || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  reservations.push(newReservation);
+
+  return res.status(201).send({ ok: true, reservation: newReservation });
+});
+
 // =======================
 // START
 // =======================
@@ -1882,7 +2046,6 @@ app.listen(
   PORT,
   () => console.log(`STARTUP_MARKER_V2 :: ГорПляж app is running on http://0.0.0.0:${PORT}`)
 );
-
 
 
 
