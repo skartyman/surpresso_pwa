@@ -12,10 +12,6 @@ RUN npm config set registry https://registry.npmmirror.com/ \
 
 
 COPY . .
-RUN ls -la
-RUN ls -la prisma
-RUN npx prisma generate
-RUN ls -la node_modules/.prisma/client || true
 
 EXPOSE 8080
 

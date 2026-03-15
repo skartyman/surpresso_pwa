@@ -1878,10 +1878,8 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // =======================
 // START
 // =======================
-app.listen(
-  PORT,
-  () => console.log(`STARTUP_MARKER_V2 :: ГорПляж app is running on http://0.0.0.0:${PORT}`)
-);
+app.listen(PORT, () => console.log("Server started on port " + PORT));
+
 
 
 
