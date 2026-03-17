@@ -61,7 +61,7 @@ const LABEL_CONTRACT = process.env.LABEL_CONTRACT || "";
 // Templates proxy
 const TEMPLATE_SAVE_URL =
   process.env.TEMPLATE_SAVE_WEBHOOK ||
-  "https://script.google.com/macros/s/AKfycbwO0gS3bMjbmY479TetXjt-_gZ8Ty3FjFYse0xSmS_81Plmd7ld50GvMZ9eH5Z8bunO/exec";
+  "";
 
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 
