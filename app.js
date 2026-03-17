@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.4"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.5"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
