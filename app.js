@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.5"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.6"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -54,9 +54,6 @@ const SERVICE_SHEETS = [
     gid: 1241500773
   }
 ];
-const USER_SHEET_ID  = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
-const USER_SHEET_GID = 0;
-
 // Шаблоны наборов
 const TEMPLATES_FILE_ID = "1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3"; // JSON на Google Drive (чтение)https://drive.google.com/file/d/1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3/view?usp=sharing
 const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwtsXXhRM104adebpAl50eMULdaUlCpBitmQNeDdJA3SVfzyRR7R1ibRql0JKJKUC6aCQ/exec";
@@ -2644,7 +2641,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 
