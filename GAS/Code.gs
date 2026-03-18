@@ -15,6 +15,8 @@ const SERVER_KEY_PROP = 'SURPRESSO_SERVER_KEY';
 const SH_EQUIPMENT = 1840737062;
 const SH_STATUS    = 925272215;
 const SH_PHOTOS    = 1128395503;
+const SH_MANUALS   = "MANUALS";
+const MANUALS_FOLDER_NAME = "manuals";
 
 // ===== Статусы =====
 const CLIENT_STATUSES = [
@@ -85,6 +87,18 @@ function setup() {
   sh.getRange(2, 2, sh.getMaxRows()-1, 1).setNumberFormat("@");
   sh.getRange(2, 3, sh.getMaxRows()-1, 1).setNumberFormat("@");
 
+  // MANUALS
+  sh = ss.getSheetByName(SH_MANUALS) || ss.insertSheet(SH_MANUALS);
+  sh.clear();
+  sh.appendRow([
+    "id", "title", "brand", "model", "originalName", "fileName",
+    "mimeType", "size", "uploadedAt", "fileId", "fileUrl", "driveUrl"
+  ]);
+  ["id", "size", "fileId"].forEach(function(name) {
+    const c = col_(sh, name);
+    sh.getRange(2, c, sh.getMaxRows()-1, 1).setNumberFormat("@");
+  });
+
   SpreadsheetApp.flush();
 }
 
@@ -143,6 +157,10 @@ function doPost(e) {
     if (action === "approvalRequest") return json_(recordApprovalRequest_(data));
     if (action === "approvalResponse") return json_(recordApprovalResponse_(data));
     if (action === "approvalLookup") return json_(getApprovalEquipmentId_(data));
+    if (action === "manualsList") return json_(listManuals_());
+    if (action === "manualUpload") return json_(uploadManual_(data.manual || {}));
+    if (action === "manualGet") return json_(getManual_(data.id));
+    if (action === "manualDelete") return json_(deleteManual_(data.id));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -454,6 +472,183 @@ function getEquipmentById_(id) {
   const sh = getSheetAny_(ss, SH_EQUIPMENT);
   const found = findRowById_(sh, id);
   return found ? found.values : null;
+}
+
+function ensureManualsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sh = ss.getSheetByName(SH_MANUALS);
+
+  if (!sh) {
+    sh = ss.insertSheet(SH_MANUALS);
+    sh.appendRow([
+      "id",
+      "title",
+      "brand",
+      "model",
+      "originalName",
+      "fileName",
+      "mimeType",
+      "size",
+      "uploadedAt",
+      "fileId",
+      "fileUrl",
+      "driveUrl"
+    ]);
+  }
+
+  ["id", "fileId", "size"].forEach(function(name) {
+    try {
+      const c = col_(sh, name);
+      sh.getRange(2, c, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+    } catch (e) {}
+  });
+
+  return sh;
+}
+
+function manualsFolder_() {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const it = root.getFoldersByName(MANUALS_FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return root.createFolder(MANUALS_FOLDER_NAME);
+}
+
+function manualPublicMeta_(item) {
+  return {
+    id: String(item.id || ""),
+    title: String(item.title || ""),
+    brand: String(item.brand || ""),
+    model: String(item.model || ""),
+    originalName: String(item.originalName || ""),
+    fileName: String(item.fileName || ""),
+    mimeType: String(item.mimeType || "application/pdf"),
+    size: Number(item.size || 0),
+    uploadedAt: item.uploadedAt || ""
+  };
+}
+
+function getManualRow_(id) {
+  const sh = ensureManualsSheet_();
+  const data = sh.getDataRange().getValues();
+  const head = data.shift();
+  const idx = head.indexOf("id");
+  const key = String(id || "").trim();
+  if (!key || idx < 0) return null;
+
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][idx] || "").trim() === key) {
+      return { row: i + 2, values: rowToObj_(head, data[i]), sheet: sh };
+    }
+  }
+
+  return null;
+}
+
+function listManuals_() {
+  const sh = ensureManualsSheet_();
+  const data = sh.getDataRange().getValues();
+  const head = data.shift();
+  const items = data
+    .filter(function(row) { return String(row[0] || "").trim(); })
+    .map(function(row) { return manualPublicMeta_(rowToObj_(head, row)); })
+    .sort(function(a, b) {
+      return new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
+    });
+
+  return { ok: true, items: items };
+}
+
+function getManual_(id) {
+  const found = getManualRow_(id);
+  if (!found) return { ok: false, error: "manual_not_found" };
+
+  return {
+    ok: true,
+    item: Object.assign(manualPublicMeta_(found.values), {
+      fileId: String(found.values.fileId || ""),
+      fileUrl: String(found.values.fileUrl || ""),
+      driveUrl: String(found.values.driveUrl || "")
+    })
+  };
+}
+
+function uploadManual_(manual) {
+  const title = String(manual.title || manual.originalName || "Без названия").trim().slice(0, 160);
+  const brand = String(manual.brand || "").trim().slice(0, 80);
+  const model = String(manual.model || "").trim().slice(0, 80);
+  const originalName = String(manual.originalName || (title || "manual") + ".pdf").trim().slice(0, 180);
+  const mimeType = String(manual.mimeType || "application/pdf").trim();
+  const dataUrl = String(manual.data || "").trim();
+
+  if (mimeType !== "application/pdf") return { ok: false, error: "invalid_mime_type" };
+
+  const match = dataUrl.match(/^data:application\/pdf;base64,(.+)$/);
+  if (!match) return { ok: false, error: "invalid_payload" };
+
+  const bytes = Utilities.base64Decode(match[1]);
+  if (!bytes || !bytes.length || bytes.length > 20 * 1024 * 1024) {
+    return { ok: false, error: "invalid_size" };
+  }
+
+  const signature = bytes.slice(0, 4).map(function(b) { return String.fromCharCode(b); }).join("");
+  if (signature !== "%PDF") return { ok: false, error: "invalid_pdf" };
+
+  const id = Utilities.getUuid();
+  const cleanBase = safeId_(originalName.replace(/\.pdf$/i, "") || title || "manual");
+  const fileName = id + "-" + cleanBase + ".pdf";
+  const blob = Utilities.newBlob(bytes, "application/pdf", fileName);
+  const folder = manualsFolder_();
+  const file = folder.createFile(blob);
+  file.setName(fileName);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  const item = {
+    id: id,
+    title: title,
+    brand: brand,
+    model: model,
+    originalName: originalName,
+    fileName: fileName,
+    mimeType: "application/pdf",
+    size: String(bytes.length),
+    uploadedAt: new Date().toISOString(),
+    fileId: String(file.getId()),
+    fileUrl: String(file.getUrl()),
+    driveUrl: "https://drive.google.com/uc?export=download&id=" + encodeURIComponent(file.getId())
+  };
+
+  const sh = ensureManualsSheet_();
+  sh.appendRow([
+    item.id,
+    item.title,
+    item.brand,
+    item.model,
+    item.originalName,
+    item.fileName,
+    item.mimeType,
+    item.size,
+    item.uploadedAt,
+    item.fileId,
+    item.fileUrl,
+    item.driveUrl
+  ]);
+
+  return { ok: true, item: manualPublicMeta_(item) };
+}
+
+function deleteManual_(id) {
+  const found = getManualRow_(id);
+  if (!found) return { ok: false, error: "manual_not_found" };
+
+  const fileId = String(found.values.fileId || "").trim();
+  if (fileId) {
+    try {
+      DriveApp.getFileById(fileId).setTrashed(true);
+    } catch (e) {}
+  }
+
+  found.sheet.deleteRow(found.row);
+  return { ok: true, id: String(id || "").trim() };
 }
 
 function getPhotosById_(id) {

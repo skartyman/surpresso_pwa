@@ -64,9 +64,6 @@ const TEMPLATE_SAVE_URL =
   "";
 
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
-const MANUALS_DIR = path.join(__dirname, "data", "manuals");
-const MANUALS_META = path.join(MANUALS_DIR, "manuals.json");
-
 function sanitizeManualText(value, max = 120) {
   return String(value || "")
     .trim()
@@ -80,26 +77,6 @@ function sanitizeManualFileName(value) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "manual";
-}
-
-async function ensureManualsStore() {
-  await fs.mkdir(MANUALS_DIR, { recursive: true });
-}
-
-async function loadManualsMeta() {
-  await ensureManualsStore();
-  try {
-    const raw = await fs.readFile(MANUALS_META, "utf8");
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveManualsMeta(items) {
-  await ensureManualsStore();
-  await fs.writeFile(MANUALS_META, JSON.stringify(items, null, 2), "utf8");
 }
 
 function manualPublicMeta(item) {
@@ -1819,7 +1796,8 @@ app.get("/manuals/:id", (req, res) => {
 
 app.get("/api/manuals", async (req, res) => {
   try {
-    const items = await loadManualsMeta();
+    const out = await gasPost({ action: "manualsList" });
+    const items = Array.isArray(out.items) ? out.items : [];
     res.send({ items: items.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).map(manualPublicMeta) });
   } catch (err) {
     console.error("MANUALS LIST ERROR", err);
@@ -1854,29 +1832,19 @@ app.post("/api/manuals", async (req, res) => {
       return res.status(400).send({ ok: false, error: "invalid_pdf" });
     }
 
-    await ensureManualsStore();
-    const id = crypto.randomUUID();
-    const fileName = `${id}-${sanitizeManualFileName(originalName.replace(/\.pdf$/i, ""))}.pdf`;
-    const filePath = path.join(MANUALS_DIR, fileName);
-    await fs.writeFile(filePath, buffer);
+    const out = await gasPost({
+      action: "manualUpload",
+      manual: {
+        title,
+        brand,
+        model,
+        originalName,
+        mimeType: "application/pdf",
+        data: dataUrl,
+      },
+    });
 
-    const manual = {
-      id,
-      title,
-      brand,
-      model,
-      originalName,
-      fileName,
-      mimeType: "application/pdf",
-      size: buffer.length,
-      uploadedAt: new Date().toISOString(),
-    };
-
-    const current = await loadManualsMeta();
-    current.unshift(manual);
-    await saveManualsMeta(current);
-
-    res.send({ ok: true, item: manualPublicMeta(manual) });
+    res.send({ ok: true, item: manualPublicMeta(out.item || {}) });
   } catch (err) {
     console.error("MANUALS SAVE ERROR", err);
     res.status(500).send({ ok: false, error: "manuals_save_failed" });
@@ -1885,32 +1853,35 @@ app.post("/api/manuals", async (req, res) => {
 
 app.get("/api/manuals/:id/file", async (req, res) => {
   try {
-    const items = await loadManualsMeta();
-    const manual = items.find(item => item.id === req.params.id);
-    if (!manual) return res.status(404).send("manual_not_found");
+    const out = await gasPost({ action: "manualGet", id: req.params.id });
+    const manual = out.item;
+    if (!manual?.fileId) return res.status(404).send("manual_not_found");
 
-    const filePath = path.join(MANUALS_DIR, manual.fileName);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${manual.originalName || manual.fileName}"`);
-    res.sendFile(filePath);
+    const response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(manual.fileId)}`);
+    if (!response.ok) throw new Error(`Drive error ${response.status}`);
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader("Content-Type", manual.mimeType || "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${manual.originalName || manual.fileName || `${manual.id}.pdf`}"`);
+    res.send(buffer);
   } catch (err) {
     console.error("MANUALS FILE ERROR", err);
+    if (String(err?.message || "").includes("manual_not_found")) {
+      return res.status(404).send("manual_not_found");
+    }
     res.status(500).send("manual_file_failed");
   }
 });
 
 app.delete("/api/manuals/:id", async (req, res) => {
   try {
-    const items = await loadManualsMeta();
-    const manual = items.find(item => item.id === req.params.id);
-    if (!manual) return res.status(404).send({ ok: false, error: "manual_not_found" });
-
-    const next = items.filter(item => item.id !== req.params.id);
-    await saveManualsMeta(next);
-    await fs.unlink(path.join(MANUALS_DIR, manual.fileName)).catch(() => {});
+    await gasPost({ action: "manualDelete", id: req.params.id });
     res.send({ ok: true, id: req.params.id });
   } catch (err) {
     console.error("MANUALS DELETE ERROR", err);
+    if (String(err?.message || "").includes("manual_not_found")) {
+      return res.status(404).send({ ok: false, error: "manual_not_found" });
+    }
     res.status(500).send({ ok: false, error: "manual_delete_failed" });
   }
 });

@@ -1640,9 +1640,16 @@ textarea,
   gap: 10px;
 }
 
+.manual-upload-note,
 .manual-upload-status {
   min-height: 20px;
   font-size: 13px;
+}
+
+.manual-upload-note {
+  margin: -2px 0 0;
+  opacity: 0.78;
+  line-height: 1.45;
 }
 
 .manual-library-top,
