@@ -938,6 +938,14 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   margin: 12px 0;
 }
 
+.warehouse-panel-static {
+  display: block !important;
+}
+
+.warehouse-page-card {
+  overflow: visible;
+}
+
 .warehouse-title {
   font-weight: 700;
   margin-bottom: 10px;

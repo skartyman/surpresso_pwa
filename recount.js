@@ -291,6 +291,9 @@ function escapeHtml(value) {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  await window.SurpAuth?.init?.();
+  if (!window.SurpAuth?.getCurrentUser?.()) return;
+
   try {
     await loadParts();
     recountSession = JSON.parse(localStorage.getItem(RECOUNT_STORAGE_KEY) || "null");

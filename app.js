@@ -128,6 +128,7 @@ let partsRequestSelected = new Map();
 let partsRequestFilter = "";
 // ===== Templates: ID + local cache =====
 const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
+const PENDING_CHECK_KIT_KEY = "surp_pending_check_kit_v1";
 
 function genTemplateId() {
   // modern browsers
@@ -160,64 +161,11 @@ function normalizeTemplate(tpl, idx = 0) {
   };
 }
 // ======================
-// Загрузка пользователей
-// ======================
-async function loadUsers() {
-  const url = `https://docs.google.com/spreadsheets/d/${USER_SHEET_ID}/export?format=csv&gid=${USER_SHEET_GID}`;
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-
-    const text = await resp.text();
-    const rows = Papa.parse(text, { header: true, skipEmptyLines: true }).data;
-
-    USERS = rows.map(r => ({
-      login: (r.login || "").trim(),
-      pass:  (r.pass  || "").trim(),
-      name:  (r.name  || "").trim(),
-      role:  (r.role  || "").trim()
-    }));
-
-   // console.log("Пользователи загружены:", USERS);
-
-  } catch (e) {
-    console.error("Ошибка загрузки пользователей:", e);
-    alert("Не удалось загрузить пользователей!");
-  }
-}
-
-// ======================
-// Проверка логина
-// ======================
-function tryLogin() {
-  const u = document.getElementById("login-user").value.trim();
-  const p = document.getElementById("login-pass").value.trim();
-  const err = document.getElementById("login-error");
-
-  const user = USERS.find(x => x.login === u && x.pass === p);
-
-  if (!user) {
-    err.textContent = "Неверный логин или пароль";
-    return;
-  }
-
-  // Успешный вход
-  CURRENT_USER = user;
-  localStorage.setItem("surp_user", JSON.stringify(user));
-
-  // скрываем экран логина
-  document.getElementById("login-screen").classList.add("hidden");
-
-  // авто-подстановка инженера
-  addEngineerIfNotExists(user.name);
-}
-
-// ======================
-// Авто-добавление инженера
+// Авторизация
 // ======================
 function addEngineerIfNotExists(name) {
   const inputs = [...document.querySelectorAll(".engineer-input")];
-  if (!inputs.length) return;
+  if (!inputs.length || !name) return;
   const exists = inputs.some(i => i.value.trim() === name);
 
   if (!exists) {
@@ -225,29 +173,25 @@ function addEngineerIfNotExists(name) {
   }
 }
 
-// ======================
-// Инициализация авторизации
-// ======================
 async function initLogin() {
-  await loadUsers();
-  populateEngineerSelects();
-
-  // если пользователь уже входил — восстанавливаем
-  const saved = localStorage.getItem("surp_user");
-  if (saved) {
-    CURRENT_USER = JSON.parse(saved);
-    document.getElementById("login-screen").classList.add("hidden");
-    addEngineerIfNotExists(CURRENT_USER.name);
-    return;
+  if (!window.SurpAuth?.init) {
+    console.error("SurpAuth не подключен");
+    return null;
   }
 
-  // кнопка "Войти"
-  document.getElementById("login-btn").addEventListener("click", tryLogin);
+  try {
+    const user = await window.SurpAuth.init();
+    USERS = window.SurpAuth.getUsers();
+    CURRENT_USER = user || window.SurpAuth.getCurrentUser();
 
-  // Enter key
-  document.getElementById("login-pass").addEventListener("keydown", e => {
-    if (e.key === "Enter") tryLogin();
-  });
+    populateEngineerSelects(CURRENT_USER?.name || "");
+    addEngineerIfNotExists(CURRENT_USER?.name || "");
+
+    return CURRENT_USER;
+  } catch (error) {
+    console.error("Не удалось инициализировать авторизацию", error);
+    return null;
+  }
 }
 // ======================
 // Чистка цены
@@ -867,7 +811,53 @@ function clearWarehouseKit() {
 }
 
 // ---------- add/apply ----------
+function storePendingKitForCheck() {
+  localStorage.setItem(PENDING_CHECK_KIT_KEY, JSON.stringify(kit));
+}
+
+function consumePendingKitForCheck() {
+  const raw = localStorage.getItem(PENDING_CHECK_KIT_KEY);
+  if (!raw) return;
+
+  let pending = [];
+  try {
+    pending = JSON.parse(raw) || [];
+  } catch (e) {
+    pending = [];
+  }
+
+  localStorage.removeItem(PENDING_CHECK_KIT_KEY);
+  if (!pending.length) return;
+
+  pending.forEach(k => {
+    const p = parts.find(x => x.code === k.code);
+    if (!p) return;
+
+    addOrMergeItem({
+      code: p.code,
+      name: p.name,
+      qty: k.qty,
+      price: p.price,
+      type: "part"
+    });
+  });
+
+  kit = [];
+  saveKit();
+  renderWarehouseList();
+  renderTable();
+  warehouseAlert("Набор со склада перенесён в чек", "success", 2200);
+}
+
 function applyKitToCheck() {
+  if (!kit.length) return;
+
+  if (!document.getElementById("items-table")) {
+    storePendingKitForCheck();
+    window.location.href = "/check";
+    return;
+  }
+
   kit.forEach(k => {
     const p = parts.find(x => x.code === k.code);
     if (!p) return;
@@ -2496,58 +2486,32 @@ document.addEventListener("DOMContentLoaded", () => {
 window.addEventListener("DOMContentLoaded", async () => {
   const pageType = document.body?.dataset?.page || (document.getElementById("items-table") ? "check" : "generic");
 
-  // версия (если используешь отдельный span)
   const v = document.getElementById("app-version");
   if (v) v.textContent = APP_VERSION;
 
-  // бегущая строка
   updateFooterTicker();
 
-  await initLogin();     // ← авторизация
-
-  // Если пользователь НЕ авторизован — дальше не запускаем
+  await initLogin();
   if (!CURRENT_USER) return;
 
-  if (pageType !== "check") return;
+  const refreshBtn = document.getElementById("hard-refresh-btn");
+  if (refreshBtn) {
+    refreshBtn.onclick = hardRefreshApp;
+  }
+
+  if (!["check", "warehouse"].includes(pageType)) return;
 
   await loadPrices();
   loadKit();
-  loadWarehouseTemplates();
+  await loadWarehouseTemplates();
 
-  try {
-    recountSession = JSON.parse(localStorage.getItem("surp_recount_session") || "null");
-    if (recountSession?.items?.length) {
-      const sessionBox = document.getElementById("recount-session");
-      const meta = document.getElementById("recount-session-meta");
-      if (sessionBox) sessionBox.style.display = "block";
-      if (meta) meta.textContent = `Склад: ${recountSession.warehouse} • Диапазон: ${recountSession.rangeFrom}–${recountSession.rangeTo} • Строк: ${recountSession.items.length}`;
-      renderRecountTable();
-    }
-  } catch (e) {
-    recountSession = null;
-  }
+  attachSuggest("warehouse-input", "warehouse-suggest", parts);
 
-
-  attachSuggest("parts-input", "parts-suggest", parts);
-  attachSuggest("services-input", "services-suggest", services);
-  // === склад: ручной ввод ===
-attachSuggest(
-  "warehouse-input",
-  "warehouse-suggest",
-  parts
-);
-  
-  renderTable();
-  
   const clearBtn = document.getElementById("clear-kit-btn");
-  if (clearBtn) {
-    clearBtn.onclick = clearWarehouseKit;
-  }
+  if (clearBtn) clearBtn.onclick = clearWarehouseKit;
 
   const saveTplBtn = document.getElementById("save-template-btn");
-  if (saveTplBtn) {
-    saveTplBtn.onclick = saveWarehouseTemplate;
-  }
+  if (saveTplBtn) saveTplBtn.onclick = saveWarehouseTemplate;
 
   const tplFilter = document.getElementById("template-filter");
   if (tplFilter) {
@@ -2564,10 +2528,28 @@ attachSuggest(
     toggleTemplatesVisibility(false);
   }
 
-  const refreshBtn = document.getElementById("hard-refresh-btn");
-  if (refreshBtn) {
-    refreshBtn.onclick = hardRefreshApp;
+  if (pageType === "warehouse") {
+    return;
   }
+
+  try {
+    recountSession = JSON.parse(localStorage.getItem("surp_recount_session") || "null");
+    if (recountSession?.items?.length) {
+      const sessionBox = document.getElementById("recount-session");
+      const meta = document.getElementById("recount-session-meta");
+      if (sessionBox) sessionBox.style.display = "block";
+      if (meta) meta.textContent = `Склад: ${recountSession.warehouse} • Диапазон: ${recountSession.rangeFrom}–${recountSession.rangeTo} • Строк: ${recountSession.items.length}`;
+      renderRecountTable();
+    }
+  } catch (e) {
+    recountSession = null;
+  }
+
+  attachSuggest("parts-input", "parts-suggest", parts);
+  attachSuggest("services-input", "services-suggest", services);
+
+  renderTable();
+  consumePendingKitForCheck();
 
   const startRecountBtn = document.getElementById("start-recount-btn");
   if (startRecountBtn) {
@@ -2649,13 +2631,18 @@ attachSuggest(
     sharePartsRequestBtn.addEventListener("click", sharePartsRequestText);
   }
 
-  document.getElementById("add-part").onclick =
-    () => addItemFromInput("parts-input","parts-qty",parts);
+  const addPartBtn = document.getElementById("add-part");
+  if (addPartBtn) {
+    addPartBtn.onclick = () => addItemFromInput("parts-input", "parts-qty", parts);
+  }
 
-  document.getElementById("add-service").onclick =
-    () => addItemFromInput("services-input","services-qty",services);
+  const addServiceBtn = document.getElementById("add-service");
+  if (addServiceBtn) {
+    addServiceBtn.onclick = () => addItemFromInput("services-input", "services-qty", services);
+  }
 
-  document.getElementById("new-btn").onclick = newInvoice;
+  const newBtn = document.getElementById("new-btn");
+  if (newBtn) newBtn.onclick = newInvoice;
 });
 
 

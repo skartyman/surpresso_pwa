@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 </head>
-<body class="recount-page">
+<body class="recount-page" data-page="recount">
   <header class="app-header recount-header">
     <div class="header-decor" aria-hidden="true">
       <img src="icons/branch-blossom.png" class="header-branch" alt="" />
@@ -37,6 +37,16 @@
     <button id="add-found-btn" class="btn ghost" type="button" title="Добавить найденный товар">➕</button>
     <button id="export-recount-btn" class="btn primary" type="button" title="Экспорт и завершение">📤</button>
   </header>
+
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
 
   <main class="recount-main">
     <section class="card recount-range-card">
@@ -99,6 +109,7 @@
       document.body.classList.toggle("theme-dark", effective === "dark");
     })();
   </script>
+  <script src="/auth.js"></script>
   <script src="/recount.js"></script>
 </body>
 </html>
