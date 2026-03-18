@@ -566,3 +566,61 @@ body.theme-light #parts-info span {
 .fab-action:hover {
   box-shadow: 0 14px 26px rgba(245, 158, 11, 0.45);
 }
+
+.page-actions-inline .btn,
+.page-actions-inline a.btn {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.page-actions-inline .btn.primary {
+  background: var(--g-primary);
+  color: var(--text-dark);
+  border-color: transparent;
+}
+
+.manual-item,
+.manual-viewer-frame-wrap,
+.manual-empty-state {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.manual-item {
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+
+.manual-item__meta,
+.manual-item__sub,
+.manual-meta-line,
+.manual-empty-state,
+.manual-upload-status {
+  color: var(--text-2);
+}
+
+.manual-item.is-active {
+  box-shadow: var(--glow);
+  border-color: rgba(242,201,76,0.5);
+}
+
+.manual-item:hover {
+  transform: translateY(-1px);
+}
+
+.manual-viewer-empty {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+}
+
+.manual-upload-status[data-state="error"] {
+  color: #fda4af;
+}
+
+.manual-upload-status[data-state="success"] {
+  color: #86efac;
+}
+
+.manual-upload-status[data-state="loading"] {
+  color: #fde68a;
+}

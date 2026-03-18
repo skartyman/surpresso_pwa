@@ -1599,3 +1599,158 @@ textarea,
     gap: 14px;
   }
 }
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.page-actions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-actions-inline .btn,
+.page-actions-inline a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-shell-check {
+  margin-bottom: 14px;
+}
+
+.manuals-page {
+  max-width: 1280px;
+}
+
+.manuals-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.manuals-sidebar {
+  display: grid;
+  gap: 14px;
+}
+
+.manual-upload-card,
+.manual-library-card,
+.manual-viewer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.manual-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.manual-upload-status {
+  min-height: 20px;
+  font-size: 13px;
+}
+
+.manual-library-top,
+.manual-viewer-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.manual-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.manual-item {
+  width: 100%;
+  text-align: left;
+  border-radius: 18px;
+  padding: 14px;
+  border-width: 1px;
+  border-style: solid;
+  cursor: pointer;
+}
+
+.manual-item__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.manual-item__head strong {
+  font-size: 15px;
+}
+
+.manual-item__meta,
+.manual-item__sub,
+.manual-meta-line,
+.manual-empty-state {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.manual-viewer-frame-wrap {
+  position: relative;
+  min-height: 70vh;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.manual-viewer-frame {
+  width: 100%;
+  min-height: 70vh;
+  border: 0;
+  background: transparent;
+}
+
+.manual-viewer-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+}
+
+.manual-viewer-empty img {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+}
+
+.viewer-actions {
+  justify-content: flex-end;
+}
+
+@media (min-width: 840px) {
+  .manual-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .manuals-layout {
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .manual-viewer-card {
+    min-height: calc(100vh - 220px);
+  }
+}

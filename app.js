@@ -217,6 +217,7 @@ function tryLogin() {
 // ======================
 function addEngineerIfNotExists(name) {
   const inputs = [...document.querySelectorAll(".engineer-input")];
+  if (!inputs.length) return;
   const exists = inputs.some(i => i.value.trim() === name);
 
   if (!exists) {
@@ -1610,6 +1611,7 @@ async function startQRScan() {
 function renderTable() {
   const tbody = document.querySelector("#items-table tbody");
   const totalEl = document.getElementById("total");
+  if (!tbody || !totalEl) return;
 
   tbody.innerHTML = "";
   let total = 0;
@@ -1681,6 +1683,7 @@ function enableInlineQtyEdit() {
 // ======================
 function enableDragAndDrop() {
   const table = document.querySelector("#items-table tbody");
+  if (!table) return;
   let draggingRow = null;
 
   table.querySelectorAll("tr").forEach(row => {
@@ -1782,12 +1785,16 @@ function removeEngineerField(button) {
 // ======================
 // Открытие Excel
 // ======================
-document.getElementById("open-btn").onclick = () =>
-  document.getElementById("open-file").click();
+const openBtn = document.getElementById("open-btn");
+const openFileInput = document.getElementById("open-file");
 
-document.getElementById("open-file").addEventListener("change", e => {
-  if (e.target.files.length) openExcelCheck(e.target.files[0]);
-});
+if (openBtn && openFileInput) {
+  openBtn.onclick = () => openFileInput.click();
+
+  openFileInput.addEventListener("change", e => {
+    if (e.target.files.length) openExcelCheck(e.target.files[0]);
+  });
+}
 
 // ======================
 // Чтение Excel-файла
@@ -1873,7 +1880,7 @@ async function openExcelCheck(file) {
   reader.readAsArrayBuffer(file);
 }
       //ПОДЕЛИТЬСЯ
-document.getElementById("share-text-btn").addEventListener("click", async () => {
+document.getElementById("share-text-btn")?.addEventListener("click", async () => {
   if (items.length === 0) {
     alert("Чек пустой — нечего отправлять.");
     return;
@@ -1907,7 +1914,7 @@ document.getElementById("share-text-btn").addEventListener("click", async () => 
 // ======================
 // Сохранение в Excel
 // ======================
-document.getElementById("save-btn").addEventListener("click", async () => {
+document.getElementById("save-btn")?.addEventListener("click", async () => {
 
   if (items.length === 0) {
     return alert("Нельзя сохранить пустой чек — добавьте хотя бы одну позицию.");
@@ -2487,6 +2494,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Инициализация
 // ======================
 window.addEventListener("DOMContentLoaded", async () => {
+  const pageType = document.body?.dataset?.page || (document.getElementById("items-table") ? "check" : "generic");
 
   // версия (если используешь отдельный span)
   const v = document.getElementById("app-version");
@@ -2499,6 +2507,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Если пользователь НЕ авторизован — дальше не запускаем
   if (!CURRENT_USER) return;
+
+  if (pageType !== "check") return;
 
   await loadPrices();
   loadKit();

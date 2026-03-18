@@ -64,6 +64,58 @@ const TEMPLATE_SAVE_URL =
   "";
 
 const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
+const MANUALS_DIR = path.join(__dirname, "data", "manuals");
+const MANUALS_META = path.join(MANUALS_DIR, "manuals.json");
+
+function sanitizeManualText(value, max = 120) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, max);
+}
+
+function sanitizeManualFileName(value) {
+  return sanitizeManualText(value || "manual", 160)
+    .replace(/[^a-zA-Z0-9._ -]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "manual";
+}
+
+async function ensureManualsStore() {
+  await fs.mkdir(MANUALS_DIR, { recursive: true });
+}
+
+async function loadManualsMeta() {
+  await ensureManualsStore();
+  try {
+    const raw = await fs.readFile(MANUALS_META, "utf8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveManualsMeta(items) {
+  await ensureManualsStore();
+  await fs.writeFile(MANUALS_META, JSON.stringify(items, null, 2), "utf8");
+}
+
+function manualPublicMeta(item) {
+  return {
+    id: item.id,
+    title: item.title,
+    brand: item.brand,
+    model: item.model,
+    originalName: item.originalName,
+    fileName: item.fileName,
+    mimeType: item.mimeType,
+    size: item.size,
+    uploadedAt: item.uploadedAt,
+  };
+}
+
 
 // =======================
 // HELPERS: auth
@@ -1752,6 +1804,116 @@ async function loadTemplatesLocal() {
 async function saveTemplatesLocal(items) {
   await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
 }
+
+app.get("/check", (req, res) => {
+  res.sendFile(path.join(__dirname, "check.html"));
+});
+
+app.get("/manuals", (req, res) => {
+  res.sendFile(path.join(__dirname, "manuals.html"));
+});
+
+app.get("/manuals/:id", (req, res) => {
+  res.sendFile(path.join(__dirname, "manuals.html"));
+});
+
+app.get("/api/manuals", async (req, res) => {
+  try {
+    const items = await loadManualsMeta();
+    res.send({ items: items.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).map(manualPublicMeta) });
+  } catch (err) {
+    console.error("MANUALS LIST ERROR", err);
+    res.status(500).send({ error: "manuals_list_failed" });
+  }
+});
+
+app.post("/api/manuals", async (req, res) => {
+  try {
+    const title = sanitizeManualText(req.body?.title || req.body?.originalName || "Без названия", 160);
+    const brand = sanitizeManualText(req.body?.brand || "", 80);
+    const model = sanitizeManualText(req.body?.model || "", 80);
+    const originalName = sanitizeManualFileName(req.body?.originalName || `${title}.pdf`);
+    const mimeType = String(req.body?.mimeType || "application/pdf");
+    const dataUrl = String(req.body?.data || "");
+
+    if (mimeType !== "application/pdf") {
+      return res.status(400).send({ ok: false, error: "invalid_mime_type" });
+    }
+
+    const match = dataUrl.match(/^data:application\/pdf;base64,(.+)$/);
+    if (!match) {
+      return res.status(400).send({ ok: false, error: "invalid_payload" });
+    }
+
+    const buffer = Buffer.from(match[1], "base64");
+    if (!buffer.length || buffer.length > 20 * 1024 * 1024) {
+      return res.status(400).send({ ok: false, error: "invalid_size" });
+    }
+
+    if (buffer.subarray(0, 4).toString("utf8") !== "%PDF") {
+      return res.status(400).send({ ok: false, error: "invalid_pdf" });
+    }
+
+    await ensureManualsStore();
+    const id = crypto.randomUUID();
+    const fileName = `${id}-${sanitizeManualFileName(originalName.replace(/\.pdf$/i, ""))}.pdf`;
+    const filePath = path.join(MANUALS_DIR, fileName);
+    await fs.writeFile(filePath, buffer);
+
+    const manual = {
+      id,
+      title,
+      brand,
+      model,
+      originalName,
+      fileName,
+      mimeType: "application/pdf",
+      size: buffer.length,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const current = await loadManualsMeta();
+    current.unshift(manual);
+    await saveManualsMeta(current);
+
+    res.send({ ok: true, item: manualPublicMeta(manual) });
+  } catch (err) {
+    console.error("MANUALS SAVE ERROR", err);
+    res.status(500).send({ ok: false, error: "manuals_save_failed" });
+  }
+});
+
+app.get("/api/manuals/:id/file", async (req, res) => {
+  try {
+    const items = await loadManualsMeta();
+    const manual = items.find(item => item.id === req.params.id);
+    if (!manual) return res.status(404).send("manual_not_found");
+
+    const filePath = path.join(MANUALS_DIR, manual.fileName);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${manual.originalName || manual.fileName}"`);
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error("MANUALS FILE ERROR", err);
+    res.status(500).send("manual_file_failed");
+  }
+});
+
+app.delete("/api/manuals/:id", async (req, res) => {
+  try {
+    const items = await loadManualsMeta();
+    const manual = items.find(item => item.id === req.params.id);
+    if (!manual) return res.status(404).send({ ok: false, error: "manual_not_found" });
+
+    const next = items.filter(item => item.id !== req.params.id);
+    await saveManualsMeta(next);
+    await fs.unlink(path.join(MANUALS_DIR, manual.fileName)).catch(() => {});
+    res.send({ ok: true, id: req.params.id });
+  } catch (err) {
+    console.error("MANUALS DELETE ERROR", err);
+    res.status(500).send({ ok: false, error: "manual_delete_failed" });
+  }
+});
 
 app.get("/warehouse-templates", async (req, res) => {
   const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
