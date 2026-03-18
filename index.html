@@ -57,6 +57,8 @@
         <div class="app-subtitle">Чеки на ремонт / сервис</div>
       </div>
     </div>
+
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth' });">☰</button>
 	</header>
 	  	<!-- ==========================
       LOGIN SCREEN
@@ -76,6 +78,53 @@
 
 
   <main class="app-main">
+    <section id="dashboard" class="dashboard-hero card">
+      <div class="page-header">
+        <p class="eyebrow">Рабочая панель</p>
+        <h1>Добро пожаловать в Surpresso</h1>
+        <p>Быстрый доступ к ключевым разделам и действиям для смены.</p>
+      </div>
+
+      <div class="section-grid">
+        <a class="section-card accent-check" href="#check-workspace">
+          <div class="section-overlay"></div>
+          <div class="section-content">
+            <h3>Чек</h3>
+            <p>Оформление сервисных работ и позиций</p>
+            <span class="status-badge">Активный чек</span>
+          </div>
+        </a>
+
+        <a class="section-card accent-stock" href="/recount.html">
+          <div class="section-overlay"></div>
+          <div class="section-content">
+            <h3>Склад</h3>
+            <p>Набор, переучет и контроль остатков</p>
+            <span class="status-badge">12 позиций заканчиваются</span>
+          </div>
+        </a>
+
+        <button class="section-card accent-equipment" type="button" onclick="openEquipmentPage()">
+          <div class="section-overlay"></div>
+          <div class="section-content">
+            <h3>Оборудование</h3>
+            <p>Сервисные карты и статус обслуживания</p>
+            <span class="status-badge">3 в обслуживании</span>
+          </div>
+        </button>
+
+        <a class="section-card accent-manual" href="/equipment.html">
+          <div class="section-overlay"></div>
+          <div class="section-content">
+            <h3>Мануалы</h3>
+            <p>Поиск по моделям, брендам и узлам</p>
+            <span class="status-badge">Поиск по моделям и брендам</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <div id="check-workspace"></div>
     <!-- Клиент / оборудование -->
     <section class="card">
       <h2>Клиент / оборудование</h2>
@@ -461,10 +510,15 @@
   </button>
 </footer>
 
+  <div class="fab-menu" aria-label="Быстрые действия">
+    <button class="fab-action" type="button" onclick="document.getElementById('new-btn').click();">🧾 Новый чек</button>
+    <button class="fab-action" type="button" onclick="document.getElementById('parts-input').focus();">📦 Добавить товар</button>
+    <button class="fab-action" type="button" onclick="openEquipmentPage();">🔧 Оборудование</button>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
-
 
 
 
