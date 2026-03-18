@@ -4,41 +4,13 @@
   <meta charset="utf-8" />
   <title>Surpresso Check</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA manifest -->
- <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
   <meta name="theme-color" content="#f2c94c" />
-
-  <!-- Styles -->
   <link rel="stylesheet" href="/style.css?v=1.1.4">
   <link rel="stylesheet" href="/gradient.css?v=1.1.4">
-
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <!-- ExcelJS (обязательно перед app.js) -->
-  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
-
-  <style>
-    /* Drag handle */
-    .drag-handle {
-      cursor: grab;
-      color: #777;
-      font-size: 18px;
-      user-select: none;
-      width: 20px;
-      text-align: center;
-    }
-    tr.dragging { opacity: 0.4; }
-
-    /* Editable qty */
-    td.editable-qty { cursor: pointer; position: relative; }
-    td.editable-qty .qty-input { display: none; width: 50px; }    
-  </style>
 </head>
-
-<body>
+<body data-page="dashboard">
   <header class="app-header">
     <div class="header-decor" aria-hidden="true">
       <img src="icons/branch-blossom.png" class="header-branch" alt="" />
@@ -58,40 +30,34 @@
       </div>
     </div>
 
-    <button class="header-menu-btn" type="button" title="Навигация" onclick="document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth' });">☰</button>
-	</header>
-	  	<!-- ==========================
-      LOGIN SCREEN
-=========================== -->
-	<div id="login-screen" class="login-screen">
-	<div class="login-box">
-		<h2>Вход в систему</h2>
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="if (document.getElementById('dashboard')) document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth' }); else window.location.href='/' ;">☰</button>
+  </header>
 
-		<input id="login-user" type="text" placeholder="Логин" class="login-input">
-		<input id="login-pass" type="password" placeholder="Пароль" class="login-input">
-
-		<button id="login-btn" class="btn primary wide">Войти</button>
-
-		<div id="login-error" class="login-error"></div>
-	</div>
-	</div>
-
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
 
   <main class="app-main">
-    <section id="dashboard" class="dashboard-hero card">
+    <section id="dashboard" class="dashboard-hero card page-shell">
       <div class="page-header">
         <p class="eyebrow">Рабочая панель</p>
         <h1>Добро пожаловать в Surpresso</h1>
-        <p>Быстрый доступ к ключевым разделам и действиям для смены.</p>
+        <p>Главная страница теперь отвечает только за навигацию между ключевыми разделами PWA.</p>
       </div>
 
       <div class="section-grid">
-        <a class="section-card accent-check" href="#check-workspace">
+        <a class="section-card accent-check" href="/check">
           <div class="section-overlay"></div>
           <div class="section-content">
             <h3>Чек</h3>
-            <p>Оформление сервисных работ и позиций</p>
-            <span class="status-badge">Активный чек</span>
+            <p>Открыть сервисный чек со всеми текущими функциями и обработчиками.</p>
+            <span class="status-badge">Отдельная страница</span>
           </div>
         </a>
 
@@ -99,8 +65,8 @@
           <div class="section-overlay"></div>
           <div class="section-content">
             <h3>Склад</h3>
-            <p>Набор, переучет и контроль остатков</p>
-            <span class="status-badge">12 позиций заканчиваются</span>
+            <p>Набор, переучет и контроль остатков.</p>
+            <span class="status-badge">Рабочий раздел</span>
           </div>
         </a>
 
@@ -108,420 +74,39 @@
           <div class="section-overlay"></div>
           <div class="section-content">
             <h3>Оборудование</h3>
-            <p>Сервисные карты и статус обслуживания</p>
-            <span class="status-badge">3 в обслуживании</span>
+            <p>Карточки техники и обслуживание.</p>
+            <span class="status-badge">Сервисные карты</span>
           </div>
         </button>
 
-        <a class="section-card accent-manual" href="/equipment.html">
+        <a class="section-card accent-manual" href="/manuals">
           <div class="section-overlay"></div>
           <div class="section-content">
             <h3>Мануалы</h3>
-            <p>Поиск по моделям, брендам и узлам</p>
-            <span class="status-badge">Поиск по моделям и брендам</span>
+            <p>PDF-база с поиском по названию, бренду и модели.</p>
+            <span class="status-badge">PDF viewer</span>
           </div>
         </a>
       </div>
     </section>
+  </main>
 
-    <div id="check-workspace"></div>
-    <!-- Клиент / оборудование -->
-    <section class="card">
-      <h2>Клиент / оборудование</h2>
-
-      <div class="field">
-        <label>Клиент / заведение</label>
-        <input id="client-input" type="text" placeholder="Название заведения или ФИО" />
-      </div>
-
-      <div class="field">
-        <label>Код оборудования</label>
-        <input id="equip-input" type="text" placeholder="Например: LM-AV/001" />
-      </div>
-    </section>
-
-    <!-- Инженеры -->
-    <section class="card">
-      <h2>Сервис-инженеры</h2>
-      <div id="engineers-container">
-        <div class="field engineer-row">
-          <div class="row">
-            <div class="select-ios">
-              <select class="engineer-input"></select>
-            </div>
-            <button type="button" class="btn primary add-btn engineer-add" onclick="addEngineerField()">+</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-<!-- Позиции -->
-<section class="card">
-  <div class="positions-header">
-    <h2>Позиции</h2>
-
-    <button class="warehouse-toggle" onclick="toggleWarehouse()">
-      📦 Набрать со склада
-    </button>
-  </div>
-
-  <!-- ===== СКЛАД ===== -->
-  <div id="warehouse-panel" class="warehouse-panel" style="display:none">
-
-    <div class="block-label">Набор запчастей со склада</div>
-
-    <!-- режимы -->
-    <div class="warehouse-modes">
-      <button id="wm-manual" class="active" onclick="setWarehouseMode('manual')">🔍 Ввод</button>
-      <button id="wm-qr" onclick="setWarehouseMode('qr')">📷 QR</button>
-      <button id="wm-recount" type="button" onclick="location.href='/recount.html'">🧮 Переучет склада</button>
-    </div>
-
-    <div id="warehouse-recount" class="warehouse-recount" style="display:none;">
-      <div class="warehouse-recount__setup">
-        <div class="field">
-          <label>Склад</label>
-          <input id="recount-warehouse" type="text" placeholder="Например: Центральный" />
-        </div>
-        <div class="field">
-          <label>Диапазон от</label>
-          <input id="recount-range-from" type="text" placeholder="1.1" />
-        </div>
-        <div class="field">
-          <label>Диапазон до</label>
-          <input id="recount-range-to" type="text" placeholder="1.5" />
-        </div>
-        <button id="start-recount-btn" class="btn primary" type="button">Старт сессии</button>
-      </div>
-
-      <div id="recount-session" class="warehouse-recount__session" style="display:none;">
-        <div id="recount-session-meta" class="muted"></div>
-        <div class="recount-actions-row">
-          <button id="save-recount-btn" class="btn primary" type="button">Сохранить</button>
-          <button id="add-found-btn" class="btn ghost" type="button">Добавить найденный товар</button>
-          <button id="finish-recount-btn" class="btn ghost" type="button">Завершить участок</button>
-          <button id="export-recount-btn" class="btn ghost" type="button">Экспорт в Excel</button>
-        </div>
-
-        <div id="recount-found-form" class="recount-found-form" style="display:none;">
-          <input id="recount-found-code" type="text" placeholder="Артикул" />
-          <input id="recount-found-cell" type="text" placeholder="Комірка" />
-          <input id="recount-found-fact" type="number" min="0" step="0.01" value="0" placeholder="Факт" />
-          <button id="recount-found-apply" class="btn primary" type="button">Добавить</button>
-        </div>
-
-        <div class="parts-request-table-wrap">
-          <table class="parts-request-table recount-table">
-            <thead>
-              <tr>
-                <th>Артикул</th>
-                <th>Комірка</th>
-                <th>Найменування</th>
-                <th>Од. вим</th>
-                <th>Факт</th>
-              </tr>
-            </thead>
-            <tbody id="recount-body"></tbody>
-          </table>
-        </div>
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left">
+      <div class="ticker">
+        <div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div>
       </div>
     </div>
-
-    <!-- live QR -->
-    <div id="ocr-live" class="ocr-layout" style="display:none;">
-      <div class="ocr-camera">
-        <video id="ocr-video" autoplay playsinline muted></video>
-        <div id="ocr-frame"></div>
-        <div id="ocr-hint"></div>
-      </div>
-      <div class="ocr-side">
-        <div class="ocr-side-title">Результаты</div>
-        <div id="ocr-result" class="ocr-result muted">Ожидание сканирования…</div>
-        <div id="warehouse-alert"></div>
-      </div>
-    </div>
-    <!-- ВВОД КАК У ЗАПЧАСТЕЙ -->
-    <div class="row">
-      <div class="field full">
-        <label>Код / название</label>
-        <div class="suggest-block">
-          <input
-            id="warehouse-input"
-            autocomplete="off"
-            placeholder="Начните вводить артикул или название"/>
-			<div id="warehouse-info" class="info-line"></div>
-		    <div id="warehouse-suggest" class="suggest"></div>
-        </div>
-      </div>
-
-      <div class="field qty-field">
-        <label>Кол-во</label>
-        <input
-          id="warehouse-qty"
-          type="text"
-          value="1"
-          inputmode="decimal"
-        />
-      </div>
-
-      <button class="btn primary" onclick="addWarehouseItem()">+</button>
-    </div>
-
-    <!-- список набора -->
-    <div id="warehouse-list"></div>
-
-    <!-- шаблоны -->
-    <div class="block-label mt-12">Шаблоны наборов</div>
-
-    <div class="row template-row-form">
-      <div class="field full">
-        <label>Название шаблона *</label>
-        <input id="template-name" placeholder="Например: DeLonghi ECAM — гидросистема" />
-      </div>
-
-      <div class="field">
-        <label>Модель</label>
-        <input id="template-machine" placeholder="Модель машинки" />
-      </div>
-
-      <div class="field">
-        <label>Узел</label>
-        <input id="template-node" placeholder="Например: бойлер" />
-      </div>
-    </div>
-
-    <div class="row template-actions-row">
-      <button id="save-template-btn" class="btn primary" type="button">💾 Сохранить</button>
-      <button id="toggle-templates-btn" class="btn ghost" type="button">Все шаблоны ▾</button>
-    </div>
-
-    <div id="templates-panel" class="templates-panel" style="display:none">
-      <div class="row align-center">
-        <div class="field full">
-          <label>Поиск по шаблонам</label>
-          <input id="template-filter" placeholder="Начните вводить название, модель или узел" />
-        </div>
-      </div>
-
-      <div id="warehouse-templates-empty" class="muted" style="display:none">
-        Шаблоны пока не созданы.
-      </div>
-      <div id="warehouse-templates"></div>
-    </div>
-
-    <!-- действия -->
-    <div class="row mt-12">
-      <button
-        id="apply-kit-btn"
-        class="btn primary wide"
-        onclick="applyKitToCheck()"
-        disabled
-      >
-        🧾 В чек
-      </button>
-
-      <button
-        id="clear-kit-btn"
-        class="btn ghost wide"
-        disabled
-      >
-        🗑 Очистить
-      </button>
-    </div>
-
-    <div class="row mt-12">
-      <button id="open-parts-request-btn" class="btn ghost wide" type="button">
-        🧾 Заявка на запчасти
-      </button>
-    </div>
-  </div>
-<!-- Mini modal:............................................................ Replace / Add -->
-<div id="kit-choice-modal" class="mini-modal hidden">
-  <div class="mini-modal__backdrop" onclick="closeKitChoice()"></div>
-
-  <div class="mini-modal__card" role="dialog" aria-modal="true">
-    <div class="mini-modal__title" id="kit-choice-title">Шаблон</div>
-    <div class="mini-modal__text" id="kit-choice-text">
-      Что сделать с текущим набором?
-    </div>
-
-    <div class="mini-modal__actions">
-      <button type="button" class="btn ghost" onclick="closeKitChoice()">Отмена</button>
-      <button type="button" class="btn ghost danger" id="kit-choice-replace-btn">Заменить</button>
-      <button type="button" class="btn primary" id="kit-choice-add-btn">Добавить</button>
-    </div>
-  </div>
-</div>
-
-<!-- Заявка на запчасти -->
-<div id="parts-request-modal" class="mini-modal hidden">
-  <div class="mini-modal__backdrop" onclick="closePartsRequestModal()"></div>
-
-  <div class="mini-modal__card parts-request-card" role="dialog" aria-modal="true">
-    <div class="mini-modal__title">Заявка на запчасти</div>
-    <div class="mini-modal__text">Выберите позиции и укажите нужное количество.</div>
-
-    <div class="field full parts-request-search">
-      <label>Поиск</label>
-      <input id="parts-request-search" type="text" placeholder="Код или название" />
-    </div>
-
-    <div class="parts-request-table-wrap">
-      <table class="parts-request-table">
-        <thead>
-          <tr>
-            <th>+</th>
-            <th>Код</th>
-            <th>Наименование</th>
-            <th>Цена</th>
-            <th>Остаток</th>
-            <th>Нужно</th>
-          </tr>
-        </thead>
-        <tbody id="parts-request-body"></tbody>
-      </table>
-    </div>
-
-    <div class="mini-modal__actions">
-      <button type="button" class="btn ghost" onclick="closePartsRequestModal()">Закрыть</button>
-      <button type="button" id="share-parts-request-btn" class="btn primary">Поделиться</button>
-    </div>
-  </div>
-</div>
-  <!-- ===== ЗАПЧАСТИ ====--------------------------------------------------------------------= -->
-  <div class="block-label">Запчасти</div>
-
-  <div class="row">
-    <div class="field full">
-      <label>Код / название</label>
-      <div class="suggest-block">
-        <input
-          id="parts-input"
-          type="text"
-          autocomplete="off"
-          placeholder="Начните вводить артикул или название"
-        />
-        <div id="parts-suggest" class="suggest"></div>
-      </div>
-    </div>
-
-    <div class="field qty-field">
-      <label>Кол-во</label>
-      <input id="parts-qty" type="text" value="1" inputmode="decimal" />
-    </div>
-
-    <button id="add-part" class="btn primary">+</button>
-  </div>
-
-  <div id="parts-info" class="info-line"></div>
-
-  <!-- ===== УСЛУГИ ===== -->
-  <div class="block-label mt-16">Услуги</div>
-
-  <div class="row">
-    <div class="field full">
-      <label>Код / название</label>
-      <div class="suggest-block">
-        <input
-          id="services-input"
-          type="text"
-          autocomplete="off"
-          placeholder="Начните вводить артикул или название"
-        />
-        <div id="services-suggest" class="suggest"></div>
-      </div>
-    </div>
-
-    <div class="field qty-field">
-      <label>Кол-во</label>
-      <input id="services-qty" type="text" value="1" inputmode="decimal" />
-    </div>
-
-    <button id="add-service" class="btn primary">+</button>
-  </div>
-</section>
-
-
-    <!-- Таблица -->
-    <section class="card">
-      <h2>Чек</h2>
-
-      <div class="table-wrapper">
-        <table id="items-table" class="draggable-table">
-          <thead>
-            <tr>
-              <th style="width:28px;"></th>
-              <th>Код</th>
-              <th>Название</th>
-              <th>Кол-во</th>
-              <th>Цена</th>
-              <th>Сумма</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div class="total-line">
-        <span>Итого:</span>
-        <span id="total">0.00</span>
-      </div>
-    </section>
-	<section class="card">
-      <h2>Комментарий</h2>
-<div class="field">
-  <label for="comment-input"></label>
-  <textarea
-    id="comment-input"
-    placeholder="Комментарий к работам, дефекты, договорённости"
-    rows="3"
-  ></textarea>
-  </section>
-</div>
-
-    <!-- Кнопки -->
-    <section class="card actions-card">
-      <button id="new-btn" class="btn ghost">Новый чек</button>
-      <button id="save-btn" class="btn primary wide">Сохранить в Excel</button>
-	  <button id="share-text-btn" class="btn primary wide">Поделиться</button>
-	  <button class="btn" onclick="openEquipmentPage()">
-  🔧Оборудование
-</button>
-
-
-      <input id="open-file" type="file" accept=".xlsx" style="display:none" />
-      <button id="open-btn" class="btn ghost">Открыть чек</button>
-    </section>
-<footer class="app-footer">
-	<button id="theme-btn" class="footer-refresh" type="button" title="Тема">
-  ☀️
-</button>
-  <div class="footer-left">
-    <div class="ticker">
-      <div class="ticker-track" id="footer-ticker">
-        Surpresso Service • офлайн PWA • версия 1.1.0 • 
-      </div>
-    </div>
-  </div>
-
-  <button id="hard-refresh-btn" class="footer-refresh">
-    ♻ Обновить
-  </button>
-</footer>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
 
   <div class="fab-menu" aria-label="Быстрые действия">
-    <button class="fab-action" type="button" onclick="document.getElementById('new-btn').click();">🧾 Новый чек</button>
-    <button class="fab-action" type="button" onclick="document.getElementById('parts-input').focus();">📦 Добавить товар</button>
+    <button class="fab-action" type="button" onclick="window.location.href='/check';">🧾 Новый чек</button>
+    <button class="fab-action" type="button" onclick="window.location.href='/manuals';">📘 Мануалы</button>
     <button class="fab-action" type="button" onclick="openEquipmentPage();">🔧 Оборудование</button>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
-
-
-
-
-
-

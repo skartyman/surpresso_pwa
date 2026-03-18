@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check • Мануалы</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body data-page="manuals">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="" />
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="icons/logo-service.png" alt="Surpresso Service" />
+      </div>
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">PDF-мануалы и документация</div>
+      </div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Dashboard" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <main class="app-main manuals-page">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Библиотека PDF</p>
+        <h1>Мануалы оборудования</h1>
+        <p>Загружайте PDF, ищите по названию, бренду и модели и открывайте документы прямо внутри приложения.</p>
+      </div>
+      <div class="page-actions-inline">
+        <a class="btn ghost" href="/">← Dashboard</a>
+        <a class="btn ghost" href="/check">🧾 Чек</a>
+      </div>
+    </section>
+
+    <section class="card manuals-layout">
+      <div class="manuals-sidebar">
+        <div class="manual-upload-card">
+          <h2>Загрузка PDF</h2>
+          <div class="field">
+            <label for="manual-title">Название</label>
+            <input id="manual-title" type="text" placeholder="Например: La Marzocco Linea Mini" />
+          </div>
+          <div class="manual-form-grid">
+            <div class="field">
+              <label for="manual-brand">Бренд</label>
+              <input id="manual-brand" type="text" placeholder="La Marzocco" />
+            </div>
+            <div class="field">
+              <label for="manual-model">Модель</label>
+              <input id="manual-model" type="text" placeholder="Linea Mini" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="manual-file">PDF-файл</label>
+            <input id="manual-file" type="file" accept="application/pdf,.pdf" />
+          </div>
+          <button id="manual-upload-btn" class="btn primary wide" type="button">Загрузить мануал</button>
+          <div id="manual-upload-status" class="manual-upload-status" aria-live="polite"></div>
+        </div>
+
+        <div class="manual-library-card">
+          <div class="manual-library-top">
+            <h2>Список мануалов</h2>
+            <span id="manual-count" class="status-badge">0 файлов</span>
+          </div>
+          <div class="field">
+            <label for="manual-search">Поиск</label>
+            <input id="manual-search" type="text" placeholder="Название, бренд или модель" />
+          </div>
+          <div id="manual-list" class="manual-list"></div>
+        </div>
+      </div>
+
+      <div class="manual-viewer-card">
+        <div class="manual-viewer-top">
+          <div>
+            <p class="eyebrow">Просмотр</p>
+            <h2 id="manual-viewer-title">Выберите мануал</h2>
+            <p id="manual-viewer-meta" class="manual-meta-line">PDF откроется здесь без скачивания.</p>
+          </div>
+          <div class="page-actions-inline viewer-actions">
+            <button id="manual-open-tab" class="btn ghost" type="button" disabled>Открыть отдельно</button>
+            <button id="manual-delete-btn" class="btn ghost danger" type="button" disabled>Удалить</button>
+          </div>
+        </div>
+        <div class="manual-viewer-frame-wrap">
+          <iframe id="manual-viewer-frame" class="manual-viewer-frame" title="Просмотр PDF"></iframe>
+          <div id="manual-viewer-empty" class="manual-viewer-empty">
+            <img src="icons/manuals.png" alt="Мануалы" />
+            <p>Выберите документ из списка или загрузите новый PDF.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left">
+      <div class="ticker">
+        <div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div>
+      </div>
+    </div>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
+
+  <div class="fab-menu" aria-label="Быстрые действия">
+    <button class="fab-action" type="button" onclick="document.getElementById('manual-file').click();">📤 Загрузить PDF</button>
+    <button class="fab-action" type="button" onclick="document.getElementById('manual-search').focus();">🔎 Найти мануал</button>
+    <button class="fab-action" type="button" onclick="window.location.href='/check';">🧾 Чек</button>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="manuals.js"></script>
+</body>
+</html>
