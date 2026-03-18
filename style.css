@@ -1392,3 +1392,210 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 .recount-table td:nth-child(4) {
   min-width: 360px;
 }
+
+/* ============================================================
+   DASHBOARD + APP SHELL REFRESH
+============================================================ */
+
+body {
+  min-height: 100vh;
+}
+
+.app-header {
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+  min-height: 92px;
+}
+
+.header-menu-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 20px;
+  flex: 0 0 auto;
+}
+
+.app-main {
+  padding: 12px;
+  max-width: 1120px;
+}
+
+.dashboard-hero {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.page-header .eyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.page-header p {
+  margin: 10px 0 16px;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.section-card {
+  position: relative;
+  border-radius: 20px;
+  min-height: 168px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  background-size: cover;
+  background-position: center;
+  padding: 14px;
+  box-shadow: var(--shadow-md);
+  transform: translateY(0);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.section-card:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.section-card:hover {
+  transform: translateY(-2px);
+}
+
+.section-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.70) 70%, rgba(0,0,0,0.84) 100%);
+}
+
+.section-content {
+  position: relative;
+  z-index: 1;
+}
+
+.section-content h3 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.section-content p {
+  margin: 6px 0 10px;
+  font-size: 14px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.accent-check {
+  background-image: linear-gradient(130deg, rgba(245,158,11,0.32), rgba(88,28,135,0.22)), url('icons/logo-service.png');
+}
+
+.accent-stock {
+  background-image: linear-gradient(130deg, rgba(37,99,235,0.35), rgba(49,46,129,0.3)), url('icons/deer.jpg');
+}
+
+.accent-equipment {
+  background-image: linear-gradient(130deg, rgba(249,115,22,0.33), rgba(31,41,55,0.65)), url('icons/logo-service.png');
+}
+
+.accent-manual {
+  background-image: linear-gradient(130deg, rgba(22,163,74,0.34), rgba(30,64,175,0.24)), url('icons/branch-blossom.png');
+}
+
+.section-card.accent-equipment {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fab-menu {
+  position: fixed;
+  right: 12px;
+  bottom: 80px;
+  z-index: 29;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fab-action {
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+}
+
+#check-workspace {
+  height: 2px;
+}
+
+.card {
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.field input,
+textarea,
+.select-ios select,
+.btn {
+  min-height: 42px;
+}
+
+.btn {
+  font-weight: 700;
+}
+
+@media (min-width: 720px) {
+  .app-header {
+    padding: 16px 22px;
+  }
+
+  .section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-card {
+    min-height: 190px;
+    border-radius: 22px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding: 18px;
+  }
+
+  .dashboard-hero {
+    padding: 18px;
+  }
+
+  .section-grid {
+    gap: 14px;
+  }
+}
