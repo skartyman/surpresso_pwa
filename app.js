@@ -686,7 +686,10 @@ function openKitChoice(tpl) {
   const replaceBtn = document.getElementById("kit-choice-replace-btn");
   const addBtn     = document.getElementById("kit-choice-add-btn");
 
-  if (!modal || !replaceBtn || !addBtn) return;
+  if (!modal || !replaceBtn || !addBtn) {
+    applyTemplateToKit(tpl, { mode: kit.length ? "add" : "replace" });
+    return;
+  }
 
   title.textContent = tpl?.name ? `Шаблон: ${tpl.name}` : "Шаблон";
   text.textContent = kit.length
@@ -2641,7 +2644,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 
