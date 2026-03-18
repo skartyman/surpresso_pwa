@@ -222,8 +222,11 @@ window.addEventListener('popstate', () => {
   showManual(manual);
 });
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   if (document.body?.dataset?.page !== 'manuals') return;
+
+  await window.SurpAuth?.init?.();
+  if (!window.SurpAuth?.getCurrentUser?.()) return;
 
   document.getElementById('manual-upload-btn')?.addEventListener('click', async () => {
     try {
