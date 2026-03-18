@@ -1509,19 +1509,19 @@ body {
 }
 
 .accent-check {
-  background-image: linear-gradient(130deg, rgba(245,158,11,0.32), rgba(88,28,135,0.22)), url('icons/logo-service.png');
+  background-image: linear-gradient(130deg, rgba(245,158,11,0.32), rgba(88,28,135,0.22)), url('icons/check.png');
 }
 
 .accent-stock {
-  background-image: linear-gradient(130deg, rgba(37,99,235,0.35), rgba(49,46,129,0.3)), url('icons/deer.jpg');
+  background-image: linear-gradient(130deg, rgba(37,99,235,0.35), rgba(49,46,129,0.3)), url('icons/warehouse.jpg');
 }
 
 .accent-equipment {
-  background-image: linear-gradient(130deg, rgba(249,115,22,0.33), rgba(31,41,55,0.65)), url('icons/logo-service.png');
+  background-image: linear-gradient(130deg, rgba(249,115,22,0.33), rgba(31,41,55,0.65)), url('icons/equip.png');
 }
 
 .accent-manual {
-  background-image: linear-gradient(130deg, rgba(22,163,74,0.34), rgba(30,64,175,0.24)), url('icons/branch-blossom.png');
+  background-image: linear-gradient(130deg, rgba(22,163,74,0.34), rgba(30,64,175,0.24)), url('icons/manual.png');
 }
 
 .section-card.accent-equipment {
