@@ -1538,26 +1538,6 @@ body {
   cursor: pointer;
 }
 
-.fab-menu {
-  position: fixed;
-  right: 12px;
-  bottom: 80px;
-  z-index: 29;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.fab-action {
-  border: 1px solid var(--border);
-  background: var(--surface-solid);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: var(--shadow-md);
-}
 
 #check-workspace {
   height: 2px;
