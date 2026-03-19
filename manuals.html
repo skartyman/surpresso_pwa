@@ -112,6 +112,54 @@
             <p>Выберите документ из списка или загрузите новый PDF.</p>
           </div>
         </div>
+
+        <section class="manual-ai-card">
+          <div class="manual-ai-top">
+            <div>
+              <p class="eyebrow">AI Q&amp;A</p>
+              <h2>Вопросы по мануалам</h2>
+              <p class="manual-meta-line">AI отвечает только на основе найденных фрагментов и всегда показывает источники.</p>
+            </div>
+            <button id="manual-ai-index-btn" class="btn ghost" type="button" disabled>Индексировать мануал</button>
+          </div>
+
+          <div class="manual-ai-scope" role="radiogroup" aria-label="Область поиска по мануалам">
+            <label class="manual-ai-scope-option">
+              <input type="radio" name="manual-ai-scope" value="current" checked />
+              <span>Этот мануал</span>
+            </label>
+            <label class="manual-ai-scope-option">
+              <input type="radio" name="manual-ai-scope" value="all" />
+              <span>Все мануалы</span>
+            </label>
+          </div>
+
+          <div class="field">
+            <label for="manual-ai-question">Вопрос по документации</label>
+            <textarea id="manual-ai-question" class="manual-ai-question" rows="4" placeholder="Например: Какое давление помпы указано в сервисном мануале?"></textarea>
+          </div>
+
+          <div class="manual-ai-actions">
+            <button id="manual-ai-ask-btn" class="btn primary" type="button">Спросить</button>
+            <div class="manual-ai-status-wrap">
+              <strong id="manual-ai-status">Мануал не выбран</strong>
+              <span id="manual-ai-hint">Выберите документ слева, чтобы спросить именно по нему.</span>
+            </div>
+          </div>
+
+          <div id="manual-ai-feedback" class="manual-upload-status" aria-live="polite"></div>
+
+          <div class="manual-ai-panels">
+            <div class="manual-ai-panel">
+              <h3>Ответ</h3>
+              <div id="manual-ai-answer" class="manual-ai-answer"></div>
+            </div>
+            <div class="manual-ai-panel">
+              <h3>Источники</h3>
+              <div id="manual-ai-sources" class="manual-ai-sources"></div>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   </main>
