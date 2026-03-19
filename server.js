@@ -13,6 +13,7 @@ import {
   loadManualIndex,
   removeManualIndex,
   scoreChunks,
+  translateQuestionToEnglish,
   uniqueTopChunks,
 } from "./manuals-ai.js";
 
@@ -1855,6 +1856,8 @@ async function ensureFreshManualIndex(manual) {
 
 async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailures = false }) {
   const scored = [];
+  const fallbackPool = [];
+  const retrievalQuestion = await translateQuestionToEnglish(question);
 
   for (const manual of manuals) {
     let index;
@@ -1872,10 +1875,26 @@ async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailur
       brand: index.brand,
       model: index.model,
     };
-    scored.push(...scoreChunks({ question, manual: manualScoped, chunks: index.chunks }));
+    const scoredChunks = scoreChunks({
+      question,
+      retrievalQuestion,
+      manual: manualScoped,
+      chunks: index.chunks,
+    });
+    scored.push(...scoredChunks);
+    fallbackPool.push(...scoredChunks.filter(chunk => (chunk.weakScore || 0) > 0));
   }
 
-  const bestChunks = uniqueTopChunks(scored.sort((a, b) => b.score - a.score), limit);
+  const ranked = scored.sort((a, b) => (b.score - a.score) || (b.weakScore - a.weakScore));
+  let bestChunks = uniqueTopChunks(ranked.filter(chunk => (chunk.score || 0) > 0), limit);
+
+  if (!bestChunks.length) {
+    bestChunks = uniqueTopChunks(
+      fallbackPool.sort((a, b) => (b.weakScore - a.weakScore) || (b.score - a.score)),
+      Math.min(limit, 3),
+    );
+  }
+
   if (!bestChunks.length) {
     return {
       answer: "В найденных фрагментах нет достаточных данных для ответа на этот вопрос.",
@@ -1884,10 +1903,10 @@ async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailur
     };
   }
 
-  const answer = await answerWithGemini({ question, chunks: bestChunks });
+  const answer = await answerWithGemini({ question, retrievalQuestion, chunks: bestChunks });
   return {
     answer: answer || "В найденных фрагментах нет достаточных данных для ответа на этот вопрос.",
-    sources: buildSources(question, bestChunks),
+    sources: buildSources(retrievalQuestion || question, bestChunks),
     chunks: bestChunks,
   };
 }
@@ -1954,7 +1973,7 @@ app.post("/api/manuals", async (req, res) => {
     });
 
     const item = out.item || {};
-    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, error: null };
+    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, pagesCount: 0, sampleTextPreview: "", error: null };
 
     try {
       const index = await createManualIndex({ manual: item, pdfBuffer: buffer });
@@ -1962,6 +1981,8 @@ app.post("/api/manuals", async (req, res) => {
         status: index.status,
         updatedAt: index.updatedAt,
         chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+        pagesCount: index.pagesCount || 0,
+        sampleTextPreview: index.sampleTextPreview || "",
         error: index.error || null,
       };
     } catch (indexError) {
@@ -2008,6 +2029,8 @@ app.post("/api/manuals/reindex", async (req, res) => {
           title: manual.title,
           status: index.status,
           chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+          pagesCount: index.pagesCount || 0,
+          sampleTextPreview: index.sampleTextPreview || "",
           updatedAt: index.updatedAt,
         });
       } catch (indexError) {
@@ -2017,6 +2040,8 @@ app.post("/api/manuals/reindex", async (req, res) => {
           title: manual.title,
           status: status.status,
           chunksCount: status.chunksCount,
+          pagesCount: status.pagesCount || 0,
+          sampleTextPreview: status.sampleTextPreview || "",
           updatedAt: status.updatedAt,
           error: status.error || indexError.message,
         });
@@ -2067,6 +2092,8 @@ app.post("/api/manuals/:id/index", async (req, res) => {
       status: index.status,
       updatedAt: index.updatedAt,
       chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+      pagesCount: index.pagesCount || 0,
+      sampleTextPreview: index.sampleTextPreview || "",
     });
   } catch (err) {
     console.error("MANUALS INDEX ERROR", err);
