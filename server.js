@@ -13,6 +13,7 @@ import {
   loadManualIndex,
   removeManualIndex,
   scoreChunks,
+  selectContentFallbackChunks,
   translateQuestionToEnglish,
   uniqueTopChunks,
 } from "./manuals-ai.js";
@@ -1882,7 +1883,15 @@ async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailur
       chunks: index.chunks,
     });
     scored.push(...scoredChunks);
+    const manualPositiveChunks = scoredChunks.filter(chunk => (chunk.score || 0) > 0);
     fallbackPool.push(...scoredChunks.filter(chunk => (chunk.weakScore || 0) > 0));
+    if (!manualPositiveChunks.length) {
+      fallbackPool.push(...selectContentFallbackChunks(scoredChunks.length ? scoredChunks : index.chunks, 3).map(chunk => ({
+        ...chunk,
+        weakScore: Math.max(Number(chunk.weakScore || 0), 0.25),
+        fallbackReason: "content_preview",
+      })));
+    }
   }
 
   const ranked = scored.sort((a, b) => (b.score - a.score) || (b.weakScore - a.weakScore));
@@ -2271,7 +2280,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 
 
 
