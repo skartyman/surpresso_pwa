@@ -7,6 +7,24 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
 const NON_EXTRACTABLE_PDF_ERROR = 'Этот PDF пока нельзя проиндексировать автоматически';
+const NON_EXTRACTABLE_PDF_REASON = 'Этот PDF нельзя нормально прочитать (скан или сложная кодировка)';
+const FONT_METADATA_PATTERNS = [
+  /\bmonotype\b/gi,
+  /\barial(?:mt)?\b/gi,
+  /\bhelvetica\b/gi,
+  /\btimesnewroman(?:psmt)?\b/gi,
+  /\bcourier(?:newpsmt)?\b/gi,
+  /\bfontdescriptor\b/gi,
+  /\bbasefont\b/gi,
+  /\bcidfont\b/gi,
+  /\bfontname\b/gi,
+  /\btruetype\b/gi,
+  /\btype0\b/gi,
+  /\btype1\b/gi,
+  /\bglyph(?:s)?\b/gi,
+  /\bencoding\b/gi,
+  /\bfont\b/gi,
+];
 const TECHNICAL_TERMS = [
   'pressure', 'pump', 'pompa', 'boiler', 'sensor', 'temperature', 'thermostat', 'valve', 'solenoid',
   'flowmeter', 'flow', 'level', 'water', 'steam', 'brew', 'group', 'heater', 'heating', 'error',
@@ -411,33 +429,60 @@ function analyzeTextQuality(text = '') {
   const clean = cleanupExtractedText(text);
   const tokens = tokenize(clean);
   const words = clean.split(/\s+/).filter(Boolean);
+  const lowerClean = clean.toLowerCase();
   const letters = (clean.match(/\p{L}/gu) || []).length;
   const digits = (clean.match(/\p{N}/gu) || []).length;
   const technicalHits = tokens.filter(token => TECHNICAL_TERM_SET.has(token)).length;
   const weird = (clean.match(/[^\p{L}\p{N}\s.,;:()\[\]#/%+\-°*"'!?=&]/gu) || []).length;
+  const meaningfulWords = words.filter(word => /^[\p{L}]{4,}$/u.test(word));
+  const shortWords = words.filter(word => /^[\p{L}]{1,2}$/u.test(word));
+  const uppercaseLikeWords = words.filter(word => /^[A-Z]{2,}$/.test(word));
+  const repeatedSymbolRuns = (clean.match(/([^\p{L}\p{N}\s])\1{2,}/gu) || []).length;
+  const fontMetadataHits = FONT_METADATA_PATTERNS.reduce((count, pattern) => count + ((lowerClean.match(pattern) || []).length), 0);
   const alnumRatio = (letters + digits) / Math.max(clean.length, 1);
   const weirdRatio = weird / Math.max(clean.length, 1);
+  const meaningfulWordRatio = meaningfulWords.length / Math.max(words.length, 1);
+  const shortWordRatio = shortWords.length / Math.max(words.length, 1);
+  const uppercaseWordRatio = uppercaseLikeWords.length / Math.max(words.length, 1);
+  const fontMetadataRatio = fontMetadataHits / Math.max(words.length, 1);
   return {
     text: clean,
     length: clean.length,
     wordsCount: words.length,
     uniqueTokens: tokens.length,
+    meaningfulWordsCount: meaningfulWords.length,
     lettersCount: letters,
     digitsCount: digits,
     technicalHits,
     alnumRatio,
     weirdRatio,
+    meaningfulWordRatio,
+    shortWordRatio,
+    uppercaseWordRatio,
+    repeatedSymbolRuns,
+    fontMetadataHits,
+    fontMetadataRatio,
     sampleTextPreview: sanitizeText(clean, 240),
   };
 }
 
-function isMeaningfulQuality(quality) {
+function isMeaningfulQuality(quality, { pageEntries = [], meta = null } = {}) {
   if (!quality?.length) return false;
   if (quality.length < 80) return false;
   if (quality.wordsCount < 12) return false;
   if (quality.uniqueTokens < 8) return false;
   if (quality.alnumRatio < 0.4) return false;
   if (quality.weirdRatio > 0.22) return false;
+  if (quality.meaningfulWordsCount < 8) return false;
+  if (quality.meaningfulWordRatio < 0.38) return false;
+  if (quality.shortWordRatio > 0.55) return false;
+  if (quality.uppercaseWordRatio > 0.45 && quality.meaningfulWordsCount < 15) return false;
+  if (quality.repeatedSymbolRuns > 6) return false;
+  if (quality.fontMetadataHits >= 6 && quality.fontMetadataRatio > 0.04) return false;
+  if (quality.fontMetadataHits >= Math.max(8, Math.floor(quality.wordsCount * 0.08))) return false;
+  const nonEmptyPages = (Array.isArray(pageEntries) ? pageEntries : []).filter(entry => sanitizeText(entry?.text || '', 2000)).length;
+  const declaredPages = Number(meta?.numpages || meta?.numPages || 0);
+  if (declaredPages >= 3 && nonEmptyPages > 0 && nonEmptyPages <= Math.floor(declaredPages / 3) && quality.length < 1200) return false;
   if (!hasReadableLetters(quality.text)) return false;
   return true;
 }
@@ -459,7 +504,7 @@ function summarizeExtraction({ pageEntries = [], fullText = '', extractor = 'cus
     pages: filteredPages,
     pagesCount: filteredPages.length,
     quality,
-    usable: isMeaningfulQuality(quality),
+    usable: isMeaningfulQuality(quality, { pageEntries: filteredPages, meta }),
   };
 }
 
@@ -476,6 +521,11 @@ function buildIndexDiagnostics({ pages, chunks, quality, extractor }) {
       alnumRatio: Number(quality.alnumRatio.toFixed(3)),
       weirdRatio: Number(quality.weirdRatio.toFixed(3)),
       technicalHits: quality.technicalHits,
+      meaningfulWordsCount: quality.meaningfulWordsCount,
+      meaningfulWordRatio: Number(quality.meaningfulWordRatio.toFixed(3)),
+      shortWordRatio: Number(quality.shortWordRatio.toFixed(3)),
+      fontMetadataHits: quality.fontMetadataHits,
+      fontMetadataRatio: Number(quality.fontMetadataRatio.toFixed(3)),
     } : null,
   };
 }
@@ -599,10 +649,22 @@ function selectBestExtraction(candidates = []) {
   if (!usable.length) return candidates.find(Boolean) || null;
 
   return usable.sort((a, b) => {
+    const extractorPriority = candidate => (candidate?.extractor === 'pdf-parse' ? 3 : candidate?.extractor === 'custom-page-extractor' ? 2 : 1);
+    const priorityDelta = extractorPriority(b) - extractorPriority(a);
+    if (priorityDelta !== 0) return priorityDelta;
+    const fontRatioDelta = (a.quality?.fontMetadataRatio || 0) - (b.quality?.fontMetadataRatio || 0);
+    if (fontRatioDelta !== 0) return fontRatioDelta;
+    const readableDelta = (b.quality?.meaningfulWordRatio || 0) - (a.quality?.meaningfulWordRatio || 0);
+    if (readableDelta !== 0) return readableDelta;
     const qualityDelta = (b.quality?.uniqueTokens || 0) - (a.quality?.uniqueTokens || 0);
     if (qualityDelta !== 0) return qualityDelta;
     return (b.quality?.length || 0) - (a.quality?.length || 0);
   })[0];
+}
+
+function buildNonExtractableMessage(details = '') {
+  const reason = sanitizeText(details || '', 200);
+  return reason ? `${NON_EXTRACTABLE_PDF_ERROR}: ${reason}` : `${NON_EXTRACTABLE_PDF_ERROR}: ${NON_EXTRACTABLE_PDF_REASON}`;
 }
 
 export async function createManualIndex({ manual, pdfBuffer }) {
@@ -638,7 +700,7 @@ export async function createManualIndex({ manual, pdfBuffer }) {
         quality: best?.quality || analyzeTextQuality(''),
         extractor: best?.extractor || 'unknown',
       });
-      const failed = buildFailedIndex(manual, NON_EXTRACTABLE_PDF_ERROR, diagnostics);
+      const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), diagnostics);
       await saveManualIndex(failed);
       const error = new Error(failed.error);
       error.code = 'non_extractable_pdf';
@@ -646,8 +708,8 @@ export async function createManualIndex({ manual, pdfBuffer }) {
     }
 
     const index = buildIndexDocument(manual, best.pages, best);
-    if (!index.chunks.length || !index.sampleTextPreview || !isMeaningfulQuality(best.quality)) {
-      const failed = buildFailedIndex(manual, NON_EXTRACTABLE_PDF_ERROR, index.diagnostics);
+    if (!index.chunks.length || !index.sampleTextPreview || !isMeaningfulQuality(best.quality, { pageEntries: best.pages, meta: best.meta })) {
+      const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), index.diagnostics);
       await saveManualIndex(failed);
       const error = new Error(failed.error);
       error.code = 'non_extractable_pdf';
@@ -759,6 +821,16 @@ export function scoreChunks({ question, retrievalQuestion = '', manual, chunks }
     const compactQuestion = normalizedQuestion.replace(/\s+/g, ' ').trim();
     if (compactQuestion && compactQuestion.length >= 6 && chunkText.includes(compactQuestion)) {
       score += 8;
+    }
+    if (compactQuestion && compactQuestion.length >= 6) {
+      const chunkCompact = chunkText.replace(/\s+/g, ' ').trim();
+      if (chunkCompact === compactQuestion) {
+        score += 14;
+        weakScore += 3;
+      } else if (chunkCompact.startsWith(compactQuestion) || chunkCompact.endsWith(compactQuestion)) {
+        score += 6;
+        weakScore += 1.5;
+      }
     }
 
     for (const token of queryTokens) {
@@ -940,4 +1012,21 @@ export function uniqueTopChunks(scoredChunks, limit = 6) {
     if (selected.length >= limit) break;
   }
   return selected;
+}
+
+export function selectContentFallbackChunks(chunks, limit = 3) {
+  const meaningful = (Array.isArray(chunks) ? chunks : [])
+    .filter(chunk => hasReadableLetters(chunk?.text || ''))
+    .map(chunk => ({
+      ...chunk,
+      quality: chunk.quality || analyzeTextQuality(chunk.text),
+    }))
+    .filter(chunk => isMeaningfulQuality(chunk.quality))
+    .sort((a, b) => {
+      const aPage = Number.isFinite(a.page) ? a.page : Number.MAX_SAFE_INTEGER;
+      const bPage = Number.isFinite(b.page) ? b.page : Number.MAX_SAFE_INTEGER;
+      return aPage - bPage;
+    });
+
+  return uniqueTopChunks(meaningful, limit);
 }
