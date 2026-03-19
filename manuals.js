@@ -2,6 +2,9 @@ const manualsState = {
   manuals: [],
   filtered: [],
   activeId: null,
+  aiMode: 'current',
+  aiStatusById: {},
+  aiBusy: false,
 };
 
 function manualRouteId() {
@@ -9,33 +12,93 @@ function manualRouteId() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function setManualStatus(message = "", type = "info") {
-  const el = document.getElementById("manual-upload-status");
+function setManualStatus(message = '', type = 'info') {
+  const el = document.getElementById('manual-upload-status');
   if (!el) return;
   el.textContent = message;
   el.dataset.state = type;
 }
 
 function formatManualSize(bytes = 0) {
-  if (!bytes) return "0 KB";
+  if (!bytes) return '0 KB';
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   return `${(kb / 1024).toFixed(2)} MB`;
 }
 
 function normalizeManualText(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || '').trim().toLowerCase();
+}
+
+function currentManual() {
+  return manualsState.manuals.find(item => item.id === manualsState.activeId) || null;
+}
+
+function setAiFeedback(message = '', type = 'info') {
+  const el = document.getElementById('manual-ai-feedback');
+  if (!el) return;
+  el.textContent = message;
+  el.dataset.state = type;
+}
+
+function setAiBusy(isBusy) {
+  manualsState.aiBusy = Boolean(isBusy);
+  const askBtn = document.getElementById('manual-ai-ask-btn');
+  const textarea = document.getElementById('manual-ai-question');
+  const indexBtn = document.getElementById('manual-ai-index-btn');
+  if (askBtn) {
+    askBtn.disabled = manualsState.aiBusy;
+    askBtn.textContent = manualsState.aiBusy ? 'Ищу ответ…' : 'Спросить';
+  }
+  if (textarea) textarea.disabled = manualsState.aiBusy;
+  if (indexBtn) indexBtn.disabled = manualsState.aiBusy;
+}
+
+function renderAiAnswer(answer = '', sources = []) {
+  const answerEl = document.getElementById('manual-ai-answer');
+  const sourcesEl = document.getElementById('manual-ai-sources');
+  if (answerEl) {
+    answerEl.innerHTML = answer
+      ? `<p>${escapeHtml(answer).replace(/\n/g, '<br>')}</p>`
+      : '<p class="manual-ai-empty">Задайте вопрос, чтобы получить grounded-ответ по мануалам.</p>';
+  }
+
+  if (!sourcesEl) return;
+  if (!sources.length) {
+    sourcesEl.innerHTML = '<div class="manual-ai-empty">Источники появятся здесь после ответа.</div>';
+    return;
+  }
+
+  sourcesEl.innerHTML = sources.map((source, index) => {
+    const pageLabel = source.page ? `стр. ${source.page}` : 'страница не определена';
+    const canOpenCurrent = source.manualId && manualsState.manuals.some(item => item.id === source.manualId);
+    return `
+      <article class="manual-ai-source-card">
+        <div class="manual-ai-source-top">
+          <div>
+            <strong>${index + 1}. ${escapeHtml(source.title || 'Мануал')}</strong>
+            <div class="manual-ai-source-meta">${escapeHtml(pageLabel)}</div>
+          </div>
+          <div class="manual-ai-source-actions">
+            <button class="btn ghost" type="button" data-open-manual="${escapeHtml(source.manualId || '')}" ${canOpenCurrent ? '' : 'disabled'}>Открыть мануал</button>
+            <button class="btn ghost" type="button" data-open-viewer="${escapeHtml(source.manualId || '')}" ${canOpenCurrent ? '' : 'disabled'}>Перейти к просмотру</button>
+          </div>
+        </div>
+        <p>${escapeHtml(source.snippet || 'Фрагмент недоступен.')}</p>
+      </article>
+    `;
+  }).join('');
 }
 
 function updateManualCount() {
-  const count = document.getElementById("manual-count");
+  const count = document.getElementById('manual-count');
   if (!count) return;
   const size = manualsState.filtered.length;
-  count.textContent = `${size} ${size === 1 ? "файл" : size < 5 && size !== 0 ? "файла" : "файлов"}`;
+  count.textContent = `${size} ${size === 1 ? 'файл' : size < 5 && size !== 0 ? 'файла' : 'файлов'}`;
 }
 
 function renderManualList() {
-  const list = document.getElementById("manual-list");
+  const list = document.getElementById('manual-list');
   if (!list) return;
 
   if (!manualsState.filtered.length) {
@@ -45,45 +108,85 @@ function renderManualList() {
   }
 
   list.innerHTML = manualsState.filtered.map(manual => {
-    const active = manual.id === manualsState.activeId ? " is-active" : "";
+    const active = manual.id === manualsState.activeId ? ' is-active' : '';
+    const indexStatus = manualsState.aiStatusById[manual.id];
+    const indexBadge = indexStatus?.status === 'indexed'
+      ? `<span class="manual-item__badge success">AI ready</span>`
+      : indexStatus?.status === 'failed'
+        ? `<span class="manual-item__badge danger">AI error</span>`
+        : `<span class="manual-item__badge">No index</span>`;
+
     return `
       <button class="manual-item${active}" type="button" data-manual-id="${manual.id}">
         <div class="manual-item__head">
-          <strong>${escapeHtml(manual.title || manual.originalName || "Без названия")}</strong>
+          <strong>${escapeHtml(manual.title || manual.originalName || 'Без названия')}</strong>
           <span>${formatManualSize(manual.size)}</span>
         </div>
-        <div class="manual-item__meta">${escapeHtml(manual.brand || "—")} • ${escapeHtml(manual.model || "—")}</div>
-        <div class="manual-item__sub">${escapeHtml(manual.originalName || "PDF")} • ${new Date(manual.uploadedAt).toLocaleDateString()}</div>
+        <div class="manual-item__meta">${escapeHtml(manual.brand || '—')} • ${escapeHtml(manual.model || '—')}</div>
+        <div class="manual-item__sub">${escapeHtml(manual.originalName || 'PDF')} • ${new Date(manual.uploadedAt).toLocaleDateString()}</div>
+        <div class="manual-item__status-row">${indexBadge}</div>
       </button>
     `;
-  }).join("");
+  }).join('');
 
   updateManualCount();
 }
 
-function syncManualRoute(id = "") {
-  const next = id ? `/manuals/${encodeURIComponent(id)}` : "/manuals";
+function syncManualRoute(id = '') {
+  const next = id ? `/manuals/${encodeURIComponent(id)}` : '/manuals';
   if (window.location.pathname !== next) {
-    window.history.pushState({}, "", next);
+    window.history.pushState({}, '', next);
   }
 }
 
+function renderAiStatus(manual = null) {
+  const statusEl = document.getElementById('manual-ai-status');
+  const hintEl = document.getElementById('manual-ai-hint');
+  const indexBtn = document.getElementById('manual-ai-index-btn');
+  if (!statusEl || !hintEl || !indexBtn) return;
+
+  if (!manual) {
+    statusEl.textContent = 'Мануал не выбран';
+    hintEl.textContent = manualsState.aiMode === 'current'
+      ? 'Выберите документ слева, чтобы спросить именно по нему.'
+      : 'В режиме “Все мануалы” поиск пройдет по всей библиотеке.';
+    indexBtn.disabled = true;
+    return;
+  }
+
+  const status = manualsState.aiStatusById[manual.id];
+  if (!status || status.status === 'not_indexed') {
+    statusEl.textContent = 'Индекс не готов';
+    hintEl.textContent = 'Для grounded-ответов сначала проиндексируйте PDF. После загрузки индексация запускается автоматически, но ее можно повторить вручную.';
+  } else if (status.status === 'failed') {
+    statusEl.textContent = 'Индексация не удалась';
+    hintEl.textContent = status.error || 'Этот PDF пока нельзя проиндексировать автоматически.';
+  } else {
+    statusEl.textContent = `Индекс готов • ${status.chunksCount || 0} чанков`;
+    hintEl.textContent = status.updatedAt
+      ? `Обновлено: ${new Date(status.updatedAt).toLocaleString()}`
+      : 'Индекс доступен для AI-поиска.';
+  }
+  indexBtn.disabled = manualsState.aiBusy === true;
+}
+
 function showManual(manual) {
-  const title = document.getElementById("manual-viewer-title");
-  const meta = document.getElementById("manual-viewer-meta");
-  const frame = document.getElementById("manual-viewer-frame");
-  const empty = document.getElementById("manual-viewer-empty");
-  const openBtn = document.getElementById("manual-open-tab");
-  const deleteBtn = document.getElementById("manual-delete-btn");
+  const title = document.getElementById('manual-viewer-title');
+  const meta = document.getElementById('manual-viewer-meta');
+  const frame = document.getElementById('manual-viewer-frame');
+  const empty = document.getElementById('manual-viewer-empty');
+  const openBtn = document.getElementById('manual-open-tab');
+  const deleteBtn = document.getElementById('manual-delete-btn');
 
   manualsState.activeId = manual?.id || null;
   renderManualList();
+  renderAiStatus(manual || null);
 
   if (!manual) {
-    if (title) title.textContent = "Выберите мануал";
-    if (meta) meta.textContent = "PDF откроется здесь без скачивания.";
-    if (frame) frame.removeAttribute("src");
-    if (empty) empty.style.display = "flex";
+    if (title) title.textContent = 'Выберите мануал';
+    if (meta) meta.textContent = 'PDF откроется здесь без скачивания.';
+    if (frame) frame.removeAttribute('src');
+    if (empty) empty.style.display = 'flex';
     if (openBtn) {
       openBtn.disabled = true;
       openBtn.onclick = null;
@@ -92,17 +195,17 @@ function showManual(manual) {
       deleteBtn.disabled = true;
       deleteBtn.onclick = null;
     }
-    syncManualRoute("");
+    syncManualRoute('');
     return;
   }
 
-  if (title) title.textContent = manual.title || manual.originalName || "Без названия";
-  if (meta) meta.textContent = `${manual.brand || "Без бренда"} • ${manual.model || "Без модели"} • ${formatManualSize(manual.size)}`;
+  if (title) title.textContent = manual.title || manual.originalName || 'Без названия';
+  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)}`;
   if (frame) frame.src = `/api/manuals/${encodeURIComponent(manual.id)}/file`;
-  if (empty) empty.style.display = "none";
+  if (empty) empty.style.display = 'none';
   if (openBtn) {
     openBtn.disabled = false;
-    openBtn.onclick = () => window.open(`/api/manuals/${encodeURIComponent(manual.id)}/file`, "_blank", "noopener,noreferrer");
+    openBtn.onclick = () => window.open(`/api/manuals/${encodeURIComponent(manual.id)}/file`, '_blank', 'noopener,noreferrer');
   }
   if (deleteBtn) {
     deleteBtn.disabled = false;
@@ -113,12 +216,12 @@ function showManual(manual) {
 }
 
 function applyManualFilter() {
-  const query = normalizeManualText(document.getElementById("manual-search")?.value || "");
+  const query = normalizeManualText(document.getElementById('manual-search')?.value || '');
   manualsState.filtered = manualsState.manuals.filter(manual => {
     if (!query) return true;
     const haystack = [manual.title, manual.brand, manual.model, manual.originalName]
       .map(normalizeManualText)
-      .join(" ");
+      .join(' ');
     return haystack.includes(query);
   });
 
@@ -131,12 +234,43 @@ function applyManualFilter() {
   showManual(active || null);
 }
 
+async function refreshIndexStatusForManual(id) {
+  if (!id) return null;
+  const resp = await fetch(`/api/manuals/${encodeURIComponent(id)}/index-status`);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data.ok) {
+    manualsState.aiStatusById[id] = {
+      status: 'not_indexed',
+      updatedAt: null,
+      chunksCount: 0,
+      error: data.message || data.error || null,
+    };
+  } else {
+    manualsState.aiStatusById[id] = {
+      status: data.status,
+      updatedAt: data.updatedAt,
+      chunksCount: data.chunksCount,
+      error: data.error || null,
+    };
+  }
+
+  renderManualList();
+  const manual = currentManual();
+  if (manual?.id === id) renderAiStatus(manual);
+  return manualsState.aiStatusById[id];
+}
+
+async function refreshVisibleIndexStatuses() {
+  await Promise.all(manualsState.manuals.map(item => refreshIndexStatusForManual(item.id)));
+}
+
 async function loadManuals() {
   const resp = await fetch('/api/manuals');
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data = await resp.json();
   manualsState.manuals = Array.isArray(data.items) ? data.items : [];
   applyManualFilter();
+  await refreshVisibleIndexStatuses();
 }
 
 async function uploadManual() {
@@ -195,9 +329,17 @@ async function uploadManual() {
   if (brandInput) brandInput.value = '';
   if (modelInput) modelInput.value = '';
 
-  setManualStatus('Мануал загружен.', 'success');
+  const autoIndex = data.indexStatus?.status === 'indexed'
+    ? ' AI-индекс готов.'
+    : data.indexStatus?.status === 'failed'
+      ? ` AI-индексация не удалась: ${data.indexStatus?.error || 'попробуйте позже'}.`
+      : '';
+  setManualStatus(`Мануал загружен.${autoIndex}`, data.indexStatus?.status === 'failed' ? 'warning' : 'success');
   await loadManuals();
   const created = manualsState.manuals.find(item => item.id === data.item?.id) || manualsState.manuals[0];
+  if (data.item?.id && data.indexStatus) {
+    manualsState.aiStatusById[data.item.id] = data.indexStatus;
+  }
   showManual(created || null);
 }
 
@@ -212,8 +354,102 @@ async function deleteManual(id) {
     return;
   }
 
+  delete manualsState.aiStatusById[id];
   setManualStatus('Мануал удалён.', 'success');
   await loadManuals();
+}
+
+async function indexCurrentManual() {
+  const manual = currentManual();
+  if (!manual) {
+    setAiFeedback('Сначала выберите мануал для индексации.', 'warning');
+    return;
+  }
+
+  setAiBusy(true);
+  setAiFeedback('Индексирую PDF…', 'loading');
+  try {
+    const resp = await fetch(`/api/manuals/${encodeURIComponent(manual.id)}/index`, { method: 'POST' });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.message || data.error || `index_failed_${resp.status}`);
+    }
+    manualsState.aiStatusById[manual.id] = {
+      status: data.status,
+      updatedAt: data.updatedAt,
+      chunksCount: data.chunksCount,
+      error: null,
+    };
+    renderAiStatus(manual);
+    renderManualList();
+    setAiFeedback('Индекс готов. Теперь можно задавать вопросы по мануалу.', 'success');
+  } catch (err) {
+    console.error(err);
+    await refreshIndexStatusForManual(manual.id);
+    setAiFeedback(err.message || 'Не удалось проиндексировать PDF.', 'error');
+  } finally {
+    setAiBusy(false);
+  }
+}
+
+async function askManualAssistant() {
+  const questionEl = document.getElementById('manual-ai-question');
+  const question = questionEl?.value?.trim() || '';
+  const manual = currentManual();
+
+  if (!question) {
+    setAiFeedback('Введите вопрос по документации.', 'warning');
+    return;
+  }
+
+  if (manualsState.aiMode === 'current' && !manual) {
+    setAiFeedback('Выберите мануал или переключитесь на режим “Все мануалы”.', 'warning');
+    return;
+  }
+
+  if (manualsState.aiMode === 'current') {
+    const status = manualsState.aiStatusById[manual.id];
+    if (!status || status.status === 'not_indexed') {
+      setAiFeedback('У выбранного мануала нет индекса. Нажмите “Индексировать мануал”.', 'warning');
+      renderAiAnswer('', []);
+      return;
+    }
+    if (status.status === 'failed') {
+      setAiFeedback(status.error || 'Индекс недоступен для этого PDF.', 'error');
+      renderAiAnswer('', []);
+      return;
+    }
+  }
+
+  setAiBusy(true);
+  renderAiAnswer('', []);
+  setAiFeedback('Подбираю релевантные фрагменты и формирую grounded-ответ…', 'loading');
+
+  try {
+    const url = manualsState.aiMode === 'current'
+      ? `/api/manuals/${encodeURIComponent(manual.id)}/ask`
+      : '/api/manuals/ask';
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.message || data.error || `ask_failed_${resp.status}`);
+    }
+
+    renderAiAnswer(data.answer || '', Array.isArray(data.sources) ? data.sources : []);
+    setAiFeedback(data.sources?.length
+      ? 'Ответ собран только по фрагментам мануалов.'
+      : 'Подходящие фрагменты не найдены. Ответ ограничен найденными источниками.', data.sources?.length ? 'success' : 'warning');
+  } catch (err) {
+    console.error(err);
+    renderAiAnswer('', []);
+    setAiFeedback(err.message || 'Не удалось получить ответ по мануалам.', 'error');
+  } finally {
+    setAiBusy(false);
+  }
 }
 
 window.addEventListener('popstate', () => {
@@ -227,6 +463,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   await window.SurpAuth?.init?.();
   if (!window.SurpAuth?.getCurrentUser?.()) return;
+
+  renderAiAnswer('', []);
+  renderAiStatus(null);
 
   document.getElementById('manual-upload-btn')?.addEventListener('click', async () => {
     try {
@@ -244,6 +483,42 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!btn) return;
     const manual = manualsState.manuals.find(item => item.id === btn.dataset.manualId);
     showManual(manual || null);
+  });
+
+  document.querySelectorAll('input[name="manual-ai-scope"]')?.forEach(input => {
+    input.addEventListener('change', e => {
+      manualsState.aiMode = e.target.value === 'all' ? 'all' : 'current';
+      renderAiStatus(currentManual());
+      setAiFeedback(manualsState.aiMode === 'all'
+        ? 'Поиск будет идти по всей библиотеке мануалов.'
+        : 'Поиск будет идти только по открытому мануалу.', 'info');
+    });
+  });
+
+  document.getElementById('manual-ai-ask-btn')?.addEventListener('click', askManualAssistant);
+  document.getElementById('manual-ai-question')?.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      askManualAssistant();
+    }
+  });
+  document.getElementById('manual-ai-index-btn')?.addEventListener('click', indexCurrentManual);
+
+  document.getElementById('manual-ai-sources')?.addEventListener('click', e => {
+    const openManualId = e.target.closest('[data-open-manual]')?.dataset.openManual;
+    if (openManualId) {
+      window.open(`/api/manuals/${encodeURIComponent(openManualId)}/file`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const openViewerId = e.target.closest('[data-open-viewer]')?.dataset.openViewer;
+    if (openViewerId) {
+      const manual = manualsState.manuals.find(item => item.id === openViewerId) || null;
+      if (manual) {
+        showManual(manual);
+        document.querySelector('.manual-viewer-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   });
 
   loadManuals().catch(err => {

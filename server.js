@@ -5,6 +5,16 @@ import bodyParser from "body-parser";
 import FormData from "form-data";
 import fs from "fs/promises";
 import crypto from "crypto";
+import {
+  answerWithGemini,
+  buildSources,
+  createManualIndex,
+  getIndexStatus,
+  loadManualIndex,
+  removeManualIndex,
+  scoreChunks,
+  uniqueTopChunks,
+} from "./manuals-ai.js";
 
 // =======================
 // APP
@@ -1782,6 +1792,106 @@ async function saveTemplatesLocal(items) {
   await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
 }
 
+async function fetchManualsList() {
+  const out = await gasPost({ action: "manualsList" });
+  const items = Array.isArray(out.items) ? out.items : [];
+  return items.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+}
+
+async function fetchManualById(id) {
+  const out = await gasPost({ action: "manualGet", id });
+  if (!out?.item?.id) {
+    const error = new Error("manual_not_found");
+    error.code = "manual_not_found";
+    throw error;
+  }
+  return out.item;
+}
+
+async function fetchManualPdfBuffer(manual) {
+  if (!manual?.fileId) {
+    const error = new Error("manual_not_found");
+    error.code = "manual_not_found";
+    throw error;
+  }
+
+  const response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(manual.fileId)}`);
+  if (!response.ok) throw new Error(`Drive error ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+function sendManualsApiError(res, err, fallback = "manuals_failed") {
+  const code = String(err?.code || "");
+  const message = String(err?.message || "");
+
+  if (code === "manual_not_found" || message.includes("manual_not_found")) {
+    return res.status(404).send({ ok: false, error: "manual_not_found" });
+  }
+
+  if (code === "non_extractable_pdf" || message.includes("нельзя проиндексировать автоматически")) {
+    return res.status(422).send({ ok: false, error: "non_extractable_pdf", message: "Этот PDF пока нельзя проиндексировать автоматически" });
+  }
+
+  if (code === "gemini_not_configured") {
+    return res.status(503).send({ ok: false, error: "gemini_not_configured", message: "GEMINI_API_KEY не настроен на сервере" });
+  }
+
+  if (code === "gemini_failed") {
+    return res.status(502).send({ ok: false, error: "gemini_failed", message: err.message || "AI service failed" });
+  }
+
+  return res.status(500).send({ ok: false, error: fallback });
+}
+
+async function ensureFreshManualIndex(manual) {
+  const status = await getIndexStatus(manual);
+  if (status.status === "indexed") {
+    return loadManualIndex(manual.id);
+  }
+
+  const pdfBuffer = await fetchManualPdfBuffer(manual);
+  return createManualIndex({ manual, pdfBuffer });
+}
+
+async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailures = false }) {
+  const scored = [];
+
+  for (const manual of manuals) {
+    let index;
+    try {
+      index = await ensureFreshManualIndex(manual);
+    } catch (indexError) {
+      if (skipIndexFailures) continue;
+      throw indexError;
+    }
+
+    if (!index || index.status !== "indexed" || !Array.isArray(index.chunks) || !index.chunks.length) continue;
+    const manualScoped = {
+      manualId: index.manualId,
+      title: index.title,
+      brand: index.brand,
+      model: index.model,
+    };
+    scored.push(...scoreChunks({ question, manual: manualScoped, chunks: index.chunks }));
+  }
+
+  const bestChunks = uniqueTopChunks(scored.sort((a, b) => b.score - a.score), limit);
+  if (!bestChunks.length) {
+    return {
+      answer: "В найденных фрагментах нет достаточных данных для ответа на этот вопрос.",
+      sources: [],
+      chunks: [],
+    };
+  }
+
+  const answer = await answerWithGemini({ question, chunks: bestChunks });
+  return {
+    answer: answer || "В найденных фрагментах нет достаточных данных для ответа на этот вопрос.",
+    sources: buildSources(question, bestChunks),
+    chunks: bestChunks,
+  };
+}
+
 app.get("/check", (req, res) => {
   res.sendFile(path.join(__dirname, "check.html"));
 });
@@ -1796,9 +1906,8 @@ app.get("/manuals/:id", (req, res) => {
 
 app.get("/api/manuals", async (req, res) => {
   try {
-    const out = await gasPost({ action: "manualsList" });
-    const items = Array.isArray(out.items) ? out.items : [];
-    res.send({ items: items.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).map(manualPublicMeta) });
+    const items = await fetchManualsList();
+    res.send({ items: items.map(manualPublicMeta) });
   } catch (err) {
     console.error("MANUALS LIST ERROR", err);
     res.status(500).send({ error: "manuals_list_failed" });
@@ -1844,38 +1953,145 @@ app.post("/api/manuals", async (req, res) => {
       },
     });
 
-    res.send({ ok: true, item: manualPublicMeta(out.item || {}) });
+    const item = out.item || {};
+    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, error: null };
+
+    try {
+      const index = await createManualIndex({ manual: item, pdfBuffer: buffer });
+      indexStatus = {
+        status: index.status,
+        updatedAt: index.updatedAt,
+        chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+        error: index.error || null,
+      };
+    } catch (indexError) {
+      console.error("MANUALS AUTO INDEX ERROR", indexError);
+      indexStatus = await getIndexStatus(item);
+    }
+
+    res.send({ ok: true, item: manualPublicMeta(item), indexStatus });
   } catch (err) {
     console.error("MANUALS SAVE ERROR", err);
     res.status(500).send({ ok: false, error: "manuals_save_failed" });
   }
 });
 
+app.post("/api/manuals/ask", async (req, res) => {
+  try {
+    const question = sanitizeManualText(req.body?.question || "", 1000);
+    if (!question) return res.status(400).send({ ok: false, error: "question_required" });
+
+    const manuals = await fetchManualsList();
+    if (!manuals.length) {
+      return res.status(404).send({ ok: false, error: "manuals_empty", message: "В библиотеке пока нет мануалов" });
+    }
+
+    const result = await buildManualAnswer({ question, manuals, limit: 8, skipIndexFailures: true });
+    res.send({ ok: true, answer: result.answer, sources: result.sources });
+  } catch (err) {
+    console.error("MANUALS ASK ALL ERROR", err);
+    sendManualsApiError(res, err, "manuals_ask_failed");
+  }
+});
+
+app.post("/api/manuals/reindex", async (req, res) => {
+  try {
+    const manuals = await fetchManualsList();
+    const results = [];
+
+    for (const manual of manuals) {
+      try {
+        const pdfBuffer = await fetchManualPdfBuffer(manual);
+        const index = await createManualIndex({ manual, pdfBuffer });
+        results.push({
+          manualId: manual.id,
+          title: manual.title,
+          status: index.status,
+          chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+          updatedAt: index.updatedAt,
+        });
+      } catch (indexError) {
+        const status = await getIndexStatus(manual);
+        results.push({
+          manualId: manual.id,
+          title: manual.title,
+          status: status.status,
+          chunksCount: status.chunksCount,
+          updatedAt: status.updatedAt,
+          error: status.error || indexError.message,
+        });
+      }
+    }
+
+    res.send({ ok: true, results });
+  } catch (err) {
+    console.error("MANUALS REINDEX ERROR", err);
+    sendManualsApiError(res, err, "manuals_reindex_failed");
+  }
+});
+
 app.get("/api/manuals/:id/file", async (req, res) => {
   try {
-    const out = await gasPost({ action: "manualGet", id: req.params.id });
-    const manual = out.item;
-    if (!manual?.fileId) return res.status(404).send("manual_not_found");
-
-    const response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(manual.fileId)}`);
-    if (!response.ok) throw new Error(`Drive error ${response.status}`);
-
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const manual = await fetchManualById(req.params.id);
+    const buffer = await fetchManualPdfBuffer(manual);
     res.setHeader("Content-Type", manual.mimeType || "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${manual.originalName || manual.fileName || `${manual.id}.pdf`}"`);
     res.send(buffer);
   } catch (err) {
     console.error("MANUALS FILE ERROR", err);
-    if (String(err?.message || "").includes("manual_not_found")) {
+    if (String(err?.message || "").includes("manual_not_found") || String(err?.code || "") === "manual_not_found") {
       return res.status(404).send("manual_not_found");
     }
     res.status(500).send("manual_file_failed");
   }
 });
 
+app.get("/api/manuals/:id/index-status", async (req, res) => {
+  try {
+    const manual = await fetchManualById(req.params.id);
+    const status = await getIndexStatus(manual);
+    res.send({ ok: true, ...status });
+  } catch (err) {
+    console.error("MANUALS INDEX STATUS ERROR", err);
+    sendManualsApiError(res, err, "manual_index_status_failed");
+  }
+});
+
+app.post("/api/manuals/:id/index", async (req, res) => {
+  try {
+    const manual = await fetchManualById(req.params.id);
+    const pdfBuffer = await fetchManualPdfBuffer(manual);
+    const index = await createManualIndex({ manual, pdfBuffer });
+    res.send({
+      ok: true,
+      status: index.status,
+      updatedAt: index.updatedAt,
+      chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+    });
+  } catch (err) {
+    console.error("MANUALS INDEX ERROR", err);
+    sendManualsApiError(res, err, "manual_index_failed");
+  }
+});
+
+app.post("/api/manuals/:id/ask", async (req, res) => {
+  try {
+    const question = sanitizeManualText(req.body?.question || "", 1000);
+    if (!question) return res.status(400).send({ ok: false, error: "question_required" });
+
+    const manual = await fetchManualById(req.params.id);
+    const result = await buildManualAnswer({ question, manuals: [manual], limit: 6 });
+    res.send({ ok: true, answer: result.answer, sources: result.sources });
+  } catch (err) {
+    console.error("MANUALS ASK ONE ERROR", err);
+    sendManualsApiError(res, err, "manual_ask_failed");
+  }
+});
+
 app.delete("/api/manuals/:id", async (req, res) => {
   try {
     await gasPost({ action: "manualDelete", id: req.params.id });
+    await removeManualIndex(req.params.id);
     res.send({ ok: true, id: req.params.id });
   } catch (err) {
     console.error("MANUALS DELETE ERROR", err);

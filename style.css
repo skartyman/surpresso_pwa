@@ -1749,3 +1749,158 @@ textarea,
     min-height: calc(100vh - 220px);
   }
 }
+
+.manual-item__status-row {
+  margin-top: 10px;
+}
+
+.manual-item__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+}
+
+.manual-item__badge.success {
+  color: #9df4bb;
+  border-color: rgba(100, 255, 166, 0.24);
+  background: rgba(38, 115, 72, 0.22);
+}
+
+.manual-item__badge.danger {
+  color: #ffb5b5;
+  border-color: rgba(255, 106, 106, 0.24);
+  background: rgba(132, 33, 33, 0.2);
+}
+
+.manual-ai-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 6px;
+}
+
+.manual-ai-top,
+.manual-ai-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.manual-ai-scope {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.manual-ai-scope-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+}
+
+.manual-ai-scope-option input {
+  margin: 0;
+}
+
+.manual-ai-question {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+}
+
+.manual-ai-status-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 560px;
+  font-size: 13px;
+}
+
+.manual-ai-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.manual-ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+.manual-ai-panel h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.manual-ai-answer,
+.manual-ai-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manual-ai-answer p,
+.manual-ai-source-card p,
+.manual-ai-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.manual-ai-empty {
+  opacity: 0.76;
+}
+
+.manual-ai-source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+}
+
+.manual-ai-source-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.manual-ai-source-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.manual-ai-source-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 960px) {
+  .manual-ai-panels {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  }
+}
