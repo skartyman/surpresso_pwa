@@ -1897,11 +1897,11 @@ app.get("/check", (req, res) => {
 });
 
 app.get("/manuals", (req, res) => {
-  res.sendFile(path.join(__dirname, "manuals.html"));
+  res.sendFile(path.join(__dirname, "manuals", "index.html"));
 });
 
 app.get("/manuals/:id", (req, res) => {
-  res.sendFile(path.join(__dirname, "manuals.html"));
+  res.sendFile(path.join(__dirname, "manuals", "index.html"));
 });
 
 app.get("/api/manuals", async (req, res) => {

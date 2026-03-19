@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Surpresso Manuals Viewer</title>
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="manifest" href="/manifest.json?v=1.1.7" />
+  <link rel="stylesheet" href="/manuals/styles.css?v=1.1.7" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-bar" aria-label="PDF viewer controls">
+      <div class="control-group nav-group">
+        <button id="prev-page" class="control-btn" type="button" aria-label="Previous page">← Prev</button>
+        <div id="page-indicator" class="page-indicator" aria-live="polite">0 / 0</div>
+        <button id="next-page" class="control-btn" type="button" aria-label="Next page">Next →</button>
+      </div>
+
+      <div class="control-group zoom-group">
+        <button id="zoom-out" class="control-btn" type="button" aria-label="Zoom out">Zoom −</button>
+        <button id="zoom-in" class="control-btn" type="button" aria-label="Zoom in">Zoom +</button>
+      </div>
+    </header>
+
+    <main class="viewer-stage">
+      <div id="status-banner" class="status-banner" aria-live="polite">Loading PDF viewer…</div>
+      <div id="error-banner" class="error-banner" role="alert" hidden></div>
+
+      <section class="canvas-stage" aria-label="PDF document preview">
+        <div id="loader" class="loader-overlay" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p id="loader-text">Loading document…</p>
+        </div>
+
+        <canvas id="pdf-canvas"></canvas>
+      </section>
+
+      <footer class="viewer-footer">
+        <span id="document-name" class="document-name">No document loaded</span>
+        <span id="connection-state" class="connection-state">Ready</span>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const PDF_URL = '/manuals/test.pdf';
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+  <script src="/manuals/app.js?v=1.1.7" defer></script>
+</body>
+</html>
