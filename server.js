@@ -24,7 +24,7 @@ const app = express();
 const __dirname = path.resolve();
 
 app.use(bodyParser.json({ limit: "50mb" }));
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname), { redirect: false }));
 
 // =======================
 // ENV (секреты только тут)
