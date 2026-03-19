@@ -25,6 +25,7 @@ const FONT_METADATA_PATTERNS = [
   /\bencoding\b/gi,
   /\bfont\b/gi,
 ];
+const PDF_SPACE_GAP_MULTIPLIER = 0.18;
 const TECHNICAL_TERMS = [
   'pressure', 'pump', 'pompa', 'boiler', 'sensor', 'temperature', 'thermostat', 'valve', 'solenoid',
   'flowmeter', 'flow', 'level', 'water', 'steam', 'brew', 'group', 'heater', 'heating', 'error',
@@ -36,8 +37,6 @@ const TECHNICAL_TERMS = [
   'чистка', 'обслуживание', 'калибровка'
 ];
 const TECHNICAL_TERM_SET = new Set(TECHNICAL_TERMS.map(term => normalizeText(term)));
-
-let pdfParseLoader = null;
 
 function sanitizeText(value = '', max = 400) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -148,12 +147,44 @@ function decodeHexPdfString(input = '') {
   return buffer.toString('latin1');
 }
 
+function decodeUnicodeHexSequence(input = '') {
+  const clean = String(input || '').replace(/[^0-9A-Fa-f]/g, '');
+  if (!clean) return '';
+  const even = clean.length % 2 === 0 ? clean : `${clean}0`;
+  const buffer = Buffer.from(even, 'hex');
+  if (!buffer.length) return '';
+
+  if (buffer.length >= 2 && buffer[0] === 0xFE && buffer[1] === 0xFF) {
+    return decodeUtf16Be(buffer.subarray(2));
+  }
+
+  if (buffer.length % 2 === 0 && buffer.some(byte => byte === 0)) {
+    return decodeUtf16Be(buffer);
+  }
+
+  return buffer.toString('latin1');
+}
+
 function cleanupExtractedText(text = '') {
   return sanitizeText(String(text || '')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]+/g, ' ')
     .replace(/[•·▪◦]+/g, ' • ')
     .replace(/[|¦]+/g, ' | ')
     .replace(/\s+/g, ' '), 120000);
+}
+
+function parseNumberToken(input = '', start = 0) {
+  const source = String(input || '');
+  let cursor = start;
+  while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+
+  const match = source.slice(cursor).match(/^[+-]?(?:\d+\.\d+|\d+|\.\d+)/);
+  if (!match) return null;
+
+  return {
+    value: Number.parseFloat(match[0]),
+    nextIndex: cursor + match[0].length,
+  };
 }
 
 function extractLiteralStrings(segment = '') {
@@ -218,6 +249,155 @@ function joinTextFragments(fragments = []) {
   return cleanupExtractedText(fragments.filter(Boolean).join(' '));
 }
 
+function shouldInsertTextSpace(previous = '', next = '') {
+  if (!previous || !next) return false;
+  if (/[\s([{\-/]$/u.test(previous)) return false;
+  if (/^[\s)\]}.,;:%!?/-]/u.test(next)) return false;
+  if (/[№#]$/u.test(previous) || /^[№#]/u.test(next)) return false;
+  return true;
+}
+
+function appendTextFragment(base = '', fragment = '', gap = null, fontSize = null) {
+  const next = String(fragment || '');
+  if (!next) return base;
+  if (!base) return next;
+
+  const threshold = Math.max(2.5, Number(fontSize || 0) * PDF_SPACE_GAP_MULTIPLIER);
+  if (gap != null && gap > threshold && shouldInsertTextSpace(base, next)) {
+    return `${base} ${next}`;
+  }
+
+  if (shouldInsertTextSpace(base, next)) {
+    return `${base} ${next}`;
+  }
+
+  return `${base}${next}`;
+}
+
+function buildTextFromPositionedFragments(fragments = []) {
+  const rows = [];
+
+  for (const fragment of (Array.isArray(fragments) ? fragments : [])
+    .filter(item => item?.text)
+    .sort((a, b) => {
+      const ay = Number(a?.y || 0);
+      const by = Number(b?.y || 0);
+      if (Math.abs(by - ay) > 2) return by - ay;
+      return Number(a?.x || 0) - Number(b?.x || 0);
+    })) {
+    const rowThreshold = Math.max(2.5, Number(fragment.height || fragment.fontSize || 0) * 0.35);
+    const currentRow = rows[rows.length - 1];
+    if (!currentRow || Math.abs(currentRow.y - fragment.y) > rowThreshold) {
+      rows.push({
+        y: Number(fragment.y || 0),
+        items: [fragment],
+      });
+      continue;
+    }
+    currentRow.items.push(fragment);
+  }
+
+  const lines = rows.map(row => {
+    let line = '';
+    let lastRight = null;
+    let lastFontSize = null;
+
+    for (const item of row.items.sort((a, b) => Number(a?.x || 0) - Number(b?.x || 0))) {
+      const gap = lastRight == null ? null : Number(item.x || 0) - lastRight;
+      line = appendTextFragment(line, item.text, gap, item.fontSize || lastFontSize);
+      lastRight = Number(item.x || 0) + Math.max(Number(item.width || 0), Math.max(String(item.text || '').length, 1) * Math.max(Number(item.fontSize || 0) * 0.4, 2));
+      lastFontSize = item.fontSize || lastFontSize;
+    }
+
+    return line.trim();
+  }).filter(Boolean);
+
+  return joinTextFragments(lines);
+}
+
+function parseToUnicodeCMap(streamText = '') {
+  const mapping = new Map();
+  const source = String(streamText || '');
+
+  const bfcharBlocks = source.match(/beginbfchar[\s\S]*?endbfchar/g) || [];
+  for (const block of bfcharBlocks) {
+    for (const match of block.matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      mapping.set(match[1].toUpperCase(), decodeUnicodeHexSequence(match[2]));
+    }
+  }
+
+  const bfrangeBlocks = source.match(/beginbfrange[\s\S]*?endbfrange/g) || [];
+  for (const block of bfrangeBlocks) {
+    const lines = block.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      let match = line.match(/^<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>$/);
+      if (match) {
+        const start = Number.parseInt(match[1], 16);
+        const end = Number.parseInt(match[2], 16);
+        let dest = Number.parseInt(match[3], 16);
+        const width = match[1].length;
+        for (let code = start; code <= end; code += 1, dest += 1) {
+          mapping.set(code.toString(16).toUpperCase().padStart(width, '0'), decodeUnicodeHexSequence(dest.toString(16).toUpperCase().padStart(match[3].length, '0')));
+        }
+        continue;
+      }
+
+      match = line.match(/^<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[(.+)\]$/);
+      if (!match) continue;
+
+      const start = Number.parseInt(match[1], 16);
+      const end = Number.parseInt(match[2], 16);
+      const entries = [...match[3].matchAll(/<([0-9A-Fa-f]+)>/g)].map(item => item[1]);
+      const width = match[1].length;
+      for (let code = start; code <= end; code += 1) {
+        const destHex = entries[code - start];
+        if (!destHex) break;
+        mapping.set(code.toString(16).toUpperCase().padStart(width, '0'), decodeUnicodeHexSequence(destHex));
+      }
+    }
+  }
+
+  const codeUnitLengths = Array.from(new Set(Array.from(mapping.keys()).map(key => key.length)))
+    .sort((a, b) => b - a);
+  return {
+    mapping,
+    codeUnitLengths,
+  };
+}
+
+function decodeHexPdfStringWithCMap(input = '', cmap = null) {
+  const clean = String(input || '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+  if (!clean) return '';
+  if (!cmap?.mapping?.size) return decodeHexPdfString(clean);
+
+  const lengths = cmap.codeUnitLengths?.length ? cmap.codeUnitLengths : [4, 2];
+  let cursor = 0;
+  let output = '';
+
+  while (cursor < clean.length) {
+    let matched = false;
+    for (const length of lengths) {
+      const part = clean.slice(cursor, cursor + length);
+      if (part.length !== length) continue;
+      const decoded = cmap.mapping.get(part);
+      if (decoded != null) {
+        output += decoded;
+        cursor += length;
+        matched = true;
+        break;
+      }
+    }
+
+    if (matched) continue;
+
+    const fallbackPart = clean.slice(cursor, cursor + 2);
+    output += decodeHexPdfString(fallbackPart);
+    cursor += Math.max(fallbackPart.length, 2);
+  }
+
+  return output;
+}
+
 function extractTextFromStreamContent(content = '') {
   const pieces = [];
   const blocks = content.match(/BT[\s\S]*?ET/g) || [];
@@ -243,6 +423,193 @@ function extractTextFromStreamContent(content = '') {
   }
 
   return joinTextFragments(pieces);
+}
+
+function parseFontResources(resourcesBody = '') {
+  const fonts = new Map();
+  const source = String(resourcesBody || '');
+  const fontBlockMatch = source.match(/\/Font\s*<<(.*?)>>/s);
+  const fontBlock = fontBlockMatch ? fontBlockMatch[1] : source;
+
+  for (const match of fontBlock.matchAll(/\/([A-Za-z0-9_.-]+)\s+(\d+)\s+(\d+)\s+R/g)) {
+    fonts.set(match[1], `${match[2]} ${match[3]}`);
+  }
+
+  return fonts;
+}
+
+function extractParentRef(pageBody = '') {
+  const match = String(pageBody || '').match(/\/Parent\s+(\d+)\s+(\d+)\s+R/);
+  return match ? `${match[1]} ${match[2]}` : null;
+}
+
+function resolvePageResources(pageBody = '', objectMap = new Map()) {
+  const visited = new Set();
+  let currentBody = String(pageBody || '');
+
+  while (currentBody) {
+    const directMatch = currentBody.match(/\/Resources\s*<<(.*?)>>/s);
+    if (directMatch) return directMatch[1];
+
+    const refMatch = currentBody.match(/\/Resources\s+(\d+)\s+(\d+)\s+R/);
+    if (refMatch) {
+      const ref = `${refMatch[1]} ${refMatch[2]}`;
+      return objectMap.get(ref) || '';
+    }
+
+    const parentRef = extractParentRef(currentBody);
+    if (!parentRef || visited.has(parentRef)) break;
+    visited.add(parentRef);
+    currentBody = objectMap.get(parentRef) || '';
+  }
+
+  return '';
+}
+
+function buildFontCMapIndex(objectMap = new Map(), fontRefs = new Map()) {
+  const cmapByFont = new Map();
+
+  for (const [fontName, fontRef] of fontRefs.entries()) {
+    const fontBody = objectMap.get(fontRef);
+    if (!fontBody) continue;
+    const toUnicodeMatch = fontBody.match(/\/ToUnicode\s+(\d+)\s+(\d+)\s+R/);
+    if (!toUnicodeMatch) continue;
+    const cmapObjectBody = objectMap.get(`${toUnicodeMatch[1]} ${toUnicodeMatch[2]}`);
+    if (!cmapObjectBody) continue;
+    const cmapStream = parseStream(cmapObjectBody);
+    if (!cmapStream) continue;
+    const cmap = parseToUnicodeCMap(cmapStream);
+    if (cmap.mapping.size) {
+      cmapByFont.set(fontName, cmap);
+    }
+  }
+
+  return cmapByFont;
+}
+
+function parseArrayEntries(input = '') {
+  const items = [];
+  const source = String(input || '');
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+    if (cursor >= source.length) break;
+
+    const char = source[cursor];
+    if (char === '(') {
+      let depth = 0;
+      let escaped = false;
+      let end = cursor;
+      for (; end < source.length; end += 1) {
+        const current = source[end];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (current === '\\') {
+          escaped = true;
+          continue;
+        }
+        if (current === '(') depth += 1;
+        if (current === ')') {
+          depth -= 1;
+          if (!depth) break;
+        }
+      }
+      items.push({ type: 'literal', value: source.slice(cursor, end + 1) });
+      cursor = end + 1;
+      continue;
+    }
+
+    if (char === '<') {
+      const end = source.indexOf('>', cursor + 1);
+      if (end === -1) break;
+      items.push({ type: 'hex', value: source.slice(cursor, end + 1) });
+      cursor = end + 1;
+      continue;
+    }
+
+    const numberToken = parseNumberToken(source, cursor);
+    if (numberToken) {
+      items.push({ type: 'number', value: numberToken.value });
+      cursor = numberToken.nextIndex;
+      continue;
+    }
+
+    cursor += 1;
+  }
+
+  return items;
+}
+
+function decodePdfTextOperand(token = '', fontCMap = null) {
+  const value = String(token || '').trim();
+  if (!value) return '';
+  if (value.startsWith('(') && value.endsWith(')')) {
+    return decodePdfString(value.slice(1, -1));
+  }
+  if (value.startsWith('<') && value.endsWith('>')) {
+    return decodeHexPdfStringWithCMap(value.slice(1, -1), fontCMap);
+  }
+  return '';
+}
+
+function extractTextFragmentsFromBlock(block = '', fontCMaps = new Map()) {
+  const fragments = [];
+  const source = String(block || '').replace(/\r/g, '\n');
+  const tokenRegex = /\/([A-Za-z0-9_.-]+)\s+([-+]?(?:\d+\.\d+|\d+|\.\d+))\s+Tf|(\[(?:[^\[\]]|\([^)]*\)|<[^>]*>)*\]\s*TJ|\([^)]*\)\s*Tj|<[^>]*>\s*Tj|\([^)]*\)\s*'|<[^>]*>\s*'|\([^)]*\)\s*"|<[^>]*>\s*"|[-+]?(?:\d+\.\d+|\d+|\.\d+)\s+[-+]?(?:\d+\.\d+|\d+|\.\d+)\s+Td|[-+]?(?:\d+\.\d+|\d+|\.\d+)\s+[-+]?(?:\d+\.\d+|\d+|\.\d+)\s+TD)/g;
+  let activeFont = null;
+  let currentX = 0;
+  let currentY = 0;
+  let currentFontSize = 0;
+  let match;
+
+  while ((match = tokenRegex.exec(source))) {
+    if (match[1]) {
+      activeFont = match[1];
+      currentFontSize = Number.parseFloat(match[2] || '0') || currentFontSize;
+      continue;
+    }
+
+    const operation = match[3] || '';
+    const moveMatch = operation.match(/^([-+]?(?:\d+\.\d+|\d+|\.\d+))\s+([-+]?(?:\d+\.\d+|\d+|\.\d+))\s+T[Dd]$/);
+    if (moveMatch) {
+      currentX = Number.parseFloat(moveMatch[1]) || 0;
+      currentY += Number.parseFloat(moveMatch[2]) || 0;
+      continue;
+    }
+
+    const fontCMap = activeFont ? fontCMaps.get(activeFont) : null;
+    if (/\]\s*TJ$/.test(operation)) {
+      const inside = operation.slice(1, operation.lastIndexOf(']'));
+      const entries = parseArrayEntries(inside);
+      let text = '';
+      for (const entry of entries) {
+        if (entry.type === 'number') {
+          if (entry.value <= -80) text = appendTextFragment(text, ' ', 999, currentFontSize);
+          continue;
+        }
+        const fragment = decodePdfTextOperand(entry.value, fontCMap);
+        text = appendTextFragment(text, fragment, null, currentFontSize);
+      }
+      const cleanText = cleanupExtractedText(text);
+      if (cleanText) {
+        fragments.push({ text: cleanText, x: currentX, y: currentY, width: cleanText.length * Math.max(currentFontSize * 0.45, 4), height: currentFontSize || 10, fontSize: currentFontSize || 10 });
+        currentX += cleanText.length * Math.max(currentFontSize * 0.45, 4);
+      }
+      continue;
+    }
+
+    const operandMatch = operation.match(/^(\([^)]*\)|<[^>]*>)/);
+    const text = decodePdfTextOperand(operandMatch?.[1] || '', fontCMap);
+    const cleanText = cleanupExtractedText(text);
+    if (!cleanText) continue;
+    fragments.push({ text: cleanText, x: currentX, y: currentY, width: cleanText.length * Math.max(currentFontSize * 0.45, 4), height: currentFontSize || 10, fontSize: currentFontSize || 10 });
+    currentX += cleanText.length * Math.max(currentFontSize * 0.45, 4);
+  }
+
+  return fragments;
 }
 
 function parseObjectMap(pdfBuffer) {
@@ -298,25 +665,42 @@ function extractContentsRefs(pageBody = '') {
   return refs;
 }
 
+function extractPageTextWithFonts(pageBody = '', objectMap = new Map()) {
+  const refs = extractContentsRefs(pageBody);
+  if (!refs.length) return '';
+
+  const resourcesBody = resolvePageResources(pageBody, objectMap);
+  const fontRefs = parseFontResources(resourcesBody);
+  const fontCMaps = buildFontCMapIndex(objectMap, fontRefs);
+  const pageFragments = [];
+
+  for (const ref of refs) {
+    const objectBody = objectMap.get(ref);
+    if (!objectBody) continue;
+    const streamText = parseStream(objectBody);
+    if (!streamText) continue;
+    const blocks = streamText.match(/BT[\s\S]*?ET/g) || [];
+    for (const block of blocks) {
+      pageFragments.push(...extractTextFragmentsFromBlock(block, fontCMaps));
+    }
+  }
+
+  return buildTextFromPositionedFragments(pageFragments);
+}
+
 function extractPageTexts(pdfBuffer) {
   const objectMap = parseObjectMap(pdfBuffer);
   const pages = [];
 
   for (const [, body] of objectMap) {
     if (!/\/Type\s*\/Page\b/.test(body)) continue;
-    const refs = extractContentsRefs(body);
-    const pageParts = [];
-
-    for (const ref of refs) {
-      const objectBody = objectMap.get(ref);
-      if (!objectBody) continue;
-      const streamText = parseStream(objectBody);
-      if (!streamText) continue;
-      const text = extractTextFromStreamContent(streamText);
-      if (text) pageParts.push(text);
-    }
-
-    const pageText = joinTextFragments(pageParts);
+    const pageText = extractPageTextWithFonts(body, objectMap) || joinTextFragments(
+      extractContentsRefs(body).map(ref => {
+        const objectBody = objectMap.get(ref);
+        const streamText = objectBody ? parseStream(objectBody) : null;
+        return streamText ? extractTextFromStreamContent(streamText) : '';
+      }),
+    );
     if (pageText) pages.push(pageText);
   }
 
@@ -334,57 +718,6 @@ function fallbackExtractText(pdfBuffer) {
   }
 
   return joinTextFragments(pieces);
-}
-
-async function loadPdfParse() {
-  if (!pdfParseLoader) {
-    pdfParseLoader = import('pdf-parse')
-      .then(mod => mod.default || mod)
-      .catch(() => null);
-  }
-  return pdfParseLoader;
-}
-
-async function extractWithPdfParse(pdfBuffer) {
-  const pdfParse = await loadPdfParse();
-  if (!pdfParse) return null;
-
-  const pageEntries = [];
-  let pageNumber = 1;
-  const result = await pdfParse(pdfBuffer, {
-    pagerender: async pageData => {
-      const textContent = await pageData.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
-      const text = joinTextFragments(textContent.items.map(item => item?.str || ''));
-      pageEntries.push({ pageNumber, text });
-      pageNumber += 1;
-      return text;
-    },
-  });
-
-  if (pageEntries.some(entry => entry.text)) {
-    return {
-      extractor: 'pdf-parse',
-      pages: pageEntries.filter(entry => entry.text),
-      fullText: joinTextFragments(pageEntries.map(entry => entry.text)),
-      meta: {
-        info: result?.info || null,
-        numpages: result?.numpages || pageEntries.length,
-      },
-    };
-  }
-
-  const text = joinTextFragments(result?.text || '');
-  if (!text) return null;
-
-  return {
-    extractor: 'pdf-parse',
-    pages: [{ pageNumber: null, text }],
-    fullText: text,
-    meta: {
-      info: result?.info || null,
-      numpages: result?.numpages || null,
-    },
-  };
 }
 
 function chunkPageText(text = '', pageNumber = null, chunkSize = 1100, overlap = 180) {
@@ -657,7 +990,7 @@ function selectBestExtraction(candidates = []) {
   if (!usable.length) return candidates.find(Boolean) || null;
 
   return usable.sort((a, b) => {
-    const extractorPriority = candidate => (candidate?.extractor === 'pdf-parse' ? 3 : candidate?.extractor === 'custom-page-extractor' ? 2 : 1);
+    const extractorPriority = candidate => (candidate?.extractor === 'custom-cmap-page-extractor' ? 3 : candidate?.extractor === 'custom-page-extractor' ? 2 : 1);
     const priorityDelta = extractorPriority(b) - extractorPriority(a);
     if (priorityDelta !== 0) return priorityDelta;
     const fontRatioDelta = (a.quality?.fontMetadataRatio || 0) - (b.quality?.fontMetadataRatio || 0);
@@ -683,13 +1016,8 @@ export async function createManualIndex({ manual, pdfBuffer }) {
     candidates.push(summarizeExtraction({
       pageEntries: customPages,
       fullText: customPages.map(entry => entry.text).join(' '),
-      extractor: 'custom-page-extractor',
+      extractor: 'custom-cmap-page-extractor',
     }));
-
-    const pdfParseExtraction = await extractWithPdfParse(pdfBuffer).catch(() => null);
-    if (pdfParseExtraction) {
-      candidates.push(summarizeExtraction(pdfParseExtraction));
-    }
 
     const fallbackText = fallbackExtractText(pdfBuffer);
     if (fallbackText) {
