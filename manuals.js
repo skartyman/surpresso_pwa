@@ -200,8 +200,8 @@ function showManual(manual) {
   }
 
   if (title) title.textContent = manual.title || manual.originalName || 'Без названия';
-  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)}`;
-  if (frame) frame.src = `/api/manuals/${encodeURIComponent(manual.id)}/file`;
+  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • предпросмотр Google Drive`;
+  if (frame) frame.src = `/api/manuals/${encodeURIComponent(manual.id)}/preview`;
   if (empty) empty.style.display = 'none';
   if (openBtn) {
     openBtn.disabled = false;
