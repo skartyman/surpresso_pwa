@@ -473,16 +473,24 @@ function isMeaningfulQuality(quality, { pageEntries = [], meta = null } = {}) {
   if (quality.uniqueTokens < 8) return false;
   if (quality.alnumRatio < 0.4) return false;
   if (quality.weirdRatio > 0.22) return false;
-  if (quality.meaningfulWordsCount < 8) return false;
-  if (quality.meaningfulWordRatio < 0.38) return false;
-  if (quality.shortWordRatio > 0.55) return false;
-  if (quality.uppercaseWordRatio > 0.45 && quality.meaningfulWordsCount < 15) return false;
+
+  const looksLikeUsefulTechnicalText = (
+    quality.technicalHits >= 3
+    || (quality.length >= 600 && quality.uniqueTokens >= 20)
+    || (quality.digitsCount >= 12 && quality.uniqueTokens >= 16)
+  );
+
+  if (quality.meaningfulWordsCount < 8 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.meaningfulWordRatio < 0.38 && !(looksLikeUsefulTechnicalText && quality.meaningfulWordRatio >= 0.2)) return false;
+  if (quality.shortWordRatio > 0.55 && !(looksLikeUsefulTechnicalText && quality.shortWordRatio <= 0.72)) return false;
+  if (quality.uppercaseWordRatio > 0.45 && quality.meaningfulWordsCount < 15 && !looksLikeUsefulTechnicalText) return false;
   if (quality.repeatedSymbolRuns > 6) return false;
-  if (quality.fontMetadataHits >= 6 && quality.fontMetadataRatio > 0.04) return false;
-  if (quality.fontMetadataHits >= Math.max(8, Math.floor(quality.wordsCount * 0.08))) return false;
+  if (quality.fontMetadataHits >= 6 && quality.fontMetadataRatio > 0.04 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.fontMetadataHits >= Math.max(8, Math.floor(quality.wordsCount * 0.08)) && !looksLikeUsefulTechnicalText) return false;
+
   const nonEmptyPages = (Array.isArray(pageEntries) ? pageEntries : []).filter(entry => sanitizeText(entry?.text || '', 2000)).length;
   const declaredPages = Number(meta?.numpages || meta?.numPages || 0);
-  if (declaredPages >= 3 && nonEmptyPages > 0 && nonEmptyPages <= Math.floor(declaredPages / 3) && quality.length < 1200) return false;
+  if (declaredPages >= 3 && nonEmptyPages > 0 && nonEmptyPages <= Math.floor(declaredPages / 3) && quality.length < 1200 && !looksLikeUsefulTechnicalText) return false;
   if (!hasReadableLetters(quality.text)) return false;
   return true;
 }
