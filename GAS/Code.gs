@@ -17,6 +17,7 @@ const SH_STATUS    = 925272215;
 const SH_PHOTOS    = 1128395503;
 const SH_MANUALS   = "MANUALS";
 const MANUALS_FOLDER_NAME = "manuals";
+const MANUAL_INDEX_FOLDER_NAME = "manual-index";
 
 // ===== Статусы =====
 const CLIENT_STATUSES = [
@@ -44,6 +45,11 @@ const SUBSCRIPTIONS_TEXT_COLS = ["equipmentId", "chatId", "userId", "username", 
 
 // ===== Telegram subscriptions =====
 const SUBSCRIPTIONS_SHEET = "subscriptions";
+const MANUALS_SHEET_COLUMNS = [
+  "id", "title", "brand", "model", "originalName", "fileName",
+  "mimeType", "size", "uploadedAt", "fileId", "fileUrl", "driveUrl",
+  "indexFileId", "indexStatus", "indexUpdatedAt", "chunksCount", "pagesCount"
+];
 
 
 // =========================
@@ -90,11 +96,8 @@ function setup() {
   // MANUALS
   sh = ss.getSheetByName(SH_MANUALS) || ss.insertSheet(SH_MANUALS);
   sh.clear();
-  sh.appendRow([
-    "id", "title", "brand", "model", "originalName", "fileName",
-    "mimeType", "size", "uploadedAt", "fileId", "fileUrl", "driveUrl"
-  ]);
-  ["id", "size", "fileId"].forEach(function(name) {
+  sh.appendRow(MANUALS_SHEET_COLUMNS);
+  ["id", "size", "fileId", "indexFileId", "chunksCount", "pagesCount"].forEach(function(name) {
     const c = col_(sh, name);
     sh.getRange(2, c, sh.getMaxRows()-1, 1).setNumberFormat("@");
   });
@@ -160,6 +163,10 @@ function doPost(e) {
     if (action === "manualsList") return json_(listManuals_());
     if (action === "manualUpload") return json_(uploadManual_(data.manual || {}));
     if (action === "manualGet") return json_(getManual_(data.id));
+    if (action === "indexSave") return json_(indexSave_(data.manualId, data.index));
+    if (action === "indexGet") return json_(indexGet_(data.manualId));
+    if (action === "indexDelete") return json_(indexDelete_(data.manualId));
+    if (action === "indexStatusUpdate") return json_(indexStatusUpdate_(data.manualId, data.metadata || {}));
     if (action === "manualDelete") return json_(deleteManual_(data.id));
 
     return json_({ ok: false, error: "Unknown action" });
@@ -480,23 +487,12 @@ function ensureManualsSheet_() {
 
   if (!sh) {
     sh = ss.insertSheet(SH_MANUALS);
-    sh.appendRow([
-      "id",
-      "title",
-      "brand",
-      "model",
-      "originalName",
-      "fileName",
-      "mimeType",
-      "size",
-      "uploadedAt",
-      "fileId",
-      "fileUrl",
-      "driveUrl"
-    ]);
+    sh.appendRow(MANUALS_SHEET_COLUMNS);
+  } else {
+    ensureSheetColumns_(sh, MANUALS_SHEET_COLUMNS);
   }
 
-  ["id", "fileId", "size"].forEach(function(name) {
+  ["id", "fileId", "size", "indexFileId", "chunksCount", "pagesCount"].forEach(function(name) {
     try {
       const c = col_(sh, name);
       sh.getRange(2, c, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat("@");
@@ -513,6 +509,25 @@ function manualsFolder_() {
   return root.createFolder(MANUALS_FOLDER_NAME);
 }
 
+function manualIndexFolder_() {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const it = root.getFoldersByName(MANUAL_INDEX_FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return root.createFolder(MANUAL_INDEX_FOLDER_NAME);
+}
+
+function ensureSheetColumns_(sheet, columns) {
+  const head = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  const missing = (columns || []).filter(function(name) {
+    return head.indexOf(name) < 0;
+  });
+
+  missing.forEach(function(name) {
+    sheet.insertColumnAfter(sheet.getLastColumn() || 1);
+    sheet.getRange(1, sheet.getLastColumn()).setValue(name);
+  });
+}
+
 function manualPublicMeta_(item) {
   return {
     id: String(item.id || ""),
@@ -523,7 +538,12 @@ function manualPublicMeta_(item) {
     fileName: String(item.fileName || ""),
     mimeType: String(item.mimeType || "application/pdf"),
     size: Number(item.size || 0),
-    uploadedAt: item.uploadedAt || ""
+    uploadedAt: item.uploadedAt || "",
+    indexFileId: String(item.indexFileId || ""),
+    indexStatus: String(item.indexStatus || ""),
+    indexUpdatedAt: item.indexUpdatedAt || "",
+    chunksCount: Number(item.chunksCount || 0),
+    pagesCount: Number(item.pagesCount || 0)
   };
 }
 
@@ -541,6 +561,58 @@ function getManualRow_(id) {
     }
   }
 
+  return null;
+}
+
+function getManualIndexFileName_(manualId) {
+  return String(manualId || "").trim() + ".json";
+}
+
+function getManualIndexMetadata_(values) {
+  return {
+    indexFileId: String(values && values.indexFileId || ""),
+    indexStatus: String(values && values.indexStatus || ""),
+    indexUpdatedAt: values && values.indexUpdatedAt || "",
+    chunksCount: Number(values && values.chunksCount || 0),
+    pagesCount: Number(values && values.pagesCount || 0)
+  };
+}
+
+function buildIndexMetadataFromPayload_(index, indexFileId) {
+  const payload = index || {};
+  const chunks = Array.isArray(payload.chunks) ? payload.chunks.length : Number(payload.chunksCount || 0);
+  const pages = Number(payload.pagesCount || (Array.isArray(payload.pages) ? payload.pages.length : 0));
+
+  return {
+    indexFileId: String(indexFileId || ""),
+    indexStatus: String(payload.status || "indexed"),
+    indexUpdatedAt: payload.updatedAt || new Date().toISOString(),
+    chunksCount: chunks,
+    pagesCount: pages
+  };
+}
+
+function updateManualIndexMetadata_(found, metadata) {
+  const next = metadata || {};
+  setCell_(found.sheet, found.row, "indexFileId", String(next.indexFileId || ""));
+  setCell_(found.sheet, found.row, "indexStatus", String(next.indexStatus || ""));
+  setCell_(found.sheet, found.row, "indexUpdatedAt", next.indexUpdatedAt || "");
+  setCell_(found.sheet, found.row, "chunksCount", String(next.chunksCount || 0));
+  setCell_(found.sheet, found.row, "pagesCount", String(next.pagesCount || 0));
+}
+
+function findManualIndexFile_(found) {
+  const folder = manualIndexFolder_();
+  const fileId = String(found.values.indexFileId || "").trim();
+
+  if (fileId) {
+    try {
+      return DriveApp.getFileById(fileId);
+    } catch (e) {}
+  }
+
+  const it = folder.getFilesByName(getManualIndexFileName_(found.values.id));
+  if (it.hasNext()) return it.next();
   return null;
 }
 
@@ -570,6 +642,102 @@ function getManual_(id) {
       driveUrl: String(found.values.driveUrl || "")
     })
   };
+}
+
+function indexStatusUpdate_(manualId, metadata) {
+  const found = getManualRow_(manualId);
+  if (!found) return { ok: false, error: "manual_not_found" };
+
+  const merged = Object.assign({}, getManualIndexMetadata_(found.values), metadata || {});
+  updateManualIndexMetadata_(found, merged);
+
+  return {
+    ok: true,
+    manualId: String(manualId || "").trim(),
+    metadata: getManualIndexMetadata_(merged)
+  };
+}
+
+function indexSave_(manualId, index) {
+  const found = getManualRow_(manualId);
+  if (!found) return { ok: false, error: "manual_not_found" };
+  if (!index) return { ok: false, error: "index_required" };
+
+  const folder = manualIndexFolder_();
+  const fileName = getManualIndexFileName_(manualId);
+  const json = JSON.stringify(index, null, 2);
+  const blob = Utilities.newBlob(json, "application/json", fileName);
+  let file = findManualIndexFile_(found);
+
+  if (file) {
+    file.setContent(json);
+    file.setName(fileName);
+  } else {
+    file = folder.createFile(blob);
+    file.setName(fileName);
+  }
+
+  const metadata = buildIndexMetadataFromPayload_(index, file.getId());
+  updateManualIndexMetadata_(found, metadata);
+
+  return {
+    ok: true,
+    manualId: String(manualId || "").trim(),
+    fileId: String(file.getId()),
+    metadata: metadata
+  };
+}
+
+function indexGet_(manualId) {
+  const found = getManualRow_(manualId);
+  if (!found) return { ok: false, error: "manual_not_found" };
+
+  const metadata = getManualIndexMetadata_(found.values);
+  const file = findManualIndexFile_(found);
+  if (!file) {
+    if (metadata.indexFileId || metadata.indexStatus || metadata.indexUpdatedAt || metadata.chunksCount || metadata.pagesCount) {
+      updateManualIndexMetadata_(found, {});
+    }
+    return {
+      ok: true,
+      manualId: String(manualId || "").trim(),
+      index: null,
+      metadata: getManualIndexMetadata_({})
+    };
+  }
+
+  let parsed = null;
+  try {
+    const raw = file.getBlob().getDataAsString("UTF-8");
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return { ok: false, error: "index_parse_failed" };
+  }
+
+  const nextMetadata = buildIndexMetadataFromPayload_(parsed || {}, file.getId());
+  updateManualIndexMetadata_(found, nextMetadata);
+
+  return {
+    ok: true,
+    manualId: String(manualId || "").trim(),
+    index: parsed,
+    metadata: nextMetadata
+  };
+}
+
+function indexDelete_(manualId) {
+  const found = getManualRow_(manualId);
+  if (!found) return { ok: false, error: "manual_not_found" };
+
+  const file = findManualIndexFile_(found);
+  if (file) {
+    try {
+      file.setTrashed(true);
+    } catch (e) {}
+  }
+
+  updateManualIndexMetadata_(found, {});
+  return { ok: true, manualId: String(manualId || "").trim() };
 }
 
 function uploadManual_(manual) {
@@ -630,7 +798,12 @@ function uploadManual_(manual) {
     item.uploadedAt,
     item.fileId,
     item.fileUrl,
-    item.driveUrl
+    item.driveUrl,
+    "",
+    "",
+    "",
+    "0",
+    "0"
   ]);
 
   return { ok: true, item: manualPublicMeta_(item) };
@@ -639,6 +812,10 @@ function uploadManual_(manual) {
 function deleteManual_(id) {
   const found = getManualRow_(id);
   if (!found) return { ok: false, error: "manual_not_found" };
+
+  try {
+    indexDelete_(id);
+  } catch (e) {}
 
   const fileId = String(found.values.fileId || "").trim();
   if (fileId) {
