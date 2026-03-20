@@ -5,6 +5,7 @@ import zlib from 'zlib';
 const INDEX_DIR = path.join(path.resolve(), 'data', 'manual-index');
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const MANUAL_INDEX_FORMAT_VERSION = '2026-03-20-shift-decode-v1';
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
 const NON_EXTRACTABLE_PDF_ERROR = 'Этот PDF пока нельзя проиндексировать автоматически';
 const NON_EXTRACTABLE_PDF_REASON = 'Этот PDF нельзя нормально прочитать (скан или сложная кодировка)';
@@ -171,6 +172,89 @@ function cleanupExtractedText(text = '') {
     .replace(/[•·▪◦]+/g, ' • ')
     .replace(/[|¦]+/g, ' | ')
     .replace(/\s+/g, ' '), 120000);
+}
+
+function rotateAsciiLetter(char = '', shift = 0) {
+  const code = char.charCodeAt(0);
+  if (code >= 65 && code <= 90) {
+    return String.fromCharCode(65 + (((code - 65 + shift) % 26) + 26) % 26);
+  }
+  if (code >= 97 && code <= 122) {
+    return String.fromCharCode(97 + (((code - 97 + shift) % 26) + 26) % 26);
+  }
+  return char;
+}
+
+function rotateAsciiText(text = '', shift = 0) {
+  return Array.from(String(text || ''), char => rotateAsciiLetter(char, shift)).join('');
+}
+
+function englishHeuristicScore(text = '') {
+  const source = cleanupExtractedText(text);
+  if (!source) return 0;
+
+  const tokens = tokenize(source);
+  if (!tokens.length) return 0;
+
+  const lower = source.toLowerCase();
+  const commonWords = [
+    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'page', 'manual', 'machine', 'coffee',
+    'espresso', 'group', 'steam', 'water', 'pump', 'boiler', 'pressure', 'temperature', 'filter',
+    'clean', 'cleaning', 'maintenance', 'switch', 'power', 'remove', 'install', 'service',
+    'button', 'display', 'error', 'setting', 'settings', 'use', 'using', 'open', 'close',
+  ];
+  const wordHits = commonWords.reduce((sum, word) => {
+    const matchCount = lower.match(new RegExp(`\\b${word}\\b`, 'g'))?.length || 0;
+    return sum + matchCount;
+  }, 0);
+
+  const technicalHits = tokens.filter(token => TECHNICAL_TERM_SET.has(token)).length;
+  const vowelMatches = lower.match(/[aeiouy]/g) || [];
+  const latinLetters = lower.match(/[a-z]/g) || [];
+  const vowelRatio = vowelMatches.length / Math.max(latinLetters.length, 1);
+  const longWords = tokens.filter(token => token.length >= 4).length;
+  const badRareBigrams = (lower.match(/\b(?:qj|wq|xj|zq|vq|jj|qq|ww|yy|zx|qx)\b/g) || []).length;
+
+  return (
+    wordHits * 6
+    + technicalHits * 5
+    + Math.min(longWords, 30) * 0.25
+    + (vowelRatio >= 0.22 && vowelRatio <= 0.48 ? 8 : 0)
+    - badRareBigrams * 2
+  );
+}
+
+function maybeDecodeShiftedLatinText(text = '') {
+  const source = cleanupExtractedText(text);
+  if (!source) return source;
+  if (hasCyrillic(source)) return source;
+
+  const latinLetters = source.match(/[A-Za-z]/g) || [];
+  if (latinLetters.length < 30) return source;
+
+  const uppercaseLetters = source.match(/[A-Z]/g) || [];
+  const uppercaseRatio = uppercaseLetters.length / Math.max(latinLetters.length, 1);
+  const suspiciousOriginalScore = englishHeuristicScore(source);
+  let bestShift = 0;
+  let bestText = source;
+  let bestScore = suspiciousOriginalScore;
+
+  for (let shift = 1; shift < 26; shift += 1) {
+    const candidate = rotateAsciiText(source, -shift);
+    const score = englishHeuristicScore(candidate);
+    if (score > bestScore) {
+      bestScore = score;
+      bestShift = shift;
+      bestText = candidate;
+    }
+  }
+
+  const scoreDelta = bestScore - suspiciousOriginalScore;
+  if (bestShift && scoreDelta >= 18 && (uppercaseRatio >= 0.55 || suspiciousOriginalScore <= 8)) {
+    return bestText;
+  }
+
+  return source;
 }
 
 function parseNumberToken(input = '', start = 0) {
@@ -755,7 +839,7 @@ function chunkPageText(text = '', pageNumber = null, chunkSize = 1100, overlap =
 }
 
 function buildManualSignature(manual = {}) {
-  return [manual.id, manual.fileId, manual.uploadedAt, manual.size, manual.originalName].map(item => String(item || '')).join('|');
+  return [MANUAL_INDEX_FORMAT_VERSION, manual.id, manual.fileId, manual.uploadedAt, manual.size, manual.originalName].map(item => String(item || '')).join('|');
 }
 
 function analyzeTextQuality(text = '') {
@@ -832,11 +916,11 @@ function summarizeExtraction({ pageEntries = [], fullText = '', extractor = 'cus
   const filteredPages = pageEntries
     .map(entry => ({
       pageNumber: entry.pageNumber ?? null,
-      text: cleanupExtractedText(entry.text),
+      text: maybeDecodeShiftedLatinText(entry.text),
     }))
     .filter(entry => entry.text);
 
-  const joinedText = cleanupExtractedText(fullText || filteredPages.map(entry => entry.text).join(' '));
+  const joinedText = maybeDecodeShiftedLatinText(fullText || filteredPages.map(entry => entry.text).join(' '));
   const quality = analyzeTextQuality(joinedText);
 
   return {
