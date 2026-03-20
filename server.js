@@ -1982,7 +1982,7 @@ app.post("/api/manuals", async (req, res) => {
     });
 
     const item = out.item || {};
-    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, pagesCount: 0, sampleTextPreview: "", error: null };
+    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, pagesCount: 0, sampleTextPreview: "", extractionMethod: null, qualityScore: null, error: null };
 
     try {
       const index = await createManualIndex({ manual: item, pdfBuffer: buffer });
@@ -1992,6 +1992,8 @@ app.post("/api/manuals", async (req, res) => {
         chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
         pagesCount: index.pagesCount || 0,
         sampleTextPreview: index.sampleTextPreview || "",
+        extractionMethod: index.extractionMethod || index.extractor || null,
+        qualityScore: index.qualityScore ?? null,
         error: index.error || null,
       };
     } catch (indexError) {
@@ -2040,6 +2042,8 @@ app.post("/api/manuals/reindex", async (req, res) => {
           chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
           pagesCount: index.pagesCount || 0,
           sampleTextPreview: index.sampleTextPreview || "",
+          extractionMethod: index.extractionMethod || index.extractor || null,
+          qualityScore: index.qualityScore ?? null,
           updatedAt: index.updatedAt,
         });
       } catch (indexError) {
@@ -2051,6 +2055,8 @@ app.post("/api/manuals/reindex", async (req, res) => {
           chunksCount: status.chunksCount,
           pagesCount: status.pagesCount || 0,
           sampleTextPreview: status.sampleTextPreview || "",
+          extractionMethod: status.extractionMethod || null,
+          qualityScore: status.qualityScore ?? null,
           updatedAt: status.updatedAt,
           error: status.error || indexError.message,
         });
@@ -2119,6 +2125,8 @@ app.post("/api/manuals/:id/index", async (req, res) => {
       chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
       pagesCount: index.pagesCount || 0,
       sampleTextPreview: index.sampleTextPreview || "",
+      extractionMethod: index.extractionMethod || index.extractor || null,
+      qualityScore: index.qualityScore ?? null,
     });
   } catch (err) {
     console.error("MANUALS INDEX ERROR", err);
@@ -2280,7 +2288,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 
 
 
