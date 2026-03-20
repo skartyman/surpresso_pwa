@@ -41,9 +41,21 @@ const TECHNICAL_TERMS = [
 const TECHNICAL_TERM_SET = new Set(TECHNICAL_TERMS.map(term => normalizeText(term)));
 const require = createRequire(import.meta.url);
 let cachedPdfParse = undefined;
+let cachedPdfJs = undefined;
 
 function sanitizeText(value = '', max = 400) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+async function loadPdfJs() {
+  if (cachedPdfJs !== undefined) return cachedPdfJs;
+  try {
+    const mod = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    cachedPdfJs = mod?.default || mod;
+  } catch {
+    cachedPdfJs = null;
+  }
+  return cachedPdfJs;
 }
 
 function loadPdfParse() {
@@ -182,12 +194,81 @@ function decodeUnicodeHexSequence(input = '') {
 
 function cleanupExtractedText(text = '') {
   return sanitizeText(String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/\u00A0/g, ' ')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]+/g, ' ')
     .replace(/\b(cid|g\d+|tt\d+)\s*\+\s*/gi, ' ')
     .replace(/[\uFFFD]+/g, ' ')
     .replace(/[•·▪◦]+/g, ' • ')
     .replace(/[|¦]+/g, ' | ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .replace(/\s+/g, ' '), 120000);
+}
+
+function countBrokenUppercaseWordGroups(text = '') {
+  let hits = 0;
+  for (const match of String(text || '').matchAll(/\b(?:[A-Z]{1,3}\s+){1,5}[A-Z]{1,3}\b/g)) {
+    const parts = match[0].trim().split(/\s+/).filter(Boolean);
+    const joined = parts.join('');
+    if (parts.length < 2) continue;
+    if (joined.length < 5) continue;
+    if (parts.some(part => part.length > 3)) continue;
+    if (/^(?:AC|DC|CE|UL|EU|USA|UK|PDF|USB|LCD|LED|PCB|PID|BAR|RPM|GND)$/.test(joined)) continue;
+    hits += 1;
+  }
+  return hits;
+}
+
+function fixBrokenUppercaseWords(text = '') {
+  let output = String(text || '');
+  let previous = null;
+
+  while (output !== previous) {
+    previous = output;
+    output = output.replace(/\b(?:[A-Z]{1,3}\s+){1,5}[A-Z]{1,3}\b/g, match => {
+      const parts = match.trim().split(/\s+/).filter(Boolean);
+      const joined = parts.join('');
+      if (parts.length < 2) return match;
+      if (joined.length < 5) return match;
+      if (parts.some(part => part.length > 3)) return match;
+      if (/^(?:AC|DC|CE|UL|EU|USA|UK|PDF|USB|LCD|LED|PCB|PID|BAR|RPM|GND)$/.test(joined)) return joined;
+      return joined;
+    });
+  }
+
+  return output;
+}
+
+function stripFontMetadataLines(text = '') {
+  const lines = String(text || '')
+    .split(/\n+/)
+    .map(line => sanitizeText(line, 2000))
+    .filter(Boolean);
+
+  return lines.filter(line => {
+    const lowerLine = line.toLowerCase();
+    const hits = FONT_METADATA_PATTERNS.reduce((count, pattern) => count + ((lowerLine.match(pattern) || []).length), 0);
+    if (hits >= 2) return false;
+    if (/^(?:[a-z0-9._-]+\+)?(?:arial|helvetica|courier|timesnewroman)/i.test(line)) return false;
+    if (/^(?:font|encoding|basefont|fontname|cidfont|fontdescriptor)\b/i.test(line)) return false;
+    return true;
+  }).join('\n');
+}
+
+function cleanupReadablePageText(text = '') {
+  return cleanupExtractedText(
+    fixBrokenUppercaseWords(
+      stripFontMetadataLines(
+        String(text || '')
+          .replace(/([A-Za-z])-\s+([A-Za-z])/g, '$1$2')
+          .replace(/\s+([,.;:%!?])/g, '$1')
+          .replace(/([(\[{])\s+/g, '$1')
+          .replace(/\s+([)\]}])/g, '$1'),
+      ),
+    ),
+  );
 }
 
 function rotateAsciiLetter(char = '', shift = 0) {
@@ -820,6 +901,149 @@ function fallbackExtractText(pdfBuffer) {
   return joinTextFragments(pieces);
 }
 
+function normalizePdfJsItemText(value = '') {
+  return String(value || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractPdfJsItemGeometry(item = {}) {
+  const transform = Array.isArray(item?.transform) ? item.transform : [];
+  const scaleX = Math.abs(Number(transform[0] || 0));
+  const scaleY = Math.abs(Number(transform[3] || 0));
+  const height = Math.abs(Number(item?.height || 0)) || scaleY;
+  const fontSize = Math.max(scaleX, scaleY, height, 1);
+
+  return {
+    text: normalizePdfJsItemText(item?.str || ''),
+    x: Number(transform[4] || 0),
+    y: Number(transform[5] || 0),
+    width: Math.abs(Number(item?.width || 0)),
+    height,
+    fontSize,
+    hasEOL: Boolean(item?.hasEOL),
+  };
+}
+
+function buildPdfJsPageText(items = []) {
+  const fragments = (Array.isArray(items) ? items : [])
+    .map(extractPdfJsItemGeometry)
+    .filter(item => item.text);
+
+  if (!fragments.length) return '';
+
+  const rows = [];
+
+  for (const fragment of fragments.sort((a, b) => {
+    const ay = Number(a?.y || 0);
+    const by = Number(b?.y || 0);
+    if (Math.abs(by - ay) > 2) return by - ay;
+    return Number(a?.x || 0) - Number(b?.x || 0);
+  })) {
+    const rowThreshold = Math.max(2, Number(fragment.height || fragment.fontSize || 0) * 0.45);
+    const currentRow = rows[rows.length - 1];
+
+    if (!currentRow || Math.abs(currentRow.y - fragment.y) > rowThreshold || currentRow.forceBreak) {
+      rows.push({
+        y: Number(fragment.y || 0),
+        items: [fragment],
+        forceBreak: Boolean(fragment.hasEOL),
+      });
+      continue;
+    }
+
+    currentRow.items.push(fragment);
+    currentRow.forceBreak = currentRow.forceBreak || Boolean(fragment.hasEOL);
+  }
+
+  const lines = rows.map(row => {
+    let line = '';
+    let lastRight = null;
+    let lastFontSize = null;
+
+    for (const item of row.items.sort((a, b) => Number(a?.x || 0) - Number(b?.x || 0))) {
+      const gap = lastRight == null ? null : Number(item.x || 0) - lastRight;
+      const fontSize = Number(item.fontSize || lastFontSize || 0);
+      const joinThreshold = Math.max(0.75, fontSize * 0.08);
+      const forceWordGap = Math.max(2.25, fontSize * 0.24);
+      const appendWithoutSpace = gap != null && gap <= joinThreshold;
+
+      if (!line) {
+        line = item.text;
+      } else if (appendWithoutSpace) {
+        line = `${line}${item.text}`;
+      } else if (gap != null && gap > forceWordGap && shouldInsertTextSpace(line, item.text)) {
+        line = `${line} ${item.text}`;
+      } else {
+        line = appendTextFragment(line, item.text, gap, fontSize || lastFontSize);
+      }
+
+      lastRight = Number(item.x || 0) + Math.max(
+        Number(item.width || 0),
+        Math.max(String(item.text || '').length, 1) * Math.max(fontSize * 0.42, 1.2),
+      );
+      lastFontSize = fontSize || lastFontSize;
+    }
+
+    return sanitizeText(line, 4000);
+  }).filter(Boolean);
+
+  return cleanupReadablePageText(lines.join('\n'));
+}
+
+async function extractWithPdfJS(pdfBuffer) {
+  const pdfjs = await loadPdfJs();
+  if (!pdfjs?.getDocument) return null;
+
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(pdfBuffer),
+    disableWorker: true,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    stopAtErrors: false,
+    useSystemFonts: true,
+  });
+
+  let document = null;
+
+  try {
+    document = await loadingTask.promise;
+    const pageEntries = [];
+
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const textContent = await page.getTextContent({
+        normalizeWhitespace: false,
+        disableCombineTextItems: false,
+        includeMarkedContent: false,
+      });
+
+      pageEntries.push({
+        pageNumber,
+        text: buildPdfJsPageText(textContent?.items || []),
+      });
+    }
+
+    return {
+      pageEntries,
+      fullText: cleanupReadablePageText(pageEntries.map(entry => entry.text).join('\n\n')),
+      meta: { numPages: document.numPages },
+    };
+  } finally {
+    try {
+      await loadingTask.destroy();
+    } catch {
+      // ignore cleanup errors
+    }
+    try {
+      if (document) await document.destroy();
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+}
+
 async function extractTextWithPdfParse(pdfBuffer) {
   const pdfParse = loadPdfParse();
   if (!pdfParse) return null;
@@ -832,7 +1056,7 @@ async function extractTextWithPdfParse(pdfBuffer) {
         disableCombineTextItems: false,
       });
 
-      const text = cleanupExtractedText(
+      const text = cleanupReadablePageText(
         (Array.isArray(textContent?.items) ? textContent.items : [])
           .map(item => (typeof item?.str === 'string' ? item.str : ''))
           .join(' '),
@@ -849,7 +1073,7 @@ async function extractTextWithPdfParse(pdfBuffer) {
 
   return {
     pageEntries,
-    fullText: cleanupExtractedText(meta?.text || pageEntries.map(entry => entry.text).join(' ')),
+    fullText: cleanupReadablePageText(meta?.text || pageEntries.map(entry => entry.text).join('\n\n')),
     meta,
   };
 }
@@ -916,6 +1140,8 @@ function analyzeTextQuality(text = '') {
   const uppercaseWordRatio = uppercaseLikeWords.length / Math.max(words.length, 1);
   const fontMetadataRatio = fontMetadataHits / Math.max(words.length, 1);
   const mojibakeRatio = mojibakeHits / Math.max(words.length, 1);
+  const brokenWordSpacingHits = countBrokenUppercaseWordGroups(clean);
+  const brokenWordSpacingRatio = brokenWordSpacingHits / Math.max(words.length, 1);
   return {
     text: clean,
     length: clean.length,
@@ -937,6 +1163,8 @@ function analyzeTextQuality(text = '') {
     fontMetadataRatio,
     mojibakeHits,
     mojibakeRatio,
+    brokenWordSpacingHits,
+    brokenWordSpacingRatio,
     sampleTextPreview: sanitizeText(clean, 240),
   };
 }
@@ -965,6 +1193,7 @@ function isMeaningfulQuality(quality, { pageEntries = [], meta = null } = {}) {
   if (quality.mojibakeHits >= 5 && quality.mojibakeRatio > 0.02) return false;
   if (quality.fontMetadataHits >= 6 && quality.fontMetadataRatio > 0.04 && !looksLikeUsefulTechnicalText) return false;
   if (quality.fontMetadataHits >= Math.max(8, Math.floor(quality.wordsCount * 0.08)) && !looksLikeUsefulTechnicalText) return false;
+  if (quality.brokenWordSpacingHits >= 4 && quality.brokenWordSpacingRatio > 0.015) return false;
 
   const nonEmptyPages = (Array.isArray(pageEntries) ? pageEntries : []).filter(entry => sanitizeText(entry?.text || '', 2000)).length;
   const declaredPages = Number(meta?.numpages || meta?.numPages || 0);
@@ -990,6 +1219,8 @@ function computeQualityScore(quality, { extractor = 'unknown', pageEntries = [],
   score -= quality.fontMetadataRatio * 180;
   score -= quality.mojibakeHits * 5;
   score -= quality.mojibakeRatio * 220;
+  score -= quality.brokenWordSpacingHits * 7;
+  score -= quality.brokenWordSpacingRatio * 260;
   score -= quality.repeatedSymbolRuns * 3;
 
   const nonEmptyPages = (Array.isArray(pageEntries) ? pageEntries : []).filter(entry => sanitizeText(entry?.text || '', 1000)).length;
@@ -1000,6 +1231,7 @@ function computeQualityScore(quality, { extractor = 'unknown', pageEntries = [],
     score += Math.min(nonEmptyPages * 2, 12);
   }
 
+  if (extractor === 'pdfjs-dist') score += 18;
   if (extractor === 'pdf-parse') score += 12;
   if (extractor === 'custom-cmap-page-extractor') score += 4;
   if (!isMeaningfulQuality(quality, { pageEntries, meta })) score -= 35;
@@ -1012,6 +1244,7 @@ function isGarbageLikeText(text = '', meta = null) {
   if (!hasReadableLetters(quality.text)) return true;
   if (quality.fontMetadataHits >= 4 && quality.fontMetadataRatio > 0.03) return true;
   if (quality.mojibakeHits >= 5 && quality.mojibakeRatio > 0.02) return true;
+  if (quality.brokenWordSpacingHits >= 4 && quality.brokenWordSpacingRatio > 0.02) return true;
   if (quality.normalWordsCount < 5 && quality.wordsCount < 20) return true;
   return !isMeaningfulQuality(quality, { meta });
 }
@@ -1020,14 +1253,14 @@ function cleanPageEntries(pageEntries = [], meta = null) {
   return (Array.isArray(pageEntries) ? pageEntries : [])
     .map(entry => ({
       pageNumber: entry?.pageNumber ?? null,
-      text: cleanupExtractedText(maybeDecodeShiftedLatinText(entry?.text || '')),
+      text: cleanupReadablePageText(maybeDecodeShiftedLatinText(entry?.text || '')),
     }))
     .filter(entry => entry.text && !isGarbageLikeText(entry.text, meta));
 }
 
 function summarizeExtraction({ pageEntries = [], fullText = '', extractor = 'custom', meta = null } = {}) {
   const filteredPages = cleanPageEntries(pageEntries, meta);
-  const joinedText = cleanupExtractedText(
+  const joinedText = cleanupReadablePageText(
     maybeDecodeShiftedLatinText(fullText || filteredPages.map(entry => entry.text).join(' ')),
   );
   const quality = analyzeTextQuality(joinedText);
@@ -1068,6 +1301,8 @@ function buildIndexDiagnostics({ pages, chunks, quality, extractor }) {
       fontMetadataRatio: Number(quality.fontMetadataRatio.toFixed(3)),
       mojibakeHits: quality.mojibakeHits,
       mojibakeRatio: Number(quality.mojibakeRatio.toFixed(3)),
+      brokenWordSpacingHits: quality.brokenWordSpacingHits,
+      brokenWordSpacingRatio: Number(quality.brokenWordSpacingRatio.toFixed(3)),
     } : null,
   };
 }
@@ -1200,7 +1435,7 @@ function selectBestExtraction(candidates = []) {
   return usable.sort((a, b) => {
     const scoreDelta = (b.qualityScore || 0) - (a.qualityScore || 0);
     if (scoreDelta !== 0) return scoreDelta;
-    const extractorPriority = candidate => (candidate?.extractor === 'pdf-parse' ? 3 : candidate?.extractor === 'custom-cmap-page-extractor' ? 2 : 1);
+    const extractorPriority = candidate => (candidate?.extractor === 'pdfjs-dist' ? 4 : candidate?.extractor === 'pdf-parse' ? 3 : candidate?.extractor === 'custom-cmap-page-extractor' ? 2 : 1);
     const priorityDelta = extractorPriority(b) - extractorPriority(a);
     if (priorityDelta !== 0) return priorityDelta;
     const fontRatioDelta = (a.quality?.fontMetadataRatio || 0) - (b.quality?.fontMetadataRatio || 0);
@@ -1224,30 +1459,37 @@ export async function createManualIndex({ manual, pdfBuffer }) {
   const candidates = [];
 
   try {
-    const parsed = await extractTextWithPdfParse(pdfBuffer);
-    if (parsed) {
-      candidates.push(summarizeExtraction({
-        pageEntries: parsed.pageEntries,
-        fullText: parsed.fullText,
-        extractor: 'pdf-parse',
-        meta: parsed.meta,
-      }));
+    try {
+      const pdfJsResult = await extractWithPdfJS(pdfBuffer);
+      if (pdfJsResult) {
+        candidates.push(summarizeExtraction({
+          pageEntries: pdfJsResult.pageEntries,
+          fullText: pdfJsResult.fullText,
+          extractor: 'pdfjs-dist',
+          meta: pdfJsResult.meta,
+        }));
+      }
+    } catch {
+      // fall back to pdf-parse below
     }
 
-    const customPages = extractPageTexts(pdfBuffer);
-    candidates.push(summarizeExtraction({
-      pageEntries: customPages,
-      fullText: customPages.map(entry => entry.text).join(' '),
-      extractor: 'custom-cmap-page-extractor',
-    }));
+    const pdfJsCandidate = candidates[candidates.length - 1];
+    const shouldTryPdfParseFallback = !pdfJsCandidate?.usable || !pdfJsCandidate?.pages?.length;
 
-    const fallbackText = fallbackExtractText(pdfBuffer);
-    if (fallbackText) {
-      candidates.push(summarizeExtraction({
-        pageEntries: [{ pageNumber: null, text: fallbackText }],
-        fullText: fallbackText,
-        extractor: 'custom-stream-fallback',
-      }));
+    if (shouldTryPdfParseFallback) {
+      try {
+        const parsed = await extractTextWithPdfParse(pdfBuffer);
+        if (parsed) {
+          candidates.push(summarizeExtraction({
+            pageEntries: parsed.pageEntries,
+            fullText: parsed.fullText,
+            extractor: 'pdf-parse',
+            meta: parsed.meta,
+          }));
+        }
+      } catch {
+        // handled by best-candidate validation below
+      }
     }
 
     const best = selectBestExtraction(candidates);
