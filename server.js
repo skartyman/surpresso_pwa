@@ -14,7 +14,6 @@ import {
   removeManualIndex,
   scoreChunks,
   selectContentFallbackChunks,
-  translateQuestionToEnglish,
   uniqueTopChunks,
 } from "./manuals-ai.js";
 
@@ -81,6 +80,35 @@ function sanitizeManualText(value, max = 120) {
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, max);
+}
+
+function countQuestionIntents(value = "") {
+  const original = String(value || "");
+  const normalized = sanitizeManualText(original, 1000);
+  if (!normalized) return 0;
+
+  let count = (normalized.match(/\?/g) || []).length;
+  count += (normalized.match(/(?:^|[.!]\s+)(?:\d+[.)]\s+|[-•]\s+)/g) || []).length;
+
+  const lines = original
+    .split(/\n+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (lines.length > 1) count = Math.max(count, lines.length);
+
+  const parts = normalized
+    .split(/[!?]+|\.(?=\s+[A-ZА-ЯЁІЇЄ])/u)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (parts.length > 1 && (normalized.includes('?') || normalized.includes(';'))) {
+    count = Math.max(count, parts.length);
+  }
+
+  return Math.max(count, 1);
+}
+
+function hasMultipleQuestionIntents(value = "") {
+  return countQuestionIntents(value) > 1;
 }
 
 function sanitizeManualFileName(value) {
@@ -1858,7 +1886,6 @@ async function ensureFreshManualIndex(manual) {
 async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailures = false }) {
   const scored = [];
   const fallbackPool = [];
-  const retrievalQuestion = await translateQuestionToEnglish(question);
 
   for (const manual of manuals) {
     let index;
@@ -1878,7 +1905,6 @@ async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailur
     };
     const scoredChunks = scoreChunks({
       question,
-      retrievalQuestion,
       manual: manualScoped,
       chunks: index.chunks,
     });
@@ -1912,10 +1938,10 @@ async function buildManualAnswer({ question, manuals, limit = 6, skipIndexFailur
     };
   }
 
-  const answer = await answerWithGemini({ question, retrievalQuestion, chunks: bestChunks });
+  const answer = await answerWithGemini({ question, chunks: bestChunks });
   return {
     answer: answer || "В найденных фрагментах нет достаточных данных для ответа на этот вопрос.",
-    sources: buildSources(retrievalQuestion || question, bestChunks),
+    sources: buildSources(question, bestChunks),
     chunks: bestChunks,
   };
 }
@@ -2012,6 +2038,7 @@ app.post("/api/manuals/ask", async (req, res) => {
   try {
     const question = sanitizeManualText(req.body?.question || "", 1000);
     if (!question) return res.status(400).send({ ok: false, error: "question_required" });
+    if (hasMultipleQuestionIntents(question)) return res.status(400).send({ ok: false, error: "single_question_only", message: "Отправьте один вопрос за один запрос." });
 
     const manuals = await fetchManualsList();
     if (!manuals.length) {
@@ -2138,6 +2165,7 @@ app.post("/api/manuals/:id/ask", async (req, res) => {
   try {
     const question = sanitizeManualText(req.body?.question || "", 1000);
     if (!question) return res.status(400).send({ ok: false, error: "question_required" });
+    if (hasMultipleQuestionIntents(question)) return res.status(400).send({ ok: false, error: "single_question_only", message: "Отправьте один вопрос за один запрос." });
 
     const manual = await fetchManualById(req.params.id);
     const result = await buildManualAnswer({ question, manuals: [manual], limit: 6 });

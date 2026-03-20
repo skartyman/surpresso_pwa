@@ -1451,17 +1451,13 @@ export function scoreChunks({ question, retrievalQuestion = '', manual, chunks }
     .sort((a, b) => (b.score - a.score) || (b.weakScore - a.weakScore));
 }
 
-function buildGeminiPrompt(question, retrievalQuestion, chunks) {
+function buildGeminiPrompt(question, chunks) {
   const context = chunks.map((chunk, index) => {
     const pageLabel = chunk.page ? `page ${chunk.page}` : 'page unknown';
     return `[#${index + 1}] [${chunk.title} | ${pageLabel} | ${chunk.chunkId}]\n${chunk.text}`;
   }).join('\n\n');
 
-  const retrievalLine = retrievalQuestion && retrievalQuestion !== question
-    ? `\nSearch query used for retrieval (English):\n${retrievalQuestion}\n`
-    : '';
-
-  return `User question:\n${question}${retrievalLine}\nManual excerpts:\n${context}\n\nAnswer only from the excerpts. If the excerpts do not contain enough data, say: "${EMPTY_ANSWER}". Answer in the same language as the user's question.`;
+  return `User question:\n${question}\nManual excerpts:\n${context}\n\nAnswer only from the excerpts. If the excerpts do not contain enough data, say: "${EMPTY_ANSWER}". Answer in the same language as the user's question. If the user asks several questions or requests extra tasks like translation, summarization, rewriting, or comparison, answer only the first documentation question and politely ask to send the rest as separate requests.`;
 }
 
 function compactSnippet(text = '', query = '') {
@@ -1526,33 +1522,13 @@ async function callGemini({ systemText, userText, maxOutputTokens = 700, tempera
   return extractGeminiText(json);
 }
 
-export async function translateQuestionToEnglish(question) {
-  const sanitized = sanitizeText(question, 1000);
-  if (!sanitized || !hasCyrillic(sanitized)) return sanitized;
-  if (!GEMINI_API_KEY) return sanitized;
-
-  try {
-    const translation = await callGemini({
-      systemText: 'You translate technical questions about coffee equipment manuals into concise technical English for search. Preserve brands, models, error codes, settings names, units, and part names. Return only the English query.',
-      userText: sanitized,
-      maxOutputTokens: 120,
-      temperature: 0,
-    });
-
-    const clean = sanitizeText(translation, 400);
-    return clean || sanitized;
-  } catch {
-    return sanitized;
-  }
-}
-
-export async function answerWithGemini({ question, retrievalQuestion = '', chunks }) {
+export async function answerWithGemini({ question, chunks }) {
   const effectiveChunks = uniqueTopChunks((Array.isArray(chunks) ? chunks : []).filter(isUsableChunk), 5);
   if (!effectiveChunks.length) return EMPTY_ANSWER;
 
   const answer = await callGemini({
     systemText: 'Ты технический ассистент по PDF-мануалам кофейного оборудования. Отвечай только на основе переданных фрагментов. Не выдумывай характеристики, давления, температуры, порядок ремонта, коды ошибок и названия деталей. Если информации недостаточно, прямо скажи, что в найденных фрагментах нет достаточных данных. Сначала дай краткий полезный ответ, затем при необходимости коротко уточни ограничения ответа.',
-    userText: buildGeminiPrompt(question, retrievalQuestion, effectiveChunks),
+    userText: buildGeminiPrompt(question, effectiveChunks),
     maxOutputTokens: 700,
     temperature: 0.1,
   });
