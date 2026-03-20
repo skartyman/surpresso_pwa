@@ -1,11 +1,12 @@
 import zlib from 'zlib';
+import fs from 'fs/promises';
+import path from 'path';
 import { createRequire } from 'module';
 
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GAS_WEBAPP_URL = process.env.GAS_WEBAPP_URL || '';
-const GAS_SECRET = process.env.GAS_SECRET || '';
 const MANUAL_INDEX_FORMAT_VERSION = '2026-03-20-pdf-quality-v2';
+const MANUAL_INDEX_DIR = path.join(process.cwd(), 'data', 'manual-index');
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
 const NON_EXTRACTABLE_PDF_ERROR = 'Этот PDF пока нельзя проиндексировать автоматически';
 const NON_EXTRACTABLE_PDF_REASON = 'Этот PDF нельзя нормально прочитать (скан или сложная кодировка)';
@@ -47,34 +48,28 @@ function sanitizeText(value = '', max = 400) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-function assertGasConfig() {
-  if (!GAS_WEBAPP_URL) throw new Error('GAS_WEBAPP_URL is not set');
-  if (!GAS_SECRET) throw new Error('GAS_SECRET is not set');
+function sanitizeManualId(manualId) {
+  return encodeURIComponent(String(manualId || '').trim() || 'manual');
 }
 
-async function gasIndexPost(payload) {
-  assertGasConfig();
+function manualIndexPath(manualId) {
+  return path.join(MANUAL_INDEX_DIR, `${sanitizeManualId(manualId)}.json`);
+}
 
-  const response = await fetch(GAS_WEBAPP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      secret: GAS_SECRET,
-      ...payload,
-    }),
-  });
-
-  const text = await response.text();
-  let json;
-
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`GAS returned non-JSON: ${text.slice(0, 200)}`);
-  }
-
-  if (!json.ok) throw new Error(json.error || 'GAS error');
-  return json;
+function buildEmptyIndexState(manualId = '', error = null) {
+  return {
+    status: 'not_indexed',
+    manualId: manualId || null,
+    updatedAt: null,
+    chunksCount: 0,
+    pagesCount: 0,
+    sampleTextPreview: '',
+    extractionMethod: null,
+    qualityScore: null,
+    chunks: [],
+    pages: [],
+    error: error || null,
+  };
 }
 
 function cacheManualIndex(manualId, index, metadata = null) {
@@ -1354,56 +1349,94 @@ function buildIndexDiagnostics({ pages, chunks, quality, extractor }) {
 }
 
 export async function ensureIndexDir() {
-  return true;
+  try {
+    await fs.mkdir(MANUAL_INDEX_DIR, { recursive: true });
+    return MANUAL_INDEX_DIR;
+  } catch (error) {
+    console.error('[manuals-ai] failed to ensure index dir', { dir: MANUAL_INDEX_DIR, error: error?.message || error });
+    throw error;
+  }
 }
 
 export async function loadManualIndex(manualId) {
-  const cached = getCachedManualIndex(manualId);
-  if (cached) return cached.index;
+  const safeManualId = String(manualId || '');
 
-  const out = await gasIndexPost({ action: 'indexGet', manualId });
-  return cacheManualIndex(manualId, out.index || null, out.metadata || null);
+  try {
+    const cached = getCachedManualIndex(safeManualId);
+    if (cached?.index) {
+      console.log('[manuals-ai] index loaded from cache', { manualId: safeManualId, status: cached.index.status, chunksCount: Array.isArray(cached.index.chunks) ? cached.index.chunks.length : 0 });
+      return cached.index;
+    }
+
+    await ensureIndexDir();
+    const filePath = manualIndexPath(safeManualId);
+    const raw = await fs.readFile(filePath, 'utf8');
+    const index = JSON.parse(raw);
+    console.log('[manuals-ai] index loaded', { manualId: safeManualId, filePath, status: index?.status || 'unknown', chunksCount: Array.isArray(index?.chunks) ? index.chunks.length : 0 });
+    return cacheManualIndex(safeManualId, index || buildEmptyIndexState(safeManualId));
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      console.warn('[manuals-ai] index missing', { manualId: safeManualId, filePath: manualIndexPath(safeManualId) });
+      const empty = buildEmptyIndexState(safeManualId);
+      cacheManualIndex(safeManualId, empty);
+      return empty;
+    }
+
+    console.error('[manuals-ai] index load failed', { manualId: safeManualId, error: error?.message || error });
+    const empty = buildEmptyIndexState(safeManualId, sanitizeText(error?.message || 'index_load_failed', 240));
+    cacheManualIndex(safeManualId, empty);
+    return empty;
+  }
 }
 
 async function saveManualIndex(index) {
-  const out = await gasIndexPost({
-    action: 'indexSave',
-    manualId: index.manualId,
-    index,
-  });
-  return cacheManualIndex(index.manualId, index, out.metadata || null);
+  await ensureIndexDir();
+  const filePath = manualIndexPath(index.manualId);
+  await fs.writeFile(filePath, JSON.stringify(index, null, 2), 'utf8');
+  console.log('[manuals-ai] index created', { manualId: index.manualId, filePath, status: index.status, chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0 });
+  return cacheManualIndex(index.manualId, index);
 }
 
 export async function removeManualIndex(manualId) {
-  await gasIndexPost({ action: 'indexDelete', manualId });
-  clearCachedManualIndex(manualId);
+  try {
+    await ensureIndexDir();
+    await fs.unlink(manualIndexPath(manualId));
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.error('[manuals-ai] index delete failed', { manualId, error: error?.message || error });
+      throw error;
+    }
+  } finally {
+    clearCachedManualIndex(manualId);
+  }
 }
 
 export async function getIndexStatus(manual) {
-  const index = await loadManualIndex(manual.id);
-  if (!index) {
-    return {
-      status: 'not_indexed',
-      updatedAt: null,
-      chunksCount: 0,
-      pagesCount: 0,
-      sampleTextPreview: '',
-      error: null,
-    };
-  }
+  try {
+    if (!manual?.id) return buildEmptyIndexState();
 
-  const isFresh = index.sourceSignature && index.sourceSignature === buildManualSignature(manual);
-  const status = index.status === 'failed' ? 'failed' : isFresh ? 'indexed' : 'not_indexed';
-  return {
-    status,
-    updatedAt: index.updatedAt || null,
-    chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
-    pagesCount: index.pagesCount || (Array.isArray(index.pages) ? index.pages.length : 0),
-    sampleTextPreview: sanitizeText(index.sampleTextPreview || index.diagnostics?.sampleTextPreview || '', 240),
-    extractionMethod: index.extractionMethod || index.extractor || index.diagnostics?.extractionMethod || null,
-    qualityScore: index.qualityScore ?? index.diagnostics?.qualityScore ?? null,
-    error: index.error || null,
-  };
+    const index = await loadManualIndex(manual.id);
+    if (!index || index.status === 'not_indexed') {
+      return buildEmptyIndexState(manual.id, index?.error || null);
+    }
+
+    const isFresh = index.sourceSignature && index.sourceSignature === buildManualSignature(manual);
+    const status = index.status === 'failed' ? 'failed' : isFresh ? 'indexed' : 'not_indexed';
+    return {
+      status,
+      manualId: manual.id,
+      updatedAt: index.updatedAt || null,
+      chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+      pagesCount: index.pagesCount || (Array.isArray(index.pages) ? index.pages.length : 0),
+      sampleTextPreview: sanitizeText(index.sampleTextPreview || index.diagnostics?.sampleTextPreview || '', 240),
+      extractionMethod: index.extractionMethod || index.extractor || index.diagnostics?.extractionMethod || null,
+      qualityScore: index.qualityScore ?? index.diagnostics?.qualityScore ?? null,
+      error: index.error || null,
+    };
+  } catch (error) {
+    console.error('[manuals-ai] index status failed', { manualId: manual?.id || null, error: error?.message || error });
+    return buildEmptyIndexState(manual?.id, sanitizeText(error?.message || 'index_status_failed', 240));
+  }
 }
 
 function buildIndexDocument(manual, pageEntries, extractionSummary) {
@@ -1501,6 +1534,21 @@ export async function createManualIndex({ manual, pdfBuffer }) {
   const candidates = [];
 
   try {
+    await ensureIndexDir();
+
+    if (!manual?.id) {
+      const failed = buildFailedIndex(manual || {}, 'manual_not_found');
+      console.error('[manuals-ai] index failed', { manualId: manual?.id || null, error: failed.error });
+      return failed;
+    }
+
+    if (!pdfBuffer?.length) {
+      const failed = buildFailedIndex(manual, 'manual_pdf_missing');
+      await saveManualIndex(failed);
+      console.error('[manuals-ai] index failed', { manualId: manual.id, error: failed.error });
+      return failed;
+    }
+
     try {
       const pdfJsResult = await extractWithPdfJS(pdfBuffer);
       if (pdfJsResult) {
@@ -1544,24 +1592,21 @@ export async function createManualIndex({ manual, pdfBuffer }) {
       });
       const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), diagnostics);
       await saveManualIndex(failed);
-      const error = new Error(failed.error);
-      error.code = 'non_extractable_pdf';
-      throw error;
+      console.error('[manuals-ai] index failed', { manualId: manual.id, error: failed.error, reason: 'non_extractable_pdf' });
+      return failed;
     }
 
     const index = buildIndexDocument(manual, best.pages, best);
     if (!index.chunks.length || !index.sampleTextPreview || !isMeaningfulQuality(best.quality, { pageEntries: best.pages, meta: best.meta })) {
       const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), index.diagnostics);
       await saveManualIndex(failed);
-      const error = new Error(failed.error);
-      error.code = 'non_extractable_pdf';
-      throw error;
+      console.error('[manuals-ai] index failed', { manualId: manual.id, error: failed.error, reason: 'content_validation_failed' });
+      return failed;
     }
 
     await saveManualIndex(index);
     return index;
   } catch (error) {
-    if (error.code === 'non_extractable_pdf') throw error;
     const best = selectBestExtraction(candidates);
     const diagnostics = best ? buildIndexDiagnostics({
       pages: best.pages,
@@ -1569,9 +1614,16 @@ export async function createManualIndex({ manual, pdfBuffer }) {
       quality: best.quality,
       extractor: best.extractor,
     }) : null;
-    const failed = buildFailedIndex(manual, error.message || 'index_failed', diagnostics);
-    await saveManualIndex(failed);
-    throw error;
+    const failed = buildFailedIndex(manual || {}, error?.message || 'index_failed', diagnostics);
+
+    try {
+      await saveManualIndex(failed);
+    } catch (saveError) {
+      console.error('[manuals-ai] failed to persist failed index', { manualId: manual?.id || null, error: saveError?.message || saveError });
+    }
+
+    console.error('[manuals-ai] index failed', { manualId: manual?.id || null, error: error?.message || error });
+    return failed;
   }
 }
 

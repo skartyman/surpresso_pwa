@@ -9,6 +9,7 @@ import {
   answerWithGemini,
   buildSources,
   createManualIndex,
+  ensureIndexDir,
   getIndexStatus,
   loadManualIndex,
   removeManualIndex,
@@ -22,6 +23,8 @@ import {
 // =======================
 const app = express();
 const __dirname = path.resolve();
+
+await ensureIndexDir();
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname)));
@@ -1879,6 +1882,7 @@ async function ensureFreshManualIndex(manual) {
     return loadManualIndex(manual.id);
   }
 
+  console.log('[manuals] auto-index trigger', { manualId: manual?.id || null, previousStatus: status.status });
   const pdfBuffer = await fetchManualPdfBuffer(manual);
   return createManualIndex({ manual, pdfBuffer });
 }
@@ -2008,24 +2012,17 @@ app.post("/api/manuals", async (req, res) => {
     });
 
     const item = out.item || {};
-    let indexStatus = { status: "not_indexed", updatedAt: null, chunksCount: 0, pagesCount: 0, sampleTextPreview: "", extractionMethod: null, qualityScore: null, error: null };
-
-    try {
-      const index = await createManualIndex({ manual: item, pdfBuffer: buffer });
-      indexStatus = {
-        status: index.status,
-        updatedAt: index.updatedAt,
-        chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
-        pagesCount: index.pagesCount || 0,
-        sampleTextPreview: index.sampleTextPreview || "",
-        extractionMethod: index.extractionMethod || index.extractor || null,
-        qualityScore: index.qualityScore ?? null,
-        error: index.error || null,
-      };
-    } catch (indexError) {
-      console.error("MANUALS AUTO INDEX ERROR", indexError);
-      indexStatus = await getIndexStatus(item);
-    }
+    const index = await createManualIndex({ manual: item, pdfBuffer: buffer });
+    const indexStatus = {
+      status: index.status || "not_indexed",
+      updatedAt: index.updatedAt || null,
+      chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+      pagesCount: index.pagesCount || 0,
+      sampleTextPreview: index.sampleTextPreview || "",
+      extractionMethod: index.extractionMethod || index.extractor || null,
+      qualityScore: index.qualityScore ?? null,
+      error: index.error || null,
+    };
 
     res.send({ ok: true, item: manualPublicMeta(item), indexStatus });
   } catch (err) {
@@ -2147,13 +2144,14 @@ app.post("/api/manuals/:id/index", async (req, res) => {
     const index = await createManualIndex({ manual, pdfBuffer });
     res.send({
       ok: true,
-      status: index.status,
-      updatedAt: index.updatedAt,
+      status: index.status || "not_indexed",
+      updatedAt: index.updatedAt || null,
       chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
       pagesCount: index.pagesCount || 0,
       sampleTextPreview: index.sampleTextPreview || "",
       extractionMethod: index.extractionMethod || index.extractor || null,
       qualityScore: index.qualityScore ?? null,
+      error: index.error || null,
     });
   } catch (err) {
     console.error("MANUALS INDEX ERROR", err);

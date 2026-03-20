@@ -145,8 +145,8 @@ function renderManualList() {
     const indexBadge = indexStatus?.status === 'indexed'
       ? `<span class="manual-item__badge success">AI ready</span>`
       : indexStatus?.status === 'failed'
-        ? `<span class="manual-item__badge danger">AI error</span>`
-        : `<span class="manual-item__badge">No index</span>`;
+        ? `<span class="manual-item__badge danger">Ошибка индекса</span>`
+        : `<span class="manual-item__badge">Нет индекса</span>`;
 
     return `
       <button class="manual-item${active}" type="button" data-manual-id="${manual.id}">
@@ -205,8 +205,9 @@ function renderAiStatus(manual = null) {
 function showManual(manual) {
   const title = document.getElementById('manual-viewer-title');
   const meta = document.getElementById('manual-viewer-meta');
-  const frame = document.getElementById('manual-viewer-frame');
-  const empty = document.getElementById('manual-viewer-empty');
+  const placeholder = document.getElementById('manual-viewer-placeholder');
+  const placeholderText = document.getElementById('manual-viewer-placeholder-text');
+  const placeholderHint = document.getElementById('manual-viewer-placeholder-hint');
   const openBtn = document.getElementById('manual-open-tab');
   const deleteBtn = document.getElementById('manual-delete-btn');
 
@@ -216,9 +217,10 @@ function showManual(manual) {
 
   if (!manual) {
     if (title) title.textContent = 'Выберите мануал';
-    if (meta) meta.textContent = 'PDF откроется здесь без скачивания.';
-    if (frame) frame.removeAttribute('src');
-    if (empty) empty.style.display = 'flex';
+    if (meta) meta.textContent = 'Откройте PDF через кнопку ниже — Google Drive iframe больше не используется.';
+    if (placeholder) placeholder.style.display = 'flex';
+    if (placeholderText) placeholderText.textContent = 'Выберите документ из списка или загрузите новый PDF.';
+    if (placeholderHint) placeholderHint.textContent = 'Для просмотра документ откроется в новой вкладке через серверный endpoint.';
     if (openBtn) {
       openBtn.disabled = true;
       openBtn.onclick = null;
@@ -232,9 +234,10 @@ function showManual(manual) {
   }
 
   if (title) title.textContent = manual.title || manual.originalName || 'Без названия';
-  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • предпросмотр Google Drive`;
-  if (frame) frame.src = `/api/manuals/${encodeURIComponent(manual.id)}/preview`;
-  if (empty) empty.style.display = 'none';
+  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • открыть PDF через сервер`;
+  if (placeholder) placeholder.style.display = 'flex';
+  if (placeholderText) placeholderText.textContent = 'Предпросмотр через iframe отключён из-за CSP Google Drive.';
+  if (placeholderHint) placeholderHint.textContent = 'Нажмите «Открыть отдельно», чтобы открыть PDF через /api/manuals/:id/file в новой вкладке.';
   if (openBtn) {
     openBtn.disabled = false;
     openBtn.onclick = () => window.open(`/api/manuals/${encodeURIComponent(manual.id)}/file`, '_blank', 'noopener,noreferrer');
@@ -268,21 +271,32 @@ function applyManualFilter() {
 
 async function refreshIndexStatusForManual(id) {
   if (!id) return null;
-  const resp = await fetch(`/api/manuals/${encodeURIComponent(id)}/index-status`);
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok || !data.ok) {
+
+  try {
+    const resp = await fetch(`/api/manuals/${encodeURIComponent(id)}/index-status`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      manualsState.aiStatusById[id] = {
+        status: 'not_indexed',
+        updatedAt: null,
+        chunksCount: 0,
+        error: data.message || data.error || null,
+      };
+    } else {
+      manualsState.aiStatusById[id] = {
+        status: data.status || 'not_indexed',
+        updatedAt: data.updatedAt || null,
+        chunksCount: data.chunksCount || 0,
+        error: data.error || null,
+      };
+    }
+  } catch (err) {
+    console.error('manual index status failed', err);
     manualsState.aiStatusById[id] = {
       status: 'not_indexed',
       updatedAt: null,
       chunksCount: 0,
-      error: data.message || data.error || null,
-    };
-  } else {
-    manualsState.aiStatusById[id] = {
-      status: data.status,
-      updatedAt: data.updatedAt,
-      chunksCount: data.chunksCount,
-      error: data.error || null,
+      error: err?.message || null,
     };
   }
 
@@ -407,14 +421,16 @@ async function indexCurrentManual() {
       throw new Error(data.message || data.error || `index_failed_${resp.status}`);
     }
     manualsState.aiStatusById[manual.id] = {
-      status: data.status,
-      updatedAt: data.updatedAt,
-      chunksCount: data.chunksCount,
-      error: null,
+      status: data.status || 'not_indexed',
+      updatedAt: data.updatedAt || null,
+      chunksCount: data.chunksCount || 0,
+      error: data.error || null,
     };
     renderAiStatus(manual);
     renderManualList();
-    setAiFeedback('Индекс готов. Теперь можно задавать вопросы по мануалу.', 'success');
+    setAiFeedback(data.status === 'indexed'
+      ? 'Индекс готов. Теперь можно задавать вопросы по мануалу.'
+      : data.error || 'Индексация завершилась без готового индекса.', data.status === 'indexed' ? 'success' : 'warning');
   } catch (err) {
     console.error(err);
     await refreshIndexStatusForManual(manual.id);
