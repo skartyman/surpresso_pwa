@@ -41,6 +41,38 @@ function setAiFeedback(message = '', type = 'info') {
   el.dataset.state = type;
 }
 
+function countQuestionIntents(value = '') {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[;]+/g, '.')
+    .trim();
+
+  if (!normalized) return 0;
+
+  let count = (normalized.match(/\?/g) || []).length;
+  count += (normalized.match(/(?:^|[.!]\s+)(?:\d+[.)]\s+|[-•]\s+)/g) || []).length;
+
+  const lines = String(value || '')
+    .split(/\n+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (lines.length > 1) count = Math.max(count, lines.length);
+
+  const parts = normalized
+    .split(/[!?]+|\.(?=\s+[A-ZА-ЯЁІЇЄ])/u)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (parts.length > 1 && (normalized.includes('?') || normalized.includes(';'))) {
+    count = Math.max(count, parts.length);
+  }
+
+  return Math.max(count, 1);
+}
+
+function hasMultipleQuestionIntents(value = '') {
+  return countQuestionIntents(value) > 1;
+}
+
 function setAiBusy(isBusy) {
   manualsState.aiBusy = Boolean(isBusy);
   const askBtn = document.getElementById('manual-ai-ask-btn');
@@ -402,6 +434,11 @@ async function askManualAssistant() {
     return;
   }
 
+  if (hasMultipleQuestionIntents(question)) {
+    setAiFeedback('Один запрос — один вопрос. Разделите несколько вопросов на отдельные сообщения.', 'warning');
+    return;
+  }
+
   if (manualsState.aiMode === 'current' && !manual) {
     setAiFeedback('Выберите мануал или переключитесь на режим “Все мануалы”.', 'warning');
     return;
@@ -423,7 +460,7 @@ async function askManualAssistant() {
 
   setAiBusy(true);
   renderAiAnswer('', []);
-  setAiFeedback('Подбираю релевантные фрагменты и формирую grounded-ответ…', 'loading');
+  setAiFeedback('Подбираю релевантные фрагменты и формирую ответ только по одному вопросу…', 'loading');
 
   try {
     const url = manualsState.aiMode === 'current'
