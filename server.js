@@ -2178,8 +2178,8 @@ app.post("/api/manuals/:id/ask", async (req, res) => {
 
 app.delete("/api/manuals/:id", async (req, res) => {
   try {
-    await gasPost({ action: "manualDelete", id: req.params.id });
     await removeManualIndex(req.params.id);
+    await gasPost({ action: "manualDelete", id: req.params.id });
     res.send({ ok: true, id: req.params.id });
   } catch (err) {
     console.error("MANUALS DELETE ERROR", err);
@@ -2316,7 +2316,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 
 
 
