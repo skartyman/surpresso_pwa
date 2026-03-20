@@ -1,10 +1,11 @@
+import path from 'path';
+import fs from 'fs/promises';
 import zlib from 'zlib';
 import { createRequire } from 'module';
 
+const INDEX_DIR = path.join(path.resolve(), 'data', 'manual-index');
 const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GAS_WEBAPP_URL = process.env.GAS_WEBAPP_URL || '';
-const GAS_SECRET = process.env.GAS_SECRET || '';
 const MANUAL_INDEX_FORMAT_VERSION = '2026-03-20-pdf-quality-v2';
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
 const NON_EXTRACTABLE_PDF_ERROR = 'Этот PDF пока нельзя проиндексировать автоматически';
@@ -41,56 +42,9 @@ const TECHNICAL_TERM_SET = new Set(TECHNICAL_TERMS.map(term => normalizeText(ter
 const require = createRequire(import.meta.url);
 let cachedPdfParse = undefined;
 let cachedPdfJs = undefined;
-const manualIndexCache = new Map();
 
 function sanitizeText(value = '', max = 400) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
-}
-
-function assertGasConfig() {
-  if (!GAS_WEBAPP_URL) throw new Error('GAS_WEBAPP_URL is not set');
-  if (!GAS_SECRET) throw new Error('GAS_SECRET is not set');
-}
-
-async function gasIndexPost(payload) {
-  assertGasConfig();
-
-  const response = await fetch(GAS_WEBAPP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      secret: GAS_SECRET,
-      ...payload,
-    }),
-  });
-
-  const text = await response.text();
-  let json;
-
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`GAS returned non-JSON: ${text.slice(0, 200)}`);
-  }
-
-  if (!json.ok) throw new Error(json.error || 'GAS error');
-  return json;
-}
-
-function cacheManualIndex(manualId, index, metadata = null) {
-  manualIndexCache.set(String(manualId || ''), {
-    index: index || null,
-    metadata: metadata || null,
-  });
-  return index || null;
-}
-
-function getCachedManualIndex(manualId) {
-  return manualIndexCache.get(String(manualId || '')) || null;
-}
-
-function clearCachedManualIndex(manualId) {
-  manualIndexCache.delete(String(manualId || ''));
 }
 
 async function loadPdfJs() {
@@ -1354,29 +1308,33 @@ function buildIndexDiagnostics({ pages, chunks, quality, extractor }) {
 }
 
 export async function ensureIndexDir() {
-  return true;
+  await fs.mkdir(INDEX_DIR, { recursive: true });
+}
+
+function manualIndexPath(manualId) {
+  return path.join(INDEX_DIR, `${manualId}.json`);
 }
 
 export async function loadManualIndex(manualId) {
-  const cached = getCachedManualIndex(manualId);
-  if (cached) return cached.index;
-
-  const out = await gasIndexPost({ action: 'indexGet', manualId });
-  return cacheManualIndex(manualId, out.index || null, out.metadata || null);
+  try {
+    const raw = await fs.readFile(manualIndexPath(manualId), 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 async function saveManualIndex(index) {
-  const out = await gasIndexPost({
-    action: 'indexSave',
-    manualId: index.manualId,
-    index,
-  });
-  return cacheManualIndex(index.manualId, index, out.metadata || null);
+  await ensureIndexDir();
+  await fs.writeFile(manualIndexPath(index.manualId), JSON.stringify(index, null, 2), 'utf8');
 }
 
 export async function removeManualIndex(manualId) {
-  await gasIndexPost({ action: 'indexDelete', manualId });
-  clearCachedManualIndex(manualId);
+  try {
+    await fs.unlink(manualIndexPath(manualId));
+  } catch {
+    // ignore missing files
+  }
 }
 
 export async function getIndexStatus(manual) {
