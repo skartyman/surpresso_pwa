@@ -1872,6 +1872,16 @@ async function fetchManualPdfBuffer(manual) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+function sendManualPdfInline(res, manual, buffer, { cacheControl = "private, max-age=300" } = {}) {
+  const fileName = String(manual?.originalName || manual?.fileName || `${manual?.id || 'manual'}.pdf`)
+    .replace(/["\r\n]+/g, "_");
+  res.setHeader("Content-Type", manual?.mimeType || "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", cacheControl);
+  res.send(buffer);
+}
+
 function sendManualsApiError(res, err, fallback = "manuals_failed") {
   const code = String(err?.code || "");
   const message = String(err?.message || "");
@@ -2113,13 +2123,25 @@ app.post("/api/manuals/reindex", async (req, res) => {
   }
 });
 
+app.get("/api/manuals/:id/preview", async (req, res) => {
+  try {
+    const manual = await fetchManualById(req.params.id);
+    const buffer = await fetchManualPdfBuffer(manual);
+    sendManualPdfInline(res, manual, buffer, { cacheControl: "no-store" });
+  } catch (err) {
+    console.error("MANUALS PREVIEW ERROR", err);
+    if (String(err?.message || "").includes("manual_not_found") || String(err?.code || "") === "manual_not_found") {
+      return res.status(404).send("manual_not_found");
+    }
+    res.status(500).send("manual_preview_failed");
+  }
+});
+
 app.get("/api/manuals/:id/file", async (req, res) => {
   try {
     const manual = await fetchManualById(req.params.id);
     const buffer = await fetchManualPdfBuffer(manual);
-    res.setHeader("Content-Type", manual.mimeType || "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${manual.originalName || manual.fileName || `${manual.id}.pdf`}"`);
-    res.send(buffer);
+    sendManualPdfInline(res, manual, buffer);
   } catch (err) {
     console.error("MANUALS FILE ERROR", err);
     if (String(err?.message || "").includes("manual_not_found") || String(err?.code || "") === "manual_not_found") {
