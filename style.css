@@ -1710,7 +1710,12 @@ textarea,
   width: 100%;
   min-height: 70vh;
   border: 0;
-  background: transparent;
+  display: block;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.manual-viewer-frame[hidden] {
+  display: none;
 }
 
 .manual-viewer-empty {
