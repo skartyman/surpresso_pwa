@@ -146,6 +146,7 @@ function doPost(e) {
     if (action === "search")  return json_(searchEquipment_(data.query, data.limit));
     if (action === "status")  return json_(setStatus_(data.id, data.newStatus, data.comment || "", data.actor || "", data.location || ""));
     if (action === "photo")   return json_(addPhoto_(data.id, data.base64, data.caption || ""));
+    if (action === "deletePhoto") return json_(deletePhoto_(data.id, data.fileId));
     if (action === "pdf")     return json_(generatePassportPdfA4_(data.id));
     if (action === "specs")  return json_(setSpecs_(data.id, data.specs || ""));
     if (action === "statuses"){
@@ -829,6 +830,42 @@ function deleteManual_(id) {
 
   found.sheet.deleteRow(found.row);
   return { ok: true, id: String(id || "").trim() };
+}
+
+function deletePhoto_(id, fileId) {
+  const equipId = String(id || "").trim();
+  const targetFileId = String(fileId || "").trim();
+  if (!equipId) return { ok: false, error: "No id" };
+  if (!targetFileId) return { ok: false, error: "No fileId" };
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sh = getSheetAny_(ss, SH_PHOTOS);
+  const data = sh.getDataRange().getValues();
+  const head = data.shift();
+
+  const idxId = head.indexOf("equipmentId");
+  const idxFile = head.indexOf("fileId");
+  if (idxId < 0 || idxFile < 0) return { ok: false, error: "PHOTOS_COLUMNS_MISSING" };
+
+  const key = normKey_(equipId);
+  let rowToDelete = -1;
+
+  for (let i = data.length - 1; i >= 0; i--) {
+    const row = data[i];
+    if (normKey_(row[idxId]) === key && String(row[idxFile] || "").trim() === targetFileId) {
+      rowToDelete = i + 2;
+      break;
+    }
+  }
+
+  if (rowToDelete < 2) return { ok: false, error: "photo_not_found" };
+
+  try {
+    DriveApp.getFileById(targetFileId).setTrashed(true);
+  } catch (e) {}
+
+  sh.deleteRow(rowToDelete);
+  return { ok: true, id: equipId, fileId: targetFileId };
 }
 
 function getPhotosById_(id) {

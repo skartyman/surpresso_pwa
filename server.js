@@ -1229,6 +1229,25 @@ app.post("/api/equip/:id/photo", requirePwaKey, async (req, res) => {
   }
 });
 
+
+app.post("/api/equip/:id/photo/delete", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const fileId = String(req.body?.fileId || "").trim();
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!fileId) return res.status(400).send({ ok: false, error: "no_fileId" });
+
+    const out = await gasPost({ action: "deletePhoto", id, fileId });
+    if (!out?.ok) {
+      return res.status(400).send({ ok: false, error: out?.error || "delete_failed" });
+    }
+
+    res.send({ ok: true, fileId });
+  } catch (e) {
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
 app.post("/api/equip/:id/invoice", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
