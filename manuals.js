@@ -206,8 +206,10 @@ function renderAiStatus(manual = null) {
 
 function buildManualPreviewUrl(manual, { forceReload = false } = {}) {
   if (!manual?.id) return '';
-  const previewUrl = `/api/manuals/${encodeURIComponent(manual.id)}/preview`;
-  return forceReload ? `${previewUrl}?t=${Date.now()}` : previewUrl;
+  const viewerUrl = new URL('/manual-pdf-viewer.html', window.location.origin);
+  viewerUrl.searchParams.set('manualId', manual.id);
+  if (forceReload) viewerUrl.searchParams.set('t', String(Date.now()));
+  return `${viewerUrl.pathname}${viewerUrl.search}`;
 }
 
 function setManualViewerState({
