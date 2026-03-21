@@ -15,6 +15,7 @@ let resizeTimer = null;
 function setStatus(message, { error = false } = {}) {
   if (!statusEl) return;
   statusEl.classList.toggle('error', error);
+  statusEl.hidden = !message || !error;
   statusEl.innerHTML = `<strong>${error ? 'Ошибка preview' : 'Предпросмотр PDF'}</strong> ${message}`;
 }
 
@@ -69,7 +70,7 @@ async function renderPage(pageNumber, width) {
 async function renderDocument() {
   if (!pdfDoc || !pagesEl) return;
   const currentToken = ++renderToken;
-  setStatus(`Страниц: ${pdfDoc.numPages}. Рендерим документ внутри приложения.`);
+  setStatus('');
   pagesEl.hidden = false;
   if (emptyEl) emptyEl.hidden = true;
   pagesEl.replaceChildren();
@@ -81,10 +82,6 @@ async function renderDocument() {
     const pageNode = await renderPage(pageNumber, availableWidth);
     if (currentToken !== renderToken) return;
     pagesEl.append(pageNode);
-  }
-
-  if (currentToken === renderToken) {
-    setStatus(`Страниц: ${pdfDoc.numPages}. Локальный viewer загружен без встроенных кнопок Google Drive.`);
   }
 }
 

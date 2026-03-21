@@ -51,6 +51,10 @@
       color: var(--muted);
     }
 
+    .status[hidden] {
+      display: none;
+    }
+
     .status strong {
       color: var(--text);
       font-weight: 600;
@@ -116,7 +120,7 @@
 </head>
 <body>
   <main class="viewer">
-    <div id="status" class="status"><strong>Загрузка PDF…</strong> Подготавливаем предпросмотр без внешних контролов.</div>
+    <div id="status" class="status" hidden></div>
     <div id="pages" class="pages" hidden></div>
     <div id="empty" class="empty" hidden>Не удалось определить документ для предпросмотра.</div>
   </main>
