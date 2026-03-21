@@ -204,15 +204,10 @@ function renderAiStatus(manual = null) {
 }
 
 
-function buildManualPreviewUrl(manual) {
-  const fileId = String(manual?.fileId || '').trim();
-  if (fileId) return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;
-  const driveUrl = String(manual?.driveUrl || manual?.fileUrl || '').trim();
-  if (!driveUrl) return '';
-  const matchedId = driveUrl.match(/(?:\/d\/|[?&]id=)([^&#/]+)/i);
-  return matchedId?.[1]
-    ? `https://drive.google.com/file/d/${encodeURIComponent(matchedId[1])}/preview`
-    : driveUrl;
+function buildManualPreviewUrl(manual, { forceReload = false } = {}) {
+  if (!manual?.id) return '';
+  const previewUrl = `/api/manuals/${encodeURIComponent(manual.id)}/preview`;
+  return forceReload ? `${previewUrl}?t=${Date.now()}` : previewUrl;
 }
 
 function setManualViewerState({
@@ -237,12 +232,12 @@ async function loadManualPreview(manual, { forceReload = false } = {}) {
   const frame = document.getElementById('manual-viewer-frame');
   if (!frame) return;
 
-  const previewUrl = buildManualPreviewUrl(manual);
+  const previewUrl = buildManualPreviewUrl(manual, { forceReload });
   if (!previewUrl) {
     setManualViewerState({
       showFrame: false,
-      placeholderText: 'У этого мануала нет ссылки для Google Drive preview.',
-      placeholderHint: 'Откройте PDF в новой вкладке или перепроверьте fileId в библиотеке Google Drive.',
+      placeholderText: 'Для этого мануала не удалось построить ссылку на встроенный preview.',
+      placeholderHint: 'Попробуйте открыть PDF в новой вкладке или проверьте, что у документа есть корректный id.',
     });
     return;
   }
@@ -255,7 +250,7 @@ async function loadManualPreview(manual, { forceReload = false } = {}) {
 
   manualsState.previewRequestToken = Date.now();
   frame.dataset.manualId = manual.id;
-  if (forceReload && currentSrc === previewUrl) {
+  if (forceReload) {
     frame.src = 'about:blank';
   }
   frame.src = previewUrl;
@@ -281,11 +276,11 @@ function showManual(manual) {
       frame.dataset.manualId = '';
     }
     if (title) title.textContent = 'Выберите мануал';
-    if (meta) meta.textContent = 'Встроенный PDF preview снова работает через Google Drive iframe.';
+    if (meta) meta.textContent = 'Встроенный PDF preview работает через серверный inline endpoint.';
     setManualViewerState({
       showFrame: false,
       placeholderText: 'Выберите документ из списка или загрузите новый PDF.',
-      placeholderHint: 'Для встроенного просмотра снова используется Google Drive iframe preview.',
+      placeholderHint: 'PDF открывается внутри iframe через серверный endpoint /api/manuals/:id/preview.',
     });
     if (previewBtn) {
       previewBtn.disabled = true;
@@ -304,11 +299,11 @@ function showManual(manual) {
   }
 
   if (title) title.textContent = manual.title || manual.originalName || 'Без названия';
-  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • Google Drive iframe preview`;
+  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • серверный inline PDF preview`;
   setManualViewerState({
     showFrame: false,
     placeholderText: 'Нажмите «Предпросмотр», чтобы загрузить PDF внутри приложения.',
-    placeholderHint: 'Встроенный просмотр снова использует Google Drive iframe preview.',
+    placeholderHint: 'Встроенный просмотр использует серверный endpoint, который отдает PDF как inline.',
   });
   if (previewBtn) {
     previewBtn.disabled = false;
@@ -316,7 +311,7 @@ function showManual(manual) {
   }
   if (openBtn) {
     openBtn.disabled = false;
-    openBtn.onclick = () => window.open(buildManualPreviewUrl(manual) || `/api/manuals/${encodeURIComponent(manual.id)}/file`, '_blank', 'noopener,noreferrer');
+    openBtn.onclick = () => window.open(`/api/manuals/${encodeURIComponent(manual.id)}/file`, '_blank', 'noopener,noreferrer');
   }
   if (deleteBtn) {
     deleteBtn.disabled = false;
