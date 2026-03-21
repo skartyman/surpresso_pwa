@@ -2094,22 +2094,6 @@ app.post("/api/manuals/reindex", async (req, res) => {
   }
 });
 
-app.get("/api/manuals/:id/preview", async (req, res) => {
-  try {
-    const manual = await fetchManualById(req.params.id);
-    if (!manual?.fileId) {
-      return res.status(404).send("manual_not_found");
-    }
-    res.redirect(`https://drive.google.com/file/d/${encodeURIComponent(manual.fileId)}/preview`);
-  } catch (err) {
-    console.error("MANUALS PREVIEW ERROR", err);
-    if (String(err?.message || "").includes("manual_not_found") || String(err?.code || "") === "manual_not_found") {
-      return res.status(404).send("manual_not_found");
-    }
-    res.status(500).send("manual_preview_failed");
-  }
-});
-
 app.get("/api/manuals/:id/file", async (req, res) => {
   try {
     const manual = await fetchManualById(req.params.id);

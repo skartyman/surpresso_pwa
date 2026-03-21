@@ -101,15 +101,17 @@
             <p id="manual-viewer-meta" class="manual-meta-line">Открывайте PDF через безопасный backend-endpoint без Google Drive iframe.</p>
           </div>
           <div class="page-actions-inline viewer-actions">
-            <button id="manual-open-tab" class="btn ghost" type="button" disabled>Открыть отдельно</button>
+            <button id="manual-preview-btn" class="btn ghost" type="button" disabled>Предпросмотр</button>
+            <button id="manual-open-tab" class="btn ghost" type="button" disabled>Открыть в новой вкладке</button>
             <button id="manual-delete-btn" class="btn ghost danger" type="button" disabled>Удалить</button>
           </div>
         </div>
         <div class="manual-viewer-frame-wrap">
+          <iframe id="manual-viewer-frame" class="manual-viewer-frame" title="Предпросмотр PDF мануала" hidden></iframe>
           <div id="manual-viewer-placeholder" class="manual-viewer-empty">
             <img src="icons/manuals.png" alt="Мануалы" />
             <p id="manual-viewer-placeholder-text">Выберите документ из списка или загрузите новый PDF.</p>
-            <p id="manual-viewer-placeholder-hint" class="manual-meta-line">Для просмотра документ откроется в новой вкладке через серверный endpoint.</p>
+            <p id="manual-viewer-placeholder-hint" class="manual-meta-line">Для встроенного просмотра PDF загружается через серверный endpoint и открывается внутри приложения.</p>
           </div>
         </div>
 

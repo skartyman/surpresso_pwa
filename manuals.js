@@ -5,6 +5,8 @@ const manualsState = {
   aiMode: 'current',
   aiStatusById: {},
   aiBusy: false,
+  previewObjectUrl: null,
+  previewRequestToken: 0,
 };
 
 function manualRouteId() {
@@ -202,25 +204,109 @@ function renderAiStatus(manual = null) {
   indexBtn.disabled = manualsState.aiBusy === true;
 }
 
+function revokeManualPreview() {
+  if (manualsState.previewObjectUrl) {
+    URL.revokeObjectURL(manualsState.previewObjectUrl);
+    manualsState.previewObjectUrl = null;
+  }
+}
+
+function setManualViewerState({
+  showFrame = false,
+  placeholderText = 'Выберите документ из списка или загрузите новый PDF.',
+  placeholderHint = 'Для встроенного просмотра PDF загружается через серверный endpoint и открывается внутри приложения.',
+} = {}) {
+  const frame = document.getElementById('manual-viewer-frame');
+  const placeholder = document.getElementById('manual-viewer-placeholder');
+  const placeholderTextEl = document.getElementById('manual-viewer-placeholder-text');
+  const placeholderHintEl = document.getElementById('manual-viewer-placeholder-hint');
+
+  if (frame) frame.hidden = !showFrame;
+  if (placeholder) placeholder.style.display = showFrame ? 'none' : 'flex';
+  if (placeholderTextEl) placeholderTextEl.textContent = placeholderText;
+  if (placeholderHintEl) placeholderHintEl.textContent = placeholderHint;
+}
+
+async function loadManualPreview(manual, { forceReload = false } = {}) {
+  if (!manual?.id) return;
+
+  const frame = document.getElementById('manual-viewer-frame');
+  if (!frame) return;
+
+  const currentSrc = frame.dataset.manualId === manual.id ? frame.src : '';
+  if (!forceReload && currentSrc) {
+    setManualViewerState({ showFrame: true });
+    return;
+  }
+
+  const token = Date.now();
+  manualsState.previewRequestToken = token;
+
+  revokeManualPreview();
+  frame.removeAttribute('src');
+  frame.dataset.manualId = '';
+  setManualViewerState({
+    showFrame: false,
+    placeholderText: 'Загружаем PDF для встроенного предпросмотра…',
+    placeholderHint: 'Файл запрашивается с /api/manuals/:id/file и открывается через blob URL без Google Drive iframe.',
+  });
+
+  try {
+    const resp = await fetch(`/api/manuals/${encodeURIComponent(manual.id)}/file`);
+    if (!resp.ok) throw new Error(`manual_preview_failed_${resp.status}`);
+
+    const blob = await resp.blob();
+    if (manualsState.previewRequestToken !== token || manualsState.activeId !== manual.id) return;
+
+    const objectUrl = URL.createObjectURL(blob);
+    manualsState.previewObjectUrl = objectUrl;
+    frame.src = objectUrl;
+    frame.dataset.manualId = manual.id;
+    setManualViewerState({ showFrame: true });
+  } catch (err) {
+    console.error('manual preview failed', err);
+    if (manualsState.previewRequestToken !== token || manualsState.activeId !== manual.id) return;
+    revokeManualPreview();
+    frame.removeAttribute('src');
+    frame.dataset.manualId = '';
+    setManualViewerState({
+      showFrame: false,
+      placeholderText: 'Не удалось загрузить встроенный предпросмотр PDF.',
+      placeholderHint: 'Попробуйте снова через кнопку «Предпросмотр» или откройте файл в новой вкладке через /api/manuals/:id/file.',
+    });
+  }
+}
+
 function showManual(manual) {
   const title = document.getElementById('manual-viewer-title');
   const meta = document.getElementById('manual-viewer-meta');
-  const placeholder = document.getElementById('manual-viewer-placeholder');
-  const placeholderText = document.getElementById('manual-viewer-placeholder-text');
-  const placeholderHint = document.getElementById('manual-viewer-placeholder-hint');
+  const previewBtn = document.getElementById('manual-preview-btn');
   const openBtn = document.getElementById('manual-open-tab');
   const deleteBtn = document.getElementById('manual-delete-btn');
+  const frame = document.getElementById('manual-viewer-frame');
 
   manualsState.activeId = manual?.id || null;
+  manualsState.previewRequestToken = Date.now();
   renderManualList();
   renderAiStatus(manual || null);
 
   if (!manual) {
+    revokeManualPreview();
+    if (frame) {
+      frame.removeAttribute('src');
+      frame.dataset.manualId = '';
+    }
     if (title) title.textContent = 'Выберите мануал';
-    if (meta) meta.textContent = 'Откройте PDF через кнопку ниже — Google Drive iframe больше не используется.';
-    if (placeholder) placeholder.style.display = 'flex';
-    if (placeholderText) placeholderText.textContent = 'Выберите документ из списка или загрузите новый PDF.';
-    if (placeholderHint) placeholderHint.textContent = 'Для просмотра документ откроется в новой вкладке через серверный endpoint.';
+    if (meta) meta.textContent = 'Встроенный PDF preview работает через blob URL и backend endpoint, без Google Drive iframe.';
+    setManualViewerState({
+      showFrame: false,
+      placeholderText: 'Выберите документ из списка или загрузите новый PDF.',
+      placeholderHint: 'Для встроенного просмотра PDF загружается через серверный endpoint и открывается внутри приложения.',
+    });
+    if (previewBtn) {
+      previewBtn.disabled = true;
+      previewBtn.onclick = null;
+    }
     if (openBtn) {
       openBtn.disabled = true;
       openBtn.onclick = null;
@@ -234,10 +320,16 @@ function showManual(manual) {
   }
 
   if (title) title.textContent = manual.title || manual.originalName || 'Без названия';
-  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • открыть PDF через сервер`;
-  if (placeholder) placeholder.style.display = 'flex';
-  if (placeholderText) placeholderText.textContent = 'Предпросмотр через iframe отключён из-за CSP Google Drive.';
-  if (placeholderHint) placeholderHint.textContent = 'Нажмите «Открыть отдельно», чтобы открыть PDF через /api/manuals/:id/file в новой вкладке.';
+  if (meta) meta.textContent = `${manual.brand || 'Без бренда'} • ${manual.model || 'Без модели'} • ${formatManualSize(manual.size)} • PDF через /api/manuals/${manual.id}/file`;
+  setManualViewerState({
+    showFrame: false,
+    placeholderText: 'Нажмите «Предпросмотр», чтобы загрузить PDF внутри приложения.',
+    placeholderHint: 'Встроенный просмотр использует blob URL поверх /api/manuals/:id/file и избегает CSP-ошибок Google Drive.',
+  });
+  if (previewBtn) {
+    previewBtn.disabled = false;
+    previewBtn.onclick = () => loadManualPreview(manual, { forceReload: true });
+  }
   if (openBtn) {
     openBtn.disabled = false;
     openBtn.onclick = () => window.open(`/api/manuals/${encodeURIComponent(manual.id)}/file`, '_blank', 'noopener,noreferrer');
@@ -248,6 +340,7 @@ function showManual(manual) {
   }
 
   syncManualRoute(manual.id);
+  loadManualPreview(manual);
 }
 
 function applyManualFilter() {
@@ -509,6 +602,10 @@ window.addEventListener('popstate', () => {
   const id = manualRouteId();
   const manual = manualsState.manuals.find(item => item.id === id) || null;
   showManual(manual);
+});
+
+window.addEventListener('beforeunload', () => {
+  revokeManualPreview();
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
