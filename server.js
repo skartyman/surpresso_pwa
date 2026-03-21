@@ -1878,6 +1878,8 @@ function sendManualPdfInline(res, manual, buffer, { cacheControl = "private, max
   res.setHeader("Content-Type", manual?.mimeType || "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
   res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'; sandbox allow-same-origin allow-scripts;");
   res.setHeader("Cache-Control", cacheControl);
   res.send(buffer);
 }
