@@ -1495,6 +1495,8 @@ body {
 .section-content {
   position: relative;
   z-index: 1;
+  color: #f9fafb;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .section-content h3 {
@@ -1514,6 +1516,7 @@ body {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
+  color: #f9fafb;
 }
 
 .accent-check {
@@ -1536,6 +1539,20 @@ body {
   width: 100%;
   text-align: left;
   cursor: pointer;
+}
+
+.theme-fab {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 120;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
 }
 
 
