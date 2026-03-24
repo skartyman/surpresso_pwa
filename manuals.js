@@ -145,6 +145,8 @@ function renderManualList() {
     const indexStatus = manualsState.aiStatusById[manual.id];
     const indexBadge = indexStatus?.status === 'indexed'
       ? `<span class="manual-item__badge success">AI ready</span>`
+      : indexStatus?.status === 'needs_ocr'
+        ? `<span class="manual-item__badge warning">Нужен OCR</span>`
       : indexStatus?.status === 'failed'
         ? `<span class="manual-item__badge danger">Ошибка индекса</span>`
         : `<span class="manual-item__badge">Нет индекса</span>`;
@@ -191,6 +193,9 @@ function renderAiStatus(manual = null) {
   if (!status || status.status === 'not_indexed') {
     statusEl.textContent = 'Индекс не готов';
     hintEl.textContent = 'Для grounded-ответов сначала проиндексируйте PDF. После загрузки индексация запускается автоматически, но ее можно повторить вручную.';
+  } else if (status.status === 'needs_ocr') {
+    statusEl.textContent = 'Нужен OCR';
+    hintEl.textContent = status.error || 'В PDF мало извлекаемого текста. Включите OCR для индексирования.';
   } else if (status.status === 'failed') {
     statusEl.textContent = 'Индексация не удалась';
     hintEl.textContent = status.error || 'Этот PDF пока нельзя проиндексировать автоматически.';
@@ -362,6 +367,7 @@ async function refreshIndexStatusForManual(id) {
         updatedAt: data.updatedAt || null,
         chunksCount: data.chunksCount || 0,
         error: data.error || null,
+        errorCode: data.errorCode || null,
       };
     }
   } catch (err) {
@@ -451,10 +457,12 @@ async function uploadManual() {
 
   const autoIndex = data.indexStatus?.status === 'indexed'
     ? ' AI-индекс готов.'
+    : data.indexStatus?.status === 'needs_ocr'
+      ? ' Для этого PDF нужен OCR: обнаружено слишком мало извлекаемого текста.'
     : data.indexStatus?.status === 'failed'
       ? ` AI-индексация не удалась: ${data.indexStatus?.error || 'попробуйте позже'}.`
       : '';
-  setManualStatus(`Мануал загружен.${autoIndex}`, data.indexStatus?.status === 'failed' ? 'warning' : 'success');
+  setManualStatus(`Мануал загружен.${autoIndex}`, data.indexStatus?.status === 'failed' || data.indexStatus?.status === 'needs_ocr' ? 'warning' : 'success');
   await loadManuals();
   const created = manualsState.manuals.find(item => item.id === data.item?.id) || manualsState.manuals[0];
   if (data.item?.id && data.indexStatus) {
@@ -499,12 +507,16 @@ async function indexCurrentManual() {
       updatedAt: data.updatedAt || null,
       chunksCount: data.chunksCount || 0,
       error: data.error || null,
+      errorCode: data.errorCode || null,
     };
     renderAiStatus(manual);
     renderManualList();
-    setAiFeedback(data.status === 'indexed'
+    const feedback = data.status === 'indexed'
       ? 'Индекс готов. Теперь можно задавать вопросы по мануалу.'
-      : data.error || 'Индексация завершилась без готового индекса.', data.status === 'indexed' ? 'success' : 'warning');
+      : data.status === 'needs_ocr'
+        ? (data.error || 'В PDF почти нет извлекаемого текста. Для этого файла нужен OCR.')
+        : data.error || 'Индексация завершилась без готового индекса.';
+    setAiFeedback(feedback, data.status === 'indexed' ? 'success' : 'warning');
   } catch (err) {
     console.error(err);
     await refreshIndexStatusForManual(manual.id);
@@ -543,6 +555,11 @@ async function askManualAssistant() {
     }
     if (status.status === 'failed') {
       setAiFeedback(status.error || 'Индекс недоступен для этого PDF.', 'error');
+      renderAiAnswer('', []);
+      return;
+    }
+    if (status.status === 'needs_ocr') {
+      setAiFeedback(status.error || 'Этот PDF требует OCR перед AI-поиском.', 'warning');
       renderAiAnswer('', []);
       return;
     }

@@ -10,6 +10,8 @@ const MANUAL_INDEX_DIR = path.join(process.cwd(), 'data', 'manual-index');
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
 const NON_EXTRACTABLE_PDF_ERROR = 'Этот PDF пока нельзя проиндексировать автоматически';
 const NON_EXTRACTABLE_PDF_REASON = 'Этот PDF нельзя нормально прочитать (скан или сложная кодировка)';
+const NEEDS_OCR_ERROR = 'PDF contains little or no extractable text';
+const NEEDS_OCR_CODE = 'needs_ocr';
 const FONT_METADATA_PATTERNS = [
   /\bmonotype\b/gi,
   /\barial(?:mt)?\b/gi,
@@ -69,6 +71,7 @@ function buildEmptyIndexState(manualId = '', error = null) {
     chunks: [],
     pages: [],
     error: error || null,
+    errorCode: null,
   };
 }
 
@@ -123,6 +126,11 @@ function tokenize(value = '') {
     .split(/\s+/)
     .map(token => token.trim())
     .filter(token => token.length >= 2)));
+}
+
+function countReadableWords(value = '') {
+  const words = String(value || '').match(/\b[\p{L}][\p{L}'’-]{2,}\b/gu) || [];
+  return words.length;
 }
 
 function hasCyrillic(value = '') {
@@ -1212,11 +1220,11 @@ function analyzeTextQuality(text = '') {
 
 function isMeaningfulQuality(quality, { pageEntries = [], meta = null } = {}) {
   if (!quality?.length) return false;
-  if (quality.length < 80) return false;
-  if (quality.wordsCount < 12) return false;
-  if (quality.uniqueTokens < 8) return false;
-  if (quality.alnumRatio < 0.4) return false;
-  if (quality.weirdRatio > 0.22) return false;
+  if (quality.length < 50) return false;
+  if (quality.wordsCount < 8) return false;
+  if (quality.uniqueTokens < 5) return false;
+  if (quality.alnumRatio < 0.32) return false;
+  if (quality.weirdRatio > 0.32) return false;
 
   const looksLikeUsefulTechnicalText = (
     quality.technicalHits >= 3
@@ -1224,17 +1232,17 @@ function isMeaningfulQuality(quality, { pageEntries = [], meta = null } = {}) {
     || (quality.digitsCount >= 12 && quality.uniqueTokens >= 16)
   );
 
-  if (quality.meaningfulWordsCount < 8 && !looksLikeUsefulTechnicalText) return false;
-  if (quality.normalWordsCount < 6 && !looksLikeUsefulTechnicalText) return false;
-  if (quality.meaningfulWordRatio < 0.38 && !(looksLikeUsefulTechnicalText && quality.meaningfulWordRatio >= 0.2)) return false;
-  if (quality.normalWordRatio < 0.2 && !(looksLikeUsefulTechnicalText && quality.normalWordRatio >= 0.12)) return false;
-  if (quality.shortWordRatio > 0.55 && !(looksLikeUsefulTechnicalText && quality.shortWordRatio <= 0.72)) return false;
-  if (quality.uppercaseWordRatio > 0.45 && quality.meaningfulWordsCount < 15 && !looksLikeUsefulTechnicalText) return false;
-  if (quality.repeatedSymbolRuns > 6) return false;
-  if (quality.mojibakeHits >= 5 && quality.mojibakeRatio > 0.02) return false;
-  if (quality.fontMetadataHits >= 6 && quality.fontMetadataRatio > 0.04 && !looksLikeUsefulTechnicalText) return false;
-  if (quality.fontMetadataHits >= Math.max(8, Math.floor(quality.wordsCount * 0.08)) && !looksLikeUsefulTechnicalText) return false;
-  if (quality.brokenWordSpacingHits >= 4 && quality.brokenWordSpacingRatio > 0.015) return false;
+  if (quality.meaningfulWordsCount < 5 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.normalWordsCount < 4 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.meaningfulWordRatio < 0.22 && !(looksLikeUsefulTechnicalText && quality.meaningfulWordRatio >= 0.1)) return false;
+  if (quality.normalWordRatio < 0.12 && !(looksLikeUsefulTechnicalText && quality.normalWordRatio >= 0.07)) return false;
+  if (quality.shortWordRatio > 0.7 && !(looksLikeUsefulTechnicalText && quality.shortWordRatio <= 0.85)) return false;
+  if (quality.uppercaseWordRatio > 0.72 && quality.meaningfulWordsCount < 12 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.repeatedSymbolRuns > 10) return false;
+  if (quality.mojibakeHits >= 8 && quality.mojibakeRatio > 0.04) return false;
+  if (quality.fontMetadataHits >= 12 && quality.fontMetadataRatio > 0.12 && !looksLikeUsefulTechnicalText) return false;
+  if (quality.fontMetadataHits >= Math.max(18, Math.floor(quality.wordsCount * 0.18)) && !looksLikeUsefulTechnicalText) return false;
+  if (quality.brokenWordSpacingHits >= 8 && quality.brokenWordSpacingRatio > 0.03) return false;
 
   const nonEmptyPages = (Array.isArray(pageEntries) ? pageEntries : []).filter(entry => sanitizeText(entry?.text || '', 2000)).length;
   const declaredPages = Number(meta?.numpages || meta?.numPages || 0);
@@ -1283,20 +1291,113 @@ function isGarbageLikeText(text = '', meta = null) {
   const quality = analyzeTextQuality(text);
   if (!quality.length) return true;
   if (!hasReadableLetters(quality.text)) return true;
-  if (quality.fontMetadataHits >= 4 && quality.fontMetadataRatio > 0.03) return true;
-  if (quality.mojibakeHits >= 5 && quality.mojibakeRatio > 0.02) return true;
-  if (quality.brokenWordSpacingHits >= 4 && quality.brokenWordSpacingRatio > 0.02) return true;
+  if (quality.fontMetadataHits >= 10 && quality.fontMetadataRatio > 0.2) return true;
+  if (quality.mojibakeHits >= 10 && quality.mojibakeRatio > 0.05) return true;
+  if (quality.brokenWordSpacingHits >= 10 && quality.brokenWordSpacingRatio > 0.08) return true;
   if (quality.normalWordsCount < 5 && quality.wordsCount < 20) return true;
   return !isMeaningfulQuality(quality, { meta });
 }
 
 function cleanPageEntries(pageEntries = [], meta = null) {
   return (Array.isArray(pageEntries) ? pageEntries : [])
-    .map(entry => ({
-      pageNumber: entry?.pageNumber ?? null,
-      text: cleanupReadablePageText(maybeDecodeShiftedLatinText(entry?.text || '')),
-    }))
-    .filter(entry => entry.text && !isGarbageLikeText(entry.text, meta));
+    .map(entry => {
+      const text = cleanupReadablePageText(maybeDecodeShiftedLatinText(entry?.text || ''));
+      const quality = analyzeTextQuality(text);
+      const readableWords = countReadableWords(text);
+      const severeNoise = (
+        quality.fontMetadataRatio > 0.35
+        || quality.mojibakeRatio > 0.12
+        || quality.weirdRatio > 0.6
+      );
+      const keep = (
+        text
+        && hasReadableLetters(text)
+        && !severeNoise
+        && (isMeaningfulQuality(quality, { meta }) || readableWords >= 4 || quality.length >= 120)
+      );
+      return {
+        pageNumber: entry?.pageNumber ?? null,
+        text,
+        keep,
+      };
+    })
+    .filter(entry => entry.keep)
+    .map(entry => ({ pageNumber: entry.pageNumber, text: entry.text }));
+}
+
+function evaluateExtractionReadability(summary = null) {
+  const pages = Array.isArray(summary?.pages) ? summary.pages : [];
+  const pageStats = pages.map(page => {
+    const text = cleanupReadablePageText(page?.text || '');
+    const quality = analyzeTextQuality(text);
+    return {
+      pageNumber: page?.pageNumber ?? null,
+      length: quality.length,
+      readableWords: countReadableWords(text),
+      meaningfulWordsCount: quality.meaningfulWordsCount,
+      normalWordsCount: quality.normalWordsCount,
+      meaningfulWordRatio: quality.meaningfulWordRatio,
+      fontMetadataRatio: quality.fontMetadataRatio,
+      mojibakeRatio: quality.mojibakeRatio,
+      weirdRatio: quality.weirdRatio,
+      hasReadableLetters: hasReadableLetters(text),
+      coherent: quality.meaningfulWordsCount >= 4 && quality.normalWordsCount >= 3 && quality.meaningfulWordRatio >= 0.15,
+    };
+  });
+
+  const readablePages = pageStats.filter(stat => stat.hasReadableLetters && (stat.coherent || stat.readableWords >= 8 || stat.length >= 180));
+  const totalReadableWords = pageStats.reduce((sum, stat) => sum + stat.readableWords, 0);
+  const needsOcr = readablePages.length === 0 || (readablePages.length === 1 && totalReadableWords < 20);
+  const reason = needsOcr ? NEEDS_OCR_ERROR : null;
+
+  return {
+    canIndex: !needsOcr,
+    needsOcr,
+    reason,
+    pageStats,
+    readablePagesCount: readablePages.length,
+    totalReadableWords,
+  };
+}
+
+export function __manualAiValidationSamples() {
+  const samples = {
+    digital: [
+      { pageNumber: 1, text: 'Install the machine. Set water pressure to 9 bar and run calibration.' },
+      { pageNumber: 2, text: 'Очистка группы: выключите питание, снимите фильтр и промойте клапан.' },
+    ],
+    scanned: [
+      { pageNumber: 1, text: 'CIDFont BaseFont Type0 FontDescriptor \u0000\u0001 \uFFFD \uFFFD' },
+      { pageNumber: 2, text: '#### //// ----' },
+    ],
+    mixed: [
+      { pageNumber: 1, text: 'FontDescriptor Type0 ArialMT CIDFont BaseFont' },
+      { pageNumber: 2, text: 'Проверьте датчик уровня воды и температуру бойлера перед запуском.' },
+      { pageNumber: 3, text: 'Service: open valve, check pump pressure and relay wiring.' },
+    ],
+  };
+
+  const evaluate = pageEntries => {
+    const summary = summarizeExtraction({
+      pageEntries,
+      fullText: pageEntries.map(entry => entry.text).join('\n\n'),
+      extractor: 'validation-sample',
+      meta: { numPages: pageEntries.length },
+    });
+    const readability = evaluateExtractionReadability(summary);
+    return {
+      usable: summary.usable,
+      readablePagesCount: readability.readablePagesCount,
+      totalReadableWords: readability.totalReadableWords,
+      needsOcr: readability.needsOcr,
+    };
+  };
+
+  return {
+    digital: evaluate(samples.digital),
+    scanned: evaluate(samples.scanned),
+    mixed: evaluate(samples.mixed),
+  };
 }
 
 function summarizeExtraction({ pageEntries = [], fullText = '', extractor = 'custom', meta = null } = {}) {
@@ -1421,7 +1522,11 @@ export async function getIndexStatus(manual) {
     }
 
     const isFresh = index.sourceSignature && index.sourceSignature === buildManualSignature(manual);
-    const status = index.status === 'failed' ? 'failed' : isFresh ? 'indexed' : 'not_indexed';
+    const status = index.status === NEEDS_OCR_CODE
+      ? NEEDS_OCR_CODE
+      : index.status === 'failed'
+        ? 'failed'
+        : isFresh ? 'indexed' : 'not_indexed';
     return {
       status,
       manualId: manual.id,
@@ -1432,6 +1537,7 @@ export async function getIndexStatus(manual) {
       extractionMethod: index.extractionMethod || index.extractor || index.diagnostics?.extractionMethod || null,
       qualityScore: index.qualityScore ?? index.diagnostics?.qualityScore ?? null,
       error: index.error || null,
+      errorCode: index.errorCode || null,
     };
   } catch (error) {
     console.error('[manuals-ai] index status failed', { manualId: manual?.id || null, error: error?.message || error });
@@ -1500,6 +1606,30 @@ function buildFailedIndex(manual, errorMessage, diagnostics = null) {
     chunks: [],
     updatedAt: new Date().toISOString(),
     error: sanitizeText(errorMessage, 400),
+    errorCode: 'index_failed',
+  };
+}
+
+function buildNeedsOcrIndex(manual, diagnostics = null, details = NEEDS_OCR_ERROR) {
+  return {
+    status: NEEDS_OCR_CODE,
+    manualId: manual.id,
+    title: manual.title || manual.originalName || 'Без названия',
+    brand: manual.brand || '',
+    model: manual.model || '',
+    sourceSignature: buildManualSignature(manual),
+    extractionMethod: diagnostics?.extractionMethod || diagnostics?.extractor || null,
+    extractor: diagnostics?.extractor || null,
+    pagesCount: diagnostics?.pagesCount || 0,
+    chunksCount: 0,
+    sampleTextPreview: diagnostics?.sampleTextPreview || '',
+    qualityScore: diagnostics?.qualityScore ?? null,
+    diagnostics,
+    pages: [],
+    chunks: [],
+    updatedAt: new Date().toISOString(),
+    error: sanitizeText(details || NEEDS_OCR_ERROR, 400),
+    errorCode: NEEDS_OCR_CODE,
   };
 }
 
@@ -1528,6 +1658,11 @@ function selectBestExtraction(candidates = []) {
 function buildNonExtractableMessage(details = '') {
   const reason = sanitizeText(details || '', 200);
   return reason ? `${NON_EXTRACTABLE_PDF_ERROR}: ${reason}` : `${NON_EXTRACTABLE_PDF_ERROR}: ${NON_EXTRACTABLE_PDF_REASON}`;
+}
+
+async function tryOcrFallbackExtraction(_context = null) {
+  // OCR is intentionally isolated here; return null when OCR provider is not connected.
+  return null;
 }
 
 export async function createManualIndex({ manual, pdfBuffer }) {
@@ -1583,24 +1718,55 @@ export async function createManualIndex({ manual, pdfBuffer }) {
     }
 
     const best = selectBestExtraction(candidates);
-    if (!best?.usable || !best.pages.length) {
+    const readability = evaluateExtractionReadability(best);
+    if (!best?.pages?.length || !readability.canIndex) {
+      const ocrSummary = await tryOcrFallbackExtraction({ manual, pdfBuffer, best, readability });
+      if (ocrSummary?.usable && Array.isArray(ocrSummary.pages) && ocrSummary.pages.length) {
+        const ocrIndex = buildIndexDocument(manual, ocrSummary.pages, ocrSummary);
+        if (ocrIndex.chunks.length) {
+          await saveManualIndex(ocrIndex);
+          console.log('[manuals-ai] index created via ocr fallback', { manualId: manual.id, chunksCount: ocrIndex.chunks.length });
+          return ocrIndex;
+        }
+      }
+
       const diagnostics = buildIndexDiagnostics({
         pages: best?.pages || [],
         chunks: [],
         quality: best?.quality || analyzeTextQuality(''),
         extractor: best?.extractor || 'unknown',
       });
-      const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), diagnostics);
-      await saveManualIndex(failed);
-      console.error('[manuals-ai] index failed', { manualId: manual.id, error: failed.error, reason: 'non_extractable_pdf' });
-      return failed;
+      diagnostics.readability = readability;
+      const needsOcr = buildNeedsOcrIndex(manual, diagnostics, readability.reason || NEEDS_OCR_ERROR);
+      await saveManualIndex(needsOcr);
+      console.warn('[manuals-ai] index requires ocr', {
+        manualId: manual.id,
+        reason: 'low_extractable_text',
+        readablePagesCount: readability.readablePagesCount,
+        totalReadableWords: readability.totalReadableWords,
+        extractor: best?.extractor || null,
+      });
+      return needsOcr;
     }
 
     const index = buildIndexDocument(manual, best.pages, best);
-    if (!index.chunks.length || !index.sampleTextPreview || !isMeaningfulQuality(best.quality, { pageEntries: best.pages, meta: best.meta })) {
-      const failed = buildFailedIndex(manual, buildNonExtractableMessage(NON_EXTRACTABLE_PDF_REASON), index.diagnostics);
+    const qualityPass = isMeaningfulQuality(best.quality, { pageEntries: best.pages, meta: best.meta });
+    const readabilityPass = readability.canIndex && readability.readablePagesCount >= 1;
+    if (!index.chunks.length || !index.sampleTextPreview || (!qualityPass && !readabilityPass)) {
+      const failed = buildFailedIndex(manual, buildNonExtractableMessage('Не удалось подготовить читаемые фрагменты для индекса'), index.diagnostics);
       await saveManualIndex(failed);
-      console.error('[manuals-ai] index failed', { manualId: manual.id, error: failed.error, reason: 'content_validation_failed' });
+      console.error('[manuals-ai] index failed', {
+        manualId: manual.id,
+        error: failed.error,
+        reason: 'content_validation_failed',
+        extractor: best.extractor,
+        quality: {
+          length: best.quality?.length || 0,
+          meaningfulWordRatio: best.quality?.meaningfulWordRatio || 0,
+          fontMetadataRatio: best.quality?.fontMetadataRatio || 0,
+          mojibakeRatio: best.quality?.mojibakeRatio || 0,
+        },
+      });
       return failed;
     }
 
