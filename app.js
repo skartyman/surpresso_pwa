@@ -126,6 +126,12 @@ let partsRequestFilter = "";
 // ===== Templates: ID + local cache =====
 const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
 const PENDING_CHECK_KIT_KEY = "surp_pending_check_kit_v1";
+const CHECK_DRAFT_KEY = "surp_check_draft_v1";
+const PENDING_ITEMS_KEY = "surp_pending_items_v1";
+const CHECK_DRAFT_AUTOSAVE_DELAY = 250;
+let draftAutosaveTimer = null;
+let isCheckBootstrapping = false;
+let lastDraftSavedAt = null;
 
 function genTemplateId() {
   // modern browsers
@@ -611,6 +617,8 @@ function addOrMergeItem({ code, name, qty, price, type }) {
       type
     });
   }
+
+  scheduleCheckDraftSave();
 }
 
 function addItemFromInput(inputId, qtyId, sourceList) {
@@ -791,6 +799,176 @@ function toggleWarehouse() {
     setWarehouseMode("manual", { silent: true });
   }
 }
+
+function updateDraftStatus(text) {
+  const el = document.getElementById("check-draft-status");
+  if (el) el.textContent = text;
+}
+
+function formatDraftTime(ts) {
+  if (!ts) return "";
+  try {
+    return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function getCheckDraftSnapshot() {
+  if (!document.getElementById("items-table")) return null;
+
+  const engineers = [...document.querySelectorAll(".engineer-input")]
+    .map(el => (el.value || "").trim())
+    .filter(Boolean);
+
+  return {
+    schemaVersion: 1,
+    savedAt: Date.now(),
+    form: {
+      client: document.getElementById("client-input")?.value || "",
+      equipment: document.getElementById("equip-input")?.value || "",
+      comment: document.getElementById("comment-input")?.value || "",
+      partsInput: document.getElementById("parts-input")?.value || "",
+      partsQty: document.getElementById("parts-qty")?.value || "1",
+      servicesInput: document.getElementById("services-input")?.value || "",
+      servicesQty: document.getElementById("services-qty")?.value || "1"
+    },
+    engineers,
+    items: (items || []).map(it => ({ ...it }))
+  };
+}
+
+function saveCheckDraft() {
+  const payload = getCheckDraftSnapshot();
+  if (!payload) return;
+  try {
+    localStorage.setItem(CHECK_DRAFT_KEY, JSON.stringify(payload));
+    lastDraftSavedAt = payload.savedAt;
+    const time = formatDraftTime(lastDraftSavedAt);
+    updateDraftStatus(time ? `Черновик сохранён (${time})` : "Черновик сохранён");
+  } catch (e) {
+    console.warn("saveCheckDraft failed", e);
+    updateDraftStatus("Не удалось сохранить черновик");
+  }
+}
+
+function loadCheckDraft() {
+  try {
+    const raw = localStorage.getItem(CHECK_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (e) {
+    console.warn("loadCheckDraft failed", e);
+    return null;
+  }
+}
+
+function clearCheckDraft() {
+  localStorage.removeItem(CHECK_DRAFT_KEY);
+  lastDraftSavedAt = null;
+  updateDraftStatus("Черновик очищен");
+}
+
+function savePendingItems(pendingItems) {
+  try {
+    localStorage.setItem(PENDING_ITEMS_KEY, JSON.stringify(pendingItems || []));
+  } catch (e) {
+    console.warn("savePendingItems failed", e);
+  }
+}
+
+function loadPendingItems() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_ITEMS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function clearPendingItems() {
+  localStorage.removeItem(PENDING_ITEMS_KEY);
+}
+
+function scheduleCheckDraftSave() {
+  if (isCheckBootstrapping || !document.getElementById("items-table")) return;
+  clearTimeout(draftAutosaveTimer);
+  draftAutosaveTimer = setTimeout(() => {
+    saveCheckDraft();
+  }, CHECK_DRAFT_AUTOSAVE_DELAY);
+}
+
+function applyCheckDraft(draft) {
+  if (!draft || typeof draft !== "object") return;
+  const form = draft.form || {};
+  document.getElementById("client-input").value = form.client || "";
+  document.getElementById("equip-input").value = form.equipment || "";
+  document.getElementById("comment-input").value = form.comment || "";
+  document.getElementById("parts-input").value = form.partsInput || "";
+  document.getElementById("parts-qty").value = form.partsQty || "1";
+  document.getElementById("services-input").value = form.servicesInput || "";
+  document.getElementById("services-qty").value = form.servicesQty || "1";
+
+  const engineers = Array.isArray(draft.engineers) ? draft.engineers : [];
+  const container = document.getElementById("engineers-container");
+  if (container) {
+    container.innerHTML = "";
+    const initial = engineers.length ? engineers : [""];
+    initial.forEach((name, index) => {
+      const isFirst = index === 0;
+      const btnClass = isFirst ? "btn primary add-btn engineer-add" : "btn danger add-btn engineer-remove";
+      const btnLabel = isFirst ? "+" : "−";
+      const btnAction = isFirst ? "addEngineerField()" : "removeEngineerField(this)";
+      const row = document.createElement("div");
+      row.className = "field engineer-row";
+      row.innerHTML = `
+        <div class="row">
+          <div class="select-ios">
+            <select class="engineer-input"></select>
+          </div>
+          <button type="button" class="${btnClass}" onclick="${btnAction}">${btnLabel}</button>
+        </div>
+      `;
+      container.appendChild(row);
+      const select = row.querySelector(".engineer-input");
+      fillEngineerSelect(select, name || "");
+    });
+  }
+
+  items = Array.isArray(draft.items)
+    ? draft.items.map(it => ({
+        code: it.code || "",
+        name: it.name || "",
+        qty: Number(it.qty) || 0,
+        price: Number(it.price) || 0,
+        sum: Number(it.sum) || (Number(it.qty) || 0) * (Number(it.price) || 0),
+        type: it.type || "part"
+      }))
+    : [];
+
+  lastDraftSavedAt = draft.savedAt || null;
+  const time = formatDraftTime(lastDraftSavedAt);
+  updateDraftStatus(time ? `Черновик восстановлен (${time})` : "Черновик восстановлен");
+}
+
+function mergePendingItemsIntoCheck(pendingItems) {
+  if (!Array.isArray(pendingItems) || !pendingItems.length) return false;
+
+  pendingItems.forEach(k => {
+    const code = k?.code || "";
+    const linkedPart = parts.find(x => x.code === code);
+    addOrMergeItem({
+      code: linkedPart?.code || code,
+      name: linkedPart?.name || k?.name || "",
+      qty: Number(k?.qty) || 1,
+      price: linkedPart?.price ?? Number(k?.price) ?? 0,
+      type: k?.type || "part"
+    });
+  });
+
+  return true;
+}
 // ---------- storage ----------
 function saveKit() {
   localStorage.setItem("surp_kit", JSON.stringify(kit));
@@ -812,41 +990,33 @@ function clearWarehouseKit() {
 
 // ---------- add/apply ----------
 function storePendingKitForCheck() {
-  localStorage.setItem(PENDING_CHECK_KIT_KEY, JSON.stringify(kit));
+  savePendingItems(kit);
+  localStorage.removeItem(PENDING_CHECK_KIT_KEY);
 }
 
 function consumePendingKitForCheck() {
-  const raw = localStorage.getItem(PENDING_CHECK_KIT_KEY);
-  if (!raw) return;
-
-  let pending = [];
-  try {
-    pending = JSON.parse(raw) || [];
-  } catch (e) {
-    pending = [];
+  const legacyRaw = localStorage.getItem(PENDING_CHECK_KIT_KEY);
+  if (legacyRaw) {
+    try {
+      const legacyItems = JSON.parse(legacyRaw) || [];
+      if (legacyItems.length) savePendingItems(legacyItems);
+    } catch (e) {
+      console.warn("legacy pending kit parse failed", e);
+    }
+    localStorage.removeItem(PENDING_CHECK_KIT_KEY);
   }
 
-  localStorage.removeItem(PENDING_CHECK_KIT_KEY);
-  if (!pending.length) return;
+  const pending = loadPendingItems();
+  if (!pending.length) return false;
 
-  pending.forEach(k => {
-    const p = parts.find(x => x.code === k.code);
-    if (!p) return;
+  const merged = mergePendingItemsIntoCheck(pending);
+  clearPendingItems();
+  if (!merged) return false;
 
-    addOrMergeItem({
-      code: p.code,
-      name: p.name,
-      qty: k.qty,
-      price: p.price,
-      type: "part"
-    });
-  });
-
-  kit = [];
-  saveKit();
-  renderWarehouseList();
   renderTable();
+  scheduleCheckDraftSave();
   warehouseAlert("Набор со склада перенесён в чек", "success", 2200);
+  return true;
 }
 
 function applyKitToCheck() {
@@ -875,6 +1045,7 @@ function applyKitToCheck() {
   saveKit();
   renderWarehouseList();
   renderTable();
+  scheduleCheckDraftSave();
   toggleWarehouse();
 }
 
@@ -1660,6 +1831,7 @@ function enableInlineQtyEdit() {
       items[index].sum = newQty * items[index].price;
 
       renderTable();
+      scheduleCheckDraftSave();
     };
 
     input.onkeydown = e => {
@@ -1692,6 +1864,7 @@ function enableDragAndDrop() {
       items = newOrder;
 
       renderTable();
+      scheduleCheckDraftSave();
     });
 
     row.addEventListener("dragover", e => {
@@ -1714,6 +1887,7 @@ function enableDragAndDrop() {
 function removeItem(index) {
   items.splice(index, 1);
   renderTable();
+  scheduleCheckDraftSave();
 }
 // ======================
 // Новый чек
@@ -1742,6 +1916,7 @@ function newInvoice() {
   populateEngineerSelects();
 
   renderTable();
+  clearCheckDraft();
 }
 
 // ======================
@@ -1762,6 +1937,7 @@ function addEngineerField() {
   cont.appendChild(div);
   const select = div.querySelector(".engineer-input");
   fillEngineerSelect(select);
+  scheduleCheckDraftSave();
 }
 
 function removeEngineerField(button) {
@@ -1770,6 +1946,7 @@ function removeEngineerField(button) {
   const row = button.closest(".engineer-row");
   if (!row) return;
   row.remove();
+  scheduleCheckDraftSave();
 }
 
 // ======================
@@ -1861,6 +2038,7 @@ async function openExcelCheck(file) {
 
 
       renderTable();
+      scheduleCheckDraftSave();
     } catch (err) {
       console.error(err);
       alert("Ошибка чтения Excel-файла");
@@ -2052,6 +2230,7 @@ document.getElementById("save-btn")?.addEventListener("click", async () => {
   // ============================
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), fileName);
+  clearCheckDraft();
 });
 
 
@@ -2547,9 +2726,41 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   attachSuggest("parts-input", "parts-suggest", parts);
   attachSuggest("services-input", "services-suggest", services);
-
+  isCheckBootstrapping = true;
+  const draft = loadCheckDraft();
+  if (draft) {
+    applyCheckDraft(draft);
+  } else {
+    updateDraftStatus("Черновик пока не создан");
+  }
+  const hadPendingItems = consumePendingKitForCheck();
   renderTable();
-  consumePendingKitForCheck();
+  isCheckBootstrapping = false;
+  if (draft || hadPendingItems) {
+    scheduleCheckDraftSave();
+  }
+
+  const autosaveInputs = [
+    "client-input",
+    "equip-input",
+    "comment-input",
+    "parts-input",
+    "parts-qty",
+    "services-input",
+    "services-qty"
+  ];
+  autosaveInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", scheduleCheckDraftSave);
+    el.addEventListener("change", scheduleCheckDraftSave);
+  });
+
+  const engineersContainer = document.getElementById("engineers-container");
+  if (engineersContainer) {
+    engineersContainer.addEventListener("change", scheduleCheckDraftSave);
+    engineersContainer.addEventListener("input", scheduleCheckDraftSave);
+  }
 
   const startRecountBtn = document.getElementById("start-recount-btn");
   if (startRecountBtn) {
@@ -2644,17 +2855,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
-
-
-
-
-
-
-
-
-
-
 
 
 
