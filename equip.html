@@ -1811,26 +1811,7 @@ input[type="file"]::file-selector-button:hover{
         return alert(out.error || "Помилка");
       }
 
-      if (photos.length) {
-        try {
-          $("statusHint").textContent = `Зберігаю ${photos.length} фото...`;
-          const photoOut = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/photo`, {
-            photos,
-            caption: "",
-            skipNotify: true
-          });
-
-          if (!photoOut.ok) {
-            throw new Error(photoOut.error || "Помилка на фото");
-          }
-        } catch (e) {
-          console.error(e);
-          $("statusHint").textContent = "";
-          $("btnStatus").disabled = false;
-          return alert("❌ " + (e.message || "Помилка завантаження фото"));
-        }
-      }
-
+      // Фото вже передані в /status і збережені на сервері, повторно в /photo не шлемо.
       if (shouldAutoResend) {
         try {
           $("statusHint").textContent = "Відправляю в TG + Trello...";
