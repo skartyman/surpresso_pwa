@@ -1548,7 +1548,7 @@ body {
 
 
 .accent-grinder {
-  background-image: linear-gradient(130deg, rgba(242,201,76,0.45), rgba(17,24,39,0.72));
+  background-image: linear-gradient(130deg, rgba(242,201,76,0.38), rgba(17,24,39,0.72)), url('icons/grinder.png');
 }
 
 .section-card.accent-equipment {
