@@ -1786,7 +1786,7 @@ function renderTable() {
 
     tr.innerHTML = `
       <td class="drag-handle">☰</td>
-      <td>${it.code}</td>
+      <td>${renderPartCode(it.code)}</td>
       <td>${it.name}</td>
 
       <td class="editable-qty" data-index="${index}">
@@ -2289,7 +2289,7 @@ function renderRecountTable() {
 
   body.innerHTML = recountSession.items.map((row, idx) => `
     <tr>
-      <td>${escapeHtml(row.code)}</td>
+      <td>${renderPartCode(row.code)}</td>
       <td>${escapeHtml(row.cell || '—')}</td>
       <td>${escapeHtml(row.name || '')}</td>
       <td>${escapeHtml(row.unit || 'шт')}</td>
@@ -2428,6 +2428,28 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function getDvgUrl(code) {
+  return `https://devecchigiuseppesrl.com/e-commerce/welcome/ordini/dettagli.asp?codice-articolo=${encodeURIComponent(String(code || "").trim())}`;
+}
+
+function renderPartCode(code) {
+  const normalizedCode = String(code || "").trim();
+  if (!normalizedCode) return "";
+
+  const url = getDvgUrl(normalizedCode);
+  return `
+    <a
+      href="${url}"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="dvg-link"
+      title="Открыть в DVG"
+    >
+      ${escapeHtml(normalizedCode)}
+    </a>
+  `;
+}
+
 function getFilteredPartsForRequest() {
   const q = partsRequestFilter.trim().toLowerCase();
   if (!q) return parts;
@@ -2457,7 +2479,7 @@ function renderPartsRequestTable() {
     return `
       <tr>
         <td><input type="checkbox" data-pr-code="${escapeHtml(key)}" ${isChecked ? "checked" : ""}></td>
-        <td>${escapeHtml(code)}</td>
+        <td>${renderPartCode(code)}</td>
         <td>${escapeHtml(p.name || "")}</td>
         <td>${Number(p.price || 0).toFixed(2)}</td>
         <td>${escapeHtml(p.stock || "—")}</td>
@@ -2855,8 +2877,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
-
 
 
 
