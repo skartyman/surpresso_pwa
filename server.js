@@ -1993,6 +1993,10 @@ app.get("/manuals/:id", (req, res) => {
   res.sendFile(path.join(__dirname, "manuals.html"));
 });
 
+app.get("/diagrams", (req, res) => {
+  res.sendFile(path.join(__dirname, "diagrams.html"));
+});
+
 app.get("/api/manuals", async (req, res) => {
   try {
     const items = await fetchManualsList();
