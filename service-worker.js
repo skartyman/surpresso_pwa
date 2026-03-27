@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.6";
+const APP_VERSION = "1.1.7";
 const CACHE_NAME = `surpresso-cache-${APP_VERSION}`;
 
 // ===== INSTALL =====
@@ -11,6 +11,8 @@ self.addEventListener("install", event => {
         "/",
         "/index.html?v=" + APP_VERSION,
         "/equipment.html?v=" + APP_VERSION,
+        "/diagrams.html?v=" + APP_VERSION,
+        "/diagrams.js?v=" + APP_VERSION,
         "/style.css?v=" + APP_VERSION,
         "/gradient.css?v=" + APP_VERSION,
         "/app.js?v=" + APP_VERSION,

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check • Схемы</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.7">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.7">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.7">
+</head>
+<body data-page="diagrams">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="/icons/branch-blossom.png" class="header-branch" alt="" />
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="/icons/logo-service.png" alt="Surpresso Service" />
+      </div>
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">Каталог DVG-схем кофемашин</div>
+      </div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Dashboard" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <main class="app-main diagrams-page">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Каталог схем</p>
+        <h1>Схемы кофемашин</h1>
+        <p>Выберите производителя и откройте соответствующую страницу DVG в новой вкладке.</p>
+      </div>
+      <div class="page-actions-inline diagrams-actions">
+        <a class="btn ghost" href="/">← Dashboard</a>
+        <a class="btn ghost" href="https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=COFFEE%20MACHINES%20-%20Diagrams" target="_blank" rel="noopener noreferrer">Открыть все схемы DVG</a>
+      </div>
+    </section>
+
+    <section class="card diagrams-catalog-card">
+      <div class="field">
+        <label for="diagram-search">Выберите производителя</label>
+        <input id="diagram-search" type="search" placeholder="Поиск по бренду" autocomplete="off" />
+      </div>
+      <div id="diagram-empty" class="diagrams-empty" hidden>Ничего не найдено</div>
+      <div id="diagram-grid" class="diagrams-grid" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left">
+      <div class="ticker">
+        <div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div>
+      </div>
+    </div>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
+
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+  <script src="/diagrams.js"></script>
+</body>
+</html>
