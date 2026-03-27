@@ -1,0 +1,160 @@
+.grinder-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.grinder-lead {
+  margin: 0;
+  color: var(--muted);
+}
+
+.grinder-form {
+  display: grid;
+  gap: 12px;
+}
+
+.grinder-form .field input,
+.grinder-form .field select {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.grinder-cta {
+  width: 100%;
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.grinder-recipe-summary {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(242, 201, 76, 0.14);
+  border: 1px solid rgba(242, 201, 76, 0.4);
+  font-size: 14px;
+}
+
+.grinder-error {
+  display: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 99, 71, 0.12);
+  border: 1px solid rgba(255, 99, 71, 0.4);
+}
+
+.grinder-error.is-visible {
+  display: block;
+}
+
+.grinder-result-card {
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111;
+  color: #f6f6f6;
+  display: grid;
+  gap: 10px;
+}
+
+.grinder-result-card h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.grinder-result-status {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+
+.grinder-result-action,
+.grinder-result-next {
+  margin: 0;
+  font-size: 15px;
+}
+
+.grinder-result-meta {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.status-fast {
+  border-left: 4px solid #f2c94c;
+}
+
+.status-slow {
+  border-left: 4px solid #d27f47;
+}
+
+.status-ok {
+  border-left: 4px solid #8ab4ff;
+}
+
+.status-good {
+  border-left: 4px solid #62c870;
+}
+
+.grinder-help-card {
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.grinder-help-card h3 {
+  margin: 0 0 8px;
+}
+
+.grinder-help-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.grinder-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.grinder-history-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.grinder-history-card,
+.grinder-empty {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
+
+.grinder-history-card p {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.grinder-history-title {
+  font-weight: 700;
+}
+
+@media (min-width: 720px) {
+  .grinder-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .grinder-form-grid .field.full-row {
+    grid-column: span 2;
+  }
+}

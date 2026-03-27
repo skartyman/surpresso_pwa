@@ -1546,6 +1546,11 @@ body {
   background-image: linear-gradient(130deg, rgba(22,163,74,0.34), rgba(30,64,175,0.24)), url('icons/manuals.png');
 }
 
+
+.accent-grinder {
+  background-image: linear-gradient(130deg, rgba(242,201,76,0.45), rgba(17,24,39,0.72));
+}
+
 .section-card.accent-equipment {
   width: 100%;
   text-align: left;
