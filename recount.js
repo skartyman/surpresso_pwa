@@ -180,7 +180,7 @@ function renderRecountTable() {
     .map((row, idx) => `
       <tr>
         <td>${escapeHtml(row.cell || "—")}</td>
-        <td>${escapeHtml(row.code)}</td>
+        <td>${renderPartCode(row.code)}</td>
         <td><input type="number" min="0" step="0.01" data-recount-idx="${idx}" value="${Number(row.fact || 0)}"></td>
         <td>${escapeHtml(row.name || "")}</td>
       </tr>
@@ -288,6 +288,28 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getDvgUrl(code) {
+  return `https://devecchigiuseppesrl.com/e-commerce/welcome/ordini/dettagli.asp?codice-articolo=${encodeURIComponent(String(code || "").trim())}`;
+}
+
+function renderPartCode(code) {
+  const normalizedCode = String(code || "").trim();
+  if (!normalizedCode) return "";
+
+  const url = getDvgUrl(normalizedCode);
+  return `
+    <a
+      href="${url}"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="dvg-link"
+      title="Открыть в DVG"
+    >
+      ${escapeHtml(normalizedCode)}
+    </a>
+  `;
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

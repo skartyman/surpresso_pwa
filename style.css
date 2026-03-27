@@ -1282,6 +1282,17 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   width: 86px;
 }
 
+.dvg-link {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dvg-link:hover {
+  opacity: 0.7;
+}
+
 .warehouse-recount {
   border: 1px dashed rgba(127,127,127,.35);
   border-radius: 12px;
