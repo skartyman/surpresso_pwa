@@ -1,4 +1,6 @@
 const AUTH_STORAGE_KEY = "surp_user";
+const AUTH_SESSION_KEY = "surp_auth_session";
+const AUTH_TTL_MS = 24 * 60 * 60 * 1000;
 const USER_SHEET_ID = "1TcDW8xV_-wdkBdK0FNCVmK-ZiHahnnsB9JsXvEUBA1s";
 const USER_SHEET_GID = 0;
 
@@ -8,14 +10,22 @@ const USER_SHEET_GID = 0;
   let initPromise = null;
   let handlersBound = false;
   let resolveAuthWaiter = null;
+  let usersLoadPromise = null;
+
+  function now() {
+    return Date.now();
+  }
 
   function ensureLoginScreen() {
     let screen = document.getElementById("login-screen");
-    if (screen) return screen;
+    if (screen) {
+      screen.classList.add("hidden");
+      return screen;
+    }
 
     screen = document.createElement("div");
     screen.id = "login-screen";
-    screen.className = "login-screen";
+    screen.className = "login-screen hidden";
     screen.innerHTML = `
       <div class="login-box">
         <h2>Вход в систему</h2>
@@ -40,20 +50,100 @@ const USER_SHEET_GID = 0;
     };
   }
 
-  async function loadUsers() {
-    const url = `https://docs.google.com/spreadsheets/d/${USER_SHEET_ID}/export?format=csv&gid=${USER_SHEET_GID}&v=${Date.now()}`;
-    const resp = await fetch(url, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    const text = await resp.text();
-    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-    users = parsed.data.map(row => ({
+  function normalizeUserRow(row) {
+    return {
       login: String(row.login || "").trim(),
       pass: String(row.pass || "").trim(),
       name: String(row.name || "").trim(),
       role: String(row.role || "").trim()
-    })).filter(user => user.login && user.pass);
-    return users;
+    };
+  }
+
+  function createSessionFromUser(user) {
+    return {
+      login: String(user?.login || "").trim(),
+      name: String(user?.name || "").trim(),
+      role: String(user?.role || "").trim(),
+      token: user?.token || `surp-${Math.random().toString(36).slice(2)}-${now()}`,
+      authenticatedAt: Number(user?.authenticatedAt) || now()
+    };
+  }
+
+  function saveSession(user) {
+    const session = createSessionFromUser(user);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    return session;
+  }
+
+  function clearSession() {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
+  }
+
+  function safeParse(raw) {
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function getSavedSessionRaw() {
+    return (
+      sessionStorage.getItem(AUTH_SESSION_KEY) ||
+      localStorage.getItem(AUTH_SESSION_KEY) ||
+      localStorage.getItem(AUTH_STORAGE_KEY)
+    );
+  }
+
+  function hasFreshAuth(session) {
+    if (!session || typeof session !== "object") return false;
+
+    const authenticatedAt = Number(session.authenticatedAt || 0);
+    if (!authenticatedAt || now() - authenticatedAt > AUTH_TTL_MS) return false;
+
+    const login = String(session.login || "").trim();
+    if (!login) return false;
+
+    const token = String(session.token || "").trim();
+    if (!token) return false;
+
+    return true;
+  }
+
+  function getSavedSession() {
+    const parsed = safeParse(getSavedSessionRaw());
+    if (hasFreshAuth(parsed)) return parsed;
+    return null;
+  }
+
+  async function loadUsers() {
+    if (usersLoadPromise) return usersLoadPromise;
+
+    usersLoadPromise = (async () => {
+      const url = `https://docs.google.com/spreadsheets/d/${USER_SHEET_ID}/export?format=csv&gid=${USER_SHEET_GID}&v=${Date.now()}`;
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const text = await resp.text();
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      users = parsed.data
+        .map(normalizeUserRow)
+        .filter(user => user.login && user.pass);
+
+      window.USERS = users;
+      document.dispatchEvent(new CustomEvent("surp-auth-users-updated", { detail: { users: [...users] } }));
+      return users;
+    })().catch(error => {
+      usersLoadPromise = null;
+      throw error;
+    });
+
+    return usersLoadPromise;
   }
 
   function findValidUser(candidate) {
@@ -64,10 +154,18 @@ const USER_SHEET_GID = 0;
     return users.find(user => user.login === login && user.pass === pass) || null;
   }
 
+  function findUserByLogin(login) {
+    const normalizedLogin = String(login || "").trim();
+    if (!normalizedLogin) return null;
+    return users.find(user => user.login === normalizedLogin) || null;
+  }
+
   function setCurrentUser(user) {
     currentUser = user || null;
     window.CURRENT_USER = currentUser;
-    window.USERS = users;
+    if (!window.USERS && users.length) {
+      window.USERS = users;
+    }
   }
 
   function hideLogin() {
@@ -87,30 +185,74 @@ const USER_SHEET_GID = 0;
     }, 0);
   }
 
-  function completeAuth(user) {
-    setCurrentUser(user);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    hideLogin();
+  function emitAuthReady(user) {
     document.dispatchEvent(new CustomEvent("surp-auth-ready", { detail: { user, users } }));
-    if (resolveAuthWaiter) {
-      resolveAuthWaiter(user);
+  }
+
+  function completeAuth(user, { resolveWaiter = true } = {}) {
+    const session = saveSession(user);
+    const safeUser = {
+      login: session.login,
+      name: session.name,
+      role: session.role,
+      token: session.token,
+      authenticatedAt: session.authenticatedAt
+    };
+
+    setCurrentUser(safeUser);
+    hideLogin();
+    emitAuthReady(safeUser);
+
+    if (resolveWaiter && resolveAuthWaiter) {
+      resolveAuthWaiter(safeUser);
       resolveAuthWaiter = null;
     }
-    return user;
+
+    return safeUser;
+  }
+
+  function clearCurrentAuth() {
+    clearSession();
+    setCurrentUser(null);
+  }
+
+  async function validateSessionInBackground(session) {
+    try {
+      await loadUsers();
+      const serverUser = findUserByLogin(session.login);
+      if (!serverUser) {
+        clearCurrentAuth();
+        showLogin("Сессия недействительна. Войдите снова.");
+        return;
+      }
+      completeAuth({ ...serverUser, token: session.token }, { resolveWaiter: false });
+    } catch (error) {
+      console.warn("Фоновая проверка авторизации не удалась", error);
+    }
   }
 
   function bindHandlers() {
     if (handlersBound) return;
     handlersBound = true;
 
-    const submit = () => {
-      const { user, pass, error } = getInputs();
-      const found = findValidUser({ login: user?.value, pass: pass?.value });
-      if (!found) {
-        if (error) error.textContent = "Неверный логин или пароль";
-        return;
+    const submit = async () => {
+      const { user, pass, error, button } = getInputs();
+      if (button) button.disabled = true;
+
+      try {
+        await loadUsers();
+        const found = findValidUser({ login: user?.value, pass: pass?.value });
+        if (!found) {
+          if (error) error.textContent = "Неверный логин или пароль";
+          return;
+        }
+        completeAuth(found);
+      } catch (loadError) {
+        console.error(loadError);
+        if (error) error.textContent = "Не удалось проверить авторизацию";
+      } finally {
+        if (button) button.disabled = false;
       }
-      completeAuth(found);
     };
 
     getInputs().button?.addEventListener("click", submit);
@@ -125,23 +267,25 @@ const USER_SHEET_GID = 0;
     initPromise = (async () => {
       ensureLoginScreen();
       bindHandlers();
-      await loadUsers();
 
-      const savedRaw = localStorage.getItem(AUTH_STORAGE_KEY);
-      let savedUser = null;
-      try {
-        savedUser = savedRaw ? JSON.parse(savedRaw) : null;
-      } catch (error) {
-        savedUser = null;
+      const savedSession = getSavedSession();
+      if (savedSession) {
+        const hydratedUser = {
+          login: savedSession.login,
+          name: savedSession.name,
+          role: savedSession.role,
+          token: savedSession.token,
+          authenticatedAt: savedSession.authenticatedAt
+        };
+
+        setCurrentUser(hydratedUser);
+        hideLogin();
+        emitAuthReady(hydratedUser);
+        validateSessionInBackground(savedSession);
+        return hydratedUser;
       }
-      const validSavedUser = findValidUser(savedUser);
 
-      if (validSavedUser) {
-        return completeAuth(validSavedUser);
-      }
-
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      setCurrentUser(null);
+      clearCurrentAuth();
       showLogin();
 
       return new Promise(resolve => {
