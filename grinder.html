@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso • Помощник помола</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <link rel="stylesheet" href="/grinder.css?v=1.0.0">
+</head>
+<body data-page="grinder">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="" />
+    </div>
+
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="icons/logo-service.png" alt="Surpresso Service" />
+      </div>
+
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">Помощник настройки помола</div>
+      </div>
+    </div>
+
+    <button class="header-menu-btn" type="button" title="На главную" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <main class="app-main">
+    <section class="dashboard-hero card page-shell grinder-shell">
+      <div class="page-header">
+        <p class="eyebrow">Клиентский помощник</p>
+        <h1>Помощник настройки помола</h1>
+        <p class="grinder-lead">Введите параметры шота и получите простой совет: сделать помол мельче, крупнее или оставить как есть.</p>
+      </div>
+
+      <form id="grinder-form" class="grinder-form" novalidate>
+        <div class="field full-row">
+          <label for="recipe-select">Рецепт</label>
+          <div class="select-ios">
+            <select id="recipe-select" required></select>
+          </div>
+        </div>
+
+        <p id="recipe-summary" class="grinder-recipe-summary"></p>
+
+        <div class="grinder-form-grid">
+          <div class="field">
+            <label for="dose-input">Доза кофе, г</label>
+            <input id="dose-input" type="number" step="0.1" min="0.1" inputmode="decimal" placeholder="18" required />
+          </div>
+
+          <div class="field">
+            <label for="yield-input">Выход напитка, г</label>
+            <input id="yield-input" type="number" step="0.1" min="0.1" inputmode="decimal" placeholder="36" required />
+          </div>
+
+          <div class="field">
+            <label for="time-input">Время пролива, сек</label>
+            <input id="time-input" type="number" step="0.1" min="0.1" inputmode="decimal" placeholder="27" required />
+          </div>
+
+          <div class="field">
+            <label for="taste-select">Вкус (необязательно)</label>
+            <div class="select-ios">
+              <select id="taste-select">
+                <option value="">Не выбран</option>
+                <option value="sour">Кисло</option>
+                <option value="bitter">Горько</option>
+                <option value="normal">Нормально</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <p id="form-error" class="grinder-error" role="status" aria-live="polite"></p>
+
+        <button class="btn primary grinder-cta" type="submit">Получить совет</button>
+      </form>
+
+      <div id="result-zone" aria-live="polite"></div>
+      <div id="support-zone" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <div class="grinder-history-head">
+        <h2>Последние попытки</h2>
+        <button id="clear-history-btn" class="btn ghost" type="button">Очистить</button>
+      </div>
+      <div id="history-zone" class="grinder-history-grid"></div>
+    </section>
+  </main>
+
+  <script src="/theme.js"></script>
+  <script src="/grinder-recipes.js"></script>
+  <script src="/grinder-core.js"></script>
+  <script src="/grinder-ui.js"></script>
+</body>
+</html>
