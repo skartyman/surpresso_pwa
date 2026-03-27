@@ -1178,7 +1178,7 @@ function renderWarehouseList() {
 
     div.innerHTML = `
       <div class="top">
-        <span class="code">${it.code}</span>
+        <span class="code">${renderPartCode(it.code)}</span>
 
         <div class="meta">
           ${stockHTML}
@@ -1324,10 +1324,16 @@ function renderWarehouseTemplates(filter = "") {
 
     const meta = document.createElement("div");
     meta.className = "template-meta";
+
+    const codesPreview = Array.isArray(tpl.items) && tpl.items.length
+      ? `<div class="template-sub">${tpl.items.slice(0, 6).map(it => renderPartCode(it.code)).join(" • ")}${tpl.items.length > 6 ? " • …" : ""}</div>`
+      : "";
+
     meta.innerHTML = `
       <div class="template-title">${tpl.name || "Без названия"}</div>
       <div class="template-sub">${tpl.machine || "—"} • ${tpl.node || "—"}</div>
       <div class="template-sub">${tpl.createdBy || "неизвестно"} • ${tpl.createdAt || ""}</div>
+      ${codesPreview}
     `;
 
     const actions = document.createElement("div");
