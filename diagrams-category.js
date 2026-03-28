@@ -8,6 +8,12 @@ function getCategoryById(categoryId) {
 
 function openExternal(url) {
   if (!url) return;
+
+  if (String(url).startsWith("/")) {
+    window.location.href = url;
+    return;
+  }
+
   window.open(url, "_blank", "noopener,noreferrer");
 }
 

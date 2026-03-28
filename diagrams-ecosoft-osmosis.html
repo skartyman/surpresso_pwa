@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check • Ecosoft • Осмосы</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.7">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.7">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.7">
+</head>
+<body data-page="diagrams" data-category="filtration">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true"><img src="/icons/branch-blossom.png" class="header-branch" alt="" /></div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="/icons/logo-service.png" alt="Surpresso Service" /></div>
+      <div class="app-title"><div class="app-name"><span>Surpresso</span><span>Service</span></div><div class="app-subtitle">Схемы по категориям</div></div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Dashboard" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <main class="app-main diagrams-page">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Системы фильтрации → Ecosoft</p>
+        <h1>Ecosoft • Осмосы</h1>
+        <p>Выберите категорию, затем модель и нужный документ.</p>
+      </div>
+      <div class="page-actions-inline diagrams-actions">
+        <a class="btn ghost" href="/diagrams-filtration.html">← Системы фильтрации</a>
+      </div>
+    </section>
+
+    <section id="ecosoft-osmosis-grid" class="ecosoft-osmosis-grid" aria-live="polite"></section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left"><div class="ticker"><div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div></div></div>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
+
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+  <script src="/diagrams-ecosoft-osmosis.js"></script>
+</body>
+</html>
