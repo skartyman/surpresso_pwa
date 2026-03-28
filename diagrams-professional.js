@@ -1,4 +1,4 @@
-const diagramBrands = [
+const professionalBrands = [
   { name: "1-Universal", dvg: "1-Universal" },
   { name: "969 Coffee", dvg: "969 Coffee" },
   { name: "Astoria", dvg: "Astoria" },
@@ -46,51 +46,11 @@ const diagramBrands = [
   { name: "XLVI", dvg: "XLVI" }
 ];
 
-function getDvgDiagramUrl(brand) {
-  return `https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=${encodeURIComponent("COFFEE MACHINES - Diagrams")}&c3=${encodeURIComponent(brand)}`;
-}
-
-function createBrandLink(item) {
-  const link = document.createElement("a");
-  link.href = getDvgDiagramUrl(item.dvg);
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.className = "diagram-brand-link";
-  link.textContent = item.name;
-  return link;
-}
-
-function filterBrands(query) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return diagramBrands;
-
-  return diagramBrands.filter(item => item.name.toLowerCase().includes(normalized));
-}
-
-function renderBrands(query = "") {
-  const grid = document.getElementById("diagram-brands-grid");
-  const emptyState = document.getElementById("diagram-brands-empty");
-  if (!grid || !emptyState) return;
-
-  const filtered = filterBrands(query);
-  grid.innerHTML = "";
-
-  if (!filtered.length) {
-    emptyState.hidden = false;
-    return;
-  }
-
-  emptyState.hidden = true;
-  filtered.forEach(item => {
-    grid.appendChild(createBrandLink(item));
-  });
-}
-
 window.addEventListener("DOMContentLoaded", () => {
-  renderBrands();
-
-  const searchInput = document.getElementById("diagram-brand-search");
-  searchInput?.addEventListener("input", event => {
-    renderBrands(event.target.value || "");
+  window.renderDvgBrandCatalog?.({
+    categoryName: "COFFEE MACHINES - Diagrams",
+    brands: professionalBrands,
+    title: "Схемы кофемашин",
+    subtitle: "Выберите производителя"
   });
 });

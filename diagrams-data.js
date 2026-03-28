@@ -52,22 +52,16 @@ window.DIAGRAMS_CATEGORIES = [
   {
     id: "grinders",
     title: "Гриндеры",
-    description: "Каталог схем и документации для кофемолок (grinders).",
+    description: "DVG-схемы и каталог кофемолок по производителям.",
     icon: "⚙️",
     page: "/diagrams-grinders.html",
     enabled: true,
     items: [
       {
-        id: "mazzer",
-        title: "Mazzer",
-        description: "Документация и деталировка по профессиональным кофемолкам Mazzer.",
-        url: "https://www.mazzer.com/en/support/"
-      },
-      {
-        id: "eureka",
-        title: "Eureka",
-        description: "Официальный раздел поддержки и инструкции по кофемолкам Eureka.",
-        url: "https://www.eureka.co.it/en/support"
+        id: "dvg-grinders",
+        title: "DVG GRINDERS - Diagrams",
+        description: "База DVG с деталировками кофемолок по брендам.",
+        url: "https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=GRINDERS%20-%20Diagrams"
       }
     ]
   },

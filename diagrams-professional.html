@@ -28,13 +28,13 @@
       </div>
       <div class="page-actions-inline diagrams-actions diagrams-actions-wrap">
         <a class="btn ghost" href="/diagrams.html">← Все категории</a>
-        <a class="btn primary" href="https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=COFFEE%20MACHINES%20-%20Diagrams" target="_blank" rel="noopener noreferrer">Открыть все схемы DVG</a>
+        <a id="diagram-open-all-dvg" class="btn primary" href="https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=COFFEE%20MACHINES%20-%20Diagrams" target="_blank" rel="noopener noreferrer">Открыть все схемы DVG</a>
       </div>
     </section>
 
     <section class="card diagrams-catalog-card">
       <div class="field">
-        <label for="diagram-brand-search">Поиск производителя</label>
+        <label id="diagram-brand-search-label" for="diagram-brand-search">Поиск производителя</label>
         <input id="diagram-brand-search" type="search" placeholder="Введите название производителя" autocomplete="off" />
       </div>
       <div id="diagram-brands-empty" class="diagrams-empty" hidden>Ничего не найдено</div>
@@ -50,6 +50,7 @@
 
   <script src="/auth.js"></script>
   <script src="/app.js"></script>
+  <script src="/diagrams-dvg-catalog.js"></script>
   <script src="/diagrams-professional.js"></script>
 </body>
 </html>

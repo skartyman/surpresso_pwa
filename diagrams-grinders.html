@@ -23,19 +23,22 @@
     <section class="dashboard-hero card page-shell">
       <div class="page-header">
         <p class="eyebrow">Раздел «Схемы»</p>
-        <h1 id="diagram-active-category-title">Гриндеры</h1>
-        <p id="diagram-active-category-description">Выберите бренд и откройте схемы.</p>
+        <h1 id="diagram-active-category-title">Схемы гриндеров</h1>
+        <p id="diagram-active-category-description">Выберите производителя</p>
       </div>
-      <div class="page-actions-inline diagrams-actions"><a class="btn ghost" href="/diagrams.html">← Все категории</a></div>
+      <div class="page-actions-inline diagrams-actions diagrams-actions-wrap">
+        <a class="btn ghost" href="/diagrams.html">← Все категории</a>
+        <a id="diagram-open-all-dvg" class="btn primary" href="https://devecchigiuseppesrl.com/e-commerce/cerca.asp?c2=GRINDERS%20-%20Diagrams" target="_blank" rel="noopener noreferrer">Открыть все схемы DVG</a>
+      </div>
     </section>
 
     <section class="card diagrams-catalog-card">
       <div class="field">
-        <label for="diagram-brand-search">Поиск по бренду / источнику</label>
-        <input id="diagram-brand-search" type="search" placeholder="Введите название бренда" autocomplete="off" />
+        <label id="diagram-brand-search-label" for="diagram-brand-search">Поиск производителя</label>
+        <input id="diagram-brand-search" type="search" placeholder="Введите название производителя" autocomplete="off" />
       </div>
-      <div id="diagram-brands-empty" class="diagrams-empty" hidden>Ничего не найдено. Уточните запрос.</div>
-      <div id="diagram-brands-grid" class="diagram-brands-grid" aria-live="polite"></div>
+      <div id="diagram-brands-empty" class="diagrams-empty" hidden>Ничего не найдено</div>
+      <div id="diagram-brands-grid" class="diagram-brands-grid diagram-brand-links-grid" aria-live="polite"></div>
     </section>
   </main>
 
@@ -47,7 +50,7 @@
 
   <script src="/auth.js"></script>
   <script src="/app.js"></script>
-  <script src="/diagrams-data.js"></script>
-  <script src="/diagrams-category.js"></script>
+  <script src="/diagrams-dvg-catalog.js"></script>
+  <script src="/diagrams-grinders.js"></script>
 </body>
 </html>
