@@ -1162,7 +1162,16 @@ function chunkPageText(text = '', pageNumber = null, chunkSize = 1100, overlap =
 }
 
 function buildManualSignature(manual = {}) {
-  return [MANUAL_INDEX_FORMAT_VERSION, manual.id, manual.fileId, manual.uploadedAt, manual.size, manual.originalName].map(item => String(item || '')).join('|');
+  const fileIdentity = manual.fileId || manual.driveFileId || manual.fileID || '';
+  return [MANUAL_INDEX_FORMAT_VERSION, manual.id, fileIdentity, manual.uploadedAt, manual.size, manual.originalName]
+    .map(item => String(item || ''))
+    .join('|');
+}
+
+function buildLegacyManualSignature(manual = {}) {
+  return [MANUAL_INDEX_FORMAT_VERSION, manual.id, '', manual.uploadedAt, manual.size, manual.originalName]
+    .map(item => String(item || ''))
+    .join('|');
 }
 
 function analyzeTextQuality(text = '') {
@@ -1521,7 +1530,11 @@ export async function getIndexStatus(manual) {
       return buildEmptyIndexState(manual.id, index?.error || null);
     }
 
-    const isFresh = index.sourceSignature && index.sourceSignature === buildManualSignature(manual);
+    const expectedSignature = buildManualSignature(manual);
+    const legacySignature = buildLegacyManualSignature(manual);
+    const isFresh = !index.sourceSignature
+      || index.sourceSignature === expectedSignature
+      || index.sourceSignature === legacySignature;
     const status = index.status === NEEDS_OCR_CODE
       ? NEEDS_OCR_CODE
       : index.status === 'failed'

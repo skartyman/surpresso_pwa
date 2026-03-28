@@ -6,6 +6,7 @@ const manualsState = {
   aiStatusById: {},
   aiBusy: false,
   previewRequestToken: 0,
+  indexPollTimer: null,
 };
 
 function manualRouteId() {
@@ -390,6 +391,22 @@ async function refreshVisibleIndexStatuses() {
   await Promise.all(manualsState.manuals.map(item => refreshIndexStatusForManual(item.id)));
 }
 
+function startIndexStatusPolling() {
+  if (manualsState.indexPollTimer) return;
+  manualsState.indexPollTimer = window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    refreshVisibleIndexStatuses().catch(err => {
+      console.error('manual index polling failed', err);
+    });
+  }, 15000);
+}
+
+function stopIndexStatusPolling() {
+  if (!manualsState.indexPollTimer) return;
+  window.clearInterval(manualsState.indexPollTimer);
+  manualsState.indexPollTimer = null;
+}
+
 async function loadManuals() {
   const resp = await fetch('/api/manuals');
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -603,6 +620,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('beforeunload', () => {
+  stopIndexStatusPolling();
   revokeManualPreview();
 });
 
@@ -669,6 +687,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  startIndexStatusPolling();
   loadManuals().catch(err => {
     console.error(err);
     setManualStatus('Не удалось загрузить список мануалов.', 'error');
