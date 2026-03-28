@@ -1,28 +1,22 @@
 const grinderBrands = [
   { name: "Anfim", dvg: "Anfim" },
-  { name: "Ascaso", dvg: "Ascaso" },
-  { name: "Astoria", dvg: "Astoria" },
-  { name: "Baratza", dvg: "Baratza" },
-  { name: "Brasilia-Rossi", dvg: "Brasilia-Rossi" },
   { name: "Casadio", dvg: "Casadio" },
-  { name: "Ceado", dvg: "Ceado" },
   { name: "Cimbali", dvg: "Cimbali" },
   { name: "Compak", dvg: "Compak" },
-  { name: "Cunill", dvg: "Cunill" },
-  { name: "Ditting", dvg: "Ditting" },
   { name: "Eureka", dvg: "Eureka" },
   { name: "Faema", dvg: "Faema" },
-  { name: "Fiorenzato", dvg: "Fiorenzato" },
-  { name: "La Cimbali", dvg: "La Cimbali" },
+  { name: "Fiorenzato CS Doge", dvg: "Fiorenzato CS Doge" },
+  { name: "Fiorenzato MC", dvg: "Fiorenzato MC" },
+  { name: "La Marzocco", dvg: "La Marzocco" },
   { name: "Macap", dvg: "Macap" },
+  { name: "Mahlkönig", dvg: "Mahlkönig" },
   { name: "Mazzer", dvg: "Mazzer" },
   { name: "Nuova Simonelli", dvg: "Nuova Simonelli" },
   { name: "Obel", dvg: "Obel" },
   { name: "Quamar", dvg: "Quamar" },
-  { name: "Rancilio", dvg: "Rancilio" },
+  { name: "Remidag", dvg: "Remidag" },
   { name: "Rossi", dvg: "Rossi" },
-  { name: "Sanremo", dvg: "Sanremo" },
-  { name: "Victoria Arduino", dvg: "Victoria Arduino" }
+  { name: "Santos", dvg: "Santos" }
 ];
 
 function getDvgGrinderUrl(brand) {
