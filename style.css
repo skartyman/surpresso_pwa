@@ -1986,6 +1986,7 @@ textarea,
 
 .diagram-category-card,
 .diagram-brand-card {
+  text-decoration: none;
   min-height: 168px;
   display: flex;
   flex-direction: column;
