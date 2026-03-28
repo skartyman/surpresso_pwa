@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check • Гриндеры</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.7">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.7">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.7">
+</head>
+<body data-page="diagrams" data-category="grinders">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true"><img src="/icons/branch-blossom.png" class="header-branch" alt="" /></div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="/icons/logo-service.png" alt="Surpresso Service" /></div>
+      <div class="app-title"><div class="app-name"><span>Surpresso</span><span>Service</span></div><div class="app-subtitle">Схемы по категориям</div></div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Dashboard" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <main class="app-main diagrams-page">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Раздел «Схемы»</p>
+        <h1 id="diagram-active-category-title">Гриндеры</h1>
+        <p id="diagram-active-category-description">Выберите бренд и откройте схемы.</p>
+      </div>
+      <div class="page-actions-inline diagrams-actions"><a class="btn ghost" href="/diagrams.html">← Все категории</a></div>
+    </section>
+
+    <section class="card diagrams-catalog-card">
+      <div class="field">
+        <label for="diagram-brand-search">Поиск по бренду / источнику</label>
+        <input id="diagram-brand-search" type="search" placeholder="Введите название бренда" autocomplete="off" />
+      </div>
+      <div id="diagram-brands-empty" class="diagrams-empty" hidden>Ничего не найдено. Уточните запрос.</div>
+      <div id="diagram-brands-grid" class="diagram-brands-grid" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left"><div class="ticker"><div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div></div></div>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
+
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+  <script src="/diagrams-data.js"></script>
+  <script src="/diagrams-category.js"></script>
+</body>
+</html>

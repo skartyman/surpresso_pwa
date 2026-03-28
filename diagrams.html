@@ -44,7 +44,7 @@
       <div class="page-header">
         <p class="eyebrow">Раздел «Схемы»</p>
         <h1>Схемы кофемашин</h1>
-        <p>Быстрый каталог ссылок на внешние источники схем без парсинга и встраивания PDF.</p>
+        <p>Выберите категорию и перейдите на отдельную страницу каталога схем.</p>
       </div>
       <div class="page-actions-inline diagrams-actions">
         <a class="btn ghost" href="/">← Dashboard</a>
@@ -54,24 +54,6 @@
     <section id="diagram-categories-section" class="card diagrams-catalog-card">
       <h2>Категории</h2>
       <div id="diagram-categories-grid" class="diagram-categories-grid" aria-live="polite"></div>
-    </section>
-
-    <section id="diagram-brands-section" class="card diagrams-catalog-card" hidden>
-      <div class="diagrams-brands-header">
-        <button id="diagram-back-btn" type="button" class="btn ghost">← Категории</button>
-        <div>
-          <h2 id="diagram-active-category-title">Автоматические кофемашины</h2>
-          <p id="diagram-active-category-description">Выберите бренд и откройте схемы.</p>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="diagram-brand-search">Поиск по бренду</label>
-        <input id="diagram-brand-search" type="search" placeholder="Введите название бренда" autocomplete="off" />
-      </div>
-
-      <div id="diagram-brands-empty" class="diagrams-empty" hidden>Ничего не найдено. Уточните запрос.</div>
-      <div id="diagram-brands-grid" class="diagram-brands-grid" aria-live="polite"></div>
     </section>
   </main>
 
@@ -87,6 +69,7 @@
 
   <script src="/auth.js"></script>
   <script src="/app.js"></script>
+  <script src="/diagrams-data.js"></script>
   <script src="/diagrams.js"></script>
 </body>
 </html>
