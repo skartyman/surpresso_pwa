@@ -5,6 +5,16 @@ const RECOUNT_STORAGE_KEY = "surp_recount_session_v2";
 let parts = [];
 let recountSession = null;
 
+function normalizePartCode(raw) {
+  return String(raw || "")
+    .trim()
+    .split("=")[0]
+    .trim()
+    .split(/\s+/)[0]
+    .trim()
+    .toUpperCase();
+}
+
 function warehouseAlert(msg, type = "success", timeout = 2200) {
   const el = document.getElementById("warehouse-alert");
   if (!el) return;
@@ -200,22 +210,23 @@ function addFoundRecountItem() {
     return;
   }
 
-  const code = document.getElementById("recount-found-code")?.value.trim();
+  const rawCode = document.getElementById("recount-found-code")?.value.trim();
   const cell = document.getElementById("recount-found-cell")?.value.trim();
   const fact = Math.max(0, Number(document.getElementById("recount-found-fact")?.value || 0));
+  const code = normalizePartCode(rawCode);
 
   if (!code) {
     warehouseAlert("Укажите артикул", "warn", 2200);
     return;
   }
 
-  const catalog = parts.find(p => p.code === code);
+  const catalog = parts.find(p => normalizePartCode(p.code) === code);
   if (!catalog) {
     warehouseAlert("Артикул не найден в прайсе", "error", 2600);
     return;
   }
 
-  const existing = recountSession.items.find(it => it.code === code && (cell ? it.cell === cell : true));
+  const existing = recountSession.items.find(it => normalizePartCode(it.code) === code && (cell ? it.cell === cell : true));
   if (existing) {
     existing.fact = +(Number(existing.fact || 0) + fact).toFixed(2);
   } else {
@@ -230,6 +241,12 @@ function addFoundRecountItem() {
   }
 
   renderRecountTable();
+  const foundCodeInput = document.getElementById("recount-found-code");
+  const foundCellInput = document.getElementById("recount-found-cell");
+  const foundFactInput = document.getElementById("recount-found-fact");
+  if (foundCodeInput) foundCodeInput.value = "";
+  if (foundCellInput) foundCellInput.value = "";
+  if (foundFactInput) foundFactInput.value = "1";
   warehouseAlert("Найденный товар добавлен", "success", 1800);
 }
 
