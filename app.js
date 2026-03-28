@@ -2435,7 +2435,13 @@ function escapeHtml(value) {
 }
 
 function getDvgUrl(code) {
-  return `https://devecchigiuseppesrl.com/e-commerce/welcome/ordini/dettagli.asp?codice-articolo=${encodeURIComponent(String(code || "").trim())}`;
+  const raw = String(code || "").trim();
+  const normalized = raw
+    .split("=")[0]
+    .trim()
+    .split(/\s+/)[0]
+    .trim();
+  return `https://devecchigiuseppesrl.com/e-commerce/welcome/ordini/dettagli.asp?codice-articolo=${encodeURIComponent(normalized || raw)}`;
 }
 
 function renderPartCode(code) {
@@ -2883,7 +2889,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 
