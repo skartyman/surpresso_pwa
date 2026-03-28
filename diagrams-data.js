@@ -84,6 +84,12 @@ window.DIAGRAMS_CATEGORIES = [
         title: "BRITA Professional",
         description: "Техническая документация BRITA Professional для фильтров HoReCa.",
         url: "https://www.brita.net/en-gb/professional/service/downloads"
+      },
+      {
+        id: "ecosoft-osmosis",
+        title: "Ecosoft • Осмосы",
+        description: "Каталог осмосов Ecosoft: бытовые, HoReCa и промышленные модели с полезными документами.",
+        url: "/diagrams-ecosoft-osmosis.html"
       }
     ]
   }
