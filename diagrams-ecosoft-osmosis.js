@@ -114,31 +114,23 @@ const ECOSOFT_OSMOSIS_CATALOG = [
   }
 ];
 
-function createModelAccordion(model) {
-  const details = document.createElement("details");
-  details.className = "ecosoft-model";
+function createModelLink(model) {
+  const firstLink = (model.links || []).find(linkItem => linkItem?.url);
 
-  const summary = document.createElement("summary");
-  summary.className = "ecosoft-model__summary";
-  summary.textContent = model.name;
+  if (!firstLink) {
+    const fallback = document.createElement("span");
+    fallback.className = "ecosoft-doc-link";
+    fallback.textContent = model.name;
+    return fallback;
+  }
 
-  const linksWrap = document.createElement("div");
-  linksWrap.className = "ecosoft-model__links";
-
-  (model.links || []).forEach(linkItem => {
-    if (!linkItem?.url) return;
-
-    const link = document.createElement("a");
-    link.className = "ecosoft-doc-link";
-    link.href = linkItem.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = linkItem.label;
-    linksWrap.appendChild(link);
-  });
-
-  details.append(summary, linksWrap);
-  return details;
+  const link = document.createElement("a");
+  link.className = "ecosoft-doc-link";
+  link.href = firstLink.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = model.name;
+  return link;
 }
 
 function renderEcosoftOsmosisCatalog() {
@@ -159,7 +151,7 @@ function renderEcosoftOsmosisCatalog() {
     modelsWrap.className = "ecosoft-section__models";
 
     (section.models || []).forEach(model => {
-      modelsWrap.appendChild(createModelAccordion(model));
+      modelsWrap.appendChild(createModelLink(model));
     });
 
     card.append(title, modelsWrap);
