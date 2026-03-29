@@ -11,7 +11,7 @@ window.DIAGRAMS_CATEGORIES = [
         id: "delonghi",
         title: "DeLonghi",
         description: "Схемы и PDF по автоматическим кофемашинам DeLonghi (ESAM / ECAM / Magnifica и другие).",
-        url: "https://espressodolce.ca/pages/delonghi-part-diagrams"
+        url: "https://service-cm.ru/tekhnicheskaya-dokumentatsiya-dlya-kofemashin/vzryvnye-skhemy-kofemashin-i-kofevarok-delonghi"
       },
       {
         id: "saeco-philips",
@@ -73,18 +73,6 @@ window.DIAGRAMS_CATEGORIES = [
     page: "/diagrams-filtration.html",
     enabled: true,
     items: [
-      {
-        id: "bwt",
-        title: "BWT Water+More",
-        description: "Руководства и схемы для систем фильтрации BWT.",
-        url: "https://www.bwt-wam.com/en/service/downloads/"
-      },
-      {
-        id: "brita",
-        title: "BRITA Professional",
-        description: "Техническая документация BRITA Professional для фильтров HoReCa.",
-        url: "https://www.brita.net/en-gb/professional/service/downloads"
-      },
       {
         id: "ecosoft-osmosis",
         title: "Ecosoft • Осмосы",
