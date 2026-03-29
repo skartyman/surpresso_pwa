@@ -121,6 +121,16 @@ const USER_SHEET_GID = 0;
     return null;
   }
 
+  function getPapaParser() {
+    const parser = window.Papa;
+    if (!parser || typeof parser.parse !== "function") {
+      const message = "PapaParse не загружен: подключите https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js до auth.js";
+      console.error(message);
+      throw new Error(message);
+    }
+    return parser;
+  }
+
   async function loadUsers() {
     if (usersLoadPromise) return usersLoadPromise;
 
@@ -130,7 +140,7 @@ const USER_SHEET_GID = 0;
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const text = await resp.text();
-      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      const parsed = getPapaParser().parse(text, { header: true, skipEmptyLines: true });
       users = parsed.data
         .map(normalizeUserRow)
         .filter(user => user.login && user.pass);
