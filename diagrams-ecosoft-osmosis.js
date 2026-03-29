@@ -55,35 +55,35 @@ const ECOSOFT_OSMOSIS_CATALOG = [
         name: "RObust Mini",
         links: [
           { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/hrc-robustmini" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" }
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" }
         ]
       },
       {
         name: "RObust 1500",
         links: [
-          { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/hrc-robust1500eco" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" }
+          { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/ecosoft-robust-1500" },
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" }
         ]
       },
       {
         name: "RObust COFFEE",
         links: [
-          { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/hrc-robustcoffee" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" }
+          { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/ecosoft-robust-coffee" },
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" }
         ]
       },
       {
         name: "RObust 3000",
         links: [
           { label: "Страница линейки RObust", url: "https://ua.ecosoft.com/product-uk/hrc-robust3000max" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" }
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" }
         ]
       },
       {
         name: "RObust 3000 MAX",
         links: [
           { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/hrc-robust3000max" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" },
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" },
           { label: "Техописание / datasheet", url: "https://cdn.prod.website-files.com/62f6614bb0d08812ecf44d3d/65f2f573dfb0b7fc6d6d472b_Технічний%20опис%20продукту%20Ecosoft%20RObust%203000MAX.pdf" }
         ]
       },
@@ -91,7 +91,7 @@ const ECOSOFT_OSMOSIS_CATALOG = [
         name: "RObust 4000",
         links: [
           { label: "Страница модели", url: "https://ua.ecosoft.com/product-uk/hrc-robust4000" },
-          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1hJYhSdPq4Irk3zY7-j2sRz5YgBxrT6wG/view?usp=sharing" },
+          { label: "Инструкция PDF", url: "https://drive.google.com/file/d/1KUyv_2nXoX8rYul8nWqaJusQZYfgh4VD/view?usp=sharing" },
           { label: "Техописание / datasheet", url: "https://cdn.prod.website-files.com/62f6614bb0d08812ecf44d3d/65f2f5732e9ba018bb5592f0_Технічний%20опис%20продукту%20Ecosoft%20RObust%204000.pdf" }
         ]
       }
