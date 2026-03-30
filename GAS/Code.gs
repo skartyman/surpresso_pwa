@@ -140,6 +140,16 @@ function doPost(e) {
     assertServerKey_(incomingSecret);
 
     const action = String(data.action || "").trim();
+    if (!action && isWarehouseTemplatePayload_(data)) {
+      return json_(saveWarehouseTemplate_(data));
+    }
+    if (action === "update" && isWarehouseTemplatePayload_(data)) {
+      return json_(saveWarehouseTemplate_(data));
+    }
+    if (action === "delete" && isWarehouseTemplateDeletePayload_(data)) {
+      return json_(deleteWarehouseTemplate_(data));
+    }
+
     if (action === "createOnly") return json_(createOnly_(data.card || {}));
     if (action === "create")  return json_(upsertEquipment_(data.card || {}));
     if (action === "get")     return json_(getBundle_(data.id));
@@ -175,6 +185,77 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
+}
+
+function isWarehouseTemplatePayload_(data) {
+  if (!data || typeof data !== "object") return false;
+  const hasFile = !!String(data.file || "").trim();
+  const hasTemplateFields =
+    !!String(data.id || "").trim() ||
+    !!String(data.name || "").trim() ||
+    !!String(data.machine || "").trim() ||
+    !!String(data.node || "").trim() ||
+    Array.isArray(data.items);
+
+  return hasFile && hasTemplateFields;
+}
+
+function isWarehouseTemplateDeletePayload_(data) {
+  if (!data || typeof data !== "object") return false;
+  return !!String(data.file || "").trim() && !!String(data.id || "").trim();
+}
+
+function saveWarehouseTemplate_(payload) {
+  const fileId = String(payload.file || "").trim();
+  const templateId = String(payload.id || "").trim();
+  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
+  if (!templateId) return { ok: false, error: "TEMPLATE_ID_REQUIRED" };
+
+  const list = loadWarehouseTemplatesFile_(fileId);
+  const idx = list.findIndex((t) => String(t.id || "").trim() === templateId);
+
+  const template = {
+    id: templateId,
+    name: String(payload.name || "").trim(),
+    machine: String(payload.machine || "").trim(),
+    node: String(payload.node || "").trim(),
+    createdBy: String(payload.createdBy || "").trim(),
+    createdAt: String(payload.createdAt || new Date().toISOString()),
+    items: Array.isArray(payload.items) ? payload.items : []
+  };
+
+  const next = idx === -1
+    ? [template].concat(list.filter((t) => String(t.id || "").trim() !== templateId))
+    : list.map((t) => (String(t.id || "").trim() === templateId ? template : t));
+
+  saveWarehouseTemplatesFile_(fileId, next.slice(0, 200));
+  return { ok: true, id: templateId, action: idx === -1 ? "created" : "updated" };
+}
+
+function deleteWarehouseTemplate_(payload) {
+  const fileId = String(payload.file || "").trim();
+  const templateId = String(payload.id || "").trim();
+  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
+  if (!templateId) return { ok: false, error: "TEMPLATE_ID_REQUIRED" };
+
+  const list = loadWarehouseTemplatesFile_(fileId);
+  const next = list.filter((t) => String(t.id || "").trim() !== templateId);
+  saveWarehouseTemplatesFile_(fileId, next);
+  return { ok: true, id: templateId, action: "deleted" };
+}
+
+function loadWarehouseTemplatesFile_(fileId) {
+  const file = DriveApp.getFileById(fileId);
+  const raw = String(file.getBlob().getDataAsString() || "").trim();
+  if (!raw) return [];
+
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function saveWarehouseTemplatesFile_(fileId, list) {
+  const file = DriveApp.getFileById(fileId);
+  file.setContent(JSON.stringify(list || [], null, 2));
 }
 
 // =========================

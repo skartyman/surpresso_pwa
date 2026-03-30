@@ -2253,7 +2253,9 @@ app.post("/warehouse-templates", async (req, res) => {
       });
 
       const data = await forward.json().catch(() => ({}));
-      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+      if (!forward.ok || data?.ok === false) {
+        throw new Error(data?.error || `HTTP ${forward.status}`);
+      }
 
       return res.send({ ok: true, source: "webhook", id: template.id, ...data });
     } catch (err) {
@@ -2287,7 +2289,9 @@ app.put("/warehouse-templates/:id", async (req, res) => {
       });
 
       const data = await forward.json().catch(() => ({}));
-      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+      if (!forward.ok || data?.ok === false) {
+        throw new Error(data?.error || `HTTP ${forward.status}`);
+      }
 
       return res.send({ ok: true, source: "webhook", id });
     } catch (err) {
@@ -2322,7 +2326,9 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
       });
 
       const data = await forward.json().catch(() => ({}));
-      if (!forward.ok) throw new Error(data.error || `HTTP ${forward.status}`);
+      if (!forward.ok || data?.ok === false) {
+        throw new Error(data?.error || `HTTP ${forward.status}`);
+      }
 
       return res.send({ ok: true, source: "webhook", id });
     } catch (err) {
@@ -2345,7 +2351,6 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 
 
 
