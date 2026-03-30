@@ -23,10 +23,102 @@ import {
 // =======================
 const app = express();
 const __dirname = path.resolve();
+const PUBLIC_SVELTE_DIR = path.join(__dirname, "public", "public-svelte");
+const LEGACY_PUBLIC_DIR = __dirname;
+const PUBLIC_ROUTE_PATHS = new Set([
+  "/",
+  "/events",
+  "/booking",
+  "/map",
+  "/about",
+  "/menu",
+]);
+const PUBLIC_ROUTE_PREFIXES = ["/events/"];
+const PUBLIC_ROUTE_LOG_SAMPLE_RATE = Number(process.env.PUBLIC_ROUTE_LOG_SAMPLE_RATE || "1");
+const DISABLE_SVELTE_PUBLIC = String(process.env.DISABLE_SVELTE_PUBLIC || "").toLowerCase() === "true";
+let publicSvelteBuildAvailable = null;
+let lastSvelteBuildCheckAt = 0;
+let publicSvelteMissingLogged = false;
+
+function shouldUseSveltePublic(reqPath = "") {
+  if (PUBLIC_ROUTE_PATHS.has(reqPath)) return true;
+  return PUBLIC_ROUTE_PREFIXES.some((prefix) => reqPath.startsWith(prefix));
+}
+
+function shouldSampleRouteLogs() {
+  if (!Number.isFinite(PUBLIC_ROUTE_LOG_SAMPLE_RATE) || PUBLIC_ROUTE_LOG_SAMPLE_RATE <= 1) return true;
+  return Math.random() * PUBLIC_ROUTE_LOG_SAMPLE_RATE < 1;
+}
+
+async function hasSveltePublicBuild() {
+  const now = Date.now();
+  if (publicSvelteBuildAvailable !== null && now - lastSvelteBuildCheckAt < 10_000) {
+    return publicSvelteBuildAvailable;
+  }
+
+  try {
+    await fs.access(path.join(PUBLIC_SVELTE_DIR, "index.html"));
+    publicSvelteBuildAvailable = true;
+  } catch {
+    publicSvelteBuildAvailable = false;
+  }
+
+  lastSvelteBuildCheckAt = now;
+  return publicSvelteBuildAvailable;
+}
 
 await ensureIndexDir();
 
 app.use(bodyParser.json({ limit: "50mb" }));
+app.use("/legacy", express.static(LEGACY_PUBLIC_DIR));
+
+app.use(async (req, res, next) => {
+  if (req.method !== "GET") return next();
+  if (!shouldUseSveltePublic(req.path)) return next();
+
+  const startedAt = Date.now();
+  const logOutcome = (outcome, extra = {}) => {
+    if (!shouldSampleRouteLogs()) return;
+    console.info(
+      JSON.stringify({
+        level: "info",
+        type: "public_route_resolution",
+        route: req.path,
+        method: req.method,
+        outcome,
+        durationMs: Date.now() - startedAt,
+        ...extra,
+      })
+    );
+  };
+
+  if (DISABLE_SVELTE_PUBLIC) {
+    logOutcome("legacy", { reason: "disabled_via_env" });
+    return res.sendFile(path.join(LEGACY_PUBLIC_DIR, "index.html"));
+  }
+
+  const hasBuild = await hasSveltePublicBuild();
+  if (hasBuild) {
+    logOutcome("svelte");
+    return res.sendFile(path.join(PUBLIC_SVELTE_DIR, "index.html"));
+  }
+
+  if (!publicSvelteMissingLogged) {
+    publicSvelteMissingLogged = true;
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        type: "public_svelte_build_missing",
+        dir: PUBLIC_SVELTE_DIR,
+        fallback: "legacy_index",
+      })
+    );
+  }
+
+  logOutcome("legacy", { reason: "svelte_build_missing" });
+  return res.sendFile(path.join(LEGACY_PUBLIC_DIR, "index.html"));
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // =======================
@@ -2351,6 +2443,5 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 
 
