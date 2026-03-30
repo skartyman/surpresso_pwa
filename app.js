@@ -735,19 +735,27 @@ function closeKitChoice() {
 // 📦 СКЛАД — НАБОР ЗАПЧАСТЕЙ (QR)
 // ======================
 function warehouseAlert(text, type = "info", timeout = 2500) {
-  const el = document.getElementById("warehouse-alert");
-  if (!el) return;
+  const candidates = [
+    document.getElementById("warehouse-alert-manual"),
+    document.getElementById("warehouse-alert")
+  ].filter(Boolean);
+  if (!candidates.length) return;
 
-  el.className = "warehouse-alert " + type;
-  el.textContent = text;
-  el.style.display = "block";
+  candidates.forEach((el) => {
+    const isVisible = !!(el.offsetParent || (el.getClientRects && el.getClientRects().length));
+    if (!isVisible && el.id === "warehouse-alert") return;
 
-  if (timeout) {
-    clearTimeout(el._t);
-    el._t = setTimeout(() => {
-      el.style.display = "none";
-    }, timeout);
-  }
+    el.className = "warehouse-alert " + type;
+    el.textContent = text;
+    el.style.display = "block";
+
+    if (timeout) {
+      clearTimeout(el._t);
+      el._t = setTimeout(() => {
+        el.style.display = "none";
+      }, timeout);
+    }
+  });
 }
 
 function updateOcrResult(text, state = "info") {
@@ -1489,8 +1497,28 @@ async function saveWarehouseTemplate() {
     return;
   }
 
-  const isEdit = Boolean(editingTemplateId);
-  const existingTpl = isEdit ? (warehouseTemplates.find(t => t.id === editingTemplateId) || {}) : {};
+  let isEdit = Boolean(editingTemplateId);
+  let existingTpl = isEdit ? (warehouseTemplates.find(t => t.id === editingTemplateId) || {}) : {};
+
+  if (!isEdit) {
+    const matchedTemplate = warehouseTemplates.find((tpl) => {
+      const sameName = (tpl.name || "").trim().toLowerCase() === name.toLowerCase();
+      const sameMachine = (tpl.machine || "").trim().toLowerCase() === machine.toLowerCase();
+      const sameNode = (tpl.node || "").trim().toLowerCase() === node.toLowerCase();
+      return sameName && sameMachine && sameNode;
+    });
+
+    if (matchedTemplate) {
+      const shouldUpdate = confirm(
+        `Шаблон \"${matchedTemplate.name}\" уже существует. Обновить его вместо создания нового?`
+      );
+      if (shouldUpdate) {
+        editingTemplateId = matchedTemplate.id;
+        isEdit = true;
+        existingTpl = matchedTemplate;
+      }
+    }
+  }
 
   // ✅ ВАЖНО: id всегда есть
   const id = editingTemplateId || genTemplateId();
@@ -2889,7 +2917,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 
