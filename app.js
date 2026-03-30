@@ -2742,12 +2742,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (!["check", "warehouse"].includes(pageType)) return;
 
-  await loadPrices();
-  loadKit();
-  await loadWarehouseTemplates();
-
-  attachSuggest("warehouse-input", "warehouse-suggest", parts);
-
   const clearBtn = document.getElementById("clear-kit-btn");
   if (clearBtn) clearBtn.onclick = clearWarehouseKit;
 
@@ -2768,6 +2762,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
     toggleTemplatesVisibility(false);
   }
+
+  // Важно: обработчики кнопок уже активны, даже если загрузка данных зависла/ошиблась.
+  loadKit();
+  await Promise.allSettled([
+    loadPrices(),
+    loadWarehouseTemplates()
+  ]);
+
+  attachSuggest("warehouse-input", "warehouse-suggest", parts);
 
   if (pageType === "warehouse") {
     return;
@@ -2917,7 +2920,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 
