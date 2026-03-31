@@ -2302,7 +2302,8 @@ async function handleWarehouseTemplateCreate(req, res) {
 
   const template = ensureTemplateId({
     ...req.body,
-    action: "create",
+    // В GAS action="create" зарезервирован под карточки оборудования.
+    // Для шаблонов складских наборов action можно не передавать вовсе.
     createdAt: req.body?.createdAt || new Date().toISOString(),
     file: fileId,
   });
