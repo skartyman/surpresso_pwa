@@ -132,6 +132,7 @@ const TEMPLATES_CACHE_KEY = "surp_templates_cache_v1";
 const PENDING_CHECK_KIT_KEY = "surp_pending_check_kit_v1";
 const CHECK_DRAFT_KEY = "surp_check_draft_v1";
 const PENDING_ITEMS_KEY = "surp_pending_items_v1";
+const PWA_KEY_STORAGE = "surpresso_pwa_key";
 const CHECK_DRAFT_AUTOSAVE_DELAY = 250;
 let draftAutosaveTimer = null;
 let isCheckBootstrapping = false;
@@ -166,6 +167,21 @@ function normalizeTemplate(tpl, idx = 0) {
     ...tpl,
     id: tpl.id || tpl.templateId || tpl.createdAt || `tpl-${idx}-${Date.now()}`
   };
+}
+
+function getServerAuthHeaders() {
+  const fromUrl = new URLSearchParams(window.location.search).get("k");
+  if (fromUrl) localStorage.setItem(PWA_KEY_STORAGE, fromUrl);
+  const key = localStorage.getItem(PWA_KEY_STORAGE) || "";
+  return key ? { "x-surpresso-key": key } : {};
+}
+
+async function fetchWithServerAuth(url, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    ...getServerAuthHeaders(),
+  };
+  return fetch(url, { ...options, headers });
 }
 // ======================
 // Авторизация
@@ -1503,7 +1519,7 @@ async function deleteWarehouseTemplate(tpl) {
   if (!confirm(`Удалить шаблон \"${tpl.name || tpl.id}\"?`)) return;
 
   try {
-    const resp = await fetch(`/warehouse-templates/${encodeURIComponent(tpl.id)}`, {
+    const resp = await fetchWithServerAuth(`/api/warehouse-templates/${encodeURIComponent(tpl.id)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file: TEMPLATES_FILE_ID })
@@ -1541,8 +1557,8 @@ async function loadWarehouseTemplates() {
   const filterVal = document.getElementById("template-filter")?.value || "";
 
   try {
-    const url = `/warehouse-templates?file=${encodeURIComponent(TEMPLATES_FILE_ID)}`;
-    const resp = await fetch(url, { cache: "no-store" });
+    const url = `/api/warehouse-templates?file=${encodeURIComponent(TEMPLATES_FILE_ID)}`;
+    const resp = await fetchWithServerAuth(url, { cache: "no-store" });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
 
     const data = await resp.json();
@@ -1635,10 +1651,10 @@ async function saveWarehouseTemplate() {
 
   try {
     const endpoint = isEdit
-      ? `/warehouse-templates/${encodeURIComponent(id)}`
-      : "/warehouse-templates";
+      ? `/api/warehouse-templates/${encodeURIComponent(id)}`
+      : "/api/warehouse-templates";
 
-    const resp = await fetch(endpoint, {
+    const resp = await fetchWithServerAuth(endpoint, {
       method: isEdit ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -3021,7 +3037,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 

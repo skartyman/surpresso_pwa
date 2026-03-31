@@ -236,6 +236,26 @@ function requirePwaKey(req, res, next) {
   next();
 }
 
+function requireWarehouseTemplateSecret(req, res, next) {
+  if (!PWA_KEY) return next();
+
+  const key =
+    req.headers["x-surpresso-key"] ||
+    req.headers["x-server-key"] ||
+    req.headers["x-api-key"] ||
+    req.query.k;
+
+  if (!key) {
+    console.warn(`[WAREHOUSE AUTH] denied: missing secret for ${req.method} ${req.originalUrl}`);
+    return res.status(401).send({ ok: false, error: "missing_secret" });
+  }
+  if (String(key) !== String(PWA_KEY)) {
+    console.warn(`[WAREHOUSE AUTH] denied: invalid secret for ${req.method} ${req.originalUrl}`);
+    return res.status(403).send({ ok: false, error: "invalid_secret" });
+  }
+  next();
+}
+
 // =======================
 // HELPERS: Trello label
 // =======================
@@ -2263,7 +2283,7 @@ app.delete("/api/manuals/:id", async (req, res) => {
   }
 });
 
-app.get("/warehouse-templates", async (req, res) => {
+async function handleWarehouseTemplatesList(req, res) {
   const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
   if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
@@ -2274,9 +2294,9 @@ app.get("/warehouse-templates", async (req, res) => {
     console.error("TEMPLATE LOAD ERROR", err);
     res.status(500).send({ ok: false, error: "templates_list_failed" });
   }
-});
+}
 
-app.post("/warehouse-templates", async (req, res) => {
+async function handleWarehouseTemplateCreate(req, res) {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
   if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
@@ -2294,9 +2314,9 @@ app.post("/warehouse-templates", async (req, res) => {
     console.error("TEMPLATE SAVE ERROR", err);
     res.status(500).send({ ok: false, error: "save_failed" });
   }
-});
+}
 
-app.put("/warehouse-templates/:id", async (req, res) => {
+async function handleWarehouseTemplateUpdate(req, res) {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
   const id = req.params.id;
   if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
@@ -2311,9 +2331,9 @@ app.put("/warehouse-templates/:id", async (req, res) => {
     console.error("TEMPLATE UPDATE ERROR", err);
     res.status(500).send({ ok: false, error: "update_failed" });
   }
-});
+}
 
-app.delete("/warehouse-templates/:id", async (req, res) => {
+async function handleWarehouseTemplateDelete(req, res) {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
   const id = req.params.id;
   if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
@@ -2326,10 +2346,19 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
     console.error("TEMPLATE DELETE ERROR", err);
     res.status(500).send({ ok: false, error: "delete_failed" });
   }
-});
+}
+
+app.get("/warehouse-templates", handleWarehouseTemplatesList);
+app.post("/warehouse-templates", requireWarehouseTemplateSecret, handleWarehouseTemplateCreate);
+app.put("/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWarehouseTemplateUpdate);
+app.delete("/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWarehouseTemplateDelete);
+
+app.get("/api/warehouse-templates", handleWarehouseTemplatesList);
+app.post("/api/warehouse-templates", requireWarehouseTemplateSecret, handleWarehouseTemplateCreate);
+app.put("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWarehouseTemplateUpdate);
+app.delete("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWarehouseTemplateDelete);
 
 // =======================
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
