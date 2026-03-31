@@ -1019,6 +1019,7 @@ function normalizeWarehouseStackItem(rawItem, index = 0) {
     code,
     name: String(rawItem.name || ""),
     cell: String(rawItem.cell || ""),
+    stock: rawItem.stock ?? "",
     qty,
     _restoreIndex: index
   };
@@ -1200,11 +1201,15 @@ function addWarehouseItemByCode(code, qty = 1, opts = {}) {
   const ex = warehouseState.selectedStack.find(i => i.code === found.code);
   if (ex) {
     ex.qty = +(ex.qty + qty).toFixed(2);
+    if ((ex.stock === "" || ex.stock === undefined || ex.stock === null) && found.stock !== undefined) {
+      ex.stock = found.stock;
+    }
   } else {
     warehouseState.selectedStack.push({
       code: found.code,
       name: found.name,
       cell: found.cell || "",
+      stock: found.stock ?? "",
       qty: +qty.toFixed(2)
     });
   }
@@ -1267,13 +1272,16 @@ function renderWarehouseList() {
     // подтягиваем остаток из прайса по коду
     const priceItem = parts.find(p => p.code === it.code);
 
-    const stockRaw = priceItem?.stock ?? "";
+    const stockRaw = priceItem?.stock ?? it.stock ?? "";
     const stockNum = parseFloat(String(stockRaw).replace(",", ".").replace(/[^\d.]+/g, ""));
-    const hasStock = !isNaN(stockNum) && stockNum > 0;
+    const hasKnownStock = !isNaN(stockNum);
+    const hasStock = hasKnownStock && stockNum > 0;
 
     const stockHTML = hasStock
       ? `<span class="stock ok">📦 ${stockNum}</span>`
-      : `<span class="stock empty">❌ закончилось</span>`;
+      : hasKnownStock
+        ? `<span class="stock empty">❌ закончилось</span>`
+        : `<span class="stock">📦 нет данных</span>`;
 
     div.innerHTML = `
       <div class="top">
@@ -3037,7 +3045,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
 
 
 

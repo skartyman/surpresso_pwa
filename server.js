@@ -2302,6 +2302,7 @@ async function handleWarehouseTemplateCreate(req, res) {
 
   const template = ensureTemplateId({
     ...req.body,
+    action: "create",
     createdAt: req.body?.createdAt || new Date().toISOString(),
     file: fileId,
   });
