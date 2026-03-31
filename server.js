@@ -164,12 +164,6 @@ const LABEL_OUR = process.env.LABEL_OUR || "";
 const LABEL_CLIENT = process.env.LABEL_CLIENT || "";
 const LABEL_CONTRACT = process.env.LABEL_CONTRACT || "";
 
-// Templates proxy
-const TEMPLATE_SAVE_URL =
-  process.env.TEMPLATE_SAVE_WEBHOOK ||
-  "";
-
-const TEMPLATES_STORE = path.join(__dirname, "warehouse-templates.json");
 function sanitizeManualText(value, max = 120) {
   return String(value || "")
     .trim()
@@ -1888,52 +1882,10 @@ function ensureTemplateId(tpl) {
 }
 
 async function loadTemplatesFromDrive(fileId) {
-  if (!fileId) return null;
-
-  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
-  const resp = await fetch(url, { headers: { Accept: "application/json,text/plain,*/*" } });
-
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-  const contentType = (resp.headers.get("content-type") || "").toLowerCase();
-  const text = await resp.text();
-
-  if (
-    contentType.includes("text/html") ||
-    text.trim().startsWith("<!DOCTYPE html") ||
-    text.includes("<html")
-  ) {
-    throw new Error("Drive returned HTML вместо JSON (файл не публичный или требует подтверждения)");
-  }
-
-  let items;
-  try {
-    items = JSON.parse(text);
-  } catch {
-    throw new Error("Не удалось распарсить JSON из Drive");
-  }
-
-  if (Array.isArray(items)) return items.map(ensureTemplateId);
-  if (items && Array.isArray(items.items)) return items.items.map(ensureTemplateId);
-  return [];
-}
-
-async function loadTemplatesLocal() {
-  try {
-    const raw = await fs.readFile(TEMPLATES_STORE, "utf8");
-    const data = JSON.parse(raw);
-    const items = Array.isArray(data) ? data : [];
-    const normalized = items.map(ensureTemplateId);
-    const missing = normalized.some((tpl, i) => tpl.id !== items[i]?.id);
-    if (missing) await saveTemplatesLocal(normalized);
-    return normalized;
-  } catch {
-    return [];
-  }
-}
-
-async function saveTemplatesLocal(items) {
-  await fs.writeFile(TEMPLATES_STORE, JSON.stringify(items, null, 2), "utf8");
+  if (!fileId) throw new Error("templates_file_required");
+  const out = await gasPost({ action: "templatesList", file: fileId });
+  const items = Array.isArray(out?.items) ? out.items : [];
+  return items.map(ensureTemplateId);
 }
 
 async function fetchManualsList() {
@@ -2313,129 +2265,66 @@ app.delete("/api/manuals/:id", async (req, res) => {
 
 app.get("/warehouse-templates", async (req, res) => {
   const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
+  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
   try {
-    if (fileId) {
-      const items = await loadTemplatesFromDrive(fileId);
-      if (items) return res.send({ items: items.map(ensureTemplateId), source: "drive" });
-    }
-    const fallback = await loadTemplatesLocal();
-    res.send({ items: fallback, source: "local" });
+    const items = await loadTemplatesFromDrive(fileId);
+    res.send({ items, source: "gas" });
   } catch (err) {
     console.error("TEMPLATE LOAD ERROR", err);
-    const fallback = await loadTemplatesLocal();
-    res.status(200).send({ items: fallback, source: "local", warning: "drive_failed" });
+    res.status(500).send({ ok: false, error: "templates_list_failed" });
   }
 });
 
 app.post("/warehouse-templates", async (req, res) => {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
   const template = ensureTemplateId({
     ...req.body,
     createdAt: req.body?.createdAt || new Date().toISOString(),
+    file: fileId,
   });
 
-  if (TEMPLATE_SAVE_URL) {
-    try {
-      const forward = await fetch(TEMPLATE_SAVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...template, file: fileId }),
-      });
-
-      const data = await forward.json().catch(() => ({}));
-      if (!forward.ok || data?.ok === false) {
-        throw new Error(data?.error || `HTTP ${forward.status}`);
-      }
-
-      return res.send({ ok: true, source: "webhook", id: template.id, ...data });
-    } catch (err) {
-      console.error("TEMPLATE SAVE ERROR (webhook)", err);
-    }
-  }
-
   try {
-    const current = await loadTemplatesLocal();
-    const updated = [template, ...current.filter((t) => t.id !== template.id)].slice(0, 200);
-    await saveTemplatesLocal(updated);
-    res.send({ ok: true, source: "local", id: template.id });
+    const out = await gasPost(template);
+    if (out?.ok === false) throw new Error(out.error || "templates_save_failed");
+    res.send({ ok: true, source: "gas", id: template.id });
   } catch (err) {
-    console.error("TEMPLATE SAVE ERROR (local)", err);
-    res.status(500).send({ error: "save_failed" });
+    console.error("TEMPLATE SAVE ERROR", err);
+    res.status(500).send({ ok: false, error: "save_failed" });
   }
 });
 
 app.put("/warehouse-templates/:id", async (req, res) => {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
   const id = req.params.id;
+  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
-  const template = ensureTemplateId({ ...req.body, id, file: fileId });
-
-  if (TEMPLATE_SAVE_URL) {
-    try {
-      const forward = await fetch(TEMPLATE_SAVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...template, action: "update" }),
-      });
-
-      const data = await forward.json().catch(() => ({}));
-      if (!forward.ok || data?.ok === false) {
-        throw new Error(data?.error || `HTTP ${forward.status}`);
-      }
-
-      return res.send({ ok: true, source: "webhook", id });
-    } catch (err) {
-      console.error("TEMPLATE UPDATE ERROR (webhook)", err);
-    }
-  }
+  const template = ensureTemplateId({ ...req.body, id, file: fileId, action: "update" });
 
   try {
-    const current = await loadTemplatesLocal();
-    const idx = current.findIndex((t) => t.id === id);
-    const next =
-      idx === -1 ? [template, ...current] : current.map((t) => (t.id === id ? { ...t, ...template } : t));
-    await saveTemplatesLocal(next);
-
-    res.send({ ok: true, source: idx === -1 ? "local_added" : "local_updated", id });
+    const out = await gasPost(template);
+    if (out?.ok === false) throw new Error(out.error || "templates_update_failed");
+    res.send({ ok: true, source: "gas", id });
   } catch (err) {
-    console.error("TEMPLATE UPDATE ERROR (local)", err);
-    res.status(500).send({ error: "update_failed" });
+    console.error("TEMPLATE UPDATE ERROR", err);
+    res.status(500).send({ ok: false, error: "update_failed" });
   }
 });
 
 app.delete("/warehouse-templates/:id", async (req, res) => {
   const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
   const id = req.params.id;
-
-  if (TEMPLATE_SAVE_URL) {
-    try {
-      const forward = await fetch(TEMPLATE_SAVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id, file: fileId }),
-      });
-
-      const data = await forward.json().catch(() => ({}));
-      if (!forward.ok || data?.ok === false) {
-        throw new Error(data?.error || `HTTP ${forward.status}`);
-      }
-
-      return res.send({ ok: true, source: "webhook", id });
-    } catch (err) {
-      console.error("TEMPLATE DELETE ERROR (webhook)", err);
-    }
-  }
+  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
   try {
-    const current = await loadTemplatesLocal();
-    const filtered = current.filter((t) => t.id !== id);
-    await saveTemplatesLocal(filtered);
-    res.send({ ok: true, source: "local", id });
+    const out = await gasPost({ action: "delete", id, file: fileId });
+    if (out?.ok === false) throw new Error(out.error || "templates_delete_failed");
+    res.send({ ok: true, source: "gas", id });
   } catch (err) {
-    console.error("TEMPLATE DELETE ERROR (local)", err);
-    res.status(500).send({ error: "delete_failed" });
+    console.error("TEMPLATE DELETE ERROR", err);
+    res.status(500).send({ ok: false, error: "delete_failed" });
   }
 });
 
@@ -2443,5 +2332,4 @@ app.delete("/warehouse-templates/:id", async (req, res) => {
 // START
 // =======================
 app.listen(PORT, () => console.log("Server started on port " + PORT));
-
 

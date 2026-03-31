@@ -143,6 +143,9 @@ function doPost(e) {
     if (!action && isWarehouseTemplatePayload_(data)) {
       return json_(saveWarehouseTemplate_(data));
     }
+    if (action === "templatesList") {
+      return json_(listWarehouseTemplates_(data));
+    }
     if (action === "update" && isWarehouseTemplatePayload_(data)) {
       return json_(saveWarehouseTemplate_(data));
     }
@@ -242,6 +245,14 @@ function deleteWarehouseTemplate_(payload) {
   const next = list.filter((t) => String(t.id || "").trim() !== templateId);
   saveWarehouseTemplatesFile_(fileId, next);
   return { ok: true, id: templateId, action: "deleted" };
+}
+
+function listWarehouseTemplates_(payload) {
+  const fileId = String((payload && payload.file) || "").trim();
+  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
+
+  const items = loadWarehouseTemplatesFile_(fileId);
+  return { ok: true, items: Array.isArray(items) ? items : [] };
 }
 
 function loadWarehouseTemplatesFile_(fileId) {
