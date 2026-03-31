@@ -1693,8 +1693,11 @@ async function saveWarehouseTemplate() {
       body: JSON.stringify(payload)
     });
 
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detail = data?.detail || data?.error || "";
+      throw new Error(`HTTP ${resp.status}${detail ? `: ${detail}` : ""}`);
+    }
     if (data.error) throw new Error(data.error);
 
     warehouseAlert(isEdit ? "Шаблон обновлён" : "Шаблон добавлен", "success", 2000);
@@ -1707,7 +1710,8 @@ async function saveWarehouseTemplate() {
     await loadWarehouseTemplates();
   } catch (e) {
     console.error("Ошибка сохранения шаблона", e);
-    warehouseAlert("Не удалось сохранить шаблон", "error", 3500);
+    const message = String(e?.message || "").replace(/^Error:\s*/i, "").trim();
+    warehouseAlert(message ? `Не удалось сохранить шаблон: ${message}` : "Не удалось сохранить шаблон", "error", 4500);
 
     // ✅ локальный фолбэк: добавим/обновим в кэше браузера
     try {

@@ -2312,8 +2312,9 @@ async function handleWarehouseTemplateCreate(req, res) {
     if (out?.ok === false) throw new Error(out.error || "templates_save_failed");
     res.send({ ok: true, source: "gas", id: template.id });
   } catch (err) {
-    console.error("TEMPLATE SAVE ERROR", err);
-    res.status(500).send({ ok: false, error: "save_failed" });
+    const detail = String(err?.message || "save_failed");
+    console.error("TEMPLATE SAVE ERROR", detail);
+    res.status(500).send({ ok: false, error: "save_failed", detail });
   }
 }
 
@@ -2329,8 +2330,9 @@ async function handleWarehouseTemplateUpdate(req, res) {
     if (out?.ok === false) throw new Error(out.error || "templates_update_failed");
     res.send({ ok: true, source: "gas", id });
   } catch (err) {
-    console.error("TEMPLATE UPDATE ERROR", err);
-    res.status(500).send({ ok: false, error: "update_failed" });
+    const detail = String(err?.message || "update_failed");
+    console.error("TEMPLATE UPDATE ERROR", detail);
+    res.status(500).send({ ok: false, error: "update_failed", detail });
   }
 }
 
@@ -2344,8 +2346,9 @@ async function handleWarehouseTemplateDelete(req, res) {
     if (out?.ok === false) throw new Error(out.error || "templates_delete_failed");
     res.send({ ok: true, source: "gas", id });
   } catch (err) {
-    console.error("TEMPLATE DELETE ERROR", err);
-    res.status(500).send({ ok: false, error: "delete_failed" });
+    const detail = String(err?.message || "delete_failed");
+    console.error("TEMPLATE DELETE ERROR", detail);
+    res.status(500).send({ ok: false, error: "delete_failed", detail });
   }
 }
 
