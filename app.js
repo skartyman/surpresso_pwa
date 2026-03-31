@@ -117,7 +117,11 @@ function populateEngineerSelects(preferredName = "") {
 let parts = [];
 let services = [];
 let items = []; // {code,name,qty,price,sum}
-let kit = []; // набор со склада
+const warehouseState = {
+  searchResults: [],
+  selectedStack: [],
+  templateItems: []
+}; // warehouse UI state
 let warehouseTemplates = [];
 let templatesPanelOpen = false;
 let editingTemplateId = null;
@@ -539,60 +543,69 @@ function attachSuggest(inputId, suggestId, sourceList) {
     }
 
     const text = input.value.trim();
-    if (!text) return;
+    if (!text) {
+      renderSearchResults([], { suggestId, inputId, inputEl: input, suggestEl: suggest });
+      return;
+    }
 
     const preferStock = (inputId === "parts-input" || inputId === "warehouse-input");
     const results = filterList(sourceList, text, { preferStock });
-
-    if (!results.length) return;
-
-    const ul = document.createElement("ul");
-
-    results.forEach(item => {
-      const li = document.createElement("li");
-
-      let extraHTML = "";
-      if (inputId === "parts-input" || inputId === "warehouse-input") {
-        extraHTML = `
-          <div class="extra">
-            📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}
-          </div>
-        `;
-      }
-
-      li.innerHTML = `
-        <div class="code">${item.code || ""}</div>
-        <div class="name">${item.name || ""}</div>
-        <div class="price">${(item.price || 0).toFixed(2)} грн</div>
-        ${extraHTML}
-      `;
-
-      li.addEventListener("click", () => {
-        input.value = item.code || item.name || "";
-        suggest.innerHTML = "";
-
-        if (inputId === "parts-input") {
-          const info = document.getElementById("parts-info");
-          if (info) {
-            info.innerHTML = `
-              <span><span class="icon">📦</span> ${item.stock || "—"}</span>
-              <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
-            `;
-          }
-        }
-      });
-
-      ul.appendChild(li);
-    });
-
-    suggest.appendChild(ul);
+    renderSearchResults(results, { suggestId, inputId, inputEl: input, suggestEl: suggest });
   });
 
   document.addEventListener("click", e => {
     if (!suggest.contains(e.target) && e.target !== input) {
-      suggest.innerHTML = "";
+      renderSearchResults([], { suggestEl: suggest, inputEl: input, inputId });
     }
   });
+}
+
+function renderSearchResults(results, opts = {}) {
+  const suggest = opts.suggestEl || document.getElementById(opts.suggestId || "warehouse-suggest");
+  const input = opts.inputEl || document.getElementById(opts.inputId || "warehouse-input");
+  if (!suggest || !input) return;
+
+  const inputId = opts.inputId || input.id;
+  const safeResults = Array.isArray(results) ? results.filter(Boolean) : [];
+
+  if (inputId === "warehouse-input") {
+    warehouseState.searchResults = safeResults;
+  }
+
+  suggest.innerHTML = "";
+  if (!safeResults.length) return;
+
+  const ul = document.createElement("ul");
+  safeResults.forEach(item => {
+    const li = document.createElement("li");
+    let extraHTML = "";
+    if (inputId === "parts-input" || inputId === "warehouse-input") {
+      extraHTML = `<div class="extra">📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}</div>`;
+    }
+
+    li.innerHTML = `
+      <div class="code">${item.code || ""}</div>
+      <div class="name">${item.name || ""}</div>
+      <div class="price">${(item.price || 0).toFixed(2)} грн</div>
+      ${extraHTML}
+    `;
+    li.addEventListener("click", () => {
+      input.value = item.code || item.name || "";
+      renderSearchResults([], { suggestEl: suggest, inputEl: input, inputId });
+
+      if (inputId === "parts-input") {
+        const info = document.getElementById("parts-info");
+        if (info) {
+          info.innerHTML = `
+            <span><span class="icon">📦</span> ${item.stock || "—"}</span>
+            <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
+          `;
+        }
+      }
+    });
+    ul.appendChild(li);
+  });
+  suggest.appendChild(ul);
 }
 function addOrMergeItem({ code, name, qty, price, type }) {
   const qtyAdd = +(+qty || 0).toFixed(2);
@@ -695,12 +708,12 @@ function openKitChoice(tpl) {
   const addBtn     = document.getElementById("kit-choice-add-btn");
 
   if (!modal || !replaceBtn || !addBtn) {
-    applyTemplateToKit(tpl, { mode: kit.length ? "add" : "replace" });
+    applyTemplateToKit(tpl, { mode: warehouseState.selectedStack.length ? "add" : "replace" });
     return;
   }
 
   title.textContent = tpl?.name ? `Шаблон: ${tpl.name}` : "Шаблон";
-  text.textContent = kit.length
+  text.textContent = warehouseState.selectedStack.length
     ? "Заменить текущий набор или добавить позиции к нему?"
     : "Набор пуст. Добавить позиции из шаблона?";
 
@@ -779,11 +792,11 @@ function updateWarehouseActions() {
   const clearBtn = document.getElementById("clear-kit-btn");
 
   if (applyBtn) {
-    applyBtn.disabled = kit.length === 0;
-    applyBtn.classList.toggle("primary", kit.length > 0);
+    applyBtn.disabled = warehouseState.selectedStack.length === 0;
+    applyBtn.classList.toggle("primary", warehouseState.selectedStack.length > 0);
   }
   if (clearBtn) {
-    clearBtn.disabled = kit.length === 0;
+    clearBtn.disabled = warehouseState.selectedStack.length === 0;
   }
   updateWarehouseToggle();
 }
@@ -791,7 +804,7 @@ function updateWarehouseActions() {
 function updateWarehouseToggle() {
   const btn = document.querySelector(".warehouse-toggle");
   if (!btn) return;
-  btn.classList.toggle("has-items", kit.length > 0);
+  btn.classList.toggle("has-items", warehouseState.selectedStack.length > 0);
 }
 
 function toggleWarehouse() {
@@ -978,27 +991,89 @@ function mergePendingItemsIntoCheck(pendingItems) {
   return true;
 }
 // ---------- storage ----------
-function saveKit() {
-  localStorage.setItem("surp_kit", JSON.stringify(kit));
+function normalizeWarehouseStackItem(rawItem, index = 0) {
+  if (!rawItem || typeof rawItem !== "object") return null;
+  const code = String(rawItem.code || "").trim();
+  if (!code) return null;
+
+  const qtyNum = Number(String(rawItem.qty ?? 1).replace(",", "."));
+  const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? +qtyNum.toFixed(2) : 1;
+
+  return {
+    code,
+    name: String(rawItem.name || ""),
+    cell: String(rawItem.cell || ""),
+    qty,
+    _restoreIndex: index
+  };
 }
-function loadKit() {
-  const s = localStorage.getItem("surp_kit");
-  if (s) {
-    try { kit = JSON.parse(s) || []; } catch(e) { kit = []; }
-    renderWarehouseList();
+
+function normalizeWarehouseDraft(rawDraft) {
+  let payload = rawDraft;
+
+  // Миграция старого формата: в localStorage лежал массив без обертки.
+  if (Array.isArray(payload)) {
+    payload = { selectedStack: payload, searchResults: [], templateItems: [] };
+  }
+  if (!payload || typeof payload !== "object") return null;
+
+  const selectedStackRaw = Array.isArray(payload.selectedStack)
+    ? payload.selectedStack
+    : Array.isArray(payload.kit) ? payload.kit : [];
+
+  const safeStack = selectedStackRaw
+    .map((item, idx) => normalizeWarehouseStackItem(item, idx))
+    .filter(Boolean);
+
+  return {
+    selectedStack: safeStack.map(({ _restoreIndex, ...item }) => item),
+    searchResults: [],
+    templateItems: Array.isArray(payload.templateItems) ? payload.templateItems.filter(Boolean) : []
+  };
+}
+
+function saveKit() {
+  const payload = {
+    version: 2,
+    selectedStack: warehouseState.selectedStack,
+    searchResults: [],
+    templateItems: warehouseState.templateItems
+  };
+  localStorage.setItem("surp_kit", JSON.stringify(payload));
+}
+
+function restoreWarehouseDraft() {
+  warehouseState.searchResults = [];
+  warehouseState.selectedStack = [];
+
+  const raw = localStorage.getItem("surp_kit");
+  if (!raw) return;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeWarehouseDraft(parsed);
+    if (!normalized) return;
+
+    warehouseState.searchResults = normalized.searchResults;
+    warehouseState.selectedStack = normalized.selectedStack;
+    warehouseState.templateItems = normalized.templateItems;
+  } catch (e) {
+    console.warn("warehouse draft parse failed", e);
+    warehouseState.searchResults = [];
+    warehouseState.selectedStack = [];
   }
 }
 function clearWarehouseKit() {
-  if (!kit.length) return;
+  if (!warehouseState.selectedStack.length) return;
   if (!confirm("Очистить набор со склада?")) return;
-  kit = [];
+  warehouseState.selectedStack = [];
   saveKit();
   renderWarehouseList();
 }
 
 // ---------- add/apply ----------
 function storePendingKitForCheck() {
-  savePendingItems(kit);
+  savePendingItems(warehouseState.selectedStack);
   localStorage.removeItem(PENDING_CHECK_KIT_KEY);
 }
 
@@ -1028,7 +1103,7 @@ function consumePendingKitForCheck() {
 }
 
 function applyKitToCheck() {
-  if (!kit.length) return;
+  if (!warehouseState.selectedStack.length) return;
 
   if (!document.getElementById("items-table")) {
     storePendingKitForCheck();
@@ -1036,7 +1111,7 @@ function applyKitToCheck() {
     return;
   }
 
-  kit.forEach(k => {
+  warehouseState.selectedStack.forEach(k => {
     const p = parts.find(x => x.code === k.code);
     if (!p) return;
 
@@ -1049,7 +1124,7 @@ function applyKitToCheck() {
     });
   });
 
-  kit = [];
+  warehouseState.selectedStack = [];
   saveKit();
   renderWarehouseList();
   renderTable();
@@ -1106,11 +1181,11 @@ function addWarehouseItemByCode(code, qty = 1, opts = {}) {
   }
 
   // ✅ добавление / увеличение
-  const ex = kit.find(i => i.code === found.code);
+  const ex = warehouseState.selectedStack.find(i => i.code === found.code);
   if (ex) {
     ex.qty = +(ex.qty + qty).toFixed(2);
   } else {
-    kit.push({
+    warehouseState.selectedStack.push({
       code: found.code,
       name: found.name,
       cell: found.cell || "",
@@ -1151,14 +1226,14 @@ function addWarehouseItem() {
 
 // ---------- list render ----------
 function changeKitQty(i, delta) {
-  if (!kit[i]) return;
-  kit[i].qty = Math.max(0.01, +(kit[i].qty + delta * QTY_STEP).toFixed(2));
+  if (!warehouseState.selectedStack[i]) return;
+  warehouseState.selectedStack[i].qty = Math.max(0.01, +(warehouseState.selectedStack[i].qty + delta * QTY_STEP).toFixed(2));
   saveKit();
   renderWarehouseList();
 }
 
 function removeKitItem(i) {
-  kit.splice(i, 1);
+  warehouseState.selectedStack.splice(i, 1);
   saveKit();
   renderWarehouseList();
 }
@@ -1169,7 +1244,7 @@ function renderWarehouseList() {
 
   box.innerHTML = "";
 
-  kit.forEach((it, idx) => {
+  warehouseState.selectedStack.forEach((it, idx) => {
     const div = document.createElement("div");
     div.className = "warehouse-item";
 
@@ -1215,23 +1290,40 @@ function renderWarehouseList() {
   });
 
   updateWarehouseActions();
+  syncWarehouseBottomSpacing();
+}
+
+function renderSelectedStack() {
+  renderWarehouseList();
+}
+
+function updateWarehouseSummary() {
+  updateWarehouseActions();
+}
+
+function syncWarehouseBottomSpacing() {
+  const main = document.querySelector(".app-main");
+  const footer = document.querySelector(".app-footer");
+  if (!main || !footer) return;
+  const footerHeight = footer.offsetHeight || 34;
+  main.style.paddingBottom = `${footerHeight + 18}px`;
 }
 function mergeTemplateIntoKit(tpl) {
-  // добавляем позиции шаблона в текущий kit
+  // добавляем позиции шаблона в текущий warehouseState.selectedStack
   tpl.items.forEach(src => {
     const code = src.code;
     if (!code) return;
 
     const qty = +(+src.qty || 1).toFixed(2);
 
-    const ex = kit.find(k => k.code === code);
+    const ex = warehouseState.selectedStack.find(k => k.code === code);
     if (ex) {
       ex.qty = +(ex.qty + qty).toFixed(2);
       // можно обновлять имя/ячейку если пустые
       if (!ex.name && src.name) ex.name = src.name;
       if (!ex.cell && src.cell) ex.cell = src.cell;
     } else {
-      kit.push({
+      warehouseState.selectedStack.push({
         code,
         name: src.name || "",
         cell: src.cell || "",
@@ -1264,7 +1356,7 @@ function applyTemplateToKit(tpl, opts = { mode: "replace" }) {
   const mode = opts.mode || "replace";
 
   if (mode === "replace") {
-    kit = tpl.items.map(it => ({
+    warehouseState.selectedStack = tpl.items.map(it => ({
       code: it.code,
       name: it.name,
       cell: it.cell || "",
@@ -1278,14 +1370,14 @@ function applyTemplateToKit(tpl, opts = { mode: "replace" }) {
 
       const qtyAdd = +(+it.qty || 1).toFixed(2);
 
-      const ex = kit.find(x => x.code === code);
+      const ex = warehouseState.selectedStack.find(x => x.code === code);
       if (ex) {
         ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
         // обновим ячейку/имя если вдруг пустые
         if (!ex.cell && it.cell) ex.cell = it.cell;
         if (!ex.name && it.name) ex.name = it.name;
       } else {
-        kit.push({
+        warehouseState.selectedStack.push({
           code,
           name: it.name,
           cell: it.cell || "",
@@ -1458,6 +1550,7 @@ async function loadWarehouseTemplates() {
     warehouseTemplates = Array.isArray(data.items)
       ? data.items.map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean)
       : [];
+    warehouseState.templateItems = [...warehouseTemplates];
 
     // ✅ сохраняем кэш в браузере
     saveTemplatesCache(warehouseTemplates);
@@ -1472,6 +1565,7 @@ async function loadWarehouseTemplates() {
 
     // ✅ фолбэк на локальный кэш в браузере
     warehouseTemplates = loadTemplatesCache().map((tpl, idx) => normalizeTemplate(tpl, idx)).filter(Boolean);
+    warehouseState.templateItems = [...warehouseTemplates];
 
     if (warehouseTemplates.length) {
       warehouseAlert("Сервер недоступен — показаны шаблоны из кэша (localStorage)", "warning", 4500);
@@ -1488,7 +1582,7 @@ async function saveWarehouseTemplate() {
   const machine = (document.getElementById("template-machine")?.value || "").trim();
   const node = (document.getElementById("template-node")?.value || "").trim();
 
-  if (!kit.length) {
+  if (!warehouseState.selectedStack.length) {
     warehouseAlert("Набор пустой", "error", 2000);
     return;
   }
@@ -1531,7 +1625,7 @@ async function saveWarehouseTemplate() {
     createdBy: existingTpl.createdBy || CURRENT_USER?.name || CURRENT_USER?.login || "неизвестно",
     createdAt: existingTpl.createdAt || new Date().toISOString(),
     file: TEMPLATES_FILE_ID,
-    items: kit.map(i => ({
+    items: warehouseState.selectedStack.map(i => ({
       code: i.code,
       name: i.name,
       cell: i.cell || "",
@@ -2764,7 +2858,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Важно: обработчики кнопок уже активны, даже если загрузка данных зависла/ошиблась.
-  loadKit();
+  restoreWarehouseDraft();
+  renderSearchResults([], { suggestId: "warehouse-suggest", inputId: "warehouse-input" });
+  renderSelectedStack();
+  updateWarehouseSummary();
+  syncWarehouseBottomSpacing();
+
   await Promise.allSettled([
     loadPrices(),
     loadWarehouseTemplates()
@@ -2773,6 +2872,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   attachSuggest("warehouse-input", "warehouse-suggest", parts);
 
   if (pageType === "warehouse") {
+    syncWarehouseBottomSpacing();
+    window.addEventListener("resize", syncWarehouseBottomSpacing);
     return;
   }
 
@@ -2920,15 +3021,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
-
-
-
-
-
-
-
-
 
 
 
