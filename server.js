@@ -1901,9 +1901,8 @@ function ensureTemplateId(tpl) {
   return { ...tpl, id: tpl.id || tpl.templateId || tpl.createdAt || generateTemplateId() };
 }
 
-async function loadTemplatesFromDrive(fileId) {
-  if (!fileId) throw new Error("templates_file_required");
-  const out = await gasPost({ action: "templatesList", file: fileId });
+async function listTemplatesFromGas(fileId) {
+  const out = await gasPost({ action: "templatesList", file: fileId || "" });
   const items = Array.isArray(out?.items) ? out.items : [];
   return items.map(ensureTemplateId);
 }
@@ -2284,11 +2283,10 @@ app.delete("/api/manuals/:id", async (req, res) => {
 });
 
 async function handleWarehouseTemplatesList(req, res) {
-  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID;
-  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
+  const fileId = req.query.file || process.env.TEMPLATES_FILE_ID || "";
 
   try {
-    const items = await loadTemplatesFromDrive(fileId);
+    const items = await listTemplatesFromGas(fileId);
     res.send({ items, source: "gas" });
   } catch (err) {
     console.error("TEMPLATE LOAD ERROR", err);
@@ -2297,8 +2295,7 @@ async function handleWarehouseTemplatesList(req, res) {
 }
 
 async function handleWarehouseTemplateCreate(req, res) {
-  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
-  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID || "";
 
   const template = ensureTemplateId({
     ...req.body,
@@ -2320,9 +2317,8 @@ async function handleWarehouseTemplateCreate(req, res) {
 }
 
 async function handleWarehouseTemplateUpdate(req, res) {
-  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID || "";
   const id = req.params.id;
-  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
   const template = ensureTemplateId({ ...req.body, id, file: fileId, action: "update" });
 
@@ -2338,9 +2334,8 @@ async function handleWarehouseTemplateUpdate(req, res) {
 }
 
 async function handleWarehouseTemplateDelete(req, res) {
-  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID;
+  const fileId = req.body?.file || process.env.TEMPLATES_FILE_ID || "";
   const id = req.params.id;
-  if (!fileId) return res.status(400).send({ ok: false, error: "templates_file_required" });
 
   try {
     const out = await gasPost({ action: "delete", id, file: fileId });

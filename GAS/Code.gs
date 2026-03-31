@@ -16,6 +16,7 @@ const SH_EQUIPMENT = 1840737062;
 const SH_STATUS    = 925272215;
 const SH_PHOTOS    = 1128395503;
 const SH_MANUALS   = "MANUALS";
+const SH_WAREHOUSE_TEMPLATES = "WAREHOUSE_TEMPLATES";
 const MANUALS_FOLDER_NAME = "manuals";
 const MANUAL_INDEX_FOLDER_NAME = "manual-index";
 
@@ -192,7 +193,6 @@ function doPost(e) {
 
 function isWarehouseTemplatePayload_(data) {
   if (!data || typeof data !== "object") return false;
-  const hasFile = !!String(data.file || "").trim();
   const hasTemplateFields =
     !!String(data.id || "").trim() ||
     !!String(data.name || "").trim() ||
@@ -200,73 +200,138 @@ function isWarehouseTemplatePayload_(data) {
     !!String(data.node || "").trim() ||
     Array.isArray(data.items);
 
-  return hasFile && hasTemplateFields;
+  return hasTemplateFields;
 }
 
 function isWarehouseTemplateDeletePayload_(data) {
   if (!data || typeof data !== "object") return false;
-  return !!String(data.file || "").trim() && !!String(data.id || "").trim();
+  return !!String(data.id || "").trim();
 }
 
 function saveWarehouseTemplate_(payload) {
-  const fileId = String(payload.file || "").trim();
   const templateId = String(payload.id || "").trim();
-  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
   if (!templateId) return { ok: false, error: "TEMPLATE_ID_REQUIRED" };
 
-  const list = loadWarehouseTemplatesFile_(fileId);
-  const idx = list.findIndex((t) => String(t.id || "").trim() === templateId);
+  const sheet = getOrCreateWarehouseTemplatesSheet_();
+  const found = findWarehouseTemplateRowById_(sheet, templateId);
+  const existing = found ? found.values : null;
+  const nowIso = new Date().toISOString();
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const rowValues = [[
+    templateId,
+    String(payload.name || "").trim(),
+    String(payload.machine || "").trim(),
+    String(payload.node || "").trim(),
+    String(payload.createdBy || (existing && existing.createdBy) || "").trim(),
+    String(payload.createdAt || (existing && existing.createdAt) || nowIso).trim(),
+    JSON.stringify(items),
+    nowIso
+  ]];
 
-  const template = {
-    id: templateId,
-    name: String(payload.name || "").trim(),
-    machine: String(payload.machine || "").trim(),
-    node: String(payload.node || "").trim(),
-    createdBy: String(payload.createdBy || "").trim(),
-    createdAt: String(payload.createdAt || new Date().toISOString()),
-    items: Array.isArray(payload.items) ? payload.items : []
-  };
+  if (found) {
+    sheet.getRange(found.row, 1, 1, 8).setValues(rowValues);
+    return { ok: true, id: templateId, action: "updated" };
+  }
 
-  const next = idx === -1
-    ? [template].concat(list.filter((t) => String(t.id || "").trim() !== templateId))
-    : list.map((t) => (String(t.id || "").trim() === templateId ? template : t));
-
-  saveWarehouseTemplatesFile_(fileId, next.slice(0, 200));
-  return { ok: true, id: templateId, action: idx === -1 ? "created" : "updated" };
+  sheet.appendRow(rowValues[0]);
+  return { ok: true, id: templateId, action: "created" };
 }
 
 function deleteWarehouseTemplate_(payload) {
-  const fileId = String(payload.file || "").trim();
   const templateId = String(payload.id || "").trim();
-  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
   if (!templateId) return { ok: false, error: "TEMPLATE_ID_REQUIRED" };
 
-  const list = loadWarehouseTemplatesFile_(fileId);
-  const next = list.filter((t) => String(t.id || "").trim() !== templateId);
-  saveWarehouseTemplatesFile_(fileId, next);
+  const sheet = getOrCreateWarehouseTemplatesSheet_();
+  const found = findWarehouseTemplateRowById_(sheet, templateId);
+  if (found) {
+    sheet.deleteRow(found.row);
+  }
   return { ok: true, id: templateId, action: "deleted" };
 }
 
 function listWarehouseTemplates_(payload) {
-  const fileId = String((payload && payload.file) || "").trim();
-  if (!fileId) return { ok: false, error: "TEMPLATE_FILE_REQUIRED" };
+  const sheet = getOrCreateWarehouseTemplatesSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { ok: true, items: [] };
 
-  const items = loadWarehouseTemplatesFile_(fileId);
-  return { ok: true, items: Array.isArray(items) ? items : [] };
+  const rows = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  const items = rows
+    .map(function(row) {
+      let parsedItems = [];
+      try {
+        const parsed = JSON.parse(String(row[6] || "[]"));
+        parsedItems = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        parsedItems = [];
+      }
+
+      return {
+        id: String(row[0] || "").trim(),
+        name: String(row[1] || "").trim(),
+        machine: String(row[2] || "").trim(),
+        node: String(row[3] || "").trim(),
+        createdBy: String(row[4] || "").trim(),
+        createdAt: String(row[5] || "").trim(),
+        items: parsedItems,
+        updatedAt: String(row[7] || "").trim()
+      };
+    })
+    .filter(function(item) { return !!item.id; })
+    .sort(function(a, b) {
+      const aUpdated = Date.parse(a.updatedAt || "") || 0;
+      const bUpdated = Date.parse(b.updatedAt || "") || 0;
+      if (bUpdated !== aUpdated) return bUpdated - aUpdated;
+      const aCreated = Date.parse(a.createdAt || "") || 0;
+      const bCreated = Date.parse(b.createdAt || "") || 0;
+      return bCreated - aCreated;
+    });
+
+  return { ok: true, items: items };
 }
 
-function loadWarehouseTemplatesFile_(fileId) {
-  const file = DriveApp.getFileById(fileId);
-  const raw = String(file.getBlob().getDataAsString() || "").trim();
-  if (!raw) return [];
+function getOrCreateWarehouseTemplatesSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sh = ss.getSheetByName(SH_WAREHOUSE_TEMPLATES);
+  if (!sh) {
+    sh = ss.insertSheet(SH_WAREHOUSE_TEMPLATES);
+    sh.appendRow(["id", "name", "machine", "node", "createdBy", "createdAt", "itemsJson", "updatedAt"]);
+  } else if (sh.getLastRow() < 1) {
+    sh.appendRow(["id", "name", "machine", "node", "createdBy", "createdAt", "itemsJson", "updatedAt"]);
+  } else {
+    ensureSheetColumns_(sh, ["id", "name", "machine", "node", "createdBy", "createdAt", "itemsJson", "updatedAt"]);
+  }
 
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? parsed : [];
+  [ "id", "createdAt", "updatedAt" ].forEach(function(name) {
+    const c = col_(sh, name);
+    sh.getRange(2, c, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+  });
+  return sh;
 }
 
-function saveWarehouseTemplatesFile_(fileId, list) {
-  const file = DriveApp.getFileById(fileId);
-  file.setContent(JSON.stringify(list || [], null, 2));
+function findWarehouseTemplateRowById_(sheet, templateId) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return null;
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const target = String(templateId || "").trim();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0] || "").trim() === target) {
+      const rowValues = sheet.getRange(i + 2, 1, 1, 8).getValues()[0];
+      return {
+        row: i + 2,
+        values: {
+          id: String(rowValues[0] || "").trim(),
+          name: String(rowValues[1] || "").trim(),
+          machine: String(rowValues[2] || "").trim(),
+          node: String(rowValues[3] || "").trim(),
+          createdBy: String(rowValues[4] || "").trim(),
+          createdAt: String(rowValues[5] || "").trim(),
+          itemsJson: String(rowValues[6] || ""),
+          updatedAt: String(rowValues[7] || "").trim()
+        }
+      };
+    }
+  }
+  return null;
 }
 
 // =========================
