@@ -169,19 +169,42 @@ function normalizeTemplate(tpl, idx = 0) {
   };
 }
 
-function getServerAuthHeaders() {
+function requestServerKey() {
+  const entered = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+  if (!entered) return "";
+  localStorage.setItem(PWA_KEY_STORAGE, entered);
+  return entered;
+}
+
+function getServerKey({ promptIfMissing = false } = {}) {
   const fromUrl = new URLSearchParams(window.location.search).get("k");
   if (fromUrl) localStorage.setItem(PWA_KEY_STORAGE, fromUrl);
-  const key = localStorage.getItem(PWA_KEY_STORAGE) || "";
-  return key ? { "x-surpresso-key": key } : {};
+
+  let key = localStorage.getItem(PWA_KEY_STORAGE) || "";
+  if (!key && promptIfMissing) {
+    key = requestServerKey();
+  }
+  return key;
 }
 
 async function fetchWithServerAuth(url, options = {}) {
-  const headers = {
-    ...(options.headers || {}),
-    ...getServerAuthHeaders(),
-  };
-  return fetch(url, { ...options, headers });
+  const originalHeaders = { ...(options.headers || {}) };
+  const key = getServerKey({ promptIfMissing: options.promptAuth === true });
+  const headers = key ? { ...originalHeaders, "x-surpresso-key": key } : originalHeaders;
+
+  const requestOptions = { ...options, headers };
+  delete requestOptions.promptAuth;
+
+  let resp = await fetch(url, requestOptions);
+  if (resp.status === 401) {
+    const nextKey = requestServerKey();
+    if (!nextKey) return resp;
+
+    const retryHeaders = { ...originalHeaders, "x-surpresso-key": nextKey };
+    resp = await fetch(url, { ...requestOptions, headers: retryHeaders });
+  }
+
+  return resp;
 }
 // ======================
 // Авторизация
@@ -1529,6 +1552,7 @@ async function deleteWarehouseTemplate(tpl) {
   try {
     const resp = await fetchWithServerAuth(`/api/warehouse-templates/${encodeURIComponent(tpl.id)}`, {
       method: "DELETE",
+      promptAuth: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file: TEMPLATES_FILE_ID })
     });
@@ -1664,6 +1688,7 @@ async function saveWarehouseTemplate() {
 
     const resp = await fetchWithServerAuth(endpoint, {
       method: isEdit ? "PUT" : "POST",
+      promptAuth: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
@@ -3045,9 +3070,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
-
-
 
 
 
