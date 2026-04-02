@@ -11,7 +11,7 @@ export function createServiceController(serviceRepository) {
         media: (req.files || []).map((file) => ({
           id: `media-${file.filename}`,
           type: file.mimetype.startsWith('video') ? 'video' : 'image',
-          url: `/media/${file.filename}`,
+          url: `/miniapp-telegram/uploads/${file.filename}`,
         })),
       };
       const created = serviceRepository.create(payload);
@@ -22,6 +22,19 @@ export function createServiceController(serviceRepository) {
       if (!request || request.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Request not found' });
       }
+      return res.json({ id: request.id, status: request.status, updatedAt: request.updatedAt });
+    },
+    updateStatus(req, res) {
+      const request = serviceRepository.findById(req.params.id);
+      if (!request || request.clientId !== req.auth.client.id) {
+        return res.status(404).json({ error: 'Request not found' });
+      }
+      const nextStatus = String(req.body?.status || '').trim();
+      if (!nextStatus) {
+        return res.status(400).json({ error: 'status_required' });
+      }
+      request.status = nextStatus;
+      request.updatedAt = new Date().toISOString();
       return res.json({ id: request.id, status: request.status, updatedAt: request.updatedAt });
     },
   };

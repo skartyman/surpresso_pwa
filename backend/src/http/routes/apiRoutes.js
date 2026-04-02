@@ -21,6 +21,7 @@ export function createApiRouter(deps) {
   router.get('/service-requests', authMiddleware, serviceController.list);
   router.post('/service-requests', authMiddleware, upload.array('media', 6), serviceController.create);
   router.get('/service-requests/:id/status', authMiddleware, serviceController.status);
+  router.post('/service-requests/:id/status', authMiddleware, serviceController.updateStatus);
 
   return router;
 }
