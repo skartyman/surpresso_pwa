@@ -1,4 +1,40 @@
+import { hashPassword } from '../../domain/security/passwordHasher.js';
+
+const now = new Date().toISOString();
+
 export const seed = {
+  users: [
+    {
+      id: 'user-manager-1',
+      email: 'manager@surpresso.local',
+      passwordHash: hashPassword('Manager123!'),
+      name: 'Manager Demo',
+      role: 'manager',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'user-service-1',
+      email: 'service@surpresso.local',
+      passwordHash: hashPassword('Service123!'),
+      name: 'Service Demo',
+      role: 'service',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'user-seo-1',
+      email: 'seo@surpresso.local',
+      passwordHash: hashPassword('Seo123!'),
+      name: 'SEO Demo',
+      role: 'seo',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ],
   clients: [
     {
       id: 'client-1',

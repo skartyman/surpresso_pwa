@@ -1,5 +1,20 @@
 import { seed } from '../seed/mockData.js';
 
+export class InMemoryUserRepository {
+  constructor() {
+    this.users = [...seed.users];
+  }
+
+  findByEmail(email) {
+    const normalized = String(email || '').trim().toLowerCase();
+    return this.users.find((user) => user.email.toLowerCase() === normalized) || null;
+  }
+
+  findById(id) {
+    return this.users.find((user) => user.id === id) || null;
+  }
+}
+
 export class InMemoryClientRepository {
   constructor() {
     this.clients = [...seed.clients];
