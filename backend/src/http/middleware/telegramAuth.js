@@ -2,7 +2,7 @@ import { config } from '../../config/env.js';
 import { validateTelegramInitData } from '../../infrastructure/telegram/validateInitData.js';
 
 export function telegramAuth(clientRepository) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const initData = req.header('x-telegram-init-data') || req.query.initData;
     const validation = validateTelegramInitData(initData, config.telegramBotToken);
 
@@ -10,7 +10,7 @@ export function telegramAuth(clientRepository) {
       return res.status(401).json({ error: 'Invalid Telegram init data' });
     }
 
-    const client = clientRepository.findByTelegramUserId(validation.data.user.id);
+    const client = await clientRepository.findByTelegramUserId(validation.data.user.id);
     if (!client) {
       return res.status(403).json({ error: 'Client profile not found' });
     }

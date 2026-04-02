@@ -1,12 +1,14 @@
 export function createServiceController(serviceRepository) {
   return {
-    list(req, res) {
-      const requests = serviceRepository.listByClientId(req.auth.client.id);
+    async list(req, res) {
+      const requests = await serviceRepository.listByClientId(req.auth.client.id);
       return res.json({ items: requests });
     },
-    create(req, res) {
+    async create(req, res) {
       const payload = {
         ...req.body,
+        canOperateNow: req.body?.canOperateNow ?? req.body?.canOperate ?? false,
+        source: req.body?.source || 'telegram_miniapp',
         clientId: req.auth.client.id,
         media: (req.files || []).map((file) => ({
           id: `media-${file.filename}`,
@@ -14,18 +16,18 @@ export function createServiceController(serviceRepository) {
           url: `/miniapp-telegram/uploads/${file.filename}`,
         })),
       };
-      const created = serviceRepository.create(payload);
+      const created = await serviceRepository.create(payload);
       return res.status(201).json(created);
     },
-    status(req, res) {
-      const request = serviceRepository.findById(req.params.id);
+    async status(req, res) {
+      const request = await serviceRepository.findById(req.params.id);
       if (!request || request.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Request not found' });
       }
       return res.json({ id: request.id, status: request.status, updatedAt: request.updatedAt });
     },
-    updateStatus(req, res) {
-      const request = serviceRepository.findById(req.params.id);
+    async updateStatus(req, res) {
+      const request = await serviceRepository.findById(req.params.id);
       if (!request || request.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Request not found' });
       }
@@ -33,9 +35,12 @@ export function createServiceController(serviceRepository) {
       if (!nextStatus) {
         return res.status(400).json({ error: 'status_required' });
       }
-      request.status = nextStatus;
-      request.updatedAt = new Date().toISOString();
-      return res.json({ id: request.id, status: request.status, updatedAt: request.updatedAt });
+      try {
+        const updated = await serviceRepository.updateStatus(request.id, nextStatus);
+        return res.json({ id: updated.id, status: updated.status, updatedAt: updated.updatedAt });
+      } catch {
+        return res.status(500).json({ error: 'status_update_failed' });
+      }
     },
   };
 }

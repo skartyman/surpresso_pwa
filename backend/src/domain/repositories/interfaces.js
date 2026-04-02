@@ -1,14 +1,20 @@
+export class UserRepository {
+  async findByEmail(_) { throw new Error('Not implemented'); }
+  async findById(_) { throw new Error('Not implemented'); }
+}
+
 export class ClientRepository {
-  findByTelegramUserId(_) { throw new Error('Not implemented'); }
+  async findByTelegramUserId(_) { throw new Error('Not implemented'); }
 }
 
 export class EquipmentRepository {
-  listByClientId(_) { throw new Error('Not implemented'); }
-  findById(_) { throw new Error('Not implemented'); }
+  async listByClientId(_) { throw new Error('Not implemented'); }
+  async findById(_) { throw new Error('Not implemented'); }
 }
 
 export class ServiceRequestRepository {
-  listByClientId(_) { throw new Error('Not implemented'); }
-  create(_) { throw new Error('Not implemented'); }
-  findById(_) { throw new Error('Not implemented'); }
+  async listByClientId(_) { throw new Error('Not implemented'); }
+  async create(_) { throw new Error('Not implemented'); }
+  async findById(_) { throw new Error('Not implemented'); }
+  async updateStatus(_, __) { throw new Error('Not implemented'); }
 }

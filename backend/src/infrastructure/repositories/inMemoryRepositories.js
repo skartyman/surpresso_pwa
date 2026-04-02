@@ -1,16 +1,32 @@
 import { seed } from '../seed/mockData.js';
 
+function withEquipmentCompatibility(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    serialNumber: item.serial,
+  };
+}
+
+function withRequestCompatibility(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    canOperate: item.canOperateNow,
+  };
+}
+
 export class InMemoryUserRepository {
   constructor() {
     this.users = [...seed.users];
   }
 
-  findByEmail(email) {
+  async findByEmail(email) {
     const normalized = String(email || '').trim().toLowerCase();
     return this.users.find((user) => user.email.toLowerCase() === normalized) || null;
   }
 
-  findById(id) {
+  async findById(id) {
     return this.users.find((user) => user.id === id) || null;
   }
 }
@@ -20,8 +36,8 @@ export class InMemoryClientRepository {
     this.clients = [...seed.clients];
   }
 
-  findByTelegramUserId(telegramUserId) {
-    return this.clients.find((client) => client.telegramUserId === Number(telegramUserId)) || null;
+  async findByTelegramUserId(telegramUserId) {
+    return this.clients.find((client) => client.telegramUserId === String(telegramUserId)) || null;
   }
 }
 
@@ -30,12 +46,12 @@ export class InMemoryEquipmentRepository {
     this.equipment = [...seed.equipment];
   }
 
-  listByClientId(clientId) {
-    return this.equipment.filter((item) => item.clientId === clientId);
+  async listByClientId(clientId) {
+    return this.equipment.filter((item) => item.clientId === clientId).map(withEquipmentCompatibility);
   }
 
-  findById(id) {
-    return this.equipment.find((item) => item.id === id) || null;
+  async findById(id) {
+    return withEquipmentCompatibility(this.equipment.find((item) => item.id === id) || null);
   }
 }
 
@@ -44,23 +60,39 @@ export class InMemoryServiceRequestRepository {
     this.requests = [...seed.serviceRequests];
   }
 
-  listByClientId(clientId) {
-    return this.requests.filter((item) => item.clientId === clientId);
+  async listByClientId(clientId) {
+    return this.requests.filter((item) => item.clientId === clientId).map(withRequestCompatibility);
   }
 
-  findById(id) {
-    return this.requests.find((item) => item.id === id) || null;
+  async findById(id) {
+    return withRequestCompatibility(this.requests.find((item) => item.id === id) || null);
   }
 
-  create(payload) {
+  async create(payload) {
+    const now = new Date().toISOString();
     const next = {
       id: `req-${Date.now()}`,
       status: 'new',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       ...payload,
     };
     this.requests.unshift(next);
-    return next;
+    return withRequestCompatibility(next);
+  }
+
+  async updateStatus(id, status) {
+    const index = this.requests.findIndex((item) => item.id === id);
+    if (index === -1) {
+      return null;
+    }
+
+    this.requests[index] = {
+      ...this.requests[index],
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return withRequestCompatibility(this.requests[index]);
   }
 }

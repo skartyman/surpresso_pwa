@@ -7,7 +7,7 @@ function sanitizeUser(user) {
 
 export function createAdminAuthController(userRepository, sessionManager) {
   return {
-    login(req, res) {
+    async login(req, res) {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const password = String(req.body?.password || '');
 
@@ -15,7 +15,7 @@ export function createAdminAuthController(userRepository, sessionManager) {
         return res.status(400).json({ error: 'email_password_required' });
       }
 
-      const user = userRepository.findByEmail(email);
+      const user = await userRepository.findByEmail(email);
       if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
         return res.status(401).json({ error: 'invalid_credentials' });
       }

@@ -75,7 +75,7 @@ export function createAdminSessionManager(secret) {
 }
 
 export function requireAuth(userRepository, sessionManager) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const token = sessionManager.readToken(req);
     const payload = sessionManager.verify(token);
 
@@ -83,7 +83,7 @@ export function requireAuth(userRepository, sessionManager) {
       return res.status(401).json({ error: 'auth_required' });
     }
 
-    const user = userRepository.findById(payload.userId);
+    const user = await userRepository.findById(payload.userId);
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'auth_required' });
     }
