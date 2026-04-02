@@ -57,7 +57,7 @@ model Equipment {
 model ServiceRequest {
   id               String   @id
   clientId         String
-  equipmentId      String
+  equipmentId      String?
   category         String
   description      String
   urgency          String
@@ -69,7 +69,7 @@ model ServiceRequest {
   updatedAt        DateTime @updatedAt
 
   client         Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  equipment      Equipment             @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment      Equipment?            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   assignedToUser User?                 @relation("AssignedUserRequests", fields: [assignedToUserId], references: [id])
   media          ServiceRequestMedia[]
   history        ServiceRequestStatusHistory[]

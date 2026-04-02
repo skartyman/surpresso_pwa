@@ -84,6 +84,11 @@ button.secondary { background: #27272a; }
   margin-top: 12px;
 }
 
+.service-field-label {
+  font-size: 14px;
+  color: #d1d5db;
+}
+
 input, select, textarea {
   width: 100%;
   min-height: 44px;
@@ -170,6 +175,11 @@ textarea {
 .notice-error {
   background: rgba(220, 38, 38, 0.15);
   border-color: rgba(248, 113, 113, 0.4);
+}
+
+.service-empty-equipment {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(96, 165, 250, 0.35);
 }
 
 .service-hint {

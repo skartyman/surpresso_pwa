@@ -20,7 +20,6 @@ const errorLabels = {
   category_required: 'Выберите категорию заявки.',
   description_required: 'Добавьте описание проблемы.',
   urgency_required: 'Выберите срочность заявки.',
-  equipment_required: 'Добавьте оборудование для заявки.',
   equipment_not_found: 'Выбранное оборудование не найдено.',
   equipment_client_mismatch: 'Выбранное оборудование не принадлежит вашему профилю.',
   service_unavailable: 'Сервис временно недоступен. Попробуйте снова через минуту.',
@@ -83,6 +82,7 @@ export function ServicePage() {
     () => equipment.find((item) => item.id === form.equipmentId) || null,
     [equipment, form.equipmentId],
   );
+  const hasEquipment = equipment.length > 0;
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -140,13 +140,22 @@ export function ServicePage() {
         ) : null}
 
         <form className="service-form" onSubmit={onSubmit}>
+          {!hasEquipment ? (
+            <div className="notice service-empty-equipment">
+              <p><strong>У вас пока нет привязанного оборудования.</strong></p>
+              <p>Вы все равно можете отправить заявку.</p>
+            </div>
+          ) : null}
+
+          <label className="service-field-label" htmlFor="service-equipment-select">Оборудование (если известно)</label>
           <select
+            id="service-equipment-select"
             value={form.equipmentId}
-            aria-label="Оборудование"
+            aria-label="Оборудование (если известно)"
             onChange={(event) => setForm((prev) => ({ ...prev, equipmentId: event.target.value }))}
             disabled={isSubmitting}
           >
-            <option value="">Оборудование (не выбрано)</option>
+            <option value="">Не указывать оборудование</option>
             {equipment.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.brand} {item.model} ({item.internalNumber || item.id})
