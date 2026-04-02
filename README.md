@@ -1,94 +1,90 @@
-# Surpresso PWA + Telegram Mini App (single Express/Fly deploy)
+# Surpresso Telegram Mini App (MVP)
 
-Этот репозиторий теперь запускает **старый Surpresso PWA** и **новый Telegram Mini App** в одном Node/Express приложении (один Fly deploy).
+Масштабируемый каркас клиентского кабинета Surpresso внутри Telegram.
 
-## Маршруты
+## Project structure
 
-### Legacy PWA (без изменений)
-- `/`
-- `/check`
-- `/warehouse.html`
-- `/manuals`
-- `/diagrams`
-- `/grinder.html`
-- все существующие legacy API и страницы
-
-### Telegram Mini App frontend
-- `/tg` — точка входа Mini App
-- `/tg/*` — все внутренние client-side маршруты React (Router basename=`/tg`)
-
-### Telegram Mini App API
-- `GET /api/telegram/auth/me`
-- `GET /api/telegram/equipment`
-- `GET /api/telegram/equipment/:id`
-- `GET /api/telegram/service-requests`
-- `POST /api/telegram/service-requests`
-- `GET /api/telegram/service-requests/:id/status`
-- `POST /api/telegram/service-requests/:id/status`
-- `POST /api/telegram/support/notify`
-
-### Webhook
-- основной: `POST /api/telegram/webhook`
-- временный alias для совместимости: `POST /tg/webhook`
-
-### Uploads
-- отдельный namespace: `/miniapp-telegram/uploads/*`
-
-### Healthcheck
-- `GET /health`
-
----
-
-## ENV
-
-Минимально для запуска Mini App на Fly (пример для `https://wpa-surpresso.fly.dev/tg`):
-
-```env
-PORT=8080
-
-# Mini App auth/bot
-TELEGRAM_BOT_TOKEN=123456:replace_me
-TELEGRAM_BOT_USERNAME=TG_NOTIFY_BOT
-TELEGRAM_WEB_APP_URL=https://wpa-surpresso.fly.dev/tg
-TELEGRAM_INIT_SECRET=
-
-# Mini App uploads path (не /media)
-MEDIA_UPLOAD_PATH=miniapp-telegram/uploads
-
-# Legacy PWA auth (опционально, как и раньше)
-PWA_KEY=
+```txt
+frontend/                # React + Vite mobile-first mini app
+backend/                 # Node.js + Express API
+shared/                  # Контракты и общие типы (точка расширения)
+.env.example             # Пример переменных окружения
 ```
 
-Дополнительные legacy переменные (GAS/Trello/TG notify) остаются рабочими как и раньше.
+### Backend layers
+- `domain/` — сущности и интерфейсы репозиториев.
+- `application/` — use-cases и DTO (точка расширения).
+- `infrastructure/` — in-memory repositories, Telegram gateway, media storage.
+- `http/` — middleware, controllers, routes.
 
----
+## Telegram launch flow
+1. Пользователь нажимает кнопку в `TG_NOTIFY_BOT`.
+2. Telegram открывает Mini App URL.
+3. Frontend получает `window.Telegram.WebApp.initData`.
+4. Frontend отправляет `initData` в backend (`x-telegram-init-data`).
+5. Backend валидирует подпись `initData` через токен бота.
+6. Backend находит `Client` по `telegramUserId`.
+7. Возвращается профиль и данные кабинета.
 
-## Локальный запуск
+## Backend routes (MVP)
+
+### Public
+- `GET /health`
+- `POST /webhooks/telegram` — webhook bot route.
+
+### Authenticated via Telegram init data
+- `GET /api/v1/auth/me`
+- `GET /api/v1/equipment`
+- `GET /api/v1/equipment/:id`
+- `GET /api/v1/service-requests`
+- `POST /api/v1/service-requests` (`multipart/form-data`, поле `media[]`)
+- `GET /api/v1/service-requests/:id/status`
+- `POST /api/v1/support/notify` — отправка нотификации клиенту через Bot API.
+
+## React pages
+- Главная (`/`)
+- Сервис (`/service`)
+- Мое оборудование (`/equipment`)
+- Карточка оборудования (`/equipment/:equipmentId`)
+- Статус заявки (`/service/:requestId`)
+- Поддержка (`/support`)
+- Заглушки-модули: Аренда, Кофе, Расходники, Инструкции
+
+## UX/navigation system
+- Mobile-first layout.
+- Нижний tab bar: Главная / Сервис / Оборуд. / Поддержка.
+- Крупные карточки разделов на главной.
+- Быстрые действия: создать заявку, связаться с менеджером.
+
+## Entity model
+- `Client`
+- `Equipment`
+- `ServiceRequest`
+- `RentalContract`
+- `ProductOrder`
+- `SupportThread`
+
+Типы: `backend/src/domain/entities/types.js`.
+
+## Seed/mock data
+- `backend/src/infrastructure/seed/mockData.js`.
+- `frontend/src/api/mockApi.js`.
+
+## Run MVP
 
 ```bash
-# root server
+# Backend
+cd backend
 npm i
+npm run dev
 
-# build mini app frontend
+# Frontend (new terminal)
 cd frontend
 npm i
-npm run build
-cd ..
-
-# run express (legacy + mini app)
-npm start
+npm run dev
 ```
 
-После старта:
-- Legacy PWA: `http://localhost:8080/`
-- Telegram Mini App: `http://localhost:8080/tg`
-
-## Fly
-
-Для production URL Mini App используйте:
-- `https://wpa-surpresso.fly.dev/tg`
-
-И убедитесь, что:
-1. В BotFather для Web App кнопки прописан URL с `/tg`.
-2. Webhook Telegram указывает на `/api/telegram/webhook`.
-3. При необходимости обратной совместимости старый `/tg/webhook` можно оставить временно.
+## Scaling strategy
+- Подключение постоянной БД через новые adapter-реализации репозиториев без изменения API-контроллеров.
+- Вынос модулей аренды/кофе/расходников в отдельные bounded contexts в `application` + `domain`.
+- Поддержка async workflow (очереди нотификаций и событий сервиса).
