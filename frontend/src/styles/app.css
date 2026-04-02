@@ -430,6 +430,38 @@ textarea {
   gap: 12px;
 }
 
+
+.admin-media-block {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-media-block h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.admin-media-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.admin-media-thumb-link {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #334155;
+  background: #020617;
+}
+
+.admin-media-thumb {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+
 .admin-media-list {
   margin: 0;
   padding-left: 20px;

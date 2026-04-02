@@ -1,3 +1,4 @@
+import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 const ALLOWED_STATUSES = ['new', 'in_progress', 'resolved', 'closed'];
 
 function normalizeStatus(value) {
@@ -18,7 +19,7 @@ export function createAdminServiceController(serviceRepository) {
       const client = String(req.query?.client || '').trim() || null;
       const equipment = String(req.query?.equipment || '').trim() || null;
       const requests = await serviceRepository.listForAdmin({ status, id, client, equipment });
-      return res.json({ requests });
+      return res.json({ requests: requests.map((item) => enrichServiceRequestMedia(req, item)) });
     },
 
     async byId(req, res) {
@@ -26,7 +27,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      return res.json({ request });
+      return res.json({ request: enrichServiceRequestMedia(req, request) });
     },
 
     async updateStatus(req, res) {
@@ -47,7 +48,7 @@ export function createAdminServiceController(serviceRepository) {
         changedByRole: req.adminUser?.role || null,
         comment: comment || null,
       });
-      return res.json({ request: updated });
+      return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
     async history(req, res) {

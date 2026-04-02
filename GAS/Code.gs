@@ -160,6 +160,7 @@ function doPost(e) {
     if (action === "search")  return json_(searchEquipment_(data.query, data.limit));
     if (action === "status")  return json_(setStatus_(data.id, data.newStatus, data.comment || "", data.actor || "", data.location || ""));
     if (action === "photo")   return json_(addPhoto_(data.id, data.base64, data.caption || ""));
+    if (action === "serviceRequestMediaUpload") return json_(uploadServiceRequestMedia_(data));
     if (action === "deletePhoto") return json_(deletePhoto_(data.id, data.fileId));
     if (action === "pdf")     return json_(generatePassportPdfA4_(data.id));
     if (action === "specs")  return json_(setSpecs_(data.id, data.specs || ""));
@@ -530,6 +531,84 @@ function addPhoto_(id, base64, caption) {
   return { ok: true, fileId, fileUrl, imgUrl };
 }
 
+
+function parseBase64Payload_(rawBase64, fallbackMimeType) {
+  const source = String(rawBase64 || '').trim();
+  const dataUrlMatch = source.match(/^data:([^;]+);base64,(.+)$/i);
+
+  if (dataUrlMatch) {
+    return {
+      mimeType: dataUrlMatch[1] || fallbackMimeType || 'application/octet-stream',
+      base64: dataUrlMatch[2],
+    };
+  }
+
+  return {
+    mimeType: fallbackMimeType || 'application/octet-stream',
+    base64: source,
+  };
+}
+
+function detectServiceRequestMediaType_(mimeType) {
+  return String(mimeType || '').toLowerCase().indexOf('video') === 0 ? 'video' : 'image';
+}
+
+function ensureServiceRequestFolder_(entityId) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const serviceRootName = 'service_requests';
+
+  let serviceRoot = null;
+  const rootIt = root.getFoldersByName(serviceRootName);
+  if (rootIt.hasNext()) {
+    serviceRoot = rootIt.next();
+  } else {
+    serviceRoot = root.createFolder(serviceRootName);
+  }
+
+  const folderName = safeId_(String(entityId || 'unknown'));
+  const folderIt = serviceRoot.getFoldersByName(folderName);
+  if (folderIt.hasNext()) {
+    return folderIt.next();
+  }
+
+  return serviceRoot.createFolder(folderName);
+}
+
+function uploadServiceRequestMedia_(payload) {
+  const entityType = String(payload.entityType || '').trim();
+  const entityId = String(payload.entityId || '').trim();
+  const base64 = payload.base64;
+  const originalName = String(payload.originalName || '').trim();
+
+  if (entityType !== 'service_request') return { ok: false, error: 'invalid_entity_type' };
+  if (!entityId) return { ok: false, error: 'entity_id_required' };
+  if (!base64) return { ok: false, error: 'base64_required' };
+
+  const parsed = parseBase64Payload_(base64, String(payload.mimeType || '').trim());
+  if (!parsed.base64) return { ok: false, error: 'base64_required' };
+
+  const bytes = Utilities.base64Decode(parsed.base64);
+  const mimeType = parsed.mimeType || 'application/octet-stream';
+  const ext = (mimeType.split('/')[1] || 'bin').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
+  const safeName = safeId_(originalName || `service_request_${entityId}_${Date.now()}.${ext}`);
+
+  const folder = ensureServiceRequestFolder_(entityId);
+  const blob = Utilities.newBlob(bytes, mimeType, safeName);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  const fileId = String(file.getId());
+  const fileUrl = String(file.getUrl());
+  const mediaType = detectServiceRequestMediaType_(mimeType);
+  const imgUrl = mediaType === 'image' ? driveImgUrl_(fileId) : '';
+
+  return {
+    ok: true,
+    fileId,
+    fileUrl,
+    imgUrl,
+  };
+}
 
 // =========================
 // PDF A4 (использует pdf_a4.html)

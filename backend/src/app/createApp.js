@@ -19,6 +19,29 @@ export async function createApp() {
   const serviceRequestNotifier = createServiceRequestNotifier(botGateway);
 
   app.get('/health', (_, res) => res.json({ ok: true, storage }));
+  app.get('/proxy-drive/:fileId', async (req, res) => {
+    try {
+      const fileId = String(req.params.fileId || '').trim();
+      if (!fileId) {
+        return res.status(400).send('missing_file_id');
+      }
+
+      const driveUrl = `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`;
+      const response = await fetch(driveUrl);
+      if (!response.ok) {
+        return res.status(response.status).send('drive_error');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      res.set('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+      res.set('Cache-Control', 'public, max-age=3600');
+      return res.send(buffer);
+    } catch {
+      return res.status(500).send('proxy_error');
+    }
+  });
+
   deps.sessionManager = createAdminSessionManager(config.adminSessionSecret);
 
   app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier }));
