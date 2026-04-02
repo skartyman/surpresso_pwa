@@ -1,0 +1,17 @@
+import express from 'express';
+
+export function createWebhookRouter(botGateway) {
+  const router = express.Router();
+
+  router.post('/telegram', async (req, res) => {
+    const update = req.body;
+    if (update?.message?.text === '/start') {
+      const chatId = update.message.chat.id;
+      await botGateway.sendMessage(chatId, 'Откройте клиентский кабинет Surpresso через кнопку ниже.');
+    }
+
+    return res.json({ ok: true });
+  });
+
+  return router;
+}
