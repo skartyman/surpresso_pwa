@@ -15,6 +15,8 @@ body { margin: 0; background: #09090b; }
 
 .page {
   flex: 1;
+  width: min(100%, 680px);
+  margin: 0 auto;
   padding: 16px;
   padding-bottom: 86px;
 }
@@ -52,18 +54,102 @@ button {
 }
 button.secondary { background: #27272a; }
 
-.service-form { display: grid; gap: 10px; margin-top: 12px; }
+.service-page {
+  display: grid;
+  gap: 14px;
+}
+
+.service-hero h1,
+.service-panel h2,
+.service-history h2 {
+  margin: 0;
+}
+
+.service-hero p {
+  margin: 8px 0 0;
+  color: #d1d5db;
+}
+
+.service-panel,
+.service-history {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.service-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 input, select, textarea {
   width: 100%;
-  min-height: 42px;
-  border-radius: 10px;
+  min-height: 44px;
+  border-radius: 12px;
   background: #111827;
   color: #f3f4f6;
   border: 1px solid #374151;
-  padding: 10px;
+  padding: 10px 12px;
+  font: inherit;
 }
-textarea { min-height: 110px; }
+
+textarea {
+  min-height: 112px;
+  background: #0f172a;
+  border-color: #334155;
+  resize: vertical;
+}
+
 .checkbox { display: flex; gap: 8px; align-items: center; }
+
+.service-checkbox-card {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #374151;
+  background: #0f172a;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.service-checkbox-card input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+}
+
+.upload-block {
+  display: grid;
+  gap: 4px;
+  border-radius: 14px;
+  border: 1px dashed #4b5563;
+  background: #0f172a;
+  padding: 12px;
+}
+
+.upload-block__title {
+  font-weight: 600;
+}
+
+.upload-block__text {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.upload-block input[type="file"] {
+  margin-top: 6px;
+  min-height: 44px;
+  padding: 8px;
+  background: #111827;
+}
+
+.service-submit-btn {
+  margin-top: 4px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3);
+}
 
 .bottom-nav {
   position: fixed;
@@ -85,3 +171,19 @@ textarea { min-height: 110px; }
 }
 
 .tab.active { color: #f59e0b; }
+
+@media (min-width: 768px) {
+  .page {
+    padding: 20px;
+    padding-bottom: 92px;
+  }
+
+  .service-page {
+    gap: 16px;
+  }
+
+  .service-panel,
+  .service-history {
+    padding: 16px;
+  }
+}
