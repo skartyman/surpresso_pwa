@@ -9,6 +9,10 @@ import { createAdminAuthController } from '../controllers/adminAuthController.js
 import { createAdminController } from '../controllers/adminController.js';
 import { requireAuth, requireRole } from '../middleware/adminAuth.js';
 
+function asyncHandler(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
 export function createApiRouter(deps) {
   const router = express.Router();
   const upload = multer({ dest: config.mediaUploadPath });
@@ -22,22 +26,35 @@ export function createApiRouter(deps) {
   const adminController = createAdminController();
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
-  router.post('/auth/login', adminAuthController.login);
+  router.post('/auth/login', asyncHandler(adminAuthController.login));
   router.post('/auth/logout', adminAuthController.logout);
-  router.get('/auth/me', adminAuth, adminAuthController.me);
+  router.get('/auth/me', asyncHandler(adminAuth), adminAuthController.me);
 
-  router.get('/admin/manager', adminAuth, requireRole(['manager']), adminController.managerScope);
-  router.get('/admin/service', adminAuth, requireRole(['manager', 'service']), adminController.serviceScope);
-  router.get('/admin/content', adminAuth, requireRole(['manager', 'seo']), adminController.seoScope);
+  router.get('/admin/manager', asyncHandler(adminAuth), requireRole(['manager']), adminController.managerScope);
+  router.get('/admin/service', asyncHandler(adminAuth), requireRole(['manager', 'service']), adminController.serviceScope);
+  router.get('/admin/content', asyncHandler(adminAuth), requireRole(['manager', 'seo']), adminController.seoScope);
 
-  router.get('/v1/auth/me', authMiddleware, authController.me);
-  router.get('/v1/equipment', authMiddleware, equipmentController.list);
-  router.get('/v1/equipment/:id', authMiddleware, equipmentController.byId);
+  router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
+  router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
+  router.get('/v1/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);
 
-  router.get('/v1/service-requests', authMiddleware, serviceController.list);
-  router.post('/v1/service-requests', authMiddleware, upload.array('media', 6), serviceController.create);
-  router.get('/v1/service-requests/:id/status', authMiddleware, serviceController.status);
-  router.post('/v1/service-requests/:id/status', authMiddleware, serviceController.updateStatus);
+  router.get('/v1/service-requests', asyncHandler(authMiddleware), serviceController.list);
+  router.post('/v1/service-requests', asyncHandler(authMiddleware), upload.array('media', 6), serviceController.create);
+  router.get('/v1/service-requests/:id/status', asyncHandler(authMiddleware), serviceController.status);
+  router.post('/v1/service-requests/:id/status', asyncHandler(authMiddleware), serviceController.updateStatus);
+
+  router.use((err, req, res, next) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+
+    console.error('[miniapp-api] request failed', {
+      path: req.originalUrl,
+      method: req.method,
+      error: err?.message || String(err),
+    });
+    return res.status(503).json({ error: 'service_unavailable' });
+  });
 
   return router;
 }
