@@ -38,7 +38,7 @@ function renderDvgBrandCatalog(config) {
   const subtitleNode = document.getElementById("diagram-active-category-description");
   const openAllLink = document.getElementById("diagram-open-all-dvg");
   const searchLabelNode = document.getElementById("diagram-brand-search-label");
-  const searchInput = document.getElementById("diagram-brand-search");
+  const searchInput = document.getElementById("manufacturer-search");
   const grid = document.getElementById("diagram-brands-grid");
   const emptyState = document.getElementById("diagram-brands-empty");
 
@@ -46,7 +46,14 @@ function renderDvgBrandCatalog(config) {
   if (subtitleNode) subtitleNode.textContent = subtitle;
   if (openAllLink) openAllLink.href = getDvgCategoryUrl(categoryName);
   if (searchLabelNode) searchLabelNode.textContent = searchLabel;
-  if (searchInput) searchInput.placeholder = searchPlaceholder;
+  if (searchInput) {
+    searchInput.placeholder = searchPlaceholder;
+    searchInput.value = "";
+    searchInput.setAttribute("readonly", "readonly");
+    searchInput.addEventListener("focus", () => {
+      searchInput.removeAttribute("readonly");
+    }, { once: true });
+  }
   if (emptyState) emptyState.textContent = emptyMessage;
 
   function draw(query = "") {
