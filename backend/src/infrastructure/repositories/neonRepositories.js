@@ -30,6 +30,14 @@ function mapServiceRequest(item) {
       ...media,
       createdAt: media.createdAt.toISOString(),
     })),
+    history: (item.history || []).map((historyItem) => ({
+      ...historyItem,
+      createdAt: historyItem.createdAt.toISOString(),
+    })),
+    notes: (item.notes || []).map((note) => ({
+      ...note,
+      createdAt: note.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -113,10 +121,37 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(item);
   }
 
-  async listForAdmin({ status } = {}) {
-    const where = status ? { status } : undefined;
+  async listForAdmin({ status, id, client, equipment } = {}) {
+    const where = {
+      ...(status ? { status } : {}),
+      ...(id ? { id: { contains: id, mode: 'insensitive' } } : {}),
+      ...(client
+        ? {
+            client: {
+              OR: [
+                { companyName: { contains: client, mode: 'insensitive' } },
+                { contactName: { contains: client, mode: 'insensitive' } },
+                { phone: { contains: client, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+      ...(equipment
+        ? {
+            equipment: {
+              OR: [
+                { id: { contains: equipment, mode: 'insensitive' } },
+                { brand: { contains: equipment, mode: 'insensitive' } },
+                { model: { contains: equipment, mode: 'insensitive' } },
+                { serial: { contains: equipment, mode: 'insensitive' } },
+                { internalNumber: { contains: equipment, mode: 'insensitive' } },
+              ],
+            },
+          }
+        : {}),
+    };
     const items = await this.prisma.serviceRequest.findMany({
-      where,
+      where: Object.keys(where).length ? where : undefined,
       include: { media: true, client: true, equipment: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -126,7 +161,13 @@ export class NeonServiceRequestRepository {
   async findForAdminById(id) {
     const item = await this.prisma.serviceRequest.findUnique({
       where: { id },
-      include: { media: true, client: true, equipment: true },
+      include: {
+        media: true,
+        client: true,
+        equipment: true,
+        history: { orderBy: { createdAt: 'desc' } },
+        notes: { orderBy: { createdAt: 'desc' } },
+      },
     });
     return mapServiceRequest(item);
   }
@@ -158,13 +199,70 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(created);
   }
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, meta = {}) {
+    const existing = await this.prisma.serviceRequest.findUnique({
+      where: { id },
+      select: { status: true },
+    });
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: { status },
       include: { media: true, client: true, equipment: true },
     });
 
+    await this.prisma.serviceRequestStatusHistory.create({
+      data: {
+        id: `srh-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        serviceRequestId: id,
+        previousStatus: existing?.status || status,
+        nextStatus: status,
+        changedByUserId: meta.changedByUserId || null,
+        changedByRole: meta.changedByRole || null,
+        comment: meta.comment || null,
+      },
+    });
+
     return mapServiceRequest(updated);
+  }
+
+  async listHistory(serviceRequestId) {
+    const items = await this.prisma.serviceRequestStatusHistory.findMany({
+      where: { serviceRequestId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    }));
+  }
+
+  async listInternalNotes(serviceRequestId) {
+    const items = await this.prisma.serviceRequestInternalNote.findMany({
+      where: { serviceRequestId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    }));
+  }
+
+  async addInternalNote(serviceRequestId, payload) {
+    const note = await this.prisma.serviceRequestInternalNote.create({
+      data: {
+        id: `srn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        serviceRequestId,
+        authorId: payload.authorId,
+        authorRole: payload.authorRole,
+        text: payload.text,
+      },
+    });
+
+    return {
+      ...note,
+      createdAt: note.createdAt.toISOString(),
+    };
   }
 }

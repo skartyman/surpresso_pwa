@@ -18,5 +18,8 @@ export class ServiceRequestRepository {
   async listForAdmin(_) { throw new Error('Not implemented'); }
   async findForAdminById(_) { throw new Error('Not implemented'); }
   async findById(_) { throw new Error('Not implemented'); }
-  async updateStatus(_, __) { throw new Error('Not implemented'); }
+  async updateStatus(_, __, ___) { throw new Error('Not implemented'); }
+  async listHistory(_) { throw new Error('Not implemented'); }
+  async listInternalNotes(_) { throw new Error('Not implemented'); }
+  async addInternalNote(_, __) { throw new Error('Not implemented'); }
 }
