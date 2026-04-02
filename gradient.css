@@ -556,6 +556,10 @@ body.theme-light #parts-info span {
   background: rgba(21, 128, 61, 0.52);
 }
 
+.accent-miniapp-admin .status-badge {
+  background: rgba(67, 56, 202, 0.52);
+}
+
 
 .page-actions-inline .btn,
 .page-actions-inline a.btn {
