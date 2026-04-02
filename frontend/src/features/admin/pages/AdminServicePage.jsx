@@ -21,6 +21,13 @@ function formatDate(value) {
   return new Date(value).toLocaleString('ru-RU');
 }
 
+function formatEquipmentLabel(request) {
+  if (request?.equipment?.brand || request?.equipment?.model) {
+    return `${request.equipment?.brand || ''} ${request.equipment?.model || ''}`.trim();
+  }
+  return 'Оборудование не указано';
+}
+
 export function AdminServicePage() {
   const [filters, setFilters] = useState({ status: 'all', id: '', client: '', equipment: '' });
   const [requests, setRequests] = useState([]);
@@ -175,7 +182,7 @@ export function AdminServicePage() {
             >
               <div className="admin-status-pill" data-status={request.status}>{STATUS_LABELS[request.status] || request.status}</div>
               <strong>{request.client?.companyName || request.clientId}</strong>
-              <span>{request.equipment?.brand} {request.equipment?.model}</span>
+              <span>{formatEquipmentLabel(request)}</span>
               <small>{formatDate(request.updatedAt)}</small>
             </button>
           ))}
@@ -207,9 +214,22 @@ export function AdminServicePage() {
                 </section>
                 <section>
                   <h3>Оборудование</h3>
-                  <p>{selectedRequest.equipment?.brand} {selectedRequest.equipment?.model}</p>
-                  <p>Серийный номер: {selectedRequest.equipment?.serial || '—'}</p>
-                  <p>Внутренний №: {selectedRequest.equipment?.internalNumber || '—'}</p>
+                  {selectedRequest.equipment ? (
+                    <>
+                      <p>{selectedRequest.equipment?.brand} {selectedRequest.equipment?.model}</p>
+                      <p>Серийный номер: {selectedRequest.equipment?.serial || '—'}</p>
+                      <p>Внутренний №: {selectedRequest.equipment?.internalNumber || '—'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Оборудование не указано</p>
+                      <p>Серийный номер: —</p>
+                      <p>Внутренний №: —</p>
+                      <button type="button" className="secondary" disabled title="Появится в следующих версиях">
+                        Привязать оборудование (скоро)
+                      </button>
+                    </>
+                  )}
                 </section>
               </div>
 

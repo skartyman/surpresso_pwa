@@ -56,8 +56,6 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         return res.status(400).json({ error: 'urgency_required' });
       }
 
-      let resolvedEquipmentId = equipmentId;
-
       if (equipmentId) {
         const equipment = await equipmentRepository.findById(equipmentId);
         if (!equipment) {
@@ -67,17 +65,10 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         if (equipment.clientId !== req.auth.client.id) {
           return res.status(403).json({ error: 'equipment_client_mismatch' });
         }
-      } else {
-        const clientEquipment = await equipmentRepository.listByClientId(req.auth.client.id);
-        resolvedEquipmentId = clientEquipment?.[0]?.id || '';
-      }
-
-      if (!resolvedEquipmentId) {
-        return res.status(400).json({ error: 'equipment_required' });
       }
 
       const payload = {
-        equipmentId: resolvedEquipmentId,
+        equipmentId: equipmentId || null,
         category,
         description,
         urgency,
