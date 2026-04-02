@@ -20,7 +20,7 @@ async function apiFetch(path, options = {}) {
 }
 
 export const authApi = {
-  me: async () => apiFetch('/api/auth/me'),
-  login: async (email, password) => apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  logout: async () => apiFetch('/api/auth/logout', { method: 'POST' }),
+  me: async () => apiFetch('/api/telegram/auth/me'),
+  login: async (email, password) => apiFetch('/api/telegram/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  logout: async () => apiFetch('/api/telegram/auth/logout', { method: 'POST' }),
 };
