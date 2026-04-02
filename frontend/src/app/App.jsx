@@ -15,6 +15,7 @@ import { RequireAuth, RequireRole } from '../features/auth/guards';
 import { AdminLayout } from '../features/admin/components/AdminLayout';
 import { PAGE_PERMISSIONS } from '../features/admin/roleConfig';
 import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPage';
+import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
 
 function ClientRoutes() {
   return (
@@ -49,7 +50,7 @@ export function App() {
             <Route index element={<AdminPlaceholderPage title="Заявки и заказы" items={['Заявки', 'Аренда', 'Заказы']} />} />
           </Route>
           <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/service']} />}>
-            <Route path="service" element={<AdminPlaceholderPage title="Сервис" items={['Сервисные заявки', 'Фото', 'Комментарии', 'Статусы']} />} />
+            <Route path="service" element={<AdminServicePage />} />
           </Route>
           <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/clients']} />}>
             <Route path="clients" element={<AdminPlaceholderPage title="Клиенты" items={['Карточки клиентов', 'Контракты', 'Контакты']} />} />

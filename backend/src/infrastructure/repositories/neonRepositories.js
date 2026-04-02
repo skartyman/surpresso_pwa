@@ -24,6 +24,8 @@ function mapServiceRequest(item) {
     canOperate: item.canOperateNow,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
+    client: mapClient(item.client),
+    equipment: mapEquipment(item.equipment),
     media: (item.media || []).map((media) => ({
       ...media,
       createdAt: media.createdAt.toISOString(),
@@ -97,7 +99,7 @@ export class NeonServiceRequestRepository {
   async listByClientId(clientId) {
     const items = await this.prisma.serviceRequest.findMany({
       where: { clientId },
-      include: { media: true },
+      include: { media: true, client: true, equipment: true },
       orderBy: { createdAt: 'desc' },
     });
     return items.map(mapServiceRequest);
@@ -106,7 +108,25 @@ export class NeonServiceRequestRepository {
   async findById(id) {
     const item = await this.prisma.serviceRequest.findUnique({
       where: { id },
-      include: { media: true },
+      include: { media: true, client: true, equipment: true },
+    });
+    return mapServiceRequest(item);
+  }
+
+  async listForAdmin({ status } = {}) {
+    const where = status ? { status } : undefined;
+    const items = await this.prisma.serviceRequest.findMany({
+      where,
+      include: { media: true, client: true, equipment: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return items.map(mapServiceRequest);
+  }
+
+  async findForAdminById(id) {
+    const item = await this.prisma.serviceRequest.findUnique({
+      where: { id },
+      include: { media: true, client: true, equipment: true },
     });
     return mapServiceRequest(item);
   }
@@ -132,7 +152,7 @@ export class NeonServiceRequestRepository {
           })),
         },
       },
-      include: { media: true },
+      include: { media: true, client: true, equipment: true },
     });
 
     return mapServiceRequest(created);
@@ -142,7 +162,7 @@ export class NeonServiceRequestRepository {
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: { status },
-      include: { media: true },
+      include: { media: true, client: true, equipment: true },
     });
 
     return mapServiceRequest(updated);

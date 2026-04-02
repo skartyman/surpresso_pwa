@@ -58,14 +58,40 @@ export class InMemoryEquipmentRepository {
 export class InMemoryServiceRequestRepository {
   constructor() {
     this.requests = [...seed.serviceRequests];
+    this.clients = [...seed.clients];
+    this.equipment = [...seed.equipment];
+  }
+
+  hydrate(item) {
+    const request = withRequestCompatibility(item);
+    if (!request) return null;
+
+    const client = this.clients.find((entry) => entry.id === request.clientId) || null;
+    const equipment = this.equipment.find((entry) => entry.id === request.equipmentId) || null;
+
+    return {
+      ...request,
+      client,
+      equipment: withEquipmentCompatibility(equipment),
+    };
   }
 
   async listByClientId(clientId) {
-    return this.requests.filter((item) => item.clientId === clientId).map(withRequestCompatibility);
+    return this.requests.filter((item) => item.clientId === clientId).map((item) => this.hydrate(item));
+  }
+
+  async listForAdmin({ status } = {}) {
+    return this.requests
+      .filter((item) => !status || item.status === status)
+      .map((item) => this.hydrate(item));
   }
 
   async findById(id) {
-    return withRequestCompatibility(this.requests.find((item) => item.id === id) || null);
+    return this.hydrate(this.requests.find((item) => item.id === id) || null);
+  }
+
+  async findForAdminById(id) {
+    return this.findById(id);
   }
 
   async create(payload) {
@@ -78,7 +104,7 @@ export class InMemoryServiceRequestRepository {
       ...payload,
     };
     this.requests.unshift(next);
-    return withRequestCompatibility(next);
+    return this.hydrate(next);
   }
 
   async updateStatus(id, status) {
@@ -93,6 +119,6 @@ export class InMemoryServiceRequestRepository {
       updatedAt: new Date().toISOString(),
     };
 
-    return withRequestCompatibility(this.requests[index]);
+    return this.hydrate(this.requests[index]);
   }
 }

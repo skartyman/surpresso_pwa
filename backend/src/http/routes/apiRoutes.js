@@ -7,6 +7,7 @@ import { createEquipmentController } from '../controllers/equipmentController.js
 import { createServiceController } from '../controllers/serviceController.js';
 import { createAdminAuthController } from '../controllers/adminAuthController.js';
 import { createAdminController } from '../controllers/adminController.js';
+import { createAdminServiceController } from '../controllers/adminServiceController.js';
 import { requireAuth, requireRole } from '../middleware/adminAuth.js';
 
 function asyncHandler(handler) {
@@ -24,6 +25,7 @@ export function createApiRouter(deps) {
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
+  const adminServiceController = createAdminServiceController(deps.serviceRepository);
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
   router.post('/auth/login', asyncHandler(adminAuthController.login));
@@ -33,6 +35,10 @@ export function createApiRouter(deps) {
   router.get('/admin/manager', asyncHandler(adminAuth), requireRole(['manager']), adminController.managerScope);
   router.get('/admin/service', asyncHandler(adminAuth), requireRole(['manager', 'service']), adminController.serviceScope);
   router.get('/admin/content', asyncHandler(adminAuth), requireRole(['manager', 'seo']), adminController.seoScope);
+
+  router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.list));
+  router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.byId));
+  router.post('/admin/service-requests/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.updateStatus));
 
   router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
