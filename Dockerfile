@@ -10,12 +10,8 @@ RUN npm config set registry https://registry.npmmirror.com/ \
  && npm config set fetch-retry-maxtimeout 120000 \
  && npm install --legacy-peer-deps
 
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install --legacy-peer-deps
-
 
 COPY . .
-RUN cd frontend && npm run build
 
 EXPOSE 8080
 
