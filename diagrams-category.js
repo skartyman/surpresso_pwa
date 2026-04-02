@@ -105,7 +105,15 @@ function renderCategoryPage() {
 window.addEventListener("DOMContentLoaded", () => {
   renderCategoryPage();
 
-  const searchInput = document.getElementById("diagram-brand-search");
+  const searchInput = document.getElementById("manufacturer-search");
+  if (searchInput) {
+    searchInput.value = "";
+    searchInput.setAttribute("readonly", "readonly");
+    searchInput.addEventListener("focus", () => {
+      searchInput.removeAttribute("readonly");
+    }, { once: true });
+  }
+
   searchInput?.addEventListener("input", () => {
     brandSearchQuery = searchInput.value || "";
     renderCategoryPage();
