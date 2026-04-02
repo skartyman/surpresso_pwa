@@ -78,6 +78,29 @@ export class NeonClientRepository {
     });
     return mapClient(client);
   }
+
+  async findOrCreateFromTelegramUser(telegramUser, defaults = {}) {
+    const telegramUserId = String(telegramUser?.id || '').trim();
+    if (!telegramUserId) {
+      return null;
+    }
+
+    const fallbackIdSuffix = Math.random().toString(16).slice(2, 8);
+    const client = await this.prisma.client.upsert({
+      where: { telegramUserId },
+      update: {},
+      create: {
+        id: `client-tg-${telegramUserId}-${fallbackIdSuffix}`,
+        telegramUserId,
+        contactName: defaults.contactName || `Telegram user ${telegramUserId}`,
+        companyName: defaults.companyName || 'Telegram client',
+        phone: defaults.phone || '',
+        isActive: defaults.isActive ?? true,
+      },
+    });
+
+    return mapClient(client);
+  }
 }
 
 export class NeonEquipmentRepository {

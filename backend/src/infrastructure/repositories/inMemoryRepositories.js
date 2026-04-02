@@ -39,6 +39,33 @@ export class InMemoryClientRepository {
   async findByTelegramUserId(telegramUserId) {
     return this.clients.find((client) => client.telegramUserId === String(telegramUserId)) || null;
   }
+
+  async findOrCreateFromTelegramUser(telegramUser, defaults = {}) {
+    const telegramUserId = String(telegramUser?.id || '').trim();
+    if (!telegramUserId) {
+      return null;
+    }
+
+    const existing = await this.findByTelegramUserId(telegramUserId);
+    if (existing) {
+      return existing;
+    }
+
+    const now = new Date().toISOString();
+    const created = {
+      id: `client-tg-${telegramUserId}-${Math.random().toString(16).slice(2, 8)}`,
+      telegramUserId,
+      contactName: defaults.contactName || `Telegram user ${telegramUserId}`,
+      companyName: defaults.companyName || 'Telegram client',
+      phone: defaults.phone || '',
+      isActive: defaults.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.clients.unshift(created);
+    return created;
+  }
 }
 
 export class InMemoryEquipmentRepository {
