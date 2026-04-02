@@ -5,6 +5,14 @@ import bodyParser from "body-parser";
 import FormData from "form-data";
 import fs from "fs/promises";
 import crypto from "crypto";
+import { createApiRouter } from "./backend/src/http/routes/apiRoutes.js";
+import { createSupportController } from "./backend/src/http/controllers/supportController.js";
+import {
+  InMemoryClientRepository,
+  InMemoryEquipmentRepository,
+  InMemoryServiceRequestRepository,
+} from "./backend/src/infrastructure/repositories/inMemoryRepositories.js";
+import { TelegramBotGateway } from "./backend/src/infrastructure/telegram/botApi.js";
 import {
   answerWithGemini,
   buildSources,
@@ -25,6 +33,9 @@ const app = express();
 const __dirname = path.resolve();
 const PUBLIC_SVELTE_DIR = path.join(__dirname, "public", "public-svelte");
 const LEGACY_PUBLIC_DIR = __dirname;
+const TELEGRAM_MINIAPP_DIST_DIR = path.join(__dirname, "frontend", "dist");
+const TELEGRAM_MINIAPP_FALLBACK_DIR = path.join(__dirname, "frontend");
+const TELEGRAM_MINIAPP_UPLOADS_DIR = path.join(__dirname, "miniapp-telegram", "uploads");
 const PUBLIC_ROUTE_PATHS = new Set([
   "/",
   "/events",
@@ -119,6 +130,38 @@ app.use(async (req, res, next) => {
   return res.sendFile(path.join(LEGACY_PUBLIC_DIR, "index.html"));
 });
 
+app.get("/tg", async (_req, res, next) => {
+  try {
+    await fs.access(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
+    return res.sendFile(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
+  } catch {
+    try {
+      await fs.access(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
+      return res.sendFile(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
+    } catch {
+      return next();
+    }
+  }
+});
+
+app.use("/tg/assets", express.static(path.join(TELEGRAM_MINIAPP_DIST_DIR, "assets")));
+app.use("/miniapp-telegram/uploads", express.static(TELEGRAM_MINIAPP_UPLOADS_DIR));
+
+app.get("/tg/*", async (req, res, next) => {
+  if (req.path.startsWith("/tg/api/")) return next();
+  try {
+    await fs.access(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
+    return res.sendFile(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
+  } catch {
+    try {
+      await fs.access(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
+      return res.sendFile(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
+    } catch {
+      return next();
+    }
+  }
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // =======================
@@ -163,6 +206,20 @@ const TRELLO_LIST_ID = process.env.TRELLO_LIST_ID || "";
 const LABEL_OUR = process.env.LABEL_OUR || "";
 const LABEL_CLIENT = process.env.LABEL_CLIENT || "";
 const LABEL_CONTRACT = process.env.LABEL_CONTRACT || "";
+
+const miniAppDeps = {
+  clientRepository: new InMemoryClientRepository(),
+  equipmentRepository: new InMemoryEquipmentRepository(),
+  serviceRepository: new InMemoryServiceRequestRepository(),
+};
+const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
+const miniAppSupportController = createSupportController(miniAppBotGateway);
+
+app.get("/health", (_req, res) => {
+  res.send({ ok: true });
+});
+app.use("/api/telegram", createApiRouter(miniAppDeps));
+app.post("/api/telegram/support/notify", miniAppSupportController.notify);
 
 function sanitizeManualText(value, max = 120) {
   return String(value || "")
@@ -1473,7 +1530,7 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
 // =======================
 // 2.6) Telegram webhook
 // =======================
-app.post("/tg/webhook", async (req, res) => {
+const telegramWebhookHandler = async (req, res) => {
   try {
     if (TG_WEBHOOK_SECRET) {
       const secret = req.headers["x-telegram-bot-api-secret-token"];
@@ -1888,7 +1945,10 @@ app.post("/tg/webhook", async (req, res) => {
     console.error("TG WEBHOOK ERROR:", err);
     return res.status(500).send({ ok: false });
   }
-});
+};
+
+app.post("/api/telegram/webhook", telegramWebhookHandler);
+app.post("/tg/webhook", telegramWebhookHandler);
 
 // =======================
 // 3) Templates proxy (как было)
