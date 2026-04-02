@@ -15,6 +15,8 @@ export class EquipmentRepository {
 export class ServiceRequestRepository {
   async listByClientId(_) { throw new Error('Not implemented'); }
   async create(_) { throw new Error('Not implemented'); }
+  async listForAdmin(_) { throw new Error('Not implemented'); }
+  async findForAdminById(_) { throw new Error('Not implemented'); }
   async findById(_) { throw new Error('Not implemented'); }
   async updateStatus(_, __) { throw new Error('Not implemented'); }
 }
