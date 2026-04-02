@@ -6,4 +6,5 @@ export const config = {
   telegramInitSecret: process.env.TELEGRAM_INIT_SECRET || '',
   mediaUploadPath: process.env.MEDIA_UPLOAD_PATH || 'miniapp-telegram/uploads',
   adminSessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || 'change-me-admin-secret',
+  databaseUrl: process.env.DATABASE_URL || '',
 };

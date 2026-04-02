@@ -212,24 +212,22 @@ async function setupMiniAppLayer() {
     const [
       { createApiRouter },
       { createSupportController },
-      {
-        InMemoryClientRepository,
-        InMemoryEquipmentRepository,
-        InMemoryServiceRequestRepository,
-      },
+      { createMiniAppRepositories },
+      { createAdminSessionManager },
       { TelegramBotGateway },
     ] = await Promise.all([
       import("./backend/src/http/routes/apiRoutes.js"),
       import("./backend/src/http/controllers/supportController.js"),
-      import("./backend/src/infrastructure/repositories/inMemoryRepositories.js"),
+      import("./backend/src/infrastructure/repositories/createMiniAppRepositories.js"),
+      import("./backend/src/http/middleware/adminAuth.js"),
       import("./backend/src/infrastructure/telegram/botApi.js"),
     ]);
 
-    const miniAppDeps = {
-      clientRepository: new InMemoryClientRepository(),
-      equipmentRepository: new InMemoryEquipmentRepository(),
-      serviceRepository: new InMemoryServiceRequestRepository(),
-    };
+    const { repositories: miniAppDeps, storage } = await createMiniAppRepositories(process.env.DATABASE_URL);
+    miniAppDeps.sessionManager = createAdminSessionManager(
+      process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || "change-me-admin-secret"
+    );
+    console.info(`[miniapp] storage backend: ${storage}`);
     const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
     const miniAppSupportController = createSupportController(miniAppBotGateway);
 

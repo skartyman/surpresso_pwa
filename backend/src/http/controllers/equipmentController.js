@@ -1,11 +1,11 @@
 export function createEquipmentController(equipmentRepository) {
   return {
-    list(req, res) {
-      const data = equipmentRepository.listByClientId(req.auth.client.id);
+    async list(req, res) {
+      const data = await equipmentRepository.listByClientId(req.auth.client.id);
       return res.json({ items: data });
     },
-    byId(req, res) {
-      const item = equipmentRepository.findById(req.params.id);
+    async byId(req, res) {
+      const item = await equipmentRepository.findById(req.params.id);
       if (!item || item.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Equipment not found' });
       }

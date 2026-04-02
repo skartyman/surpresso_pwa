@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedRequests ServiceRequest[] @relation("AssignedUserRequests")
+}
+
+model Client {
+  id             String   @id
+  telegramUserId String   @unique
+  companyName    String
+  contactName    String
+  phone          String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  equipment       Equipment[]
+  serviceRequests ServiceRequest[]
+}
+
+model Equipment {
+  id             String   @id
+  clientId       String
+  type           String
+  brand          String
+  model          String
+  serial         String
+  internalNumber String
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceRequests ServiceRequest[]
+
+  @@index([clientId])
+}
+
+model ServiceRequest {
+  id               String   @id
+  clientId         String
+  equipmentId      String
+  category         String
+  description      String
+  urgency          String
+  canOperateNow    Boolean
+  status           String
+  source           String
+  assignedToUserId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  client         Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  equipment      Equipment             @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  assignedToUser User?                 @relation("AssignedUserRequests", fields: [assignedToUserId], references: [id])
+  media          ServiceRequestMedia[]
+
+  @@index([clientId])
+  @@index([equipmentId])
+  @@index([assignedToUserId])
+}
+
+model ServiceRequestMedia {
+  id               String   @id
+  serviceRequestId String
+  type             String
+  url              String
+  createdAt        DateTime @default(now())
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+
+  @@index([serviceRequestId])
+}

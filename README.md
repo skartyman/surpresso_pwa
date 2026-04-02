@@ -55,6 +55,9 @@ TELEGRAM_INIT_SECRET=
 # Mini App uploads path (не /media)
 MEDIA_UPLOAD_PATH=miniapp-telegram/uploads
 
+# Neon Postgres (Mini App storage)
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
+
 # Legacy PWA auth (опционально, как и раньше)
 PWA_KEY=
 ```
@@ -82,6 +85,25 @@ npm start
 После старта:
 - Legacy PWA: `http://localhost:8080/`
 - Telegram Mini App: `http://localhost:8080/tg`
+
+
+## Prisma / Neon workflow
+
+```bash
+# generate prisma client
+npm run prisma:generate
+
+# apply migrations to Neon
+npm run prisma:migrate
+
+# for local development (creates migration)
+npm run prisma:migrate:dev
+
+# seed demo data: manager/service/seo users + test client/equipment/requests
+npm run prisma:seed
+```
+
+Mini App backend автоматически использует Neon при наличии `DATABASE_URL`. Если `DATABASE_URL` не задан, включается fallback на in-memory репозитории для локальной разработки.
 
 ## Fly
 
