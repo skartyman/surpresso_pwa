@@ -183,7 +183,7 @@ export class NeonServiceRequestRepository {
         urgency: payload.urgency,
         canOperateNow: Boolean(payload.canOperateNow),
         status: payload.status || 'new',
-        source: payload.source || 'telegram_miniapp',
+        source: payload.source || 'telegram_mini_app',
         assignedToUserId: payload.assignedToUserId || null,
         media: {
           create: (payload.media || []).map((media) => ({

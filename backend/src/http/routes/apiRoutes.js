@@ -21,7 +21,7 @@ export function createApiRouter(deps) {
   const authMiddleware = telegramAuth(deps.clientRepository);
   const authController = createAuthController();
   const equipmentController = createEquipmentController(deps.equipmentRepository);
-  const serviceController = createServiceController(deps.serviceRepository);
+  const serviceController = createServiceController(deps.serviceRepository, deps.equipmentRepository, deps.serviceRequestNotifier);
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
@@ -46,6 +46,11 @@ export function createApiRouter(deps) {
   router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/v1/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);
+
+  router.get('/service-requests', asyncHandler(authMiddleware), serviceController.list);
+  router.post('/service-requests', asyncHandler(authMiddleware), upload.array('media', 6), serviceController.create);
+  router.get('/service-requests/:id/status', asyncHandler(authMiddleware), serviceController.status);
+  router.post('/service-requests/:id/status', asyncHandler(authMiddleware), serviceController.updateStatus);
 
   router.get('/v1/service-requests', asyncHandler(authMiddleware), serviceController.list);
   router.post('/v1/service-requests', asyncHandler(authMiddleware), upload.array('media', 6), serviceController.create);
