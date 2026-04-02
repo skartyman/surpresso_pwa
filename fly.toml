@@ -16,3 +16,6 @@ memory = "1gb"
 memory_mb = 1_024
 
 
+
+[deploy]
+release_command = "npm run prisma:migrate"
