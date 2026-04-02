@@ -16,20 +16,35 @@ const STATUS_LABELS = {
   closed: 'Закрыта',
 };
 
+function formatDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('ru-RU');
+}
+
 export function AdminServicePage() {
-  const [status, setStatus] = useState('all');
+  const [filters, setFilters] = useState({ status: 'all', id: '', client: '', equipment: '' });
   const [requests, setRequests] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [newNote, setNewNote] = useState('');
+  const [statusComment, setStatusComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadRequests(nextStatus = status) {
+  async function loadRequests(nextFilters = filters) {
     setLoading(true);
     setError('');
     try {
-      const payload = await adminServiceApi.list({ status: nextStatus === 'all' ? '' : nextStatus });
+      const payload = await adminServiceApi.list({
+        status: nextFilters.status === 'all' ? '' : nextFilters.status,
+        id: nextFilters.id,
+        client: nextFilters.client,
+        equipment: nextFilters.equipment,
+      });
       setRequests(payload.requests || []);
       if (!selectedId && payload.requests?.[0]?.id) {
         setSelectedId(payload.requests[0].id);
@@ -44,14 +59,25 @@ export function AdminServicePage() {
   async function loadDetails(id) {
     if (!id) {
       setSelectedRequest(null);
+      setHistory([]);
+      setNotes([]);
       return;
     }
 
     try {
-      const payload = await adminServiceApi.byId(id);
-      setSelectedRequest(payload.request || null);
+      const [requestPayload, historyPayload, notesPayload] = await Promise.all([
+        adminServiceApi.byId(id),
+        adminServiceApi.history(id),
+        adminServiceApi.notes(id),
+      ]);
+
+      setSelectedRequest(requestPayload.request || null);
+      setHistory(historyPayload.history || []);
+      setNotes(notesPayload.notes || []);
     } catch {
       setSelectedRequest(null);
+      setHistory([]);
+      setNotes([]);
     }
   }
 
@@ -67,11 +93,11 @@ export function AdminServicePage() {
   const selectedStatus = useMemo(() => selectedRequest?.status || 'new', [selectedRequest]);
 
   async function handleFilterChange(event) {
-    const next = event.target.value;
-    setStatus(next);
+    const nextFilters = { ...filters, [event.target.name]: event.target.value };
+    setFilters(nextFilters);
     setSelectedId(null);
     setSelectedRequest(null);
-    await loadRequests(next);
+    await loadRequests(nextFilters);
   }
 
   async function handleStatusChange(event) {
@@ -80,12 +106,28 @@ export function AdminServicePage() {
     const nextStatus = event.target.value;
     setUpdatingStatus(true);
     try {
-      const payload = await adminServiceApi.updateStatus(selectedRequest.id, nextStatus);
+      const payload = await adminServiceApi.updateStatus(selectedRequest.id, nextStatus, statusComment);
       const updated = payload.request;
       setSelectedRequest(updated);
       setRequests((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setStatusComment('');
+      const historyPayload = await adminServiceApi.history(selectedRequest.id);
+      setHistory(historyPayload.history || []);
     } finally {
       setUpdatingStatus(false);
+    }
+  }
+
+  async function handleAddNote() {
+    if (!selectedRequest || !newNote.trim()) return;
+    setSavingNote(true);
+    try {
+      await adminServiceApi.addNote(selectedRequest.id, newNote.trim());
+      setNewNote('');
+      const notesPayload = await adminServiceApi.notes(selectedRequest.id);
+      setNotes(notesPayload.notes || []);
+    } finally {
+      setSavingNote(false);
     }
   }
 
@@ -93,15 +135,30 @@ export function AdminServicePage() {
     <section className="admin-service-page">
       <header className="admin-service-page__header">
         <h1>Сервисные заявки</h1>
+      </header>
+
+      <div className="admin-filters-grid">
         <label>
-          <span>Фильтр по статусу</span>
-          <select value={status} onChange={handleFilterChange}>
+          <span>Статус</span>
+          <select name="status" value={filters.status} onChange={handleFilterChange}>
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
-      </header>
+        <label>
+          <span>ID заявки</span>
+          <input name="id" value={filters.id} onChange={handleFilterChange} placeholder="req-5001" />
+        </label>
+        <label>
+          <span>Клиент</span>
+          <input name="client" value={filters.client} onChange={handleFilterChange} placeholder="Компания / контакт / телефон" />
+        </label>
+        <label>
+          <span>Оборудование</span>
+          <input name="equipment" value={filters.equipment} onChange={handleFilterChange} placeholder="Бренд / модель / serial" />
+        </label>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
 
@@ -119,7 +176,7 @@ export function AdminServicePage() {
               <div className="admin-status-pill" data-status={request.status}>{STATUS_LABELS[request.status] || request.status}</div>
               <strong>{request.client?.companyName || request.clientId}</strong>
               <span>{request.equipment?.brand} {request.equipment?.model}</span>
-              <small>{new Date(request.updatedAt).toLocaleString('ru-RU')}</small>
+              <small>{formatDate(request.updatedAt)}</small>
             </button>
           ))}
         </div>
@@ -132,26 +189,33 @@ export function AdminServicePage() {
                 <div className="admin-status-pill" data-status={selectedRequest.status}>{STATUS_LABELS[selectedRequest.status] || selectedRequest.status}</div>
               </header>
 
+              <section>
+                <h3>Карточка заявки</h3>
+                <p>Категория: {selectedRequest.category}</p>
+                <p>Срочность: {selectedRequest.urgency}</p>
+                <p>Источник: {selectedRequest.source}</p>
+                <p>Создана: {formatDate(selectedRequest.createdAt)}</p>
+                <p>Обновлена: {formatDate(selectedRequest.updatedAt)}</p>
+              </section>
+
               <div className="admin-detail-grid">
                 <section>
                   <h3>Клиент</h3>
-                  <p>{selectedRequest.client?.companyName}</p>
-                  <p>{selectedRequest.client?.contactName}</p>
-                  <p>{selectedRequest.client?.phone}</p>
+                  <p>{selectedRequest.client?.companyName || '—'}</p>
+                  <p>{selectedRequest.client?.contactName || '—'}</p>
+                  <p>{selectedRequest.client?.phone || '—'}</p>
                 </section>
                 <section>
                   <h3>Оборудование</h3>
                   <p>{selectedRequest.equipment?.brand} {selectedRequest.equipment?.model}</p>
-                  <p>Серийный номер: {selectedRequest.equipment?.serial}</p>
-                  <p>Внутренний №: {selectedRequest.equipment?.internalNumber}</p>
+                  <p>Серийный номер: {selectedRequest.equipment?.serial || '—'}</p>
+                  <p>Внутренний №: {selectedRequest.equipment?.internalNumber || '—'}</p>
                 </section>
               </div>
 
               <section>
                 <h3>Описание</h3>
                 <p>{selectedRequest.description}</p>
-                <p>Создана: {new Date(selectedRequest.createdAt).toLocaleString('ru-RU')}</p>
-                <p>Обновлена: {new Date(selectedRequest.updatedAt).toLocaleString('ru-RU')}</p>
               </section>
 
               <section>
@@ -161,6 +225,11 @@ export function AdminServicePage() {
                     <option key={item.value} value={item.value}>{item.label}</option>
                   ))}
                 </select>
+                <textarea
+                  value={statusComment}
+                  onChange={(event) => setStatusComment(event.target.value)}
+                  placeholder="Комментарий к смене статуса (необязательно)"
+                />
               </section>
 
               <section>
@@ -175,17 +244,41 @@ export function AdminServicePage() {
               </section>
 
               <section>
-                <h3>Комментарии / Notes</h3>
-                <div className="admin-notes-placeholder">
-                  <p>Структура для следующего этапа:</p>
-                  <ul>
-                    <li>authorId</li>
-                    <li>authorRole</li>
-                    <li>text</li>
-                    <li>createdAt</li>
-                    <li>visibility (internal/client)</li>
+                <h3>История статусов</h3>
+                {!history.length ? <p>История пока пустая.</p> : (
+                  <ul className="admin-history-list">
+                    {history.map((item) => (
+                      <li key={item.id}>
+                        <strong>{STATUS_LABELS[item.previousStatus] || item.previousStatus} → {STATUS_LABELS[item.nextStatus] || item.nextStatus}</strong>
+                        <span>{item.changedByRole || 'system'} · {item.changedByUserId || 'unknown'} · {formatDate(item.createdAt)}</span>
+                        {item.comment ? <p>{item.comment}</p> : null}
+                      </li>
+                    ))}
                   </ul>
+                )}
+              </section>
+
+              <section>
+                <h3>Internal notes</h3>
+                <div className="admin-notes-form">
+                  <textarea
+                    value={newNote}
+                    onChange={(event) => setNewNote(event.target.value)}
+                    placeholder="Добавить внутреннюю заметку для manager/service"
+                  />
+                  <button type="button" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>Добавить заметку</button>
                 </div>
+                {!notes.length ? <p>Заметок пока нет.</p> : (
+                  <ul className="admin-history-list">
+                    {notes.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.authorRole} · {item.authorId}</strong>
+                        <span>{formatDate(item.createdAt)}</span>
+                        <p>{item.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </section>
             </>
           )}

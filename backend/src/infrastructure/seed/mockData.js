@@ -117,4 +117,26 @@ export const seed = {
       updatedAt: '2026-04-01T08:20:00.000Z',
     },
   ],
+  serviceRequestHistory: [
+    {
+      id: 'srh-1',
+      serviceRequestId: 'req-5001',
+      previousStatus: 'new',
+      nextStatus: 'in_progress',
+      changedByUserId: 'user-service-1',
+      changedByRole: 'service',
+      comment: 'Взяли в работу после звонка клиенту',
+      createdAt: '2026-03-31T11:00:00.000Z',
+    },
+  ],
+  serviceRequestNotes: [
+    {
+      id: 'srn-1',
+      serviceRequestId: 'req-5001',
+      authorId: 'user-manager-1',
+      authorRole: 'manager',
+      text: 'Проверить наличие прокладки перед выездом.',
+      createdAt: '2026-03-31T11:10:00.000Z',
+    },
+  ],
 };

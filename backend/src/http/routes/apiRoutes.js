@@ -39,6 +39,9 @@ export function createApiRouter(deps) {
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.list));
   router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.byId));
   router.post('/admin/service-requests/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.updateStatus));
+  router.get('/admin/service-requests/:id/history', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.history));
+  router.get('/admin/service-requests/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.notes));
+  router.post('/admin/service-requests/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service']), asyncHandler(adminServiceController.addNote));
 
   router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);

@@ -18,6 +18,8 @@ model User {
   updatedAt    DateTime @updatedAt
 
   assignedRequests ServiceRequest[] @relation("AssignedUserRequests")
+  requestStatusUpdates ServiceRequestStatusHistory[] @relation("StatusChangedByUser")
+  requestInternalNotes ServiceRequestInternalNote[]
 }
 
 model Client {
@@ -70,10 +72,44 @@ model ServiceRequest {
   equipment      Equipment             @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   assignedToUser User?                 @relation("AssignedUserRequests", fields: [assignedToUserId], references: [id])
   media          ServiceRequestMedia[]
+  history        ServiceRequestStatusHistory[]
+  notes          ServiceRequestInternalNote[]
 
   @@index([clientId])
   @@index([equipmentId])
   @@index([assignedToUserId])
+}
+
+model ServiceRequestStatusHistory {
+  id               String   @id
+  serviceRequestId String
+  previousStatus   String
+  nextStatus       String
+  changedByUserId  String?
+  changedByRole    String?
+  comment          String?
+  createdAt        DateTime @default(now())
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  changedByUser  User?          @relation("StatusChangedByUser", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([serviceRequestId])
+  @@index([changedByUserId])
+}
+
+model ServiceRequestInternalNote {
+  id               String   @id
+  serviceRequestId String
+  authorId         String
+  authorRole       String
+  text             String
+  createdAt        DateTime @default(now())
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  author         User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([serviceRequestId])
+  @@index([authorId])
 }
 
 model ServiceRequestMedia {

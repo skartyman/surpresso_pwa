@@ -302,6 +302,12 @@ textarea {
   margin: 0;
 }
 
+.admin-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .admin-service-grid {
   display: grid;
   grid-template-columns: 320px 1fr;
@@ -392,10 +398,32 @@ textarea {
   padding-left: 20px;
 }
 
-.admin-notes-placeholder {
-  border: 1px dashed #4b5563;
-  border-radius: 10px;
-  padding: 10px;
+.admin-history-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-history-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-history-list p,
+.admin-history-list span {
+  color: #d1d5db;
+  font-size: 13px;
+}
+
+.admin-notes-form {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-notes-form button {
+  width: fit-content;
+  min-width: 220px;
 }
 
 @media (max-width: 1100px) {
@@ -432,6 +460,10 @@ textarea {
   }
 
   .admin-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-filters-grid {
     grid-template-columns: 1fr;
   }
 }
