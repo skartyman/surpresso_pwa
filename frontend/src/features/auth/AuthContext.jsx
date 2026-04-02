@@ -19,7 +19,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refreshMe();
+    const path = window.location.pathname || '';
+    const shouldCheckAdminSession = /^\/tg\/admin(\/|$)/.test(path);
+
+    if (shouldCheckAdminSession) {
+      refreshMe();
+      return;
+    }
+
+    setUser(null);
+    setStatus('anonymous');
   }, [refreshMe]);
 
   const login = useCallback(async (email, password) => {
