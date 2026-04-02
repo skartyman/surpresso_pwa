@@ -13,6 +13,9 @@ RUN npm config set registry https://registry.npmmirror.com/ \
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install --legacy-peer-deps
 
+COPY backend/package*.json ./backend/
+RUN cd backend && npm install --legacy-peer-deps
+
 
 COPY . .
 RUN cd frontend && npm run build

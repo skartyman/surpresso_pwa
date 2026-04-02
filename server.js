@@ -5,14 +5,6 @@ import bodyParser from "body-parser";
 import FormData from "form-data";
 import fs from "fs/promises";
 import crypto from "crypto";
-import { createApiRouter } from "./backend/src/http/routes/apiRoutes.js";
-import { createSupportController } from "./backend/src/http/controllers/supportController.js";
-import {
-  InMemoryClientRepository,
-  InMemoryEquipmentRepository,
-  InMemoryServiceRequestRepository,
-} from "./backend/src/infrastructure/repositories/inMemoryRepositories.js";
-import { TelegramBotGateway } from "./backend/src/infrastructure/telegram/botApi.js";
 import {
   answerWithGemini,
   buildSources,
@@ -187,6 +179,9 @@ const TG_NOTIFY_CHAT_ID =
   "";
 const TG_WEBHOOK_SECRET = process.env.TG_WEBHOOK_SECRET || "";
 const SUPPORT_PHONE = process.env.SUPPORT_PHONE || "073-123-18-18";
+const MINIAPP_ENABLED = !["0", "false", "off"].includes(
+  String(process.env.MINIAPP_ENABLED || "true").toLowerCase()
+);
 const MANAGER_LINK =
   process.env.MANAGER_LINK ||
   process.env.SUPPORT_GROUP_LINK ||
@@ -207,19 +202,48 @@ const LABEL_OUR = process.env.LABEL_OUR || "";
 const LABEL_CLIENT = process.env.LABEL_CLIENT || "";
 const LABEL_CONTRACT = process.env.LABEL_CONTRACT || "";
 
-const miniAppDeps = {
-  clientRepository: new InMemoryClientRepository(),
-  equipmentRepository: new InMemoryEquipmentRepository(),
-  serviceRepository: new InMemoryServiceRequestRepository(),
-};
-const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
-const miniAppSupportController = createSupportController(miniAppBotGateway);
+async function setupMiniAppLayer() {
+  if (!MINIAPP_ENABLED) {
+    console.warn("[miniapp] disabled by MINIAPP_ENABLED=false");
+    return;
+  }
+
+  try {
+    const [
+      { createApiRouter },
+      { createSupportController },
+      {
+        InMemoryClientRepository,
+        InMemoryEquipmentRepository,
+        InMemoryServiceRequestRepository,
+      },
+      { TelegramBotGateway },
+    ] = await Promise.all([
+      import("./backend/src/http/routes/apiRoutes.js"),
+      import("./backend/src/http/controllers/supportController.js"),
+      import("./backend/src/infrastructure/repositories/inMemoryRepositories.js"),
+      import("./backend/src/infrastructure/telegram/botApi.js"),
+    ]);
+
+    const miniAppDeps = {
+      clientRepository: new InMemoryClientRepository(),
+      equipmentRepository: new InMemoryEquipmentRepository(),
+      serviceRepository: new InMemoryServiceRequestRepository(),
+    };
+    const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
+    const miniAppSupportController = createSupportController(miniAppBotGateway);
+
+    app.use("/api/telegram", createApiRouter(miniAppDeps));
+    app.post("/api/telegram/support/notify", miniAppSupportController.notify);
+  } catch (error) {
+    const code = error?.code || "unknown_error";
+    console.error(`[miniapp] disabled due to startup error (${code}): ${error?.message || error}`);
+  }
+}
 
 app.get("/health", (_req, res) => {
   res.send({ ok: true });
 });
-app.use("/api/telegram", createApiRouter(miniAppDeps));
-app.post("/api/telegram/support/notify", miniAppSupportController.notify);
 
 function sanitizeManualText(value, max = 120) {
   return String(value || "")
@@ -2421,4 +2445,5 @@ app.delete("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handl
 // =======================
 // START
 // =======================
+await setupMiniAppLayer();
 app.listen(PORT, () => console.log("Server started on port " + PORT));
