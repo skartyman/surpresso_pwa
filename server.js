@@ -23,7 +23,6 @@ import {
 // =======================
 const app = express();
 const __dirname = path.resolve();
-const PUBLIC_SVELTE_DIR = path.join(__dirname, "public", "public-svelte");
 const LEGACY_PUBLIC_DIR = __dirname;
 const TELEGRAM_MINIAPP_DIST_DIR = path.join(__dirname, "frontend", "dist");
 const TELEGRAM_MINIAPP_FALLBACK_DIR = path.join(__dirname, "frontend");
@@ -38,12 +37,8 @@ const PUBLIC_ROUTE_PATHS = new Set([
 ]);
 const PUBLIC_ROUTE_PREFIXES = ["/events/"];
 const PUBLIC_ROUTE_LOG_SAMPLE_RATE = Number(process.env.PUBLIC_ROUTE_LOG_SAMPLE_RATE || "1");
-const DISABLE_SVELTE_PUBLIC = String(process.env.DISABLE_SVELTE_PUBLIC || "").toLowerCase() === "true";
-let publicSvelteBuildAvailable = null;
-let lastSvelteBuildCheckAt = 0;
-let publicSvelteMissingLogged = false;
 
-function shouldUseSveltePublic(reqPath = "") {
+function isPublicRoute(reqPath = "") {
   if (PUBLIC_ROUTE_PATHS.has(reqPath)) return true;
   return PUBLIC_ROUTE_PREFIXES.some((prefix) => reqPath.startsWith(prefix));
 }
@@ -53,23 +48,6 @@ function shouldSampleRouteLogs() {
   return Math.random() * PUBLIC_ROUTE_LOG_SAMPLE_RATE < 1;
 }
 
-async function hasSveltePublicBuild() {
-  const now = Date.now();
-  if (publicSvelteBuildAvailable !== null && now - lastSvelteBuildCheckAt < 10_000) {
-    return publicSvelteBuildAvailable;
-  }
-
-  try {
-    await fs.access(path.join(PUBLIC_SVELTE_DIR, "index.html"));
-    publicSvelteBuildAvailable = true;
-  } catch {
-    publicSvelteBuildAvailable = false;
-  }
-
-  lastSvelteBuildCheckAt = now;
-  return publicSvelteBuildAvailable;
-}
-
 await ensureIndexDir();
 
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -77,10 +55,10 @@ app.use("/legacy", express.static(LEGACY_PUBLIC_DIR));
 
 app.use(async (req, res, next) => {
   if (req.method !== "GET") return next();
-  if (!shouldUseSveltePublic(req.path)) return next();
+  if (!isPublicRoute(req.path)) return next();
 
   const startedAt = Date.now();
-  const logOutcome = (outcome, extra = {}) => {
+  const logOutcome = (extra = {}) => {
     if (!shouldSampleRouteLogs()) return;
     console.info(
       JSON.stringify({
@@ -88,37 +66,14 @@ app.use(async (req, res, next) => {
         type: "public_route_resolution",
         route: req.path,
         method: req.method,
-        outcome,
+        outcome: "legacy",
         durationMs: Date.now() - startedAt,
         ...extra,
       })
     );
   };
 
-  if (DISABLE_SVELTE_PUBLIC) {
-    logOutcome("legacy", { reason: "disabled_via_env" });
-    return res.sendFile(path.join(LEGACY_PUBLIC_DIR, "index.html"));
-  }
-
-  const hasBuild = await hasSveltePublicBuild();
-  if (hasBuild) {
-    logOutcome("svelte");
-    return res.sendFile(path.join(PUBLIC_SVELTE_DIR, "index.html"));
-  }
-
-  if (!publicSvelteMissingLogged) {
-    publicSvelteMissingLogged = true;
-    console.warn(
-      JSON.stringify({
-        level: "warn",
-        type: "public_svelte_build_missing",
-        dir: PUBLIC_SVELTE_DIR,
-        fallback: "legacy_index",
-      })
-    );
-  }
-
-  logOutcome("legacy", { reason: "svelte_build_missing" });
+  logOutcome();
   return res.sendFile(path.join(LEGACY_PUBLIC_DIR, "index.html"));
 });
 
