@@ -116,7 +116,12 @@ model ServiceRequestMedia {
   id               String   @id
   serviceRequestId String
   type             String
-  url              String
+  fileId           String?
+  fileUrl          String
+  previewUrl       String?
+  mimeType         String?
+  originalName     String?
+  size             Int      @default(0)
   createdAt        DateTime @default(now())
 
   serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)

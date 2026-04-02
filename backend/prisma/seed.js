@@ -68,7 +68,12 @@ async function main() {
           create: (request.media || []).map((media) => ({
             id: media.id,
             type: media.type,
-            url: media.url,
+            fileId: media.fileId || null,
+            fileUrl: media.fileUrl || media.url || '',
+            previewUrl: media.previewUrl || media.imgUrl || null,
+            mimeType: media.mimeType || null,
+            originalName: media.originalName || null,
+            size: Number(media.size || 0),
           })),
         },
       },

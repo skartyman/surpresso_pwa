@@ -1,3 +1,6 @@
+import { uploadServiceRequestMedia } from '../../infrastructure/drive/gasDriveClient.js';
+import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
+
 const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
 const ALLOWED_URGENCY = new Set(['low', 'normal', 'high', 'critical']);
 
@@ -34,10 +37,11 @@ function formatNotifyMessage(request) {
 
 export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier) {
   const notifier = telegramNotifier || { notifyNewServiceRequest: async () => ({ ok: false, reason: 'not_configured' }) };
+
   return {
     async list(req, res) {
       const requests = await serviceRepository.listByClientId(req.auth.client.id);
-      return res.json({ items: requests });
+      return res.json({ items: requests.map((item) => enrichServiceRequestMedia(req, item)) });
     },
     async create(req, res) {
       const category = normalizeText(req.body?.category);
@@ -67,7 +71,16 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         }
       }
 
+      const requestId = `req-${Date.now()}`;
+      const uploadedMedia = [];
+
+      for (const file of req.files || []) {
+        const uploaded = await uploadServiceRequestMedia({ entityId: requestId, file });
+        uploadedMedia.push(uploaded);
+      }
+
       const payload = {
+        id: requestId,
         equipmentId: equipmentId || null,
         category,
         description,
@@ -75,16 +88,12 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         canOperateNow,
         source: 'telegram_mini_app',
         clientId: req.auth.client.id,
-        media: (req.files || []).map((file) => ({
-          id: `media-${file.filename}`,
-          type: file.mimetype.startsWith('video') ? 'video' : 'image',
-          url: `/media/${file.filename}`,
-        })),
+        media: uploadedMedia,
       };
 
       const created = await serviceRepository.create(payload);
       await notifier.notifyNewServiceRequest(formatNotifyMessage(created));
-      return res.status(201).json(created);
+      return res.status(201).json(enrichServiceRequestMedia(req, created));
     },
     async status(req, res) {
       const request = await serviceRepository.findById(req.params.id);

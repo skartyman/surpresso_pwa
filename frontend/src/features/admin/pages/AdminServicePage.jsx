@@ -255,11 +255,32 @@ export function AdminServicePage() {
               <section>
                 <h3>Медиа</h3>
                 {selectedRequest.media?.length ? (
-                  <ul className="admin-media-list">
-                    {selectedRequest.media.map((media) => (
-                      <li key={media.id}><a href={media.url} target="_blank" rel="noreferrer">{media.type}: {media.url}</a></li>
-                    ))}
-                  </ul>
+                  <div className="admin-media-block">
+                    <div>
+                      <h4>Фото</h4>
+                      <div className="admin-media-gallery">
+                        {selectedRequest.media.filter((media) => media.type === 'image').map((media) => (
+                          <a key={media.id} href={media.fileUrl || media.url} target="_blank" rel="noreferrer" className="admin-media-thumb-link">
+                            <img src={media.imgUrl || media.previewUrl || media.fileUrl || media.url} alt={media.originalName || media.id} className="admin-media-thumb" />
+                          </a>
+                        ))}
+                      </div>
+                      {!selectedRequest.media.some((media) => media.type === 'image') ? <p>Фото не прикреплены.</p> : null}
+                    </div>
+                    <div>
+                      <h4>Видео</h4>
+                      <ul className="admin-media-list">
+                        {selectedRequest.media.filter((media) => media.type === 'video').map((media) => (
+                          <li key={media.id}>
+                            <a href={media.fileUrl || media.url} target="_blank" rel="noreferrer">
+                              {media.originalName || media.fileUrl || media.url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                      {!selectedRequest.media.some((media) => media.type === 'video') ? <p>Видео не прикреплены.</p> : null}
+                    </div>
+                  </div>
                 ) : <p>Медиа не прикреплены.</p>}
               </section>
 

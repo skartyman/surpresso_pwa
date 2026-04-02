@@ -1,6 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-import { config } from '../../config/env.js';
 import { telegramAuth } from '../middleware/telegramAuth.js';
 import { createAuthController } from '../controllers/authController.js';
 import { createEquipmentController } from '../controllers/equipmentController.js';
@@ -16,7 +15,10 @@ function asyncHandler(handler) {
 
 export function createApiRouter(deps) {
   const router = express.Router();
-  const upload = multer({ dest: config.mediaUploadPath });
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: 6, fileSize: 30 * 1024 * 1024 },
+  });
 
   const authMiddleware = telegramAuth(deps.clientRepository);
   const authController = createAuthController();

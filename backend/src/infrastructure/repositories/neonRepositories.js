@@ -29,6 +29,11 @@ function mapServiceRequest(item) {
     media: (item.media || []).map((media) => ({
       ...media,
       createdAt: media.createdAt.toISOString(),
+      fileUrl: media.fileUrl || '',
+      previewUrl: media.previewUrl || '',
+      imgUrl: media.previewUrl || '',
+      url: media.fileUrl || '',
+      size: Number(media.size || 0),
     })),
     history: (item.history || []).map((historyItem) => ({
       ...historyItem,
@@ -198,7 +203,7 @@ export class NeonServiceRequestRepository {
   async create(payload) {
     const created = await this.prisma.serviceRequest.create({
       data: {
-        id: `req-${Date.now()}`,
+        id: payload.id || `req-${Date.now()}`,
         clientId: payload.clientId,
         equipmentId: payload.equipmentId,
         category: payload.category,
@@ -210,9 +215,14 @@ export class NeonServiceRequestRepository {
         assignedToUserId: payload.assignedToUserId || null,
         media: {
           create: (payload.media || []).map((media) => ({
-            id: media.id,
+            id: media.id || `media-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             type: media.type,
-            url: media.url,
+            fileId: media.fileId || null,
+            fileUrl: media.fileUrl || media.url || '',
+            previewUrl: media.previewUrl || media.imgUrl || null,
+            mimeType: media.mimeType || null,
+            originalName: media.originalName || null,
+            size: Number(media.size || 0),
           })),
         },
       },

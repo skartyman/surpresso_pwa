@@ -141,7 +141,7 @@ export class InMemoryServiceRequestRepository {
   async create(payload) {
     const now = new Date().toISOString();
     const next = {
-      id: `req-${Date.now()}`,
+      id: payload.id || `req-${Date.now()}`,
       status: 'new',
       createdAt: now,
       updatedAt: now,
