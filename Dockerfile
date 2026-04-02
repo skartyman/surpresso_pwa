@@ -14,10 +14,11 @@ COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install --legacy-peer-deps
 
 COPY backend/package*.json ./backend/
-RUN cd backend && npm install --legacy-peer-deps
-
+COPY backend/prisma ./backend/prisma
+RUN cd backend && npm install --legacy-peer-deps --include=dev
 
 COPY . .
+RUN cd backend && npx prisma generate --schema prisma/schema.prisma
 RUN cd frontend && npm run build
 
 EXPOSE 8080
