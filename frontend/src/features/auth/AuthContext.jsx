@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const path = window.location.pathname || '';
-    const shouldCheckAdminSession = /^\/tg\/admin(\/|$)/.test(path);
+    const shouldCheckAdminSession = /^\/tg\/(admin|login)(\/|$)/.test(path);
 
     if (shouldCheckAdminSession) {
       refreshMe();
