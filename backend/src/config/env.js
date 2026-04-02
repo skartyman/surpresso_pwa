@@ -5,4 +5,5 @@ export const config = {
   telegramWebAppUrl: process.env.TELEGRAM_WEB_APP_URL || 'https://miniapp.surpresso.ru',
   telegramInitSecret: process.env.TELEGRAM_INIT_SECRET || '',
   mediaUploadPath: process.env.MEDIA_UPLOAD_PATH || 'miniapp-telegram/uploads',
+  adminSessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || 'change-me-admin-secret',
 };
