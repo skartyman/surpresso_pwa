@@ -1,6 +1,9 @@
 export class UserRepository {
   async findByEmail(_) { throw new Error('Not implemented'); }
   async findById(_) { throw new Error('Not implemented'); }
+  async listForAdmin(_) { throw new Error('Not implemented'); }
+  async create(_) { throw new Error('Not implemented'); }
+  async updateById(_, __) { throw new Error('Not implemented'); }
 }
 
 export class ClientRepository {

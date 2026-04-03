@@ -536,3 +536,12 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.admin-filters-grid--employees {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-detail-grid label {
+  display: grid;
+  gap: 6px;
+}

@@ -1,3 +1,4 @@
+/** @typedef {{ id:string, fullName:string, email:string, phone:string, passwordHash:string, role:string, positionTitle:string, isActive:boolean, createdAt:string, updatedAt:string }} User */
 /** @typedef {{ id:string, telegramUserId:string, companyName:string, contactName:string, phone:string, isActive:boolean, createdAt:string, updatedAt:string }} Client */
 /** @typedef {{ id:string, clientId:string, type:string, brand:string, model:string, serial:string, internalNumber:string, status:string, createdAt:string, updatedAt:string }} Equipment */
 /** @typedef {{ id:string, serviceRequestId:string, previousStatus:string, nextStatus:string, changedByUserId:string|null, changedByRole:string|null, comment:string|null, createdAt:string }} ServiceRequestStatusHistory */
