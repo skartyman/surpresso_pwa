@@ -10,8 +10,10 @@ async function main() {
       update: {
         email: user.email,
         passwordHash: user.passwordHash,
-        name: user.name,
+        fullName: user.fullName,
+        phone: user.phone,
         role: user.role,
+        positionTitle: user.positionTitle,
         isActive: user.isActive,
       },
       create: user,

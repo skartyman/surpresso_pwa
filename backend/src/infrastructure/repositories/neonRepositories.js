@@ -50,6 +50,9 @@ function mapUser(user) {
   if (!user) return null;
   return {
     ...user,
+    fullName: user.fullName || user.name || '',
+    phone: user.phone || '',
+    positionTitle: user.positionTitle || '',
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
@@ -68,6 +71,54 @@ export class NeonUserRepository {
 
   async findById(id) {
     const user = await this.prisma.user.findUnique({ where: { id } });
+    return mapUser(user);
+  }
+
+  async listForAdmin({ q, role, isActive } = {}) {
+    const where = {
+      ...(role ? { role } : {}),
+      ...(isActive === null || isActive === undefined ? {} : { isActive: Boolean(isActive) }),
+      ...(q
+        ? {
+            OR: [
+              { fullName: { contains: q, mode: 'insensitive' } },
+              { email: { contains: q, mode: 'insensitive' } },
+              { phone: { contains: q, mode: 'insensitive' } },
+              { positionTitle: { contains: q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const users = await this.prisma.user.findMany({
+      where: Object.keys(where).length ? where : undefined,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return users.map(mapUser);
+  }
+
+  async create(payload) {
+    const user = await this.prisma.user.create({
+      data: {
+        id: payload.id || `user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        fullName: payload.fullName,
+        email: payload.email,
+        phone: payload.phone || '',
+        passwordHash: payload.passwordHash,
+        role: payload.role,
+        positionTitle: payload.positionTitle || '',
+        isActive: payload.isActive ?? true,
+      },
+    });
+    return mapUser(user);
+  }
+
+  async updateById(id, patch) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: patch,
+    });
     return mapUser(user);
   }
 }

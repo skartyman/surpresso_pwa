@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminServiceApi } from '../api/adminServiceApi';
+import { useAuth } from '../../auth/AuthContext';
+import { ROLES } from '../roleConfig';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Все' },
@@ -29,6 +31,7 @@ function formatEquipmentLabel(request) {
 }
 
 export function AdminServicePage() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({ status: 'all', id: '', client: '', equipment: '' });
   const [requests, setRequests] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -138,10 +141,12 @@ export function AdminServicePage() {
     }
   }
 
+  const title = user?.role === ROLES.serviceEngineer ? 'Мои заявки' : (user?.role === ROLES.serviceHead ? 'Распределение сервиса' : 'Сервис');
+
   return (
     <section className="admin-service-page">
       <header className="admin-service-page__header">
-        <h1>Сервисные заявки</h1>
+        <h1>{title}</h1>
       </header>
 
       <div className="admin-filters-grid">

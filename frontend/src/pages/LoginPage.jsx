@@ -7,8 +7,8 @@ export function LoginPage() {
   const { login, status } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('manager@surpresso.local');
-  const [password, setPassword] = useState('Manager123!');
+  const [email, setEmail] = useState('owner@surpresso.local');
+  const [password, setPassword] = useState('Owner123!');
   const [error, setError] = useState('');
 
   async function handleSubmit(event) {
@@ -16,14 +16,14 @@ export function LoginPage() {
     setError('');
     try {
       await login(email, password);
-      navigate(location.state?.from || '/admin', { replace: true });
+      navigate(location.state?.from || '/tg/admin', { replace: true });
     } catch {
       setError('Неверный логин или пароль');
     }
   }
 
   if (status === 'authenticated') {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/tg/admin" replace />;
   }
 
   return (

@@ -11,16 +11,18 @@ export function AuthProvider({ children }) {
     try {
       const data = await authApi.me();
       setUser(data.user);
+      sessionStorage.setItem('surpresso-user', JSON.stringify(data.user));
       setStatus('authenticated');
     } catch {
       setUser(null);
+      sessionStorage.removeItem('surpresso-user');
       setStatus('anonymous');
     }
   }, []);
 
   useEffect(() => {
     const path = window.location.pathname || '';
-    const shouldCheckAdminSession = /^\/tg\/(admin|login)(\/|$)/.test(path);
+    const shouldCheckAdminSession = /^\/(tg\/)?(admin|login)(\/|$)/.test(path);
 
     if (shouldCheckAdminSession) {
       refreshMe();
@@ -28,6 +30,7 @@ export function AuthProvider({ children }) {
     }
 
     setUser(null);
+    sessionStorage.removeItem('surpresso-user');
     setStatus('anonymous');
   }, [refreshMe]);
 
@@ -40,6 +43,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
+    sessionStorage.removeItem('surpresso-user');
     setStatus('anonymous');
   }, []);
 

@@ -21,13 +21,66 @@ export class InMemoryUserRepository {
     this.users = [...seed.users];
   }
 
+  normalizeUser(user) {
+    if (!user) return null;
+    return {
+      ...user,
+      fullName: user.fullName || user.name || '',
+      phone: user.phone || '',
+      positionTitle: user.positionTitle || '',
+    };
+  }
+
   async findByEmail(email) {
     const normalized = String(email || '').trim().toLowerCase();
-    return this.users.find((user) => user.email.toLowerCase() === normalized) || null;
+    return this.normalizeUser(this.users.find((user) => user.email.toLowerCase() === normalized) || null);
   }
 
   async findById(id) {
-    return this.users.find((user) => user.id === id) || null;
+    return this.normalizeUser(this.users.find((user) => user.id === id) || null);
+  }
+
+  async listForAdmin({ q, role, isActive } = {}) {
+    const search = String(q || '').trim().toLowerCase();
+    return this.users
+      .filter((user) => !role || user.role === role)
+      .filter((user) => isActive === null || isActive === undefined || user.isActive === isActive)
+      .filter((user) => {
+        if (!search) return true;
+        const haystack = `${user.fullName || user.name || ''} ${user.email || ''} ${user.phone || ''} ${user.positionTitle || ''}`.toLowerCase();
+        return haystack.includes(search);
+      })
+      .map((user) => this.normalizeUser(user));
+  }
+
+  async create(payload) {
+    const now = new Date().toISOString();
+    const user = {
+      id: payload.id || `user-${Date.now()}`,
+      fullName: payload.fullName,
+      email: payload.email,
+      phone: payload.phone || '',
+      passwordHash: payload.passwordHash,
+      role: payload.role,
+      positionTitle: payload.positionTitle || '',
+      isActive: payload.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.unshift(user);
+    return this.normalizeUser(user);
+  }
+
+  async updateById(id, patch) {
+    const index = this.users.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+    const updated = {
+      ...this.users[index],
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    this.users[index] = updated;
+    return this.normalizeUser(updated);
   }
 }
 
