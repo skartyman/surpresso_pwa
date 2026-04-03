@@ -36,7 +36,7 @@ export function getDefaultAdminSection(role) {
   if (role === ROLES.serviceEngineer) return 'service';
   if (role === ROLES.serviceHead) return 'service';
   if (role === ROLES.salesManager) return 'sales';
-  if (role === ROLES.owner || role === ROLES.director) return 'dashboard';
+  if (role === ROLES.owner || role === ROLES.director) return 'employees';
   return 'service';
 }
 

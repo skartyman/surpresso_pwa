@@ -18,9 +18,10 @@ export function RequireAuth() {
 
 export function RequireRole({ allowedRoles = [] }) {
   const { user } = useAuth();
+  const location = useLocation();
 
   if (!user || !allowedRoles.includes(user.role)) {
-    return <Navigate to="/403" replace />;
+    return <Navigate to="/403" replace state={{ from: location.pathname }} />;
   }
 
   return <Outlet />;
