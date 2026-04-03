@@ -18,4 +18,4 @@ memory_mb = 1_024
 
 
 [deploy]
-release_command = "npx prisma migrate deploy --schema backend/prisma/schema.prisma"
+release_command = "npx prisma migrate deploy --config backend/prisma.config.ts"
