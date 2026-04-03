@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { telegramClientApi } from '../api/telegramClientApi';
 
 const humanStatus = {
@@ -14,6 +15,26 @@ const humanCategory = {
   coffee_machine: 'Кофемашина',
   grinder: 'Кофемолка',
   water: 'Фильтрация воды',
+};
+
+const humanType = {
+  service_repair: 'Ремонт и сервис',
+  coffee_order: 'Заказать кофе',
+  coffee_tasting: 'Дегустация',
+  grinder_check: 'Проверка помола',
+  rental_auto: 'Аренда авто',
+  rental_pro: 'Аренда проф.',
+  feedback: 'Обратная связь',
+};
+
+const REQUEST_TYPE_CONFIG = {
+  service_repair: { title: 'Ремонт и сервис', serviceFlow: true },
+  coffee_order: { title: 'Заказать кофе', serviceFlow: false },
+  coffee_tasting: { title: 'Дегустация', serviceFlow: false },
+  grinder_check: { title: 'Проверка помола', serviceFlow: false },
+  rental_auto: { title: 'Аренда авто', serviceFlow: false },
+  rental_pro: { title: 'Аренда проф.', serviceFlow: false },
+  feedback: { title: 'Обратная связь', serviceFlow: false },
 };
 
 const errorLabels = {
@@ -36,6 +57,11 @@ const formatError = (error) => {
 };
 
 export function ServicePage() {
+  const { requestType } = useParams();
+  const activeType = REQUEST_TYPE_CONFIG[requestType] ? requestType : 'service_repair';
+  const isServiceFlow = REQUEST_TYPE_CONFIG[activeType]?.serviceFlow;
+  const pageTitle = REQUEST_TYPE_CONFIG[activeType]?.title || 'Обращение';
+
   const [equipment, setEquipment] = useState([]);
   const [history, setHistory] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +71,7 @@ export function ServicePage() {
 
   const [form, setForm] = useState({
     equipmentId: '',
+    title: '',
     category: '',
     description: '',
     urgency: 'normal',
@@ -99,6 +126,8 @@ export function ServicePage() {
         payload.append('equipmentId', form.equipmentId);
       }
 
+      payload.append('type', activeType);
+      payload.append('title', form.title.trim() || pageTitle);
       payload.append('category', form.category);
       payload.append('description', form.description.trim());
       payload.append('urgency', form.urgency);
@@ -111,7 +140,7 @@ export function ServicePage() {
       const created = await telegramClientApi.createServiceRequest(payload);
       setSuccessRequest(created);
 
-      setForm((prev) => ({ ...prev, category: '', description: '', media: [] }));
+      setForm((prev) => ({ ...prev, title: '', category: '', description: '', media: [] }));
       await loadHistory();
     } catch (submitError) {
       setError(formatError(submitError));
@@ -124,7 +153,7 @@ export function ServicePage() {
     <section className="service-page">
       <header className="hero service-hero">
         <h1>Сервис</h1>
-        <p>Создайте заявку в пару шагов, а ниже отслеживайте все обращения и статусы работ.</p>
+        <p>{pageTitle}. Создайте обращение в пару шагов, а ниже отслеживайте статусы.</p>
       </header>
 
       <div className="service-panel">
@@ -140,41 +169,56 @@ export function ServicePage() {
         ) : null}
 
         <form className="service-form" onSubmit={onSubmit}>
-          {!hasEquipment ? (
+          {isServiceFlow && !hasEquipment ? (
             <div className="notice service-empty-equipment">
               <p><strong>У вас пока нет привязанного оборудования.</strong></p>
               <p>Вы все равно можете отправить заявку.</p>
             </div>
           ) : null}
 
-          <label className="service-field-label" htmlFor="service-equipment-select">Оборудование (если известно)</label>
-          <select
-            id="service-equipment-select"
-            value={form.equipmentId}
-            aria-label="Оборудование (если известно)"
-            onChange={(event) => setForm((prev) => ({ ...prev, equipmentId: event.target.value }))}
-            disabled={isSubmitting}
-          >
-            <option value="">Не указывать оборудование</option>
-            {equipment.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.brand} {item.model} ({item.internalNumber || item.id})
-              </option>
-            ))}
-          </select>
+          {isServiceFlow ? (
+            <>
+              <label className="service-field-label" htmlFor="service-equipment-select">Оборудование (если известно)</label>
+              <select
+                id="service-equipment-select"
+                value={form.equipmentId}
+                aria-label="Оборудование (если известно)"
+                onChange={(event) => setForm((prev) => ({ ...prev, equipmentId: event.target.value }))}
+                disabled={isSubmitting}
+              >
+                <option value="">Не указывать оборудование</option>
+                {equipment.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.brand} {item.model} ({item.internalNumber || item.id})
+                  </option>
+                ))}
+              </select>
 
-          <select
-            value={form.category}
-            aria-label="Категория проблемы"
-            onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
-            disabled={isSubmitting}
-            required
-          >
-            <option value="" disabled>Категория проблемы</option>
-            <option value="coffee_machine">Кофемашина</option>
-            <option value="grinder">Кофемолка</option>
-            <option value="water">Фильтрация воды</option>
-          </select>
+              <select
+                value={form.category}
+                aria-label="Категория проблемы"
+                onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
+                disabled={isSubmitting}
+                required
+              >
+                <option value="" disabled>Категория проблемы</option>
+                <option value="coffee_machine">Кофемашина</option>
+                <option value="grinder">Кофемолка</option>
+                <option value="water">Фильтрация воды</option>
+              </select>
+            </>
+          ) : null}
+
+          {!isServiceFlow ? (
+            <input
+              value={form.title}
+              aria-label="Тема обращения"
+              placeholder="Краткая тема обращения"
+              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+              disabled={isSubmitting}
+              required
+            />
+          ) : null}
 
           <textarea
             placeholder="Описание проблемы"
@@ -185,27 +229,31 @@ export function ServicePage() {
             disabled={isSubmitting}
           />
 
-          <select
-            value={form.urgency}
-            aria-label="Приоритет заявки"
-            onChange={(event) => setForm((prev) => ({ ...prev, urgency: event.target.value }))}
-            disabled={isSubmitting}
-          >
-            <option value="low">Низкая</option>
-            <option value="normal">Средняя</option>
-            <option value="high">Высокая</option>
-            <option value="critical">Критичная</option>
-          </select>
-
-          <label className="checkbox service-checkbox-card">
-            <input
-              type="checkbox"
-              checked={form.canOperateNow}
-              onChange={(event) => setForm((prev) => ({ ...prev, canOperateNow: event.target.checked }))}
+          {isServiceFlow ? (
+            <select
+              value={form.urgency}
+              aria-label="Приоритет заявки"
+              onChange={(event) => setForm((prev) => ({ ...prev, urgency: event.target.value }))}
               disabled={isSubmitting}
-            />
-            <span>Можно продолжать работать</span>
-          </label>
+            >
+              <option value="low">Низкая</option>
+              <option value="normal">Средняя</option>
+              <option value="high">Высокая</option>
+              <option value="critical">Критичная</option>
+            </select>
+          ) : null}
+
+          {isServiceFlow ? (
+            <label className="checkbox service-checkbox-card">
+              <input
+                type="checkbox"
+                checked={form.canOperateNow}
+                onChange={(event) => setForm((prev) => ({ ...prev, canOperateNow: event.target.checked }))}
+                disabled={isSubmitting}
+              />
+              <span>Можно продолжать работать</span>
+            </label>
+          ) : null}
 
           <label className="upload-block" htmlFor="service-attachments">
             <span className="upload-block__title">Фото или видео</span>
@@ -226,7 +274,7 @@ export function ServicePage() {
           </button>
         </form>
 
-        {selectedEquipment ? (
+        {isServiceFlow && selectedEquipment ? (
           <p className="service-hint">Выбрано оборудование: {selectedEquipment.brand} {selectedEquipment.model}</p>
         ) : null}
       </div>
@@ -238,7 +286,7 @@ export function ServicePage() {
           {history.map((request) => (
             <Link key={request.id} className="list-item" to={`/service/${request.id}`}>
               <strong>{request.id}</strong>
-              <p>{humanCategory[request.category] || request.category}</p>
+              <p>{humanType[request.type] || humanCategory[request.category] || request.category}</p>
               <small>
                 Статус: {humanStatus[request.status] || request.status} · {new Date(request.createdAt).toLocaleString('ru-RU')}
               </small>

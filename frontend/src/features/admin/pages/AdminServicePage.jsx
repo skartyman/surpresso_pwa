@@ -11,6 +11,17 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Закрыта' },
 ];
 
+const TYPE_OPTIONS = [
+  { value: 'all', label: 'Все' },
+  { value: 'service_repair', label: 'Ремонт и сервис' },
+  { value: 'coffee_order', label: 'Заказать кофе' },
+  { value: 'coffee_tasting', label: 'Дегустация' },
+  { value: 'grinder_check', label: 'Проверка помола' },
+  { value: 'rental_auto', label: 'Аренда авто' },
+  { value: 'rental_pro', label: 'Аренда проф.' },
+  { value: 'feedback', label: 'Обратная связь' },
+];
+
 const STATUS_LABELS = {
   new: 'Новая',
   in_progress: 'В работе',
@@ -30,9 +41,9 @@ function formatEquipmentLabel(request) {
   return 'Оборудование не указано';
 }
 
-export function AdminServicePage() {
+export function AdminServicePage({ scope = 'service' }) {
   const { user } = useAuth();
-  const [filters, setFilters] = useState({ status: 'all', id: '', client: '', equipment: '' });
+  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', equipment: '' });
   const [requests, setRequests] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -43,6 +54,8 @@ export function AdminServicePage() {
   const [loading, setLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [assigneeUserId, setAssigneeUserId] = useState('');
   const [error, setError] = useState('');
 
   async function loadRequests(nextFilters = filters) {
@@ -51,6 +64,7 @@ export function AdminServicePage() {
     try {
       const payload = await adminServiceApi.list({
         status: nextFilters.status === 'all' ? '' : nextFilters.status,
+        type: nextFilters.type === 'all' ? '' : nextFilters.type,
         id: nextFilters.id,
         client: nextFilters.client,
         equipment: nextFilters.equipment,
@@ -82,6 +96,7 @@ export function AdminServicePage() {
       ]);
 
       setSelectedRequest(requestPayload.request || null);
+      setAssigneeUserId(requestPayload.request?.assignedToUserId || '');
       setHistory(historyPayload.history || []);
       setNotes(notesPayload.notes || []);
     } catch {
@@ -141,7 +156,25 @@ export function AdminServicePage() {
     }
   }
 
-  const title = user?.role === ROLES.serviceEngineer ? 'Мои заявки' : (user?.role === ROLES.serviceHead ? 'Распределение сервиса' : 'Сервис');
+  async function handleAssignManager() {
+    if (!selectedRequest) return;
+    setAssigning(true);
+    try {
+      const payload = await adminServiceApi.assignManager(selectedRequest.id, assigneeUserId.trim());
+      const updated = payload.request;
+      setSelectedRequest(updated);
+      setRequests((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  const typeOptions = scope === 'sales'
+    ? TYPE_OPTIONS.filter((item) => !['all', 'service_repair'].includes(item.value)).concat({ value: 'all', label: 'Все' }).sort((a, b) => (a.value === 'all' ? -1 : b.value === 'all' ? 1 : 0))
+    : TYPE_OPTIONS.filter((item) => item.value === 'all' || item.value === 'service_repair');
+  const title = scope === 'sales'
+    ? 'Продажи и клиентские обращения'
+    : (user?.role === ROLES.serviceEngineer ? 'Мои заявки' : (user?.role === ROLES.serviceHead ? 'Распределение сервиса' : 'Сервис'));
 
   return (
     <section className="admin-service-page">
@@ -154,6 +187,14 @@ export function AdminServicePage() {
           <span>Статус</span>
           <select name="status" value={filters.status} onChange={handleFilterChange}>
             {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Тип</span>
+          <select name="type" value={filters.type} onChange={handleFilterChange}>
+            {typeOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
@@ -204,8 +245,11 @@ export function AdminServicePage() {
               <section>
                 <h3>Карточка заявки</h3>
                 <p>Категория: {selectedRequest.category}</p>
+                <p>Тип: {TYPE_OPTIONS.find((item) => item.value === selectedRequest.type)?.label || selectedRequest.type}</p>
                 <p>Срочность: {selectedRequest.urgency}</p>
                 <p>Источник: {selectedRequest.source}</p>
+                <p>Контур: {selectedRequest.assignedDepartment}</p>
+                <p>Назначен: {selectedRequest.assignedToUserId || '—'}</p>
                 <p>Создана: {formatDate(selectedRequest.createdAt)}</p>
                 <p>Обновлена: {formatDate(selectedRequest.updatedAt)}</p>
               </section>
@@ -241,6 +285,18 @@ export function AdminServicePage() {
               <section>
                 <h3>Описание</h3>
                 <p>{selectedRequest.description}</p>
+              </section>
+
+              <section>
+                <h3>Назначение менеджера</h3>
+                <input
+                  value={assigneeUserId}
+                  onChange={(event) => setAssigneeUserId(event.target.value)}
+                  placeholder="user-sales-manager-1"
+                />
+                <button type="button" onClick={handleAssignManager} disabled={assigning}>
+                  {assigning ? 'Сохраняем…' : 'Назначить'}
+                </button>
               </section>
 
               <section>

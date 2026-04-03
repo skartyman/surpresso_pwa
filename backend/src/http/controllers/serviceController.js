@@ -1,5 +1,6 @@
 import { uploadServiceRequestMedia } from '../../infrastructure/drive/gasDriveClient.js';
 import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
+import { REQUEST_TYPES, normalizeRequestType, resolveDepartmentByType } from '../../domain/entities/requestTypes.js';
 
 const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
 const ALLOWED_URGENCY = new Set(['low', 'normal', 'high', 'critical']);
@@ -23,16 +24,18 @@ function formatNotifyMessage(request) {
     : request.equipmentId || 'не указано';
 
   return [
-    '🛠 Новая сервисная заявка',
+    request.type === REQUEST_TYPES.serviceRepair ? '🛠 Новая сервисная заявка' : '📩 Новое клиентское обращение',
     `ID: ${request.id}`,
+    `Тип: ${request.type}`,
+    `Контур: ${request.assignedDepartment}`,
     `Клиент: ${request.client?.companyName || request.clientId}`,
     `Оборудование: ${equipmentText}`,
-    `Категория: ${request.category}`,
+    `Заголовок: ${request.title || '—'}`,
     `Описание: ${request.description}`,
-    `Срочность: ${request.urgency}`,
-    `Можно работать: ${request.canOperateNow ? 'да' : 'нет'}`,
+    request.urgency ? `Срочность: ${request.urgency}` : null,
+    typeof request.canOperateNow === 'boolean' ? `Можно работать: ${request.canOperateNow ? 'да' : 'нет'}` : null,
     `Медиа: ${request.media?.length || 0}`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier) {
@@ -44,23 +47,30 @@ export function createServiceController(serviceRepository, equipmentRepository, 
       return res.json({ items: requests.map((item) => enrichServiceRequestMedia(req, item)) });
     },
     async create(req, res) {
+      const type = normalizeRequestType(req.body?.type || REQUEST_TYPES.serviceRepair);
       const category = normalizeText(req.body?.category);
       const description = normalizeText(req.body?.description);
-      const urgency = normalizeText(req.body?.urgency);
+      const title = normalizeText(req.body?.title) || description.slice(0, 100);
+      const urgency = normalizeText(req.body?.urgency || 'normal');
       const equipmentId = normalizeText(req.body?.equipmentId);
       const canOperateNow = toBoolean(req.body?.canOperateNow ?? req.body?.canOperate ?? false);
 
-      if (!category || !ALLOWED_CATEGORIES.has(category)) {
-        return res.status(400).json({ error: 'category_required' });
+      if (!type) {
+        return res.status(400).json({ error: 'type_required' });
       }
       if (!description) {
         return res.status(400).json({ error: 'description_required' });
       }
-      if (!urgency || !ALLOWED_URGENCY.has(urgency)) {
+
+      const isServiceRepair = type === REQUEST_TYPES.serviceRepair;
+      if (isServiceRepair && (!category || !ALLOWED_CATEGORIES.has(category))) {
+        return res.status(400).json({ error: 'category_required' });
+      }
+      if (isServiceRepair && (!urgency || !ALLOWED_URGENCY.has(urgency))) {
         return res.status(400).json({ error: 'urgency_required' });
       }
 
-      if (equipmentId) {
+      if (equipmentId && isServiceRepair) {
         const equipment = await equipmentRepository.findById(equipmentId);
         if (!equipment) {
           return res.status(400).json({ error: 'equipment_not_found' });
@@ -81,11 +91,14 @@ export function createServiceController(serviceRepository, equipmentRepository, 
 
       const payload = {
         id: requestId,
+        type,
         equipmentId: equipmentId || null,
-        category,
+        category: isServiceRepair ? category : 'general',
+        title: title || 'Новое обращение',
         description,
-        urgency,
-        canOperateNow,
+        urgency: isServiceRepair ? urgency : 'normal',
+        canOperateNow: isServiceRepair ? canOperateNow : true,
+        assignedDepartment: resolveDepartmentByType(type),
         source: 'telegram_mini_app',
         clientId: req.auth.client.id,
         media: uploadedMedia,

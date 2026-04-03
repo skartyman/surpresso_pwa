@@ -21,6 +21,9 @@ function mapServiceRequest(item) {
   if (!item) return null;
   return {
     ...item,
+    type: item.type || 'service_repair',
+    title: item.title || item.description || '',
+    assignedDepartment: item.assignedDepartment || 'service',
     canOperate: item.canOperateNow,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -200,9 +203,11 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(item);
   }
 
-  async listForAdmin({ status, id, client, equipment } = {}) {
+  async listForAdmin({ status, id, client, equipment, type, assignedDepartment } = {}) {
     const where = {
       ...(status ? { status } : {}),
+      ...(type ? { type } : {}),
+      ...(assignedDepartment ? { assignedDepartment } : {}),
       ...(id ? { id: { contains: id, mode: 'insensitive' } } : {}),
       ...(client
         ? {
@@ -255,8 +260,11 @@ export class NeonServiceRequestRepository {
     const created = await this.prisma.serviceRequest.create({
       data: {
         id: payload.id || `req-${Date.now()}`,
+        type: payload.type || 'service_repair',
+        title: payload.title || payload.description || 'Новое обращение',
         clientId: payload.clientId,
         equipmentId: payload.equipmentId,
+        assignedDepartment: payload.assignedDepartment || 'service',
         category: payload.category,
         description: payload.description,
         urgency: payload.urgency,
@@ -306,6 +314,15 @@ export class NeonServiceRequestRepository {
       },
     });
 
+    return mapServiceRequest(updated);
+  }
+
+  async assignToUser(id, assignedToUserId) {
+    const updated = await this.prisma.serviceRequest.update({
+      where: { id },
+      data: { assignedToUserId: assignedToUserId || null },
+      include: { media: true, client: true, equipment: true },
+    });
     return mapServiceRequest(updated);
   }
 

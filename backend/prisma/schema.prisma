@@ -58,13 +58,16 @@ model Equipment {
 
 model ServiceRequest {
   id               String   @id
+  type             String   @default("service_repair")
   clientId         String
   equipmentId      String?
+  title            String   @default("")
   category         String
   description      String
   urgency          String
   canOperateNow    Boolean
   status           String
+  assignedDepartment String @default("service")
   source           String
   assignedToUserId String?
   createdAt        DateTime @default(now())
