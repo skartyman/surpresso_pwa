@@ -54,13 +54,16 @@ async function main() {
     await prisma.serviceRequest.upsert({
       where: { id: request.id },
       update: {
+        type: request.type,
         clientId: request.clientId,
         equipmentId: request.equipmentId,
+        title: request.title,
         category: request.category,
         description: request.description,
         urgency: request.urgency,
         canOperateNow: request.canOperateNow,
         status: request.status,
+        assignedDepartment: request.assignedDepartment,
         source: request.source,
         assignedToUserId: request.assignedToUserId,
       },

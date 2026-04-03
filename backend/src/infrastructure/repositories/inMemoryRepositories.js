@@ -1,4 +1,5 @@
 import { seed } from '../seed/mockData.js';
+import { REQUEST_TYPES, resolveDepartmentByType } from '../../domain/entities/requestTypes.js';
 
 function withEquipmentCompatibility(item) {
   if (!item) return null;
@@ -12,6 +13,9 @@ function withRequestCompatibility(item) {
   if (!item) return null;
   return {
     ...item,
+    type: item.type || REQUEST_TYPES.serviceRepair,
+    title: item.title || item.description || '',
+    assignedDepartment: item.assignedDepartment || resolveDepartmentByType(item.type || REQUEST_TYPES.serviceRepair),
     canOperate: item.canOperateNow,
   };
 }
@@ -162,11 +166,13 @@ export class InMemoryServiceRequestRepository {
     return this.requests.filter((item) => item.clientId === clientId).map((item) => this.hydrate(item));
   }
 
-  async listForAdmin({ status, id, client, equipment } = {}) {
+  async listForAdmin({ status, id, client, equipment, type, assignedDepartment } = {}) {
     const clientSearch = String(client || '').toLowerCase();
     const equipmentSearch = String(equipment || '').toLowerCase();
     return this.requests
       .filter((item) => !status || item.status === status)
+      .filter((item) => !type || (item.type || REQUEST_TYPES.serviceRepair) === type)
+      .filter((item) => !assignedDepartment || (item.assignedDepartment || resolveDepartmentByType(item.type || REQUEST_TYPES.serviceRepair)) === assignedDepartment)
       .filter((item) => !id || item.id.toLowerCase().includes(id.toLowerCase()))
       .filter((item) => {
         if (!clientSearch) return true;
@@ -195,6 +201,9 @@ export class InMemoryServiceRequestRepository {
     const now = new Date().toISOString();
     const next = {
       id: payload.id || `req-${Date.now()}`,
+      type: payload.type || REQUEST_TYPES.serviceRepair,
+      title: payload.title || payload.description || 'Новое обращение',
+      assignedDepartment: payload.assignedDepartment || resolveDepartmentByType(payload.type || REQUEST_TYPES.serviceRepair),
       status: 'new',
       createdAt: now,
       updatedAt: now,
@@ -228,6 +237,19 @@ export class InMemoryServiceRequestRepository {
       createdAt: new Date().toISOString(),
     });
 
+    return this.hydrate(this.requests[index]);
+  }
+
+  async assignToUser(id, assignedToUserId) {
+    const index = this.requests.findIndex((item) => item.id === id);
+    if (index === -1) {
+      return null;
+    }
+    this.requests[index] = {
+      ...this.requests[index],
+      assignedToUserId: assignedToUserId || null,
+      updatedAt: new Date().toISOString(),
+    };
     return this.hydrate(this.requests[index]);
   }
 

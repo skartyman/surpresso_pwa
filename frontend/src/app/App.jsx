@@ -19,6 +19,7 @@ import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPa
 import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
 import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
+import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
 
 function ClientRoutes() {
   return (
@@ -28,6 +29,7 @@ function ClientRoutes() {
         <Route path={routes.equipment} element={<EquipmentPage />} />
         <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentCardPage />} />
         <Route path={routes.service} element={<ServicePage />} />
+        <Route path={`${routes.requestForm}/:requestType`} element={<ServicePage />} />
         <Route path={`${routes.service}/:requestId`} element={<ServiceStatusPage />} />
         <Route path={routes.support} element={<SupportPage />} />
         <Route path={routes.rentals} element={<PlaceholderPage title="Аренда" />} />
@@ -57,8 +59,8 @@ function AdminRoutes({ basePath }) {
         <Route path="service" element={<AdminServicePage />} />
       </Route>
 
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['sales-clients']} />}>
-        <Route path="sales-clients" element={<AdminPlaceholderPage title="Продажи и обращения" items={['Продажи', 'Карточки клиентов', 'Сделки']} />} />
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.sales} />}>
+        <Route path="sales" element={<AdminSalesPage />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.communications} />}>

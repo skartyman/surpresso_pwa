@@ -1,4 +1,5 @@
 import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
+import { normalizeRequestType, REQUEST_DEPARTMENTS, REQUEST_TYPES } from '../../domain/entities/requestTypes.js';
 const ALLOWED_STATUSES = ['new', 'in_progress', 'resolved', 'closed'];
 
 function normalizeStatus(value) {
@@ -8,6 +9,23 @@ function normalizeStatus(value) {
 }
 
 export function createAdminServiceController(serviceRepository) {
+  function scopeFiltersByRole(role, filters = {}) {
+    if (role === 'service_engineer' || role === 'service_head') {
+      return { ...filters, type: REQUEST_TYPES.serviceRepair, assignedDepartment: REQUEST_DEPARTMENTS.service };
+    }
+    if (role === 'sales_manager') {
+      return { ...filters, assignedDepartment: REQUEST_DEPARTMENTS.sales };
+    }
+    return filters;
+  }
+
+  function isVisibleToRole(role, request) {
+    const scoped = scopeFiltersByRole(role, {});
+    if (scoped.type && request.type !== scoped.type) return false;
+    if (scoped.assignedDepartment && request.assignedDepartment !== scoped.assignedDepartment) return false;
+    return true;
+  }
+
   return {
     async list(req, res) {
       const status = normalizeStatus(req.query?.status);
@@ -15,16 +33,25 @@ export function createAdminServiceController(serviceRepository) {
         return res.status(400).json({ error: 'invalid_status' });
       }
 
+      const type = normalizeRequestType(req.query?.type);
+      if (req.query?.type && !type) {
+        return res.status(400).json({ error: 'invalid_type' });
+      }
+
       const id = String(req.query?.id || '').trim() || null;
       const client = String(req.query?.client || '').trim() || null;
       const equipment = String(req.query?.equipment || '').trim() || null;
-      const requests = await serviceRepository.listForAdmin({ status, id, client, equipment });
+      const scopedFilters = scopeFiltersByRole(req.adminUser?.role, { status, id, client, equipment, type });
+      const requests = await serviceRepository.listForAdmin(scopedFilters);
       return res.json({ requests: requests.map((item) => enrichServiceRequestMedia(req, item)) });
     },
 
     async byId(req, res) {
       const request = await serviceRepository.findForAdminById(req.params.id);
       if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!isVisibleToRole(req.adminUser?.role, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       return res.json({ request: enrichServiceRequestMedia(req, request) });
@@ -42,6 +69,9 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
+      if (!isVisibleToRole(req.adminUser?.role, request)) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
 
       const updated = await serviceRepository.updateStatus(request.id, nextStatus, {
         changedByUserId: req.adminUser?.id || null,
@@ -51,9 +81,23 @@ export function createAdminServiceController(serviceRepository) {
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
+    async assignManager(req, res) {
+      const request = await serviceRepository.findForAdminById(req.params.id);
+      if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+
+      const userId = String(req.body?.assignedToUserId || '').trim();
+      const updated = await serviceRepository.assignToUser(request.id, userId || null);
+      return res.json({ request: enrichServiceRequestMedia(req, updated) });
+    },
+
     async history(req, res) {
       const request = await serviceRepository.findForAdminById(req.params.id);
       if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!isVisibleToRole(req.adminUser?.role, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       const history = await serviceRepository.listHistory(request.id);
@@ -65,6 +109,9 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
+      if (!isVisibleToRole(req.adminUser?.role, request)) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
       const notes = await serviceRepository.listInternalNotes(request.id);
       return res.json({ notes });
     },
@@ -72,6 +119,9 @@ export function createAdminServiceController(serviceRepository) {
     async addNote(req, res) {
       const request = await serviceRepository.findForAdminById(req.params.id);
       if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!isVisibleToRole(req.adminUser?.role, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
 

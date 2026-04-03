@@ -16,9 +16,10 @@ async function apiFetch(path, options = {}) {
 }
 
 export const adminServiceApi = {
-  list: async ({ status, id, client, equipment } = {}) => {
+  list: async ({ status, type, id, client, equipment } = {}) => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
+    if (type) params.set('type', type);
     if (id) params.set('id', id);
     if (client) params.set('client', client);
     if (equipment) params.set('equipment', equipment);
@@ -29,6 +30,10 @@ export const adminServiceApi = {
   updateStatus: async (id, status, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, comment }),
+  }),
+  assignManager: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({ assignedToUserId }),
   }),
   history: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/history`),
   notes: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/notes`),
