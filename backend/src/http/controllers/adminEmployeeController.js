@@ -1,6 +1,21 @@
 import { hashPassword } from '../../domain/security/passwordHasher.js';
 
 const ALLOWED_ROLES = ['service_engineer', 'service_head', 'sales_manager', 'owner', 'director'];
+const SERVICE_ROLES = ['service_engineer', 'service_head'];
+
+function canManageRole(adminRole, targetRole) {
+  if (!targetRole) return false;
+  if (adminRole === 'owner' || adminRole === 'director') return true;
+  if (adminRole === 'service_head') return targetRole === 'service_engineer';
+  return false;
+}
+
+function scopeRoleForAdmin(adminRole, requestedRole) {
+  if (adminRole === 'service_head') {
+    return requestedRole === 'service_engineer' ? 'service_engineer' : null;
+  }
+  return requestedRole;
+}
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -17,17 +32,24 @@ export function createAdminEmployeeController(userRepository) {
   return {
     async list(req, res) {
       const q = String(req.query?.q || '').trim();
-      const role = normalizeRole(req.query?.role);
+      const normalizedRole = normalizeRole(req.query?.role);
+      const role = scopeRoleForAdmin(req.adminUser?.role, normalizedRole);
       const isActiveRaw = req.query?.isActive;
       const isActive = isActiveRaw === undefined || isActiveRaw === '' ? null : String(isActiveRaw) === 'true';
 
       const users = await userRepository.listForAdmin({ q, role, isActive });
-      return res.json({ users: users.map(sanitizeUser) });
+      const visibleUsers = req.adminUser?.role === 'service_head'
+        ? users.filter((user) => SERVICE_ROLES.includes(user.role))
+        : users;
+      return res.json({ users: visibleUsers.map(sanitizeUser) });
     },
 
     async byId(req, res) {
       const user = await userRepository.findById(req.params.id);
       if (!user) {
+        return res.status(404).json({ error: 'user_not_found' });
+      }
+      if (req.adminUser?.role === 'service_head' && !SERVICE_ROLES.includes(user.role)) {
         return res.status(404).json({ error: 'user_not_found' });
       }
       return res.json({ user: sanitizeUser(user) });
@@ -40,9 +62,13 @@ export function createAdminEmployeeController(userRepository) {
       const positionTitle = String(req.body?.positionTitle || '').trim();
       const role = normalizeRole(req.body?.role);
       const password = String(req.body?.password || '');
+      const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
 
       if (!fullName || !email || !positionTitle || !role || !password) {
         return res.status(400).json({ error: 'invalid_payload' });
+      }
+      if (!canManageRole(req.adminUser?.role, role)) {
+        return res.status(403).json({ error: 'forbidden' });
       }
 
       const existing = await userRepository.findByEmail(email);
@@ -56,7 +82,7 @@ export function createAdminEmployeeController(userRepository) {
         phone,
         role,
         positionTitle,
-        isActive: true,
+        isActive,
         passwordHash: hashPassword(password),
       });
 
@@ -68,6 +94,9 @@ export function createAdminEmployeeController(userRepository) {
       if (!existing) {
         return res.status(404).json({ error: 'user_not_found' });
       }
+      if (!canManageRole(req.adminUser?.role, existing.role)) {
+        return res.status(404).json({ error: 'user_not_found' });
+      }
 
       const next = {};
       if (req.body?.fullName !== undefined) next.fullName = String(req.body.fullName || '').trim();
@@ -76,9 +105,19 @@ export function createAdminEmployeeController(userRepository) {
       if (req.body?.positionTitle !== undefined) next.positionTitle = String(req.body.positionTitle || '').trim();
       if (req.body?.isActive !== undefined) next.isActive = Boolean(req.body.isActive);
       if (req.body?.role !== undefined) next.role = normalizeRole(req.body.role);
+      if (req.body?.password !== undefined) {
+        const password = String(req.body.password || '');
+        if (!password) {
+          return res.status(400).json({ error: 'invalid_password' });
+        }
+        next.passwordHash = hashPassword(password);
+      }
 
       if (Object.prototype.hasOwnProperty.call(next, 'role') && !next.role) {
         return res.status(400).json({ error: 'invalid_role' });
+      }
+      if (next.role && !canManageRole(req.adminUser?.role, next.role)) {
+        return res.status(403).json({ error: 'forbidden' });
       }
       if (Object.prototype.hasOwnProperty.call(next, 'email') && !next.email) {
         return res.status(400).json({ error: 'invalid_email' });

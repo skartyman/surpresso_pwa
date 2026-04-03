@@ -14,7 +14,7 @@ import { routes } from './routes';
 import { RequireAuth, RequireRole } from '../features/auth/guards';
 import { useAuth } from '../features/auth/AuthContext';
 import { AdminLayout } from '../features/admin/components/AdminLayout';
-import { PAGE_PERMISSIONS, getDefaultAdminSection, ROLES } from '../features/admin/roleConfig';
+import { PAGE_PERMISSIONS, getDefaultAdminSection } from '../features/admin/roleConfig';
 import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPage';
 import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
 import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
@@ -43,9 +43,6 @@ function ClientRoutes() {
 
 function RoleHomeRedirect() {
   const { user } = useAuth();
-  if (user?.role === ROLES.owner || user?.role === ROLES.director) {
-    return <Navigate to="dashboard" replace />;
-  }
   return <Navigate to={getDefaultAdminSection(user?.role)} replace />;
 }
 

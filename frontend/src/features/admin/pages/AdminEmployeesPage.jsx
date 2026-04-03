@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { adminEmployeesApi } from '../api/adminEmployeesApi';
 import { ROLES, ROLE_LABELS } from '../roleConfig';
+import { useAuth } from '../../auth/AuthContext';
 
 const ROLE_OPTIONS = Object.values(ROLES);
+const SERVICE_ROLE_OPTIONS = [ROLES.serviceEngineer];
 
 const DEFAULT_FORM = {
   fullName: '',
@@ -11,18 +13,22 @@ const DEFAULT_FORM = {
   role: ROLES.serviceEngineer,
   positionTitle: '',
   password: '',
+  isActive: true,
 };
 
 export function AdminEmployeesPage() {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [selected, setSelected] = useState(null);
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' });
   const [createMode, setCreateMode] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
+  const isServiceHead = user?.role === ROLES.serviceHead;
+  const editableRoles = isServiceHead ? SERVICE_ROLE_OPTIONS : ROLE_OPTIONS;
 
   async function load() {
-    const payload = await adminEmployeesApi.list(filters);
+    const payload = await adminEmployeesApi.list(isServiceHead ? { ...filters, role: filters.role || ROLES.serviceEngineer } : filters);
     setEmployees(payload.users || []);
     if (!selected && payload.users?.length) {
       setSelected(payload.users[0]);
@@ -70,6 +76,7 @@ export function AdminEmployeesPage() {
         role: selected.role,
         positionTitle: selected.positionTitle,
         isActive: selected.isActive,
+        password: selected.password || undefined,
       });
       setSelected(user);
       await load();
@@ -84,6 +91,10 @@ export function AdminEmployeesPage() {
         <h1>Сотрудники</h1>
         <button type="button" onClick={() => { setCreateMode(true); setSelected(null); }}>Создать сотрудника</button>
       </header>
+      <p>
+        Доступ: owner/director — полный контроль над сотрудниками; service_head — только сервисные сотрудники и управление ролью
+        «Сервисный инженер».
+      </p>
 
       <div className="admin-filters-grid admin-filters-grid--employees">
         <label>
@@ -92,9 +103,9 @@ export function AdminEmployeesPage() {
         </label>
         <label>
           <span>Роль</span>
-          <select name="role" value={filters.role} onChange={applyFilters}>
+          <select name="role" value={filters.role} onChange={applyFilters} disabled={isServiceHead}>
             <option value="">Все роли</option>
-            {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+            {(isServiceHead ? SERVICE_ROLE_OPTIONS : ROLE_OPTIONS).map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
           </select>
         </label>
         <label>
@@ -112,9 +123,9 @@ export function AdminEmployeesPage() {
           {employees.map((employee) => (
             <button key={employee.id} type="button" className={`admin-service-list__item ${selected?.id === employee.id ? 'active' : ''}`} onClick={() => openCard(employee.id)}>
               <strong>{employee.fullName}</strong>
-              <span>{employee.positionTitle || '—'}</span>
-              <small>{ROLE_LABELS[employee.role] || employee.role}</small>
-              <small>{employee.isActive ? 'Активен' : 'Отключен'}</small>
+              <span>Должность: {employee.positionTitle || '—'}</span>
+              <small>Роль: {ROLE_LABELS[employee.role] || employee.role}</small>
+              <small>Активность: {employee.isActive ? 'Активен' : 'Отключен'}</small>
             </button>
           ))}
         </div>
@@ -131,10 +142,17 @@ export function AdminEmployeesPage() {
                 <label>
                   <span>Роль</span>
                   <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}>
-                    {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+                    {editableRoles.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
                   </select>
                 </label>
                 <label><span>Пароль</span><input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} /></label>
+                <label>
+                  <span>Активность</span>
+                  <select value={form.isActive ? 'true' : 'false'} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.value === 'true' }))}>
+                    <option value="true">Активен</option>
+                    <option value="false">Отключен</option>
+                  </select>
+                </label>
               </div>
               <button type="button" onClick={saveCreate} disabled={saving}>Создать</button>
             </>
@@ -148,9 +166,24 @@ export function AdminEmployeesPage() {
                 <label><span>Должность</span><input value={selected.positionTitle || ''} onChange={(e) => setSelected((p) => ({ ...p, positionTitle: e.target.value }))} /></label>
                 <label>
                   <span>Роль</span>
-                  <select value={selected.role} onChange={(e) => setSelected((p) => ({ ...p, role: e.target.value }))}>
-                    {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+                  <select
+                    value={selected.role}
+                    onChange={(e) => setSelected((p) => ({ ...p, role: e.target.value }))}
+                    disabled={isServiceHead && selected.role !== ROLES.serviceEngineer}
+                  >
+                    {(isServiceHead ? [selected.role, ...SERVICE_ROLE_OPTIONS] : ROLE_OPTIONS)
+                      .filter((role, index, arr) => arr.indexOf(role) === index)
+                      .map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
                   </select>
+                </label>
+                <label>
+                  <span>Пароль</span>
+                  <input
+                    type="password"
+                    value={selected.password || ''}
+                    placeholder="Оставьте пустым, чтобы не менять"
+                    onChange={(e) => setSelected((p) => ({ ...p, password: e.target.value }))}
+                  />
                 </label>
                 <label>
                   <span>Статус</span>
