@@ -60,6 +60,7 @@ const TEMPLATE_SAVE_WEBHOOK = "https://script.google.com/macros/s/AKfycbwtsXXhRM
 
 let USERS = [];   // загруженные пользователи
 let CURRENT_USER = null;
+let authUsersSyncBound = false;
 
 function getUserDisplayName(user) {
   return (user?.name || user?.login || "").trim();
@@ -225,6 +226,8 @@ async function initLogin() {
     return null;
   }
 
+  bindAuthUsersSync();
+
   try {
     const user = await window.SurpAuth.init();
     USERS = window.SurpAuth.getUsers();
@@ -238,6 +241,22 @@ async function initLogin() {
     console.error("Не удалось инициализировать авторизацию", error);
     return null;
   }
+}
+
+function syncEngineersFromAuth(users = []) {
+  if (!Array.isArray(users)) return;
+  USERS = users;
+  populateEngineerSelects(CURRENT_USER?.name || "");
+  addEngineerIfNotExists(CURRENT_USER?.name || "");
+}
+
+function bindAuthUsersSync() {
+  if (authUsersSyncBound) return;
+  authUsersSyncBound = true;
+
+  document.addEventListener("surp-auth-users-updated", event => {
+    syncEngineersFromAuth(event.detail?.users || []);
+  });
 }
 // ======================
 // Чистка цены
@@ -3074,8 +3093,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const newBtn = document.getElementById("new-btn");
   if (newBtn) newBtn.onclick = newInvoice;
 });
-
-
 
 
 
