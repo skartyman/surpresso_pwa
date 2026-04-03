@@ -18,7 +18,7 @@ COPY backend/prisma ./backend/prisma
 RUN cd backend && npm install --legacy-peer-deps --include=dev
 
 COPY . .
-RUN cd backend && npx prisma generate --schema prisma/schema.prisma
+RUN cd backend && npx prisma generate --config prisma.config.ts
 RUN cd frontend && npm run build
 
 EXPOSE 8080
