@@ -38,7 +38,7 @@ function formatEquipmentLabel(request) {
   if (request?.equipment?.brand || request?.equipment?.model) {
     return `${request.equipment?.brand || ''} ${request.equipment?.model || ''}`.trim();
   }
-  return 'Оборудование не указано';
+  return 'Оборудование не выбрано';
 }
 
 export function AdminServicePage({ scope = 'service' }) {
@@ -271,7 +271,7 @@ export function AdminServicePage({ scope = 'service' }) {
                     </>
                   ) : (
                     <>
-                      <p>Оборудование не указано</p>
+                      <p>Оборудование не выбрано</p>
                       <p>Серийный номер: —</p>
                       <p>Внутренний №: —</p>
                       <button type="button" className="secondary" disabled title="Появится в следующих версиях">
