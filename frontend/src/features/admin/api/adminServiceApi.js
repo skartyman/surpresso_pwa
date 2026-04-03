@@ -36,4 +36,8 @@ export const adminServiceApi = {
     method: 'POST',
     body: JSON.stringify({ text }),
   }),
+  assign: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({ assignedToUserId }),
+  }),
 };

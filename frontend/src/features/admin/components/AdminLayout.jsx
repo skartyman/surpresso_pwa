@@ -21,7 +21,7 @@ export function AdminLayout() {
       <section className="admin-content">
         <header className="admin-header">
           <div>
-            <strong>{user.name}</strong>
+            <strong>{user.fullName || user.name}</strong>
             <span className="role-badge">{ROLE_LABELS[user.role]}</span>
           </div>
           <button className="secondary" onClick={logout}>Выйти</button>

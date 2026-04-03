@@ -7,8 +7,8 @@ export function LoginPage() {
   const { login, status } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('manager@surpresso.local');
-  const [password, setPassword] = useState('Manager123!');
+  const [email, setEmail] = useState('owner@surpresso.local');
+  const [password, setPassword] = useState('Owner123!');
   const [error, setError] = useState('');
 
   async function handleSubmit(event) {

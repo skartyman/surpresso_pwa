@@ -1,21 +1,17 @@
+const ROLE_SECTIONS = {
+  service_engineer: ['service'],
+  sales_manager: ['sales_clients', 'communications'],
+  service_head: ['service', 'analytics'],
+  owner: ['service', 'sales_clients', 'communications', 'employees', 'analytics'],
+  director: ['service', 'sales_clients', 'communications', 'employees', 'analytics'],
+};
+
 export function createAdminController() {
   return {
-    managerScope(_, res) {
+    scope(req, res) {
       return res.json({
-        role: 'manager',
-        sections: ['requests', 'clients', 'equipment', 'rentals', 'orders'],
-      });
-    },
-    serviceScope(_, res) {
-      return res.json({
-        role: 'service',
-        sections: ['service-requests', 'equipment', 'photos', 'comments', 'statuses'],
-      });
-    },
-    seoScope(_, res) {
-      return res.json({
-        role: 'seo',
-        sections: ['news', 'posters', 'pages', 'seo', 'media'],
+        role: req.adminUser.role,
+        sections: ROLE_SECTIONS[req.adminUser.role] || [],
       });
     },
   };

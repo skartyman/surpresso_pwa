@@ -16,6 +16,10 @@ function withRequestCompatibility(item) {
   };
 }
 
+function sanitizeUser(user) {
+  return { ...user };
+}
+
 export class InMemoryUserRepository {
   constructor() {
     this.users = [...seed.users];
@@ -23,11 +27,55 @@ export class InMemoryUserRepository {
 
   async findByEmail(email) {
     const normalized = String(email || '').trim().toLowerCase();
-    return this.users.find((user) => user.email.toLowerCase() === normalized) || null;
+    return sanitizeUser(this.users.find((user) => user.email.toLowerCase() === normalized) || null);
   }
 
   async findById(id) {
-    return this.users.find((user) => user.id === id) || null;
+    return sanitizeUser(this.users.find((user) => user.id === id) || null);
+  }
+
+  async list() {
+    return this.users.map((user) => sanitizeUser(user));
+  }
+
+  async create(payload) {
+    const now = new Date().toISOString();
+    const created = {
+      id: payload.id || `user-${Date.now()}`,
+      fullName: payload.fullName,
+      email: String(payload.email || '').trim().toLowerCase(),
+      phone: payload.phone || '',
+      passwordHash: payload.passwordHash,
+      role: payload.role,
+      positionTitle: payload.positionTitle || '',
+      isActive: payload.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.unshift(created);
+    return sanitizeUser(created);
+  }
+
+  async update(id, payload) {
+    const index = this.users.findIndex((user) => user.id === id);
+    if (index === -1) return null;
+
+    this.users[index] = {
+      ...this.users[index],
+      ...payload,
+      ...(payload.email ? { email: String(payload.email).trim().toLowerCase() } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+
+    return sanitizeUser(this.users[index]);
+  }
+
+  async setActive(id, isActive) {
+    return this.update(id, { isActive: Boolean(isActive) });
+  }
+
+  async setPassword(id, passwordHash) {
+    return this.update(id, { passwordHash });
   }
 }
 
@@ -109,12 +157,20 @@ export class InMemoryServiceRequestRepository {
     return this.requests.filter((item) => item.clientId === clientId).map((item) => this.hydrate(item));
   }
 
-  async listForAdmin({ status, id, client, equipment } = {}) {
+  async listForAdmin({ status, id, client, equipment } = {}, scope = {}) {
     const clientSearch = String(client || '').toLowerCase();
     const equipmentSearch = String(equipment || '').toLowerCase();
     return this.requests
       .filter((item) => !status || item.status === status)
       .filter((item) => !id || item.id.toLowerCase().includes(id.toLowerCase()))
+      .filter((item) => {
+        if (!scope?.serviceOnly) return true;
+        return item.category === 'service_repair';
+      })
+      .filter((item) => {
+        if (!scope?.assignedToUserId) return true;
+        return item.assignedToUserId === scope.assignedToUserId;
+      })
       .filter((item) => {
         if (!clientSearch) return true;
         const clientItem = this.clients.find((entry) => entry.id === item.clientId);
@@ -178,6 +234,28 @@ export class InMemoryServiceRequestRepository {
     return this.hydrate(this.requests[index]);
   }
 
+  async assign(id, assignedToUserId, meta = {}) {
+    const index = this.requests.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    this.requests[index] = {
+      ...this.requests[index],
+      assignedToUserId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.notes.unshift({
+      id: `srn-${Date.now()}`,
+      serviceRequestId: id,
+      authorId: meta.changedByUserId || 'system',
+      authorRole: meta.changedByRole || 'system',
+      text: `Назначен ответственный: ${assignedToUserId || 'не назначен'}`,
+      createdAt: new Date().toISOString(),
+    });
+
+    return this.hydrate(this.requests[index]);
+  }
+
   async listHistory(serviceRequestId) {
     return this.history.filter((item) => item.serviceRequestId === serviceRequestId);
   }
@@ -198,5 +276,35 @@ export class InMemoryServiceRequestRepository {
 
     this.notes.unshift(note);
     return note;
+  }
+
+  async analyticsSummary() {
+    const byStatus = this.requests.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+    const byCategory = this.requests.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      totals: {
+        requests: this.requests.length,
+        open: this.requests.filter((item) => item.status !== 'closed').length,
+        closed: this.requests.filter((item) => item.status === 'closed').length,
+      },
+      byStatus,
+      byCategory,
+      kpi: {
+        activeServiceEngineers: 1,
+        activeSalesManagers: 1,
+        avgResolutionHours: 18,
+      },
+      heatmap: [
+        { day: 'Mon', hour: 10, value: 4 },
+        { day: 'Tue', hour: 12, value: 3 },
+      ],
+    };
   }
 }

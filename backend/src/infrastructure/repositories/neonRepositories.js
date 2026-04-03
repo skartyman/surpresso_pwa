@@ -65,6 +65,58 @@ export class NeonUserRepository {
     const user = await this.prisma.user.findUnique({ where: { id } });
     return mapUser(user);
   }
+
+  async list() {
+    const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    return users.map(mapUser);
+  }
+
+  async create(payload) {
+    const user = await this.prisma.user.create({
+      data: {
+        id: payload.id || `user-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        fullName: payload.fullName,
+        email: String(payload.email || '').trim().toLowerCase(),
+        phone: payload.phone || '',
+        passwordHash: payload.passwordHash,
+        role: payload.role,
+        positionTitle: payload.positionTitle || '',
+        isActive: payload.isActive ?? true,
+      },
+    });
+    return mapUser(user);
+  }
+
+  async update(id, payload) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: {
+        ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
+        ...(payload.email !== undefined ? { email: String(payload.email).trim().toLowerCase() } : {}),
+        ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
+        ...(payload.role !== undefined ? { role: payload.role } : {}),
+        ...(payload.positionTitle !== undefined ? { positionTitle: payload.positionTitle } : {}),
+      },
+    });
+
+    return mapUser(user);
+  }
+
+  async setActive(id, isActive) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { isActive: Boolean(isActive) },
+    });
+    return mapUser(user);
+  }
+
+  async setPassword(id, passwordHash) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+    return mapUser(user);
+  }
 }
 
 export class NeonClientRepository {
@@ -144,10 +196,12 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(item);
   }
 
-  async listForAdmin({ status, id, client, equipment } = {}) {
+  async listForAdmin({ status, id, client, equipment } = {}, scope = {}) {
     const where = {
       ...(status ? { status } : {}),
       ...(id ? { id: { contains: id, mode: 'insensitive' } } : {}),
+      ...(scope?.serviceOnly ? { category: 'service_repair' } : {}),
+      ...(scope?.assignedToUserId ? { assignedToUserId: scope.assignedToUserId } : {}),
       ...(client
         ? {
             client: {
@@ -248,6 +302,26 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(updated);
   }
 
+  async assign(id, assignedToUserId, meta = {}) {
+    const updated = await this.prisma.serviceRequest.update({
+      where: { id },
+      data: { assignedToUserId: assignedToUserId || null },
+      include: { media: true, client: true, equipment: true },
+    });
+
+    await this.prisma.serviceRequestInternalNote.create({
+      data: {
+        id: `srn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        serviceRequestId: id,
+        authorId: meta.changedByUserId || 'system',
+        authorRole: meta.changedByRole || 'system',
+        text: `Назначен ответственный: ${assignedToUserId || 'не назначен'}`,
+      },
+    });
+
+    return mapServiceRequest(updated);
+  }
+
   async listHistory(serviceRequestId) {
     const items = await this.prisma.serviceRequestStatusHistory.findMany({
       where: { serviceRequestId },
@@ -286,6 +360,34 @@ export class NeonServiceRequestRepository {
     return {
       ...note,
       createdAt: note.createdAt.toISOString(),
+    };
+  }
+
+  async analyticsSummary() {
+    const [total, closed, groupedStatus, groupedCategory] = await Promise.all([
+      this.prisma.serviceRequest.count(),
+      this.prisma.serviceRequest.count({ where: { status: 'closed' } }),
+      this.prisma.serviceRequest.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.serviceRequest.groupBy({ by: ['category'], _count: { _all: true } }),
+    ]);
+
+    const byStatus = groupedStatus.reduce((acc, item) => ({ ...acc, [item.status]: item._count._all }), {});
+    const byCategory = groupedCategory.reduce((acc, item) => ({ ...acc, [item.category]: item._count._all }), {});
+
+    return {
+      totals: {
+        requests: total,
+        open: total - closed,
+        closed,
+      },
+      byStatus,
+      byCategory,
+      kpi: {
+        activeServiceEngineers: 0,
+        activeSalesManagers: 0,
+        avgResolutionHours: 0,
+      },
+      heatmap: [],
     };
   }
 }

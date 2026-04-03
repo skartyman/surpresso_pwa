@@ -16,6 +16,9 @@ import { AdminLayout } from '../features/admin/components/AdminLayout';
 import { PAGE_PERMISSIONS } from '../features/admin/roleConfig';
 import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPage';
 import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
+import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
+import { AdminCommunicationsPage } from '../features/admin/pages/AdminCommunicationsPage';
+import { AdminAnalyticsPage } from '../features/admin/pages/AdminAnalyticsPage';
 
 function ClientRoutes() {
   return (
@@ -46,20 +49,21 @@ export function App() {
 
       <Route element={<RequireAuth />}>
         <Route path="/admin" element={<AdminLayout />}>
-          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin']} />}>
-            <Route index element={<AdminPlaceholderPage title="Заявки и заказы" items={['Заявки', 'Аренда', 'Заказы']} />} />
-          </Route>
+          <Route index element={<AdminPlaceholderPage title="Админ-панель Surpresso" items={['Выберите модуль в меню слева']} />} />
           <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/service']} />}>
             <Route path="service" element={<AdminServicePage />} />
           </Route>
-          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/clients']} />}>
-            <Route path="clients" element={<AdminPlaceholderPage title="Клиенты" items={['Карточки клиентов', 'Контракты', 'Контакты']} />} />
+          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/sales']} />}>
+            <Route path="sales" element={<AdminPlaceholderPage title="Продажи и клиенты" items={['Заявки на кофе', 'Дегустации', 'Проверки помола', 'Аренда', 'Обратная связь']} />} />
           </Route>
-          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/equipment']} />}>
-            <Route path="equipment" element={<AdminPlaceholderPage title="Оборудование" items={['Каталог', 'История сервиса', 'Состояние']} />} />
+          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/communications']} />}>
+            <Route path="communications" element={<AdminCommunicationsPage />} />
           </Route>
-          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/content']} />}>
-            <Route path="content" element={<AdminPlaceholderPage title="Контент и SEO" items={['Новости', 'Афиши', 'Страницы', 'Медиа']} />} />
+          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/employees']} />}>
+            <Route path="employees" element={<AdminEmployeesPage />} />
+          </Route>
+          <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS['/admin/analytics']} />}>
+            <Route path="analytics" element={<AdminAnalyticsPage />} />
           </Route>
         </Route>
       </Route>

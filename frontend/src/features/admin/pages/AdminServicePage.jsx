@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 
 const STATUS_OPTIONS = [
@@ -29,6 +30,7 @@ function formatEquipmentLabel(request) {
 }
 
 export function AdminServicePage() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({ status: 'all', id: '', client: '', equipment: '' });
   const [requests, setRequests] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -37,6 +39,7 @@ export function AdminServicePage() {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
   const [statusComment, setStatusComment] = useState('');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
@@ -79,6 +82,7 @@ export function AdminServicePage() {
       ]);
 
       setSelectedRequest(requestPayload.request || null);
+      setAssignedToUserId(requestPayload.request?.assignedToUserId || '');
       setHistory(historyPayload.history || []);
       setNotes(notesPayload.notes || []);
     } catch {
@@ -123,6 +127,14 @@ export function AdminServicePage() {
     } finally {
       setUpdatingStatus(false);
     }
+  }
+
+
+  async function handleAssign() {
+    if (!selectedRequest) return;
+    await adminServiceApi.assign(selectedRequest.id, assignedToUserId);
+    await loadDetails(selectedRequest.id);
+    await loadRequests();
   }
 
   async function handleAddNote() {
@@ -233,6 +245,15 @@ export function AdminServicePage() {
                 </section>
               </div>
 
+
+              {['service_head', 'owner', 'director'].includes(user?.role) ? (
+                <section>
+                  <h3>Ответственный инженер</h3>
+                  <input value={assignedToUserId} onChange={(event) => setAssignedToUserId(event.target.value)} placeholder="user-service-engineer-1" />
+                  <button type="button" className="secondary" onClick={handleAssign}>Назначить</button>
+                </section>
+              ) : null}
+
               <section>
                 <h3>Описание</h3>
                 <p>{selectedRequest.description}</p>
@@ -284,7 +305,7 @@ export function AdminServicePage() {
                   <textarea
                     value={newNote}
                     onChange={(event) => setNewNote(event.target.value)}
-                    placeholder="Добавить внутреннюю заметку для manager/service"
+                    placeholder="Добавить внутреннюю заметку"
                   />
                   <button type="button" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>Добавить заметку</button>
                 </div>

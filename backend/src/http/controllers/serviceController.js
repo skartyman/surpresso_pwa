@@ -1,4 +1,18 @@
-const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
+const REQUEST_TYPES = new Set([
+  'service_repair',
+  'coffee_order',
+  'coffee_tasting',
+  'grinder_check',
+  'rental_auto',
+  'rental_pro',
+  'feedback',
+]);
+const LEGACY_CATEGORY_MAP = {
+  coffee_machine: 'service_repair',
+  grinder: 'service_repair',
+  water: 'service_repair',
+};
+
 const ALLOWED_URGENCY = new Set(['low', 'normal', 'high', 'critical']);
 
 function toBoolean(value) {
@@ -14,17 +28,23 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function normalizeRequestType(value) {
+  const raw = normalizeText(value);
+  const normalized = LEGACY_CATEGORY_MAP[raw] || raw;
+  return REQUEST_TYPES.has(normalized) ? normalized : null;
+}
+
 function formatNotifyMessage(request) {
   const equipmentText = request.equipment
     ? `${request.equipment.brand} ${request.equipment.model} (${request.equipment.id})`
     : request.equipmentId || 'не указано';
 
   return [
-    '🛠 Новая сервисная заявка',
+    '🛠 Новая заявка',
     `ID: ${request.id}`,
     `Клиент: ${request.client?.companyName || request.clientId}`,
     `Оборудование: ${equipmentText}`,
-    `Категория: ${request.category}`,
+    `Тип: ${request.category}`,
     `Описание: ${request.description}`,
     `Срочность: ${request.urgency}`,
     `Можно работать: ${request.canOperateNow ? 'да' : 'нет'}`,
@@ -32,7 +52,15 @@ function formatNotifyMessage(request) {
   ].join('\n');
 }
 
-export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier) {
+async function resolveDefaultAssignee(category, userRepository) {
+  const users = await userRepository.list();
+  if (category === 'service_repair') {
+    return users.find((user) => user.role === 'service_head' && user.isActive)?.id || null;
+  }
+  return users.find((user) => user.role === 'sales_manager' && user.isActive)?.id || null;
+}
+
+export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier, userRepository) {
   const notifier = telegramNotifier || { notifyNewServiceRequest: async () => ({ ok: false, reason: 'not_configured' }) };
   return {
     async list(req, res) {
@@ -40,13 +68,13 @@ export function createServiceController(serviceRepository, equipmentRepository, 
       return res.json({ items: requests });
     },
     async create(req, res) {
-      const category = normalizeText(req.body?.category);
+      const category = normalizeRequestType(req.body?.category || req.body?.type);
       const description = normalizeText(req.body?.description);
-      const urgency = normalizeText(req.body?.urgency);
+      const urgency = normalizeText(req.body?.urgency || 'normal');
       const equipmentId = normalizeText(req.body?.equipmentId);
       const canOperateNow = toBoolean(req.body?.canOperateNow ?? req.body?.canOperate ?? false);
 
-      if (!category || !ALLOWED_CATEGORIES.has(category)) {
+      if (!category) {
         return res.status(400).json({ error: 'category_required' });
       }
       if (!description) {
@@ -67,6 +95,8 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         }
       }
 
+      const assignedToUserId = userRepository ? await resolveDefaultAssignee(category, userRepository) : null;
+
       const payload = {
         equipmentId: equipmentId || null,
         category,
@@ -75,6 +105,7 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         canOperateNow,
         source: 'telegram_mini_app',
         clientId: req.auth.client.id,
+        assignedToUserId,
         media: (req.files || []).map((file) => ({
           id: `media-${file.filename}`,
           type: file.mimetype.startsWith('video') ? 'video' : 'image',
