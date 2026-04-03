@@ -21,7 +21,7 @@ function normalizeText(value) {
 function formatNotifyMessage(request) {
   const equipmentText = request.equipment
     ? `${request.equipment.brand} ${request.equipment.model} (${request.equipment.id})`
-    : request.equipmentId || 'не указано';
+    : request.equipmentId || 'не выбрано';
 
   return [
     request.type === REQUEST_TYPES.serviceRepair ? '🛠 Новая сервисная заявка' : '📩 Новое клиентское обращение',
