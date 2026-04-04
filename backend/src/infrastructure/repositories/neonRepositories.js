@@ -24,6 +24,7 @@ function mapServiceRequest(item) {
     type: item.type || 'service_repair',
     title: item.title || item.description || '',
     assignedDepartment: item.assignedDepartment || 'service',
+    assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     canOperate: item.canOperateNow,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -46,6 +47,8 @@ function mapServiceRequest(item) {
       ...note,
       createdAt: note.createdAt.toISOString(),
     })),
+    assignedToUser: mapUser(item.assignedToUser),
+    assignedByUser: mapUser(item.assignedByUser),
   };
 }
 
@@ -198,7 +201,7 @@ export class NeonServiceRequestRepository {
   async findById(id) {
     const item = await this.prisma.serviceRequest.findUnique({
       where: { id },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
     return mapServiceRequest(item);
   }
@@ -251,7 +254,7 @@ export class NeonServiceRequestRepository {
     const where = this.buildAdminWhere(filters);
     const items = await this.prisma.serviceRequest.findMany({
       where: Object.keys(where).length ? where : undefined,
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
       orderBy: { createdAt: 'desc' },
     });
     return this.sortRequests(items.map(mapServiceRequest), sort);
@@ -367,8 +370,14 @@ export class NeonServiceRequestRepository {
         media: true,
         client: true,
         equipment: true,
+        assignedToUser: true,
+        assignedByUser: true,
         history: { orderBy: { createdAt: 'desc' } },
         notes: { orderBy: { createdAt: 'desc' } },
+        assignmentHistory: {
+          orderBy: { createdAt: 'desc' },
+          include: { fromUser: true, toUser: true, assignedByUser: true },
+        },
       },
     });
     return mapServiceRequest(item);
@@ -390,6 +399,8 @@ export class NeonServiceRequestRepository {
         status: payload.status || 'new',
         source: payload.source || 'telegram_mini_app',
         assignedToUserId: payload.assignedToUserId || null,
+        assignedAt: payload.assignedToUserId ? new Date() : null,
+        assignedByUserId: payload.assignedByUserId || null,
         media: {
           create: (payload.media || []).map((media) => ({
             id: media.id || `media-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -403,7 +414,7 @@ export class NeonServiceRequestRepository {
           })),
         },
       },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
 
     return mapServiceRequest(created);
@@ -417,7 +428,7 @@ export class NeonServiceRequestRepository {
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: { status },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
 
     await this.prisma.serviceRequestStatusHistory.create({
@@ -435,13 +446,65 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(updated);
   }
 
-  async assignToUser(id, assignedToUserId) {
+  async assignToUser(id, assignedToUserId, meta = {}) {
+    const existing = await this.prisma.serviceRequest.findUnique({
+      where: { id },
+      select: { assignedToUserId: true },
+    });
+
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
-      data: { assignedToUserId: assignedToUserId || null },
-      include: { media: true, client: true, equipment: true },
+      data: {
+        assignedToUserId: assignedToUserId || null,
+        assignedAt: assignedToUserId ? new Date() : null,
+        assignedByUserId: assignedToUserId ? (meta.assignedByUserId || null) : null,
+      },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
+
+    if (assignedToUserId) {
+      await this.prisma.serviceRequestAssignmentHistory.create({
+        data: {
+          id: `srah-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          serviceRequestId: id,
+          fromUserId: existing?.assignedToUserId || null,
+          toUserId: assignedToUserId,
+          assignedByUserId: meta.assignedByUserId,
+          comment: meta.comment || null,
+        },
+      });
+    }
+
     return mapServiceRequest(updated);
+  }
+
+  async listServiceEngineers() {
+    const engineers = await this.prisma.user.findMany({
+      where: { role: 'service_engineer' },
+      orderBy: { fullName: 'asc' },
+    });
+    const requests = await this.prisma.serviceRequest.findMany({
+      where: { assignedToUserId: { in: engineers.map((eng) => eng.id) } },
+      select: { assignedToUserId: true, urgency: true, status: true, createdAt: true, updatedAt: true },
+    });
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+
+    return engineers.map((eng) => {
+      const own = requests.filter((item) => item.assignedToUserId === eng.id);
+      return {
+        id: eng.id,
+        fullName: eng.fullName,
+        role: eng.role,
+        isActive: eng.isActive,
+        workload: {
+          activeCount: own.filter((item) => item.status !== 'closed' && item.status !== 'resolved').length,
+          overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
+          criticalCount: own.filter((item) => item.urgency === 'critical' && item.status !== 'closed' && item.status !== 'resolved').length,
+          resolvedTodayCount: own.filter((item) => (item.status === 'resolved' || item.status === 'closed') && String(item.updatedAt).slice(0, 10) === today).length,
+        },
+      };
+    });
   }
 
   async listHistory(serviceRequestId) {
@@ -453,6 +516,27 @@ export class NeonServiceRequestRepository {
     return items.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
+    }));
+  }
+
+  async listAssignmentHistory(serviceRequestId) {
+    const items = await this.prisma.serviceRequestAssignmentHistory.findMany({
+      where: { serviceRequestId },
+      include: { fromUser: true, toUser: true, assignedByUser: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return items.map((item) => ({
+      id: item.id,
+      serviceRequestId: item.serviceRequestId,
+      fromUserId: item.fromUserId,
+      toUserId: item.toUserId,
+      assignedByUserId: item.assignedByUserId,
+      comment: item.comment || null,
+      createdAt: item.createdAt.toISOString(),
+      fromUser: mapUser(item.fromUser),
+      toUser: mapUser(item.toUser),
+      assignedByUser: mapUser(item.assignedByUser),
     }));
   }
 
