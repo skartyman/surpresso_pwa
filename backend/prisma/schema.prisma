@@ -6,25 +6,76 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id           String   @id
-  fullName     String
-  email        String   @unique
-  phone        String   @default("")
-  passwordHash String
-  role         String
-  positionTitle String  @default("")
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+enum WorkMode {
+  field
+  inhouse
+  hybrid
+}
 
-  assignedRequests ServiceRequest[] @relation("AssignedUserRequests")
-  assignedByRequests ServiceRequest[] @relation("AssignmentByUserRequests")
-  requestStatusUpdates ServiceRequestStatusHistory[] @relation("StatusChangedByUser")
-  requestInternalNotes ServiceRequestInternalNote[]
-  assignmentsMade ServiceRequestAssignmentHistory[] @relation("AssignmentMadeByUser")
-  assignmentsFrom ServiceRequestAssignmentHistory[] @relation("AssignmentFromUser")
-  assignmentsTo   ServiceRequestAssignmentHistory[] @relation("AssignmentToUser")
+model User {
+  id                    String    @id
+  fullName              String
+  email                 String    @unique
+  phone                 String?
+  notes                 String?
+  workMode              WorkMode?
+  capacity              Int?      @default(6)
+  maxCritical           Int?      @default(2)
+  priorityWeight        Int?      @default(0)
+  canTakeUrgent         Boolean   @default(true)
+  canTakeFieldRequests  Boolean   @default(false)
+  passwordHash          String
+  role                  String
+  positionTitle         String    @default("")
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  assignedRequests      ServiceRequest[]              @relation("AssignedUserRequests")
+  requestStatusUpdates  ServiceRequestStatusHistory[] @relation("StatusChangedByUser")
+  requestInternalNotes  ServiceRequestInternalNote[]
+  specializations       UserSpecialization[]
+  brandSkills           UserBrandSkill[]
+  zones                 UserZone[]
+}
+
+model UserSpecialization {
+  id               String   @id
+  userId           String
+  specializationKey String
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, specializationKey])
+  @@index([specializationKey])
+  @@index([userId])
+}
+
+model UserBrandSkill {
+  id        String   @id
+  userId    String
+  brandKey  String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, brandKey])
+  @@index([brandKey])
+  @@index([userId])
+}
+
+model UserZone {
+  id        String   @id
+  userId    String
+  zoneKey   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, zoneKey])
+  @@index([zoneKey])
+  @@index([userId])
 }
 
 
@@ -61,23 +112,21 @@ model Equipment {
 }
 
 model ServiceRequest {
-  id               String   @id
-  type             String   @default("service_repair")
-  clientId         String
-  equipmentId      String?
-  title            String   @default("")
-  category         String
-  description      String
-  urgency          String
-  canOperateNow    Boolean
-  status           String
-  assignedDepartment String @default("service")
-  source           String
-  assignedToUserId String?
-  assignedAt       DateTime?
-  assignedByUserId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id
+  type               String   @default("service_repair")
+  clientId           String
+  equipmentId        String?
+  title              String   @default("")
+  category           String
+  description        String
+  urgency            String
+  canOperateNow      Boolean
+  status             String
+  assignedDepartment String   @default("service")
+  source             String
+  assignedToUserId   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   client         Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
   equipment      Equipment?            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)

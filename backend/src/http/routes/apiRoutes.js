@@ -28,8 +28,8 @@ export function createApiRouter(deps) {
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
-  const adminServiceController = createAdminServiceController(deps.serviceRepository, deps.userRepository);
-  const adminEmployeeController = createAdminEmployeeController(deps.userRepository);
+  const adminServiceController = createAdminServiceController(deps.serviceRepository);
+  const adminEmployeeController = createAdminEmployeeController(deps.userRepository, deps.serviceRepository);
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
   router.post('/auth/login', asyncHandler(adminAuthController.login));
@@ -52,10 +52,19 @@ export function createApiRouter(deps) {
   router.get('/admin/service-requests/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.notes));
   router.post('/admin/service-requests/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.addNote));
 
-  router.get('/admin/employees', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminEmployeeController.list));
-  router.get('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminEmployeeController.byId));
-  router.post('/admin/employees', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminEmployeeController.create));
-  router.patch('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminEmployeeController.update));
+  router.get('/admin/users', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.list));
+  router.get('/admin/users/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.byId));
+  router.post('/admin/users', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager']), asyncHandler(adminEmployeeController.create));
+  router.post('/admin/users/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.update));
+  router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.listServiceEngineers));
+  router.get('/admin/service-specializations', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.serviceSpecializations));
+  router.get('/admin/brands', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.brands));
+  router.get('/admin/zones', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.zones));
+
+  router.get('/admin/employees', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.list));
+  router.get('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.byId));
+  router.post('/admin/employees', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager']), asyncHandler(adminEmployeeController.create));
+  router.patch('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.update));
 
   router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);

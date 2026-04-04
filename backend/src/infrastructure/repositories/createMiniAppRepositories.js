@@ -22,6 +22,19 @@ async function ensureNeonSeed(prisma) {
     await prisma.user.create({ data: user });
   }
 
+  for (const specialization of seed.userSpecializations || []) {
+    await prisma.userSpecialization.create({ data: specialization });
+  }
+
+  for (const brand of seed.userBrandSkills || []) {
+    await prisma.userBrandSkill.create({ data: brand });
+  }
+
+  for (const zone of seed.userZones || []) {
+    await prisma.userZone.create({ data: zone });
+  }
+
+
   for (const client of seed.clients) {
     await prisma.client.create({ data: client });
   }

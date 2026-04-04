@@ -24,6 +24,17 @@ function withRequestCompatibility(item) {
 export class InMemoryUserRepository {
   constructor() {
     this.users = [...seed.users];
+    this.userSpecializations = [...(seed.userSpecializations || [])];
+    this.userBrandSkills = [...(seed.userBrandSkills || [])];
+    this.userZones = [...(seed.userZones || [])];
+  }
+
+  getRelations(userId) {
+    return {
+      specializations: this.userSpecializations.filter((item) => item.userId === userId).map((item) => item.specializationKey),
+      brands: this.userBrandSkills.filter((item) => item.userId === userId).map((item) => item.brandKey),
+      zones: this.userZones.filter((item) => item.userId === userId).map((item) => item.zoneKey),
+    };
   }
 
   normalizeUser(user) {
@@ -32,7 +43,9 @@ export class InMemoryUserRepository {
       ...user,
       fullName: user.fullName || user.name || '',
       phone: user.phone || '',
+      notes: user.notes || '',
       positionTitle: user.positionTitle || '',
+      ...this.getRelations(user.id),
     };
   }
 
@@ -45,10 +58,19 @@ export class InMemoryUserRepository {
     return this.normalizeUser(this.users.find((user) => user.id === id) || null);
   }
 
-  async listForAdmin({ q, role, isActive } = {}) {
+  async getUserById(id) {
+    return this.findById(id);
+  }
+
+  async listForAdmin(filters = {}) {
+    return this.listUsers(filters);
+  }
+
+  async listUsers({ q, role, roles, isActive } = {}) {
     const search = String(q || '').trim().toLowerCase();
     return this.users
       .filter((user) => !role || user.role === role)
+      .filter((user) => !roles?.length || roles.includes(user.role))
       .filter((user) => isActive === null || isActive === undefined || user.isActive === isActive)
       .filter((user) => {
         if (!search) return true;
@@ -58,6 +80,10 @@ export class InMemoryUserRepository {
       .map((user) => this.normalizeUser(user));
   }
 
+  async listServiceEngineers({ q, isActive } = {}) {
+    return this.listUsers({ q, isActive, roles: ['service_engineer', 'service_head'] });
+  }
+
   async create(payload) {
     const now = new Date().toISOString();
     const user = {
@@ -65,6 +91,13 @@ export class InMemoryUserRepository {
       fullName: payload.fullName,
       email: payload.email,
       phone: payload.phone || '',
+      notes: payload.notes || '',
+      workMode: payload.workMode || null,
+      capacity: payload.capacity ?? 6,
+      maxCritical: payload.maxCritical ?? 2,
+      priorityWeight: payload.priorityWeight ?? 0,
+      canTakeUrgent: payload.canTakeUrgent ?? true,
+      canTakeFieldRequests: payload.canTakeFieldRequests ?? false,
       passwordHash: payload.passwordHash,
       role: payload.role,
       positionTitle: payload.positionTitle || '',
@@ -73,10 +106,15 @@ export class InMemoryUserRepository {
       updatedAt: now,
     };
     this.users.unshift(user);
+    await this.updateUserRelations(user.id, payload);
     return this.normalizeUser(user);
   }
 
   async updateById(id, patch) {
+    return this.updateUser(id, patch);
+  }
+
+  async updateUser(id, patch) {
     const index = this.users.findIndex((item) => item.id === id);
     if (index === -1) return null;
     const updated = {
@@ -84,8 +122,35 @@ export class InMemoryUserRepository {
       ...patch,
       updatedAt: new Date().toISOString(),
     };
+    delete updated.specializations;
+    delete updated.brands;
+    delete updated.zones;
     this.users[index] = updated;
+    await this.updateUserRelations(id, patch);
     return this.normalizeUser(updated);
+  }
+
+  async setUserSpecializations(userId, specializations = []) {
+    this.userSpecializations = this.userSpecializations.filter((item) => item.userId !== userId);
+    this.userSpecializations.push(
+      ...specializations.map((specializationKey, index) => ({ id: `uspec-${Date.now()}-${index}`, userId, specializationKey, createdAt: new Date().toISOString() })),
+    );
+  }
+
+  async setUserBrands(userId, brands = []) {
+    this.userBrandSkills = this.userBrandSkills.filter((item) => item.userId !== userId);
+    this.userBrandSkills.push(...brands.map((brandKey, index) => ({ id: `ubrand-${Date.now()}-${index}`, userId, brandKey, createdAt: new Date().toISOString() })));
+  }
+
+  async setUserZones(userId, zones = []) {
+    this.userZones = this.userZones.filter((item) => item.userId !== userId);
+    this.userZones.push(...zones.map((zoneKey, index) => ({ id: `uzone-${Date.now()}-${index}`, userId, zoneKey, createdAt: new Date().toISOString() })));
+  }
+
+  async updateUserRelations(userId, payload = {}) {
+    if (payload.specializations !== undefined) await this.setUserSpecializations(userId, payload.specializations);
+    if (payload.brands !== undefined) await this.setUserBrands(userId, payload.brands);
+    if (payload.zones !== undefined) await this.setUserZones(userId, payload.zones);
   }
 }
 

@@ -2,8 +2,15 @@ export class UserRepository {
   async findByEmail(_) { throw new Error('Not implemented'); }
   async findById(_) { throw new Error('Not implemented'); }
   async listForAdmin(_) { throw new Error('Not implemented'); }
+  async listUsers(_) { throw new Error('Not implemented'); }
+  async getUserById(_) { throw new Error('Not implemented'); }
+  async listServiceEngineers(_) { throw new Error('Not implemented'); }
   async create(_) { throw new Error('Not implemented'); }
   async updateById(_, __) { throw new Error('Not implemented'); }
+  async updateUser(_, __) { throw new Error('Not implemented'); }
+  async setUserSpecializations(_, __) { throw new Error('Not implemented'); }
+  async setUserBrands(_, __) { throw new Error('Not implemented'); }
+  async setUserZones(_, __) { throw new Error('Not implemented'); }
 }
 
 export class ClientRepository {
