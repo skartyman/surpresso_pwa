@@ -31,8 +31,12 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  assignedRequests      ServiceRequest[]              @relation("AssignedUserRequests")
-  requestStatusUpdates  ServiceRequestStatusHistory[] @relation("StatusChangedByUser")
+  assignedRequests      ServiceRequest[]                  @relation("AssignedUserRequests")
+  assignedByRequests    ServiceRequest[]                  @relation("AssignmentByUserRequests")
+  requestStatusUpdates  ServiceRequestStatusHistory[]     @relation("StatusChangedByUser")
+  assignmentFromHistory ServiceRequestAssignmentHistory[] @relation("AssignmentFromUser")
+  assignmentToHistory   ServiceRequestAssignmentHistory[] @relation("AssignmentToUser")
+  assignmentMadeHistory ServiceRequestAssignmentHistory[] @relation("AssignmentMadeByUser")
   requestInternalNotes  ServiceRequestInternalNote[]
   specializations       UserSpecialization[]
   brandSkills           UserBrandSkill[]
@@ -125,6 +129,7 @@ model ServiceRequest {
   assignedDepartment String   @default("service")
   source             String
   assignedToUserId   String?
+  assignedByUserId   String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
