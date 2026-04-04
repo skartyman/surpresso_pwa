@@ -81,7 +81,7 @@ function ServiceTicketCard({ request, active, onSelect }) {
 export function AdminServicePage() {
   const { user } = useAuth();
   const canAssign = [ROLES.serviceHead, ROLES.manager].includes(user?.role);
-  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', engineer: 'all', quick: 'all', sort: 'urgency' });
+  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', engineer: 'all', quickFilter: 'all', sort: 'urgency' });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
@@ -147,11 +147,11 @@ export function AdminServicePage() {
   const kpis = dashboard?.kpis || [];
 
   const filteredRequests = useMemo(() => requests.filter((item) => {
-    if (filters.quick === 'unassigned') return !item.assignedToUserId;
-    if (filters.quick === 'mine') return item.assignedToUserId === user?.id;
-    if (filters.quick.startsWith('engineer:')) return item.assignedToUserId === filters.quick.replace('engineer:', '');
+    if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
+    if (filters.quickFilter === 'mine') return item.assignedToUserId === user?.id;
+    if (filters.quickFilter?.startsWith('engineer:')) return item.assignedToUserId === filters.quickFilter.replace('engineer:', '');
     return true;
-  }), [filters.quick, requests, user?.id]);
+  }), [filters.quickFilter, requests, user?.id]);
 
   return (
     <section className="service-dashboard">
@@ -168,7 +168,7 @@ export function AdminServicePage() {
       <FilterRow>
         <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
         <label><span>Тип</span><select value={filters.type} onChange={(e) => { const n = { ...filters, type: e.target.value }; setFilters(n); load(n); }}>{TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quick} onChange={(e) => setFilters((prev) => ({ ...prev, quick: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
         <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{(dashboard?.engineers || []).map((eng) => <option key={eng.userId} value={eng.userId}>{eng.name}</option>)}</select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-5001" /></label>
         <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>

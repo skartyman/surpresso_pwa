@@ -17,6 +17,7 @@ export async function createApp() {
   const botGateway = new TelegramBotGateway({ token: config.telegramBotToken });
   const supportController = createSupportController(botGateway);
   const serviceRequestNotifier = createServiceRequestNotifier(botGateway);
+  const sessionManager = createAdminSessionManager(config.adminSessionSecret);
 
   app.get('/health', (_, res) => res.json({ ok: true, storage }));
   app.get('/proxy-drive/:fileId', async (req, res) => {
@@ -32,8 +33,7 @@ export async function createApp() {
         return res.status(response.status).send('drive_error');
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = Buffer.from(await response.arrayBuffer());
       res.set('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
       res.set('Cache-Control', 'public, max-age=3600');
       return res.send(buffer);
@@ -42,9 +42,7 @@ export async function createApp() {
     }
   });
 
-  deps.sessionManager = createAdminSessionManager(config.adminSessionSecret);
-
-  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier }));
+  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, sessionManager }));
   app.use('/webhooks', createWebhookRouter(botGateway));
   app.post('/api/v1/support/notify', supportController.notify);
 
