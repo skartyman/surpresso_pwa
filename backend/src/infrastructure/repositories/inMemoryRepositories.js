@@ -146,6 +146,7 @@ export class InMemoryServiceRequestRepository {
     this.equipment = [...seed.equipment];
     this.history = [...(seed.serviceRequestHistory || [])];
     this.notes = [...(seed.serviceRequestNotes || [])];
+    this.users = [...seed.users];
   }
 
   hydrate(item) {
@@ -166,13 +167,23 @@ export class InMemoryServiceRequestRepository {
     return this.requests.filter((item) => item.clientId === clientId).map((item) => this.hydrate(item));
   }
 
-  async listForAdmin({ status, id, client, equipment, type, assignedDepartment } = {}) {
+  sortRequests(items, sort) {
+    if (sort === 'updatedAt') return [...items].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (sort === 'urgency') {
+      const priority = { critical: 4, high: 3, medium: 2, low: 1 };
+      return [...items].sort((a, b) => (priority[b.urgency] || 0) - (priority[a.urgency] || 0));
+    }
+    return [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async listForAdmin({ status, id, client, equipment, type, assignedDepartment, assignedToUserId, sort = 'createdAt' } = {}) {
     const clientSearch = String(client || '').toLowerCase();
     const equipmentSearch = String(equipment || '').toLowerCase();
-    return this.requests
+    const list = this.requests
       .filter((item) => !status || item.status === status)
       .filter((item) => !type || (item.type || REQUEST_TYPES.serviceRepair) === type)
       .filter((item) => !assignedDepartment || (item.assignedDepartment || resolveDepartmentByType(item.type || REQUEST_TYPES.serviceRepair)) === assignedDepartment)
+      .filter((item) => !assignedToUserId || item.assignedToUserId === assignedToUserId)
       .filter((item) => !id || item.id.toLowerCase().includes(id.toLowerCase()))
       .filter((item) => {
         if (!clientSearch) return true;
@@ -187,6 +198,96 @@ export class InMemoryServiceRequestRepository {
         return `${equipmentItem.id} ${equipmentItem.brand} ${equipmentItem.model} ${equipmentItem.serial} ${equipmentItem.internalNumber}`.toLowerCase().includes(equipmentSearch);
       })
       .map((item) => this.hydrate(item));
+    return this.sortRequests(list, sort);
+  }
+
+  isOverdue(item, now = new Date()) {
+    if (!item || item.status === 'closed' || item.status === 'resolved') return false;
+    const slaHours = { critical: 4, high: 8, medium: 24, low: 48 };
+    const hours = slaHours[item.urgency] || 24;
+    return (now.getTime() - new Date(item.createdAt).getTime()) > hours * 3600000;
+  }
+
+  async getDashboardMetrics(filters = {}) {
+    const requests = await this.listForAdmin(filters);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const serviceEngineers = this.users.filter((item) => item.role === 'service_engineer' && item.isActive);
+    const noteByRequest = this.notes.reduce((acc, note) => {
+      (acc[note.serviceRequestId] ||= []).push(note);
+      return acc;
+    }, {});
+
+    const attention = {
+      unassigned: requests.filter((item) => !item.assignedToUserId).length,
+      critical: requests.filter((item) => item.urgency === 'critical').length,
+      withoutEquipment: requests.filter((item) => !item.equipmentId).length,
+      withoutResponse: requests.filter((item) => !this.history.some((h) => h.serviceRequestId === item.id)).length,
+      stuckInProgress: requests.filter((item) => item.status === 'in_progress' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
+      overdue: requests.filter((item) => this.isOverdue(item, now)).length,
+    };
+
+    const statusCount = requests.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const waitingParts = requests.filter((item) => (noteByRequest[item.id] || []).some((n) => String(n.text || '').toLowerCase().includes('waiting_parts') || String(n.text || '').toLowerCase().includes('запчаст'))).length;
+    const closedToday = requests.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length;
+
+    const engineerLoad = serviceEngineers.map((eng) => {
+      const own = requests.filter((item) => item.assignedToUserId === eng.id);
+      const closed = own.filter((item) => item.status === 'closed');
+      return {
+        userId: eng.id,
+        name: eng.fullName || eng.name,
+        active: own.filter((item) => item.status !== 'closed').length,
+        overdue: own.filter((item) => this.isOverdue(item, now)).length,
+        closedToday: own.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length,
+        avgCloseHours: closed.length ? closed.reduce((sum, item) => sum + ((new Date(item.updatedAt) - new Date(item.createdAt)) / 3600000), 0) / closed.length : null,
+      };
+    });
+
+    const grouped = (list, keyFn) => Object.entries(list.reduce((acc, item) => {
+      const key = keyFn(item) || '—';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {})).map(([key, value]) => ({ key, label: key, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+
+    const daily = [];
+    for (let i = 13; i >= 0; i -= 1) {
+      const d = new Date(now);
+      d.setUTCDate(now.getUTCDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      daily.push({ key: iso, label: iso.slice(5), value: requests.filter((item) => String(item.createdAt).slice(0, 10) === iso).length });
+    }
+
+    return {
+      kpis: [
+        { key: 'new', label: 'Новые заявки', value: statusCount.new || 0 },
+        { key: 'in_progress', label: 'В работе', value: statusCount.in_progress || 0 },
+        { key: 'overdue', label: 'Просроченные', value: attention.overdue },
+        { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
+        { key: 'waiting_parts', label: 'Ждут запчасти', value: waitingParts },
+        { key: 'closed_today', label: 'Закрыто сегодня', value: closedToday },
+      ],
+      attention: [
+        { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
+        { key: 'critical', label: 'Критические', value: attention.critical },
+        { key: 'without_equipment', label: 'Без оборудования', value: attention.withoutEquipment },
+        { key: 'without_response', label: 'Без ответа', value: attention.withoutResponse },
+        { key: 'stuck', label: 'Зависшие в работе', value: attention.stuckInProgress },
+        { key: 'overdue', label: 'Просроченные', value: attention.overdue },
+      ],
+      engineers: serviceEngineers.map((item) => ({ userId: item.id, name: item.fullName || item.name })),
+      engineerLoad,
+      analytics: {
+        statuses: grouped(requests, (item) => item.status),
+        equipmentTypes: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.type),
+        brands: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.brand),
+        daily,
+      },
+    };
   }
 
   async findById(id) {

@@ -16,15 +16,25 @@ async function apiFetch(path, options = {}) {
 }
 
 export const adminServiceApi = {
-  list: async ({ status, type, id, client, equipment } = {}) => {
+  list: async ({ status, type, id, client, equipment, engineer, sort } = {}) => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (type) params.set('type', type);
     if (id) params.set('id', id);
     if (client) params.set('client', client);
     if (equipment) params.set('equipment', equipment);
+    if (engineer) params.set('engineer', engineer);
+    if (sort) params.set('sort', sort);
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/service-requests${query}`);
+  },
+  dashboard: async ({ status, type, engineer } = {}) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (type) params.set('type', type);
+    if (engineer) params.set('engineer', engineer);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/api/telegram/admin/service-requests/dashboard${query}`);
   },
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
   updateStatus: async (id, status, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/status`, {

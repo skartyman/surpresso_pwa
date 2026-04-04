@@ -19,7 +19,7 @@ export const ROLE_LABELS = {
 const ALL_ROLES = Object.values(ROLES);
 
 export const ADMIN_MENU = [
-  { key: 'service', to: 'service', label: 'Сервис', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
+  { key: 'service', to: 'service', label: 'Сервис', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
   { key: 'sales', to: 'sales', label: 'Продажи и клиенты', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
   { key: 'communications', to: 'communications', label: 'Коммуникации', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
   { key: 'employees', to: 'employees', label: 'Сотрудники', roles: [ROLES.serviceHead, ROLES.owner, ROLES.director] },
@@ -27,7 +27,7 @@ export const ADMIN_MENU = [
 ];
 
 export const PAGE_PERMISSIONS = {
-  service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
+  service: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
   sales: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
   communications: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
   employees: [ROLES.serviceHead, ROLES.owner, ROLES.director],
@@ -37,7 +37,8 @@ export const PAGE_PERMISSIONS = {
 export function getDefaultAdminSection(role) {
   if (role === ROLES.serviceEngineer) return 'service';
   if (role === ROLES.serviceHead) return 'service';
-  if (role === ROLES.manager || role === ROLES.salesManager) return 'sales';
+  if (role === ROLES.manager) return 'service';
+  if (role === ROLES.salesManager) return 'sales';
   if (role === ROLES.owner || role === ROLES.director) return 'employees';
   return 'service';
 }
