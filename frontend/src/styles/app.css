@@ -545,3 +545,108 @@ textarea {
   display: grid;
   gap: 6px;
 }
+
+.admin-service-dashboard {
+  gap: 14px;
+}
+
+.service-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.service-kpi-card {
+  background: linear-gradient(160deg, #111827, #0b1220);
+  border: 1px solid #2b3547;
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.service-kpi-card span { color: #9ca3af; font-size: 12px; }
+.service-kpi-card strong { font-size: 26px; color: #f8fafc; }
+
+.service-filters-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.service-secondary-grid,
+.service-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.service-analytics-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.service-attention-list,
+.service-engineer-load {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.service-attention-list li,
+.service-engineer-load li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 10px;
+  background: #0b1220;
+}
+
+.service-engineer-load li {
+  align-items: center;
+}
+
+.service-engineer-load span {
+  display: block;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.service-engineer-load em {
+  color: #fcd34d;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.service-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.service-quick-actions button,
+.service-quick-actions select {
+  width: 100%;
+}
+
+@media (max-width: 1300px) {
+  .service-kpi-grid,
+  .service-filters-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .service-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .service-kpi-grid,
+  .service-filters-grid,
+  .service-secondary-grid,
+  .service-analytics-grid,
+  .service-quick-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { ROLES } from '../roleConfig';
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'Все' },
+  { value: 'all', label: 'Все статусы' },
   { value: 'new', label: 'Новая' },
   { value: 'in_progress', label: 'В работе' },
   { value: 'resolved', label: 'Решена' },
@@ -12,7 +12,7 @@ const STATUS_OPTIONS = [
 ];
 
 const TYPE_OPTIONS = [
-  { value: 'all', label: 'Все' },
+  { value: 'all', label: 'Все типы' },
   { value: 'service_repair', label: 'Ремонт и сервис' },
   { value: 'coffee_order', label: 'Заказать кофе' },
   { value: 'coffee_tasting', label: 'Дегустация' },
@@ -20,6 +20,12 @@ const TYPE_OPTIONS = [
   { value: 'rental_auto', label: 'Аренда авто' },
   { value: 'rental_pro', label: 'Аренда проф.' },
   { value: 'feedback', label: 'Обратная связь' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'urgency', label: 'Срочность' },
+  { value: 'createdAt', label: 'Время создания' },
+  { value: 'updatedAt', label: 'Последнее обновление' },
 ];
 
 const STATUS_LABELS = {
@@ -41,10 +47,28 @@ function formatEquipmentLabel(request) {
   return 'Оборудование не выбрано';
 }
 
-export function AdminServicePage({ scope = 'service' }) {
+function compactDuration(hours) {
+  if (typeof hours !== 'number' || Number.isNaN(hours)) return '—';
+  if (hours < 24) return `${hours.toFixed(1)} ч`;
+  return `${(hours / 24).toFixed(1)} д`;
+}
+
+export function AdminServicePage() {
   const { user } = useAuth();
-  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', equipment: '' });
+  const isEngineer = user?.role === ROLES.serviceEngineer;
+  const canSeeGlobal = user?.role === ROLES.serviceHead || user?.role === ROLES.owner || user?.role === ROLES.director;
+
+  const [filters, setFilters] = useState({
+    status: 'all',
+    type: 'all',
+    id: '',
+    client: '',
+    equipment: '',
+    engineer: 'all',
+    sort: 'urgency',
+  });
   const [requests, setRequests] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [history, setHistory] = useState([]);
@@ -68,6 +92,8 @@ export function AdminServicePage({ scope = 'service' }) {
         id: nextFilters.id,
         client: nextFilters.client,
         equipment: nextFilters.equipment,
+        engineer: nextFilters.engineer === 'all' ? '' : nextFilters.engineer,
+        sort: nextFilters.sort,
       });
       setRequests(payload.requests || []);
       if (!selectedId && payload.requests?.[0]?.id) {
@@ -77,6 +103,19 @@ export function AdminServicePage({ scope = 'service' }) {
       setError(err?.status === 403 ? 'Нет доступа к модулю сервиса.' : 'Не удалось загрузить список заявок.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadDashboard(nextFilters = filters) {
+    try {
+      const payload = await adminServiceApi.dashboard({
+        status: nextFilters.status === 'all' ? '' : nextFilters.status,
+        type: nextFilters.type === 'all' ? '' : nextFilters.type,
+        engineer: nextFilters.engineer === 'all' ? '' : nextFilters.engineer,
+      });
+      setDashboard(payload);
+    } catch {
+      setDashboard(null);
     }
   }
 
@@ -108,6 +147,7 @@ export function AdminServicePage({ scope = 'service' }) {
 
   useEffect(() => {
     loadRequests();
+    loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -122,7 +162,7 @@ export function AdminServicePage({ scope = 'service' }) {
     setFilters(nextFilters);
     setSelectedId(null);
     setSelectedRequest(null);
-    await loadRequests(nextFilters);
+    await Promise.all([loadRequests(nextFilters), loadDashboard(nextFilters)]);
   }
 
   async function handleStatusChange(event) {
@@ -138,6 +178,7 @@ export function AdminServicePage({ scope = 'service' }) {
       setStatusComment('');
       const historyPayload = await adminServiceApi.history(selectedRequest.id);
       setHistory(historyPayload.history || []);
+      await loadDashboard();
     } finally {
       setUpdatingStatus(false);
     }
@@ -151,6 +192,7 @@ export function AdminServicePage({ scope = 'service' }) {
       setNewNote('');
       const notesPayload = await adminServiceApi.notes(selectedRequest.id);
       setNotes(notesPayload.notes || []);
+      await loadDashboard();
     } finally {
       setSavingNote(false);
     }
@@ -164,53 +206,64 @@ export function AdminServicePage({ scope = 'service' }) {
       const updated = payload.request;
       setSelectedRequest(updated);
       setRequests((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      await loadDashboard();
     } finally {
       setAssigning(false);
     }
   }
 
-  const typeOptions = scope === 'sales'
-    ? TYPE_OPTIONS.filter((item) => !['all', 'service_repair'].includes(item.value)).concat({ value: 'all', label: 'Все' }).sort((a, b) => (a.value === 'all' ? -1 : b.value === 'all' ? 1 : 0))
-    : TYPE_OPTIONS.filter((item) => item.value === 'all' || item.value === 'service_repair');
-  const title = scope === 'sales'
-    ? 'Продажи и клиентские обращения'
-    : (user?.role === ROLES.serviceEngineer ? 'Мои заявки' : (user?.role === ROLES.serviceHead ? 'Распределение сервиса' : 'Сервис'));
+  async function handleMarkWaitingParts() {
+    if (!selectedRequest) return;
+    setSavingNote(true);
+    try {
+      await adminServiceApi.addNote(selectedRequest.id, '[WAITING_PARTS] Ожидание запчастей');
+      const notesPayload = await adminServiceApi.notes(selectedRequest.id);
+      setNotes(notesPayload.notes || []);
+      await loadDashboard();
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleCloseRequest() {
+    if (!selectedRequest) return;
+    setUpdatingStatus(true);
+    try {
+      const payload = await adminServiceApi.updateStatus(selectedRequest.id, 'closed', statusComment || 'Закрыто с панели быстрых действий');
+      setSelectedRequest(payload.request);
+      setRequests((prev) => prev.map((item) => (item.id === payload.request.id ? payload.request : item)));
+      setStatusComment('');
+      await loadDashboard();
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  const title = isEngineer ? 'Service Operations · Мои заявки' : 'Service Operations Dashboard';
 
   return (
-    <section className="admin-service-page">
+    <section className="admin-service-page admin-service-dashboard">
       <header className="admin-service-page__header">
         <h1>{title}</h1>
       </header>
 
-      <div className="admin-filters-grid">
-        <label>
-          <span>Статус</span>
-          <select name="status" value={filters.status} onChange={handleFilterChange}>
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Тип</span>
-          <select name="type" value={filters.type} onChange={handleFilterChange}>
-            {typeOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>ID заявки</span>
-          <input name="id" value={filters.id} onChange={handleFilterChange} placeholder="req-5001" />
-        </label>
-        <label>
-          <span>Клиент</span>
-          <input name="client" value={filters.client} onChange={handleFilterChange} placeholder="Компания / контакт / телефон" />
-        </label>
-        <label>
-          <span>Оборудование</span>
-          <input name="equipment" value={filters.equipment} onChange={handleFilterChange} placeholder="Бренд / модель / serial" />
-        </label>
+      <section className="service-kpi-grid">
+        {(dashboard?.kpis || []).map((item) => (
+          <article key={item.key} className="service-kpi-card">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </article>
+        ))}
+      </section>
+
+      <div className="admin-filters-grid service-filters-grid">
+        <label><span>Статус</span><select name="status" value={filters.status} onChange={handleFilterChange}>{STATUS_OPTIONS.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}</select></label>
+        <label><span>Тип</span><select name="type" value={filters.type} onChange={handleFilterChange}>{TYPE_OPTIONS.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}</select></label>
+        <label><span>Инженер</span><select name="engineer" value={filters.engineer} onChange={handleFilterChange}><option value="all">Все инженеры</option>{(dashboard?.engineers || []).map((eng) => (<option key={eng.userId} value={eng.userId}>{eng.name}</option>))}</select></label>
+        <label><span>Клиент</span><input name="client" value={filters.client} onChange={handleFilterChange} placeholder="Компания / контакт / телефон" /></label>
+        <label><span>Оборудование</span><input name="equipment" value={filters.equipment} onChange={handleFilterChange} placeholder="Бренд / модель / serial" /></label>
+        <label><span>ID заявки</span><input name="id" value={filters.id} onChange={handleFilterChange} placeholder="req-5001" /></label>
+        <label><span>Сортировка</span><select name="sort" value={filters.sort} onChange={handleFilterChange}>{SORT_OPTIONS.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}</select></label>
       </div>
 
       {error ? <p className="error-text">{error}</p> : null}
@@ -243,8 +296,7 @@ export function AdminServicePage({ scope = 'service' }) {
               </header>
 
               <section>
-                <h3>Карточка заявки</h3>
-                <p>Категория: {selectedRequest.category}</p>
+                <h3>Обзор</h3>
                 <p>Тип: {TYPE_OPTIONS.find((item) => item.value === selectedRequest.type)?.label || selectedRequest.type}</p>
                 <p>Срочность: {selectedRequest.urgency}</p>
                 <p>Источник: {selectedRequest.source}</p>
@@ -263,129 +315,56 @@ export function AdminServicePage({ scope = 'service' }) {
                 </section>
                 <section>
                   <h3>Оборудование</h3>
-                  {selectedRequest.equipment ? (
-                    <>
-                      <p>{selectedRequest.equipment?.brand} {selectedRequest.equipment?.model}</p>
-                      <p>Серийный номер: {selectedRequest.equipment?.serial || '—'}</p>
-                      <p>Внутренний №: {selectedRequest.equipment?.internalNumber || '—'}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p>Оборудование не выбрано</p>
-                      <p>Серийный номер: —</p>
-                      <p>Внутренний №: —</p>
-                      <button type="button" className="secondary" disabled title="Появится в следующих версиях">
-                        Привязать оборудование (скоро)
-                      </button>
-                    </>
-                  )}
+                  {selectedRequest.equipment ? (<><p>{selectedRequest.equipment?.brand} {selectedRequest.equipment?.model}</p><p>Серийный номер: {selectedRequest.equipment?.serial || '—'}</p><p>Внутренний №: {selectedRequest.equipment?.internalNumber || '—'}</p></>) : <p>Оборудование не привязано.</p>}
                 </section>
               </div>
 
+              <section><h3>История</h3>{!history.length ? <p>История пока пустая.</p> : (<ul className="admin-history-list">{history.map((item) => (<li key={item.id}><strong>{STATUS_LABELS[item.previousStatus] || item.previousStatus} → {STATUS_LABELS[item.nextStatus] || item.nextStatus}</strong><span>{item.changedByRole || 'system'} · {item.changedByUserId || 'unknown'} · {formatDate(item.createdAt)}</span>{item.comment ? <p>{item.comment}</p> : null}</li>))}</ul>)}</section>
+
+              <section><h3>Медиа</h3>{selectedRequest.media?.length ? (<ul className="admin-media-list">{selectedRequest.media.map((media) => (<li key={media.id}><a href={media.fileUrl || media.url} target="_blank" rel="noreferrer">{media.originalName || media.fileUrl || media.url}</a></li>))}</ul>) : <p>Медиа не прикреплены.</p>}</section>
+
               <section>
-                <h3>Описание</h3>
-                <p>{selectedRequest.description}</p>
+                <h3>Комментарии</h3>
+                <div className="admin-notes-form"><textarea value={newNote} onChange={(event) => setNewNote(event.target.value)} placeholder="Добавить внутреннюю заметку" /><button type="button" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>Добавить заметку</button></div>
+                {!notes.length ? <p>Заметок пока нет.</p> : (<ul className="admin-history-list">{notes.map((item) => (<li key={item.id}><strong>{item.authorRole} · {item.authorId}</strong><span>{formatDate(item.createdAt)}</span><p>{item.text}</p></li>))}</ul>)}
               </section>
 
               <section>
-                <h3>Назначение менеджера</h3>
-                <input
-                  value={assigneeUserId}
-                  onChange={(event) => setAssigneeUserId(event.target.value)}
-                  placeholder="user-sales-manager-1"
-                />
-                <button type="button" onClick={handleAssignManager} disabled={assigning}>
-                  {assigning ? 'Сохраняем…' : 'Назначить'}
-                </button>
-              </section>
-
-              <section>
-                <h3>Изменение статуса</h3>
-                <select value={selectedStatus} onChange={handleStatusChange} disabled={updatingStatus}>
-                  {STATUS_OPTIONS.filter((item) => item.value !== 'all').map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-                <textarea
-                  value={statusComment}
-                  onChange={(event) => setStatusComment(event.target.value)}
-                  placeholder="Комментарий к смене статуса (необязательно)"
-                />
-              </section>
-
-              <section>
-                <h3>Медиа</h3>
-                {selectedRequest.media?.length ? (
-                  <div className="admin-media-block">
-                    <div>
-                      <h4>Фото</h4>
-                      <div className="admin-media-gallery">
-                        {selectedRequest.media.filter((media) => media.type === 'image').map((media) => (
-                          <a key={media.id} href={media.fileUrl || media.url} target="_blank" rel="noreferrer" className="admin-media-thumb-link">
-                            <img src={media.imgUrl || media.previewUrl || media.fileUrl || media.url} alt={media.originalName || media.id} className="admin-media-thumb" />
-                          </a>
-                        ))}
-                      </div>
-                      {!selectedRequest.media.some((media) => media.type === 'image') ? <p>Фото не прикреплены.</p> : null}
-                    </div>
-                    <div>
-                      <h4>Видео</h4>
-                      <ul className="admin-media-list">
-                        {selectedRequest.media.filter((media) => media.type === 'video').map((media) => (
-                          <li key={media.id}>
-                            <a href={media.fileUrl || media.url} target="_blank" rel="noreferrer">
-                              {media.originalName || media.fileUrl || media.url}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                      {!selectedRequest.media.some((media) => media.type === 'video') ? <p>Видео не прикреплены.</p> : null}
-                    </div>
-                  </div>
-                ) : <p>Медиа не прикреплены.</p>}
-              </section>
-
-              <section>
-                <h3>История статусов</h3>
-                {!history.length ? <p>История пока пустая.</p> : (
-                  <ul className="admin-history-list">
-                    {history.map((item) => (
-                      <li key={item.id}>
-                        <strong>{STATUS_LABELS[item.previousStatus] || item.previousStatus} → {STATUS_LABELS[item.nextStatus] || item.nextStatus}</strong>
-                        <span>{item.changedByRole || 'system'} · {item.changedByUserId || 'unknown'} · {formatDate(item.createdAt)}</span>
-                        {item.comment ? <p>{item.comment}</p> : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <section>
-                <h3>Internal notes</h3>
-                <div className="admin-notes-form">
-                  <textarea
-                    value={newNote}
-                    onChange={(event) => setNewNote(event.target.value)}
-                    placeholder="Добавить внутреннюю заметку для manager/service"
-                  />
-                  <button type="button" onClick={handleAddNote} disabled={savingNote || !newNote.trim()}>Добавить заметку</button>
+                <h3>Быстрые действия</h3>
+                <input value={assigneeUserId} onChange={(event) => setAssigneeUserId(event.target.value)} placeholder="Назначить инженера / менеджера (user id)" />
+                <div className="service-quick-actions">
+                  <button type="button" onClick={handleAssignManager} disabled={assigning}>{assigning ? 'Сохраняем…' : 'Назначить инженера'}</button>
+                  <select value={selectedStatus} onChange={handleStatusChange} disabled={updatingStatus}>{STATUS_OPTIONS.filter((item) => item.value !== 'all').map((item) => (<option key={item.value} value={item.value}>{item.label}</option>))}</select>
+                  <button type="button" className="secondary" onClick={handleMarkWaitingParts} disabled={savingNote}>Отметить: ждёт запчасти</button>
+                  <button type="button" onClick={handleCloseRequest} disabled={updatingStatus}>Закрыть заявку</button>
                 </div>
-                {!notes.length ? <p>Заметок пока нет.</p> : (
-                  <ul className="admin-history-list">
-                    {notes.map((item) => (
-                      <li key={item.id}>
-                        <strong>{item.authorRole} · {item.authorId}</strong>
-                        <span>{formatDate(item.createdAt)}</span>
-                        <p>{item.text}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <textarea value={statusComment} onChange={(event) => setStatusComment(event.target.value)} placeholder="Комментарий к смене статуса" />
               </section>
             </>
           )}
         </article>
       </div>
+
+      <section className="service-secondary-grid">
+        <article className="admin-page">
+          <h2>Требует внимания</h2>
+          <ul className="service-attention-list">{(dashboard?.attention || []).map((item) => (<li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>))}</ul>
+        </article>
+
+        <article className="admin-page">
+          <h2>Нагрузка инженеров</h2>
+          <ul className="service-engineer-load">{(dashboard?.engineerLoad || []).map((item) => (<li key={item.userId}><div><strong>{item.name}</strong><span>Активные: {item.active} · Просрочки: {item.overdue} · Закрыто сегодня: {item.closedToday}</span></div><em>{compactDuration(item.avgCloseHours)}</em></li>))}</ul>
+        </article>
+      </section>
+
+      {canSeeGlobal ? (
+        <section className="service-analytics-grid">
+          <article className="admin-page"><h2>По статусам</h2><ul>{(dashboard?.analytics?.statuses || []).map((item) => (<li key={item.key}>{item.label}: {item.value}</li>))}</ul></article>
+          <article className="admin-page"><h2>По типам оборудования</h2><ul>{(dashboard?.analytics?.equipmentTypes || []).map((item) => (<li key={item.key}>{item.label}: {item.value}</li>))}</ul></article>
+          <article className="admin-page"><h2>По брендам</h2><ul>{(dashboard?.analytics?.brands || []).map((item) => (<li key={item.key}>{item.label}: {item.value}</li>))}</ul></article>
+          <article className="admin-page"><h2>Динамика (14 дней)</h2><ul>{(dashboard?.analytics?.daily || []).map((item) => (<li key={item.key}>{item.label}: {item.value}</li>))}</ul></article>
+        </section>
+      ) : null}
     </section>
   );
 }

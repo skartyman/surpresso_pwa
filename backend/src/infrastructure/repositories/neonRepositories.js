@@ -203,11 +203,12 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(item);
   }
 
-  async listForAdmin({ status, id, client, equipment, type, assignedDepartment } = {}) {
-    const where = {
+  buildAdminWhere({ status, id, client, equipment, type, assignedDepartment, assignedToUserId } = {}) {
+    return {
       ...(status ? { status } : {}),
       ...(type ? { type } : {}),
       ...(assignedDepartment ? { assignedDepartment } : {}),
+      ...(assignedToUserId ? { assignedToUserId } : {}),
       ...(id ? { id: { contains: id, mode: 'insensitive' } } : {}),
       ...(client
         ? {
@@ -234,12 +235,129 @@ export class NeonServiceRequestRepository {
           }
         : {}),
     };
+  }
+
+  sortRequests(items, sort) {
+    if (sort === 'updatedAt') return [...items].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (sort === 'urgency') {
+      const priority = { critical: 4, high: 3, medium: 2, low: 1 };
+      return [...items].sort((a, b) => (priority[b.urgency] || 0) - (priority[a.urgency] || 0));
+    }
+    return [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async listForAdmin(filters = {}) {
+    const { sort = 'createdAt' } = filters;
+    const where = this.buildAdminWhere(filters);
     const items = await this.prisma.serviceRequest.findMany({
       where: Object.keys(where).length ? where : undefined,
       include: { media: true, client: true, equipment: true },
       orderBy: { createdAt: 'desc' },
     });
-    return items.map(mapServiceRequest);
+    return this.sortRequests(items.map(mapServiceRequest), sort);
+  }
+
+  isOverdue(item, now = new Date()) {
+    if (!item || item.status === 'closed' || item.status === 'resolved') return false;
+    const slaHours = { critical: 4, high: 8, medium: 24, low: 48 };
+    const hours = slaHours[item.urgency] || 24;
+    const createdAt = new Date(item.createdAt).getTime();
+    return now.getTime() - createdAt > hours * 60 * 60 * 1000;
+  }
+
+  async getDashboardMetrics(filters = {}) {
+    const requests = await this.listForAdmin(filters);
+    const requestIds = requests.map((item) => item.id);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const history = requestIds.length
+      ? await this.prisma.serviceRequestStatusHistory.findMany({ where: { serviceRequestId: { in: requestIds } } })
+      : [];
+    const notes = requestIds.length
+      ? await this.prisma.serviceRequestInternalNote.findMany({ where: { serviceRequestId: { in: requestIds } } })
+      : [];
+    const engineers = await this.prisma.user.findMany({ where: { role: 'service_engineer', isActive: true }, orderBy: { fullName: 'asc' } });
+
+    const byId = Object.fromEntries(requests.map((r) => [r.id, r]));
+    const notesByRequest = notes.reduce((acc, item) => {
+      (acc[item.serviceRequestId] ||= []).push(item);
+      return acc;
+    }, {});
+
+    const statusCounts = requests.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const attention = {
+      unassigned: requests.filter((item) => !item.assignedToUserId).length,
+      critical: requests.filter((item) => item.urgency === 'critical').length,
+      withoutEquipment: requests.filter((item) => !item.equipmentId).length,
+      withoutResponse: requests.filter((item) => !history.some((h) => h.serviceRequestId === item.id)).length,
+      stuckInProgress: requests.filter((item) => item.status === 'in_progress' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 60 * 60 * 1000).length,
+      overdue: requests.filter((item) => this.isOverdue(item, now)).length,
+    };
+
+    const closedToday = requests.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length;
+    const waitingParts = requests.filter((item) => (notesByRequest[item.id] || []).some((n) => String(n.text || '').toLowerCase().includes('waiting_parts') || String(n.text || '').toLowerCase().includes('запчаст'))).length;
+
+    const engineerLoad = engineers.map((eng) => {
+      const own = requests.filter((item) => item.assignedToUserId === eng.id);
+      const closed = own.filter((item) => item.status === 'closed');
+      const avgCloseHours = closed.length
+        ? closed.reduce((sum, item) => sum + ((new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000), 0) / closed.length
+        : null;
+      return {
+        userId: eng.id,
+        name: eng.fullName,
+        active: own.filter((item) => item.status !== 'closed').length,
+        overdue: own.filter((item) => this.isOverdue(item, now)).length,
+        closedToday: own.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length,
+        avgCloseHours,
+      };
+    });
+
+    const daily = [];
+    for (let i = 13; i >= 0; i -= 1) {
+      const d = new Date(now);
+      d.setUTCDate(now.getUTCDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      daily.push({ key: iso, label: iso.slice(5), value: requests.filter((item) => String(item.createdAt).slice(0, 10) === iso).length });
+    }
+
+    const grouped = (items, keyFn, labelFn = (v) => v || '—') => Object.entries(items.reduce((acc, item) => {
+      const key = keyFn(item) || 'unknown';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {})).map(([key, value]) => ({ key, label: labelFn(key), value })).sort((a, b) => b.value - a.value).slice(0, 8);
+
+    return {
+      kpis: [
+        { key: 'new', label: 'Новые заявки', value: statusCounts.new || 0 },
+        { key: 'in_progress', label: 'В работе', value: statusCounts.in_progress || 0 },
+        { key: 'overdue', label: 'Просроченные', value: attention.overdue },
+        { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
+        { key: 'waiting_parts', label: 'Ждут запчасти', value: waitingParts },
+        { key: 'closed_today', label: 'Закрыто сегодня', value: closedToday },
+      ],
+      attention: [
+        { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
+        { key: 'critical', label: 'Критические', value: attention.critical },
+        { key: 'without_equipment', label: 'Без оборудования', value: attention.withoutEquipment },
+        { key: 'without_response', label: 'Без ответа', value: attention.withoutResponse },
+        { key: 'stuck', label: 'Зависшие в работе', value: attention.stuckInProgress },
+        { key: 'overdue', label: 'Просроченные', value: attention.overdue },
+      ],
+      engineers: engineers.map((eng) => ({ userId: eng.id, name: eng.fullName })),
+      engineerLoad,
+      analytics: {
+        statuses: grouped(requests, (item) => item.status, (key) => key),
+        equipmentTypes: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.type, (key) => key),
+        brands: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.brand, (key) => key),
+        daily,
+      },
+      byId,
+    };
   }
 
   async findForAdminById(id) {

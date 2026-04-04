@@ -1,6 +1,7 @@
 import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 import { normalizeRequestType, REQUEST_DEPARTMENTS, REQUEST_TYPES } from '../../domain/entities/requestTypes.js';
 const ALLOWED_STATUSES = ['new', 'in_progress', 'resolved', 'closed'];
+const ALLOWED_SORT = ['urgency', 'createdAt', 'updatedAt'];
 
 function normalizeStatus(value) {
   if (!value) return null;
@@ -8,9 +9,23 @@ function normalizeStatus(value) {
   return ALLOWED_STATUSES.includes(normalized) ? normalized : null;
 }
 
+function normalizeSort(value) {
+  if (!value) return 'createdAt';
+  const normalized = String(value).trim();
+  return ALLOWED_SORT.includes(normalized) ? normalized : 'createdAt';
+}
+
 export function createAdminServiceController(serviceRepository) {
-  function scopeFiltersByRole(role, filters = {}) {
-    if (role === 'service_engineer' || role === 'service_head') {
+  function scopeFiltersByRole(role, userId, filters = {}) {
+    if (role === 'service_engineer') {
+      return {
+        ...filters,
+        type: REQUEST_TYPES.serviceRepair,
+        assignedDepartment: REQUEST_DEPARTMENTS.service,
+        assignedToUserId: userId,
+      };
+    }
+    if (role === 'service_head' || role === 'manager') {
       return { ...filters, type: REQUEST_TYPES.serviceRepair, assignedDepartment: REQUEST_DEPARTMENTS.service };
     }
     if (role === 'sales_manager') {
@@ -19,10 +34,11 @@ export function createAdminServiceController(serviceRepository) {
     return filters;
   }
 
-  function isVisibleToRole(role, request) {
-    const scoped = scopeFiltersByRole(role, {});
+  function isVisibleToRole(role, userId, request) {
+    const scoped = scopeFiltersByRole(role, userId, {});
     if (scoped.type && request.type !== scoped.type) return false;
     if (scoped.assignedDepartment && request.assignedDepartment !== scoped.assignedDepartment) return false;
+    if (scoped.assignedToUserId && request.assignedToUserId !== scoped.assignedToUserId) return false;
     return true;
   }
 
@@ -41,9 +57,20 @@ export function createAdminServiceController(serviceRepository) {
       const id = String(req.query?.id || '').trim() || null;
       const client = String(req.query?.client || '').trim() || null;
       const equipment = String(req.query?.equipment || '').trim() || null;
-      const scopedFilters = scopeFiltersByRole(req.adminUser?.role, { status, id, client, equipment, type });
+      const engineer = String(req.query?.engineer || '').trim() || null;
+      const sort = normalizeSort(req.query?.sort);
+      const scopedFilters = scopeFiltersByRole(req.adminUser?.role, req.adminUser?.id, { status, id, client, equipment, type, assignedToUserId: engineer, sort });
       const requests = await serviceRepository.listForAdmin(scopedFilters);
       return res.json({ requests: requests.map((item) => enrichServiceRequestMedia(req, item)) });
+    },
+
+    async dashboard(req, res) {
+      const status = normalizeStatus(req.query?.status);
+      const type = normalizeRequestType(req.query?.type);
+      const engineer = String(req.query?.engineer || '').trim() || null;
+      const scopedFilters = scopeFiltersByRole(req.adminUser?.role, req.adminUser?.id, { status, type, assignedToUserId: engineer });
+      const metrics = await serviceRepository.getDashboardMetrics(scopedFilters);
+      return res.json(metrics);
     },
 
     async byId(req, res) {
@@ -51,7 +78,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      if (!isVisibleToRole(req.adminUser?.role, request)) {
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       return res.json({ request: enrichServiceRequestMedia(req, request) });
@@ -69,7 +96,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      if (!isVisibleToRole(req.adminUser?.role, request)) {
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
 
@@ -97,7 +124,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      if (!isVisibleToRole(req.adminUser?.role, request)) {
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       const history = await serviceRepository.listHistory(request.id);
@@ -109,7 +136,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      if (!isVisibleToRole(req.adminUser?.role, request)) {
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       const notes = await serviceRepository.listInternalNotes(request.id);
@@ -121,7 +148,7 @@ export function createAdminServiceController(serviceRepository) {
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
-      if (!isVisibleToRole(req.adminUser?.role, request)) {
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
 
