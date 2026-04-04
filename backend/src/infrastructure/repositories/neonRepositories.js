@@ -26,7 +26,6 @@ function mapServiceRequest(item) {
     assignedDepartment: item.assignedDepartment || 'service',
     assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     canOperate: item.canOperateNow,
-    assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     client: mapClient(item.client),
@@ -613,27 +612,6 @@ export class NeonServiceRequestRepository {
     }
     return mapServiceRequest(updated);
   }
-
-  async listAssignmentHistory(serviceRequestId) {
-    const items = await this.prisma.serviceRequestAssignmentHistory.findMany({
-      where: { serviceRequestId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        fromUser: true,
-        toUser: true,
-        assignedByUser: true,
-      },
-    });
-
-    return items.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      fromUser: mapUser(item.fromUser),
-      toUser: mapUser(item.toUser),
-      assignedByUser: mapUser(item.assignedByUser),
-    }));
-  }
-
   async listServiceEngineersWithWorkload() {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
