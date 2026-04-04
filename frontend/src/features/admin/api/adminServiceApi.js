@@ -41,10 +41,12 @@ export const adminServiceApi = {
     method: 'POST',
     body: JSON.stringify({ status, comment }),
   }),
-  assignManager: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
+  serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
+  assignManager: async (id, assignedToUserId, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
     method: 'POST',
-    body: JSON.stringify({ assignedToUserId }),
+    body: JSON.stringify({ assignedToUserId, comment }),
   }),
+  assignmentHistory: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/assignment-history`),
   history: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/history`),
   notes: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/notes`),
   addNote: async (id, text) => apiFetch(`/api/telegram/admin/service-requests/${id}/notes`, {

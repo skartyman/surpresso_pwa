@@ -25,10 +25,13 @@ function mapServiceRequest(item) {
     title: item.title || item.description || '',
     assignedDepartment: item.assignedDepartment || 'service',
     canOperate: item.canOperateNow,
+    assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     client: mapClient(item.client),
     equipment: mapEquipment(item.equipment),
+    assignedToUser: mapUser(item.assignedToUser),
+    assignedByUser: mapUser(item.assignedByUser),
     media: (item.media || []).map((media) => ({
       ...media,
       createdAt: media.createdAt.toISOString(),
@@ -45,6 +48,13 @@ function mapServiceRequest(item) {
     notes: (item.notes || []).map((note) => ({
       ...note,
       createdAt: note.createdAt.toISOString(),
+    })),
+    assignmentHistory: (item.assignmentHistory || []).map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      fromUser: mapUser(row.fromUser),
+      toUser: mapUser(row.toUser),
+      assignedByUser: mapUser(row.assignedByUser),
     })),
   };
 }
@@ -251,7 +261,7 @@ export class NeonServiceRequestRepository {
     const where = this.buildAdminWhere(filters);
     const items = await this.prisma.serviceRequest.findMany({
       where: Object.keys(where).length ? where : undefined,
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
       orderBy: { createdAt: 'desc' },
     });
     return this.sortRequests(items.map(mapServiceRequest), sort);
@@ -350,6 +360,11 @@ export class NeonServiceRequestRepository {
       ],
       engineers: engineers.map((eng) => ({ userId: eng.id, name: eng.fullName })),
       engineerLoad,
+      assignment: {
+        unassignedCount: attention.unassigned,
+        overloadedEngineers: engineerLoad.filter((item) => item.active + item.overdue >= 6).map((item) => ({ userId: item.userId, name: item.name })),
+        freeEngineers: engineerLoad.filter((item) => item.active === 0 && item.overdue === 0).map((item) => ({ userId: item.userId, name: item.name })),
+      },
       analytics: {
         statuses: grouped(requests, (item) => item.status, (key) => key),
         equipmentTypes: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.type, (key) => key),
@@ -367,8 +382,18 @@ export class NeonServiceRequestRepository {
         media: true,
         client: true,
         equipment: true,
+        assignedToUser: true,
+        assignedByUser: true,
         history: { orderBy: { createdAt: 'desc' } },
         notes: { orderBy: { createdAt: 'desc' } },
+        assignmentHistory: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            fromUser: true,
+            toUser: true,
+            assignedByUser: true,
+          },
+        },
       },
     });
     return mapServiceRequest(item);
@@ -417,7 +442,7 @@ export class NeonServiceRequestRepository {
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: { status },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
 
     await this.prisma.serviceRequestStatusHistory.create({
@@ -435,13 +460,89 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(updated);
   }
 
-  async assignToUser(id, assignedToUserId) {
+  async assignToUser(id, assignedToUserId, meta = {}) {
+    const existing = await this.prisma.serviceRequest.findUnique({
+      where: { id },
+      select: { assignedToUserId: true },
+    });
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
-      data: { assignedToUserId: assignedToUserId || null },
-      include: { media: true, client: true, equipment: true },
+      data: {
+        assignedToUserId: assignedToUserId || null,
+        assignedAt: assignedToUserId ? new Date() : null,
+        assignedByUserId: assignedToUserId ? (meta.assignedByUserId || null) : null,
+      },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
+
+    if (assignedToUserId) {
+      await this.prisma.serviceRequestAssignmentHistory.create({
+        data: {
+          id: `srah-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          serviceRequestId: id,
+          fromUserId: existing?.assignedToUserId || null,
+          toUserId: assignedToUserId,
+          assignedByUserId: meta.assignedByUserId,
+          comment: meta.comment || null,
+        },
+      });
+    }
     return mapServiceRequest(updated);
+  }
+
+  async listAssignmentHistory(serviceRequestId) {
+    const items = await this.prisma.serviceRequestAssignmentHistory.findMany({
+      where: { serviceRequestId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        fromUser: true,
+        toUser: true,
+        assignedByUser: true,
+      },
+    });
+
+    return items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      fromUser: mapUser(item.fromUser),
+      toUser: mapUser(item.toUser),
+      assignedByUser: mapUser(item.assignedByUser),
+    }));
+  }
+
+  async listServiceEngineersWithWorkload() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const engineers = await this.prisma.user.findMany({
+      where: { role: 'service_engineer' },
+      orderBy: { fullName: 'asc' },
+    });
+    const requests = await this.prisma.serviceRequest.findMany({
+      where: { assignedDepartment: 'service', type: 'service_repair' },
+      select: {
+        assignedToUserId: true,
+        urgency: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return engineers.map((eng) => {
+      const own = requests.filter((item) => item.assignedToUserId === eng.id);
+      return {
+        id: eng.id,
+        fullName: eng.fullName,
+        role: eng.role,
+        isActive: eng.isActive,
+        workload: {
+          activeCount: own.filter((item) => !['closed', 'resolved'].includes(item.status)).length,
+          overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
+          criticalCount: own.filter((item) => !['closed', 'resolved'].includes(item.status) && item.urgency === 'critical').length,
+          resolvedTodayCount: own.filter((item) => ['closed', 'resolved'].includes(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
+        },
+      };
+    });
   }
 
   async listHistory(serviceRequestId) {
