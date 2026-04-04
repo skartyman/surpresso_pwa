@@ -1,84 +1,37 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminEmployeesApi } from '../api/adminEmployeesApi';
-import { ROLE_LABELS, ROLES } from '../roleConfig';
+import { ROLES, ROLE_LABELS } from '../roleConfig';
 import { useAuth } from '../../auth/AuthContext';
 
-const WORK_MODE_OPTIONS = [
-  { key: 'field', label: 'Выездной' },
-  { key: 'inhouse', label: 'В мастерской' },
-  { key: 'hybrid', label: 'Гибридный' },
-];
+const ROLE_OPTIONS = Object.values(ROLES);
+const SERVICE_ROLE_OPTIONS = [ROLES.serviceEngineer];
 
 const DEFAULT_FORM = {
   fullName: '',
   email: '',
+  phone: '',
   role: ROLES.serviceEngineer,
-  positionTitle: 'Сервисный инженер',
+  positionTitle: '',
   password: '',
   isActive: true,
-  phone: '',
-  notes: '',
-  workMode: 'hybrid',
-  capacity: 6,
-  maxCritical: 2,
-  priorityWeight: 0,
-  canTakeUrgent: true,
-  canTakeFieldRequests: false,
-  specializations: [],
-  brands: [],
-  zones: [],
 };
-
-function pickLoadTone(employee) {
-  if (!employee?.isActive) return 'inactive';
-  const load = Number(employee.activeCount || 0) / Math.max(Number(employee.capacity || 6), 1);
-  if (load >= 1) return 'high';
-  if (load >= 0.65) return 'medium';
-  return 'low';
-}
-
-function cloneForEdit(user = {}) {
-  return {
-    ...DEFAULT_FORM,
-    ...user,
-    specializations: [...(user.specializations || [])],
-    brands: [...(user.brands || [])],
-    zones: [...(user.zones || [])],
-  };
-}
 
 export function AdminEmployeesPage() {
   const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [selected, setSelected] = useState(null);
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' });
-  const [lookups, setLookups] = useState({ specializations: [], brands: [], zones: [] });
   const [createMode, setCreateMode] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
-  const isEngineer = user?.role === ROLES.serviceEngineer;
-  const canEdit = [ROLES.owner, ROLES.director, ROLES.serviceHead, ROLES.manager].includes(user?.role);
+  const isServiceHead = user?.role === ROLES.serviceHead;
+  const editableRoles = isServiceHead ? SERVICE_ROLE_OPTIONS : ROLE_OPTIONS;
 
-  const roleOptions = useMemo(() => Object.values(ROLES), []);
-
-  async function load(query = filters) {
-    const [usersPayload, specializationsPayload, brandsPayload, zonesPayload] = await Promise.all([
-      adminEmployeesApi.list(query),
-      adminEmployeesApi.specializations(),
-      adminEmployeesApi.brands(),
-      adminEmployeesApi.zones(),
-    ]);
-
-    const users = usersPayload.users || [];
-    setEmployees(users);
-    setLookups({
-      specializations: specializationsPayload.items || [],
-      brands: brandsPayload.items || [],
-      zones: zonesPayload.items || [],
-    });
-
-    if (!selected && users.length) {
-      setSelected(cloneForEdit(users[0]));
+  async function load() {
+    const payload = await adminEmployeesApi.list(isServiceHead ? { ...filters, role: filters.role || ROLES.serviceEngineer } : filters);
+    setEmployees(payload.users || []);
+    if (!selected && payload.users?.length) {
+      setSelected(payload.users[0]);
     }
   }
 
@@ -90,31 +43,22 @@ export function AdminEmployeesPage() {
   async function applyFilters(event) {
     const next = { ...filters, [event.target.name]: event.target.value };
     setFilters(next);
-    await load(next);
+    const payload = await adminEmployeesApi.list(next);
+    setEmployees(payload.users || []);
   }
 
   async function openCard(id) {
     const payload = await adminEmployeesApi.byId(id);
-    setSelected(cloneForEdit(payload.user || null));
+    setSelected(payload.user || null);
     setCreateMode(false);
-  }
-
-  function toggleArrayField(field, value) {
-    const current = createMode ? form : selected;
-    const setter = createMode ? setForm : setSelected;
-    const hasValue = (current?.[field] || []).includes(value);
-    setter((prev) => ({
-      ...prev,
-      [field]: hasValue ? prev[field].filter((item) => item !== value) : [...prev[field], value],
-    }));
   }
 
   async function saveCreate() {
     setSaving(true);
     try {
       await adminEmployeesApi.create(form);
-      setCreateMode(false);
       setForm(DEFAULT_FORM);
+      setCreateMode(false);
       await load();
     } finally {
       setSaving(false);
@@ -125,37 +69,47 @@ export function AdminEmployeesPage() {
     if (!selected) return;
     setSaving(true);
     try {
-      const { user: next } = await adminEmployeesApi.update(selected.id, selected);
-      setSelected(cloneForEdit(next));
+      const { user } = await adminEmployeesApi.update(selected.id, {
+        fullName: selected.fullName,
+        email: selected.email,
+        phone: selected.phone,
+        role: selected.role,
+        positionTitle: selected.positionTitle,
+        isActive: selected.isActive,
+        password: selected.password || undefined,
+      });
+      setSelected(user);
       await load();
     } finally {
       setSaving(false);
     }
   }
 
-  const current = createMode ? form : selected;
-
   return (
-    <section className="employees-page">
-      <header className="employees-topbar">
-        <div>
-          <h2>Сотрудники / Команда сервиса</h2>
-          <p>Профили инженеров, специализации, зоны выезда и правила нагрузки.</p>
-        </div>
-        {canEdit ? <button type="button" onClick={() => { setCreateMode(true); setSelected(null); }}>Добавить сотрудника</button> : null}
+    <section className="admin-service-page">
+      <header className="admin-service-page__header">
+        <h1>Сотрудники</h1>
+        <button type="button" onClick={() => { setCreateMode(true); setSelected(null); }}>Создать сотрудника</button>
       </header>
+      <p>
+        Доступ: owner/director — полный контроль над сотрудниками; service_head — только сервисные сотрудники и управление ролью
+        «Сервисный инженер».
+      </p>
 
-      <div className="employees-filters">
-        <label><span>Поиск</span><input name="q" value={filters.q} onChange={applyFilters} placeholder="ФИО, email, телефон" /></label>
+      <div className="admin-filters-grid admin-filters-grid--employees">
+        <label>
+          <span>Поиск</span>
+          <input name="q" value={filters.q} onChange={applyFilters} placeholder="ФИО, email, телефон" />
+        </label>
         <label>
           <span>Роль</span>
-          <select name="role" value={filters.role} onChange={applyFilters}>
+          <select name="role" value={filters.role} onChange={applyFilters} disabled={isServiceHead}>
             <option value="">Все роли</option>
-            {roleOptions.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+            {(isServiceHead ? SERVICE_ROLE_OPTIONS : ROLE_OPTIONS).map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
           </select>
         </label>
         <label>
-          <span>Статус</span>
+          <span>Активность</span>
           <select name="isActive" value={filters.isActive} onChange={applyFilters}>
             <option value="">Все</option>
             <option value="true">Активные</option>
@@ -164,77 +118,84 @@ export function AdminEmployeesPage() {
         </label>
       </div>
 
-      <div className="employees-workspace">
-        <aside className="employees-list">
+      <div className="admin-service-grid">
+        <div className="admin-service-list">
           {employees.map((employee) => (
-            <button key={employee.id} type="button" className={`employee-card ${selected?.id === employee.id ? 'active' : ''}`} onClick={() => openCard(employee.id)}>
-              <div className="employee-card__top">
-                <strong>{employee.fullName}</strong>
-                <em data-tone={pickLoadTone(employee)}>{employee.isActive ? 'Активен' : 'Неактивен'}</em>
-              </div>
-              <small>{ROLE_LABELS[employee.role] || employee.role}</small>
-              <p>{(employee.specializations || []).join(', ') || 'Без специализаций'}</p>
-              <div className="employee-card__metrics">
-                <span>active {employee.activeCount || 0}</span>
-                <span>overdue {employee.overdueCount || 0}</span>
-                <span>critical {employee.criticalCount || 0}</span>
-              </div>
+            <button key={employee.id} type="button" className={`admin-service-list__item ${selected?.id === employee.id ? 'active' : ''}`} onClick={() => openCard(employee.id)}>
+              <strong>{employee.fullName}</strong>
+              <span>Должность: {employee.positionTitle || '—'}</span>
+              <small>Роль: {ROLE_LABELS[employee.role] || employee.role}</small>
+              <small>Активность: {employee.isActive ? 'Активен' : 'Отключен'}</small>
             </button>
           ))}
-        </aside>
+        </div>
 
-        <article className="employees-detail">
-          {!current ? <p>Выберите сотрудника из списка.</p> : (
+        <article className="admin-service-detail">
+          {createMode ? (
             <>
-              <h3>{createMode ? 'Новый сотрудник' : 'Профиль сотрудника'}</h3>
-
-              <section className="employees-form-section">
-                <h4>Основное</h4>
-                <div className="employees-grid">
-                  <label><span>ФИО</span><input value={current.fullName || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, fullName: e.target.value })) : setSelected((p) => ({ ...p, fullName: e.target.value })))} /></label>
-                  <label><span>Email</span><input value={current.email || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, email: e.target.value })) : setSelected((p) => ({ ...p, email: e.target.value })))} /></label>
-                  <label><span>Роль</span><select value={current.role || ''} disabled={!canEdit || isEngineer} onChange={(e) => (createMode ? setForm((p) => ({ ...p, role: e.target.value })) : setSelected((p) => ({ ...p, role: e.target.value })))}>{roleOptions.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}</select></label>
-                  <label><span>Статус</span><select value={current.isActive ? 'true' : 'false'} disabled={!canEdit} onChange={(e) => (createMode ? setForm((p) => ({ ...p, isActive: e.target.value === 'true' })) : setSelected((p) => ({ ...p, isActive: e.target.value === 'true' })))}><option value="true">Активен</option><option value="false">Неактивен</option></select></label>
-                  <label><span>Телефон</span><input value={current.phone || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, phone: e.target.value })) : setSelected((p) => ({ ...p, phone: e.target.value })))} /></label>
-                  <label><span>Примечания</span><input value={current.notes || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, notes: e.target.value })) : setSelected((p) => ({ ...p, notes: e.target.value })))} /></label>
-                  {createMode ? <label><span>Пароль</span><input type="password" value={current.password || ''} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} /></label> : null}
-                </div>
-              </section>
-
-              <section className="employees-form-section">
-                <h4>Формат работы</h4>
-                <div className="chips-row">{WORK_MODE_OPTIONS.map((mode) => <button type="button" key={mode.key} className={`chip ${current.workMode === mode.key ? 'active' : ''}`} onClick={() => (createMode ? setForm((p) => ({ ...p, workMode: mode.key })) : setSelected((p) => ({ ...p, workMode: mode.key })))}>{mode.label}</button>)}</div>
-              </section>
-
-              <section className="employees-form-section">
-                <h4>Специализации</h4>
-                <div className="chips-row">{lookups.specializations.map((key) => <button key={key} type="button" className={`chip ${(current.specializations || []).includes(key) ? 'active' : ''}`} onClick={() => toggleArrayField('specializations', key)}>{key}</button>)}</div>
-              </section>
-
-              <section className="employees-form-section">
-                <h4>Бренды</h4>
-                <div className="chips-row">{lookups.brands.map((key) => <button key={key} type="button" className={`chip ${(current.brands || []).includes(key) ? 'active' : ''}`} onClick={() => toggleArrayField('brands', key)}>{key}</button>)}</div>
-              </section>
-
-              <section className="employees-form-section">
-                <h4>Выездные зоны</h4>
-                <div className="chips-row">{lookups.zones.map((key) => <button key={key} type="button" className={`chip ${(current.zones || []).includes(key) ? 'active' : ''}`} onClick={() => toggleArrayField('zones', key)}>{key}</button>)}</div>
-              </section>
-
-              <section className="employees-form-section">
-                <h4>Нагрузка и правила</h4>
-                <div className="employees-grid">
-                  <label><span>Capacity</span><input type="number" value={current.capacity ?? 6} onChange={(e) => (createMode ? setForm((p) => ({ ...p, capacity: Number(e.target.value) })) : setSelected((p) => ({ ...p, capacity: Number(e.target.value) })))} /></label>
-                  <label><span>Max critical</span><input type="number" value={current.maxCritical ?? 2} onChange={(e) => (createMode ? setForm((p) => ({ ...p, maxCritical: Number(e.target.value) })) : setSelected((p) => ({ ...p, maxCritical: Number(e.target.value) })))} /></label>
-                  <label><span>Priority weight</span><input type="number" value={current.priorityWeight ?? 0} onChange={(e) => (createMode ? setForm((p) => ({ ...p, priorityWeight: Number(e.target.value) })) : setSelected((p) => ({ ...p, priorityWeight: Number(e.target.value) })))} /></label>
-                  <label><span>Urgent</span><select value={current.canTakeUrgent ? 'true' : 'false'} onChange={(e) => (createMode ? setForm((p) => ({ ...p, canTakeUrgent: e.target.value === 'true' })) : setSelected((p) => ({ ...p, canTakeUrgent: e.target.value === 'true' })))}><option value="true">Да</option><option value="false">Нет</option></select></label>
-                  <label><span>Field requests</span><select value={current.canTakeFieldRequests ? 'true' : 'false'} onChange={(e) => (createMode ? setForm((p) => ({ ...p, canTakeFieldRequests: e.target.value === 'true' })) : setSelected((p) => ({ ...p, canTakeFieldRequests: e.target.value === 'true' })))}><option value="true">Да</option><option value="false">Нет</option></select></label>
-                </div>
-              </section>
-
-              {(canEdit || (isEngineer && !createMode)) ? <button type="button" onClick={createMode ? saveCreate : saveUpdate} disabled={saving}>{createMode ? 'Создать' : 'Сохранить изменения'}</button> : null}
+              <h2>Новый сотрудник</h2>
+              <div className="admin-detail-grid">
+                <label><span>ФИО</span><input value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} /></label>
+                <label><span>Email</span><input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></label>
+                <label><span>Телефон</span><input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></label>
+                <label><span>Должность</span><input value={form.positionTitle} onChange={(e) => setForm((p) => ({ ...p, positionTitle: e.target.value }))} /></label>
+                <label>
+                  <span>Роль</span>
+                  <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}>
+                    {editableRoles.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+                  </select>
+                </label>
+                <label><span>Пароль</span><input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} /></label>
+                <label>
+                  <span>Активность</span>
+                  <select value={form.isActive ? 'true' : 'false'} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.value === 'true' }))}>
+                    <option value="true">Активен</option>
+                    <option value="false">Отключен</option>
+                  </select>
+                </label>
+              </div>
+              <button type="button" onClick={saveCreate} disabled={saving}>Создать</button>
             </>
-          )}
+          ) : selected ? (
+            <>
+              <h2>Карточка сотрудника</h2>
+              <div className="admin-detail-grid">
+                <label><span>ФИО</span><input value={selected.fullName || ''} onChange={(e) => setSelected((p) => ({ ...p, fullName: e.target.value }))} /></label>
+                <label><span>Email</span><input value={selected.email || ''} onChange={(e) => setSelected((p) => ({ ...p, email: e.target.value }))} /></label>
+                <label><span>Телефон</span><input value={selected.phone || ''} onChange={(e) => setSelected((p) => ({ ...p, phone: e.target.value }))} /></label>
+                <label><span>Должность</span><input value={selected.positionTitle || ''} onChange={(e) => setSelected((p) => ({ ...p, positionTitle: e.target.value }))} /></label>
+                <label>
+                  <span>Роль</span>
+                  <select
+                    value={selected.role}
+                    onChange={(e) => setSelected((p) => ({ ...p, role: e.target.value }))}
+                    disabled={isServiceHead && selected.role !== ROLES.serviceEngineer}
+                  >
+                    {(isServiceHead ? [selected.role, ...SERVICE_ROLE_OPTIONS] : ROLE_OPTIONS)
+                      .filter((role, index, arr) => arr.indexOf(role) === index)
+                      .map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Пароль</span>
+                  <input
+                    type="password"
+                    value={selected.password || ''}
+                    placeholder="Оставьте пустым, чтобы не менять"
+                    onChange={(e) => setSelected((p) => ({ ...p, password: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Статус</span>
+                  <select value={selected.isActive ? 'true' : 'false'} onChange={(e) => setSelected((p) => ({ ...p, isActive: e.target.value === 'true' }))}>
+                    <option value="true">Активен</option>
+                    <option value="false">Отключен</option>
+                  </select>
+                </label>
+              </div>
+              <button type="button" onClick={saveUpdate} disabled={saving}>Сохранить</button>
+            </>
+          ) : <p>Выберите сотрудника или создайте нового.</p>}
         </article>
       </div>
     </section>

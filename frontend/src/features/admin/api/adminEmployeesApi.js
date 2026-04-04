@@ -22,13 +22,9 @@ export const adminEmployeesApi = {
     if (role) params.set('role', role);
     if (isActive !== undefined && isActive !== null && isActive !== '') params.set('isActive', String(isActive));
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiFetch(`/api/telegram/admin/users${query}`);
+    return apiFetch(`/api/telegram/admin/employees${query}`);
   },
-  byId: async (id) => apiFetch(`/api/telegram/admin/users/${id}`),
-  create: async (payload) => apiFetch('/api/telegram/admin/users', { method: 'POST', body: JSON.stringify(payload) }),
-  update: async (id, payload) => apiFetch(`/api/telegram/admin/users/${id}`, { method: 'POST', body: JSON.stringify(payload) }),
-  serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
-  specializations: async () => apiFetch('/api/telegram/admin/service-specializations'),
-  brands: async () => apiFetch('/api/telegram/admin/brands'),
-  zones: async () => apiFetch('/api/telegram/admin/zones'),
+  byId: async (id) => apiFetch(`/api/telegram/admin/employees/${id}`),
+  create: async (payload) => apiFetch('/api/telegram/admin/employees', { method: 'POST', body: JSON.stringify(payload) }),
+  update: async (id, payload) => apiFetch(`/api/telegram/admin/employees/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
