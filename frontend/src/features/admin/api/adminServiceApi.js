@@ -42,6 +42,7 @@ export const adminServiceApi = {
     method: 'POST',
     body: JSON.stringify({ status, comment }),
   }),
+  serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   assignManager: async (id, assignedToUserId, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
     method: 'POST',
     body: JSON.stringify({ assignedToUserId, comment }),

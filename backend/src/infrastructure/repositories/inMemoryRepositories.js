@@ -17,6 +17,7 @@ function withRequestCompatibility(item) {
     title: item.title || item.description || '',
     assignedDepartment: item.assignedDepartment || resolveDepartmentByType(item.type || REQUEST_TYPES.serviceRepair),
     canOperate: item.canOperateNow,
+    assignedAt: item.assignedAt || null,
   };
 }
 
@@ -156,6 +157,17 @@ export class InMemoryServiceRequestRepository {
 
     const client = this.clients.find((entry) => entry.id === request.clientId) || null;
     const equipment = this.equipment.find((entry) => entry.id === request.equipmentId) || null;
+    const assignedToUser = this.users.find((entry) => entry.id === request.assignedToUserId) || null;
+    const assignedByUser = this.users.find((entry) => entry.id === request.assignedByUserId) || null;
+    const assignmentHistory = this.assignmentHistory
+      .filter((entry) => entry.serviceRequestId === request.id)
+      .map((entry) => ({
+        ...entry,
+        fromUser: this.users.find((u) => u.id === entry.fromUserId) || null,
+        toUser: this.users.find((u) => u.id === entry.toUserId) || null,
+        assignedByUser: this.users.find((u) => u.id === entry.assignedByUserId) || null,
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return {
       ...request,
@@ -292,6 +304,11 @@ export class InMemoryServiceRequestRepository {
       ],
       engineers: serviceEngineers.map((item) => ({ userId: item.id, name: item.fullName || item.name })),
       engineerLoad,
+      assignment: {
+        unassignedCount: attention.unassigned,
+        overloadedEngineers: engineerLoad.filter((item) => item.active + item.overdue >= 6).map((item) => ({ userId: item.userId, name: item.name })),
+        freeEngineers: engineerLoad.filter((item) => item.active === 0 && item.overdue === 0).map((item) => ({ userId: item.userId, name: item.name })),
+      },
       analytics: {
         statuses: grouped(requests, (item) => item.status),
         equipmentTypes: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.type),
@@ -379,26 +396,41 @@ export class InMemoryServiceRequestRepository {
     return this.hydrate(this.requests[index]);
   }
 
-  async listServiceEngineers() {
+  async listAssignmentHistory(serviceRequestId) {
+    return this.assignmentHistory
+      .filter((item) => item.serviceRequestId === serviceRequestId)
+      .map((item) => ({
+        ...item,
+        fromUser: this.users.find((u) => u.id === item.fromUserId) || null,
+        toUser: this.users.find((u) => u.id === item.toUserId) || null,
+        assignedByUser: this.users.find((u) => u.id === item.assignedByUserId) || null,
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async listServiceEngineersWithWorkload() {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
-    return this.users
-      .filter((item) => item.role === 'service_engineer')
-      .map((engineer) => {
-        const own = this.requests.filter((item) => item.assignedToUserId === engineer.id);
-        return {
-          id: engineer.id,
-          fullName: engineer.fullName || engineer.name,
-          role: engineer.role,
-          isActive: engineer.isActive,
-          workload: {
-            activeCount: own.filter((item) => item.status !== 'closed' && item.status !== 'resolved').length,
-            overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
-            criticalCount: own.filter((item) => item.urgency === 'critical' && item.status !== 'closed' && item.status !== 'resolved').length,
-            resolvedTodayCount: own.filter((item) => (item.status === 'resolved' || item.status === 'closed') && String(item.updatedAt).slice(0, 10) === today).length,
-          },
-        };
-      });
+    const engineers = this.users.filter((u) => u.role === 'service_engineer');
+    const serviceRequests = this.requests.filter(
+      (r) => (r.assignedDepartment || resolveDepartmentByType(r.type || REQUEST_TYPES.serviceRepair)) === 'service'
+        && (r.type || REQUEST_TYPES.serviceRepair) === REQUEST_TYPES.serviceRepair,
+    );
+    return engineers.map((eng) => {
+      const own = serviceRequests.filter((item) => item.assignedToUserId === eng.id);
+      return {
+        id: eng.id,
+        fullName: eng.fullName || eng.name || '',
+        role: eng.role,
+        isActive: eng.isActive,
+        workload: {
+          activeCount: own.filter((item) => !['closed', 'resolved'].includes(item.status)).length,
+          overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
+          criticalCount: own.filter((item) => !['closed', 'resolved'].includes(item.status) && item.urgency === 'critical').length,
+          resolvedTodayCount: own.filter((item) => ['closed', 'resolved'].includes(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
+        },
+      };
+    });
   }
 
   async listHistory(serviceRequestId) {

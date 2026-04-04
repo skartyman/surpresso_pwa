@@ -43,9 +43,10 @@ export function createApiRouter(deps) {
   router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.serviceEngineers));
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.list));
   router.get('/admin/service-requests/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.dashboard));
+  router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_head']), asyncHandler(adminServiceController.listServiceEngineers));
   router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.byId));
   router.post('/admin/service-requests/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.updateStatus));
-  router.post('/admin/service-requests/:id/assign', asyncHandler(adminAuth), requireRole(['service_head', 'manager']), asyncHandler(adminServiceController.assignManager));
+  router.post('/admin/service-requests/:id/assign', asyncHandler(adminAuth), requireRole(['manager', 'service_head']), asyncHandler(adminServiceController.assignManager));
   router.get('/admin/service-requests/:id/assignment-history', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.assignmentHistory));
   router.get('/admin/service-requests/:id/history', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.history));
   router.get('/admin/service-requests/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.notes));
