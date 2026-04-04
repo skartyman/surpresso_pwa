@@ -19,27 +19,31 @@ export const ROLE_LABELS = {
 const ALL_ROLES = Object.values(ROLES);
 
 export const ADMIN_MENU = [
-  { key: 'service', to: 'service', label: 'Сервис', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
-  { key: 'sales', to: 'sales', label: 'Продажи и клиенты', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
-  { key: 'communications', to: 'communications', label: 'Коммуникации', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
-  { key: 'employees', to: 'employees', label: 'Сотрудники', roles: [ROLES.serviceHead, ROLES.owner, ROLES.director] },
-  { key: 'analytics', to: 'analytics', label: 'Аналитика', roles: [ROLES.owner, ROLES.director] },
+  { key: 'dashboard', to: 'dashboard', icon: 'dashboard', label: 'Дашборд', roles: ALL_ROLES },
+  { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
+  { key: 'employees', to: 'employees', icon: 'employees', label: 'Сотрудники', roles: [ROLES.serviceHead, ROLES.owner, ROLES.director] },
+  { key: 'clients', to: 'clients', icon: 'clients', label: 'Клиенты', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
+  { key: 'equipment', to: 'equipment', icon: 'equipment', label: 'Оборудование', roles: [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director] },
+  { key: 'sales', to: 'sales', icon: 'sales', label: 'Продажи', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
+  { key: 'content', to: 'content', icon: 'content', label: 'Контент и SEO', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
+  { key: 'settings', to: 'settings', icon: 'settings', label: 'Настройки', roles: ALL_ROLES },
 ];
 
 export const PAGE_PERMISSIONS = {
+  dashboard: ALL_ROLES,
   service: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
   sales: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
-  communications: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
   employees: [ROLES.serviceHead, ROLES.owner, ROLES.director],
-  analytics: [ROLES.owner, ROLES.director],
+  clients: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
+  equipment: [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director],
+  content: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
+  settings: ALL_ROLES,
 };
 
 export function getDefaultAdminSection(role) {
-  if (role === ROLES.serviceEngineer) return 'service';
-  if (role === ROLES.serviceHead) return 'service';
-  if (role === ROLES.manager) return 'service';
+  if (role === ROLES.serviceEngineer || role === ROLES.serviceHead || role === ROLES.manager) return 'service';
   if (role === ROLES.salesManager) return 'sales';
-  if (role === ROLES.owner || role === ROLES.director) return 'employees';
+  if (role === ROLES.owner || role === ROLES.director) return 'dashboard';
   return 'service';
 }
 
