@@ -146,6 +146,7 @@ export class InMemoryServiceRequestRepository {
     this.equipment = [...seed.equipment];
     this.history = [...(seed.serviceRequestHistory || [])];
     this.notes = [...(seed.serviceRequestNotes || [])];
+    this.assignmentHistory = [...(seed.serviceRequestAssignmentHistory || [])];
     this.users = [...seed.users];
   }
 
@@ -160,6 +161,16 @@ export class InMemoryServiceRequestRepository {
       ...request,
       client,
       equipment: withEquipmentCompatibility(equipment),
+      assignedToUser: this.users.find((entry) => entry.id === request.assignedToUserId) || null,
+      assignedByUser: this.users.find((entry) => entry.id === request.assignedByUserId) || null,
+      assignmentHistory: this.assignmentHistory
+        .filter((item) => item.serviceRequestId === request.id)
+        .map((item) => ({
+          ...item,
+          fromUser: this.users.find((entry) => entry.id === item.fromUserId) || null,
+          toUser: this.users.find((entry) => entry.id === item.toUserId) || null,
+          assignedByUser: this.users.find((entry) => entry.id === item.assignedByUserId) || null,
+        })),
     };
   }
 
@@ -341,21 +352,68 @@ export class InMemoryServiceRequestRepository {
     return this.hydrate(this.requests[index]);
   }
 
-  async assignToUser(id, assignedToUserId) {
+  async assignToUser(id, assignedToUserId, meta = {}) {
     const index = this.requests.findIndex((item) => item.id === id);
     if (index === -1) {
       return null;
     }
+    const fromUserId = this.requests[index].assignedToUserId || null;
     this.requests[index] = {
       ...this.requests[index],
       assignedToUserId: assignedToUserId || null,
+      assignedAt: assignedToUserId ? new Date().toISOString() : null,
+      assignedByUserId: assignedToUserId ? (meta.assignedByUserId || null) : null,
       updatedAt: new Date().toISOString(),
     };
+    if (assignedToUserId) {
+      this.assignmentHistory.unshift({
+        id: `srah-${Date.now()}`,
+        serviceRequestId: id,
+        fromUserId,
+        toUserId: assignedToUserId,
+        assignedByUserId: meta.assignedByUserId,
+        comment: meta.comment || null,
+        createdAt: new Date().toISOString(),
+      });
+    }
     return this.hydrate(this.requests[index]);
+  }
+
+  async listServiceEngineers() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    return this.users
+      .filter((item) => item.role === 'service_engineer')
+      .map((engineer) => {
+        const own = this.requests.filter((item) => item.assignedToUserId === engineer.id);
+        return {
+          id: engineer.id,
+          fullName: engineer.fullName || engineer.name,
+          role: engineer.role,
+          isActive: engineer.isActive,
+          workload: {
+            activeCount: own.filter((item) => item.status !== 'closed' && item.status !== 'resolved').length,
+            overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
+            criticalCount: own.filter((item) => item.urgency === 'critical' && item.status !== 'closed' && item.status !== 'resolved').length,
+            resolvedTodayCount: own.filter((item) => (item.status === 'resolved' || item.status === 'closed') && String(item.updatedAt).slice(0, 10) === today).length,
+          },
+        };
+      });
   }
 
   async listHistory(serviceRequestId) {
     return this.history.filter((item) => item.serviceRequestId === serviceRequestId);
+  }
+
+  async listAssignmentHistory(serviceRequestId) {
+    return this.assignmentHistory
+      .filter((item) => item.serviceRequestId === serviceRequestId)
+      .map((item) => ({
+        ...item,
+        fromUser: this.users.find((entry) => entry.id === item.fromUserId) || null,
+        toUser: this.users.find((entry) => entry.id === item.toUserId) || null,
+        assignedByUser: this.users.find((entry) => entry.id === item.assignedByUserId) || null,
+      }));
   }
 
   async listInternalNotes(serviceRequestId) {

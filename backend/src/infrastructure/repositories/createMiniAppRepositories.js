@@ -49,6 +49,10 @@ async function ensureNeonSeed(prisma) {
       },
     });
   }
+
+  for (const item of seed.serviceRequestAssignmentHistory || []) {
+    await prisma.serviceRequestAssignmentHistory.create({ data: item });
+  }
 }
 
 export async function createMiniAppRepositories(databaseUrl) {

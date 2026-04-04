@@ -36,15 +36,17 @@ export const adminServiceApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/service-requests/dashboard${query}`);
   },
+  serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
   updateStatus: async (id, status, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, comment }),
   }),
-  assignManager: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
+  assignManager: async (id, assignedToUserId, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/assign`, {
     method: 'POST',
-    body: JSON.stringify({ assignedToUserId }),
+    body: JSON.stringify({ assignedToUserId, comment }),
   }),
+  assignmentHistory: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/assignment-history`),
   history: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/history`),
   notes: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}/notes`),
   addNote: async (id, text) => apiFetch(`/api/telegram/admin/service-requests/${id}/notes`, {

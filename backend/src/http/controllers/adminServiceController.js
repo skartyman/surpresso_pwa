@@ -15,7 +15,7 @@ function normalizeSort(value) {
   return ALLOWED_SORT.includes(normalized) ? normalized : 'createdAt';
 }
 
-export function createAdminServiceController(serviceRepository) {
+export function createAdminServiceController(serviceRepository, userRepository) {
   function scopeFiltersByRole(role, userId, filters = {}) {
     if (role === 'service_engineer') {
       return {
@@ -28,9 +28,7 @@ export function createAdminServiceController(serviceRepository) {
     if (role === 'service_head' || role === 'manager') {
       return { ...filters, type: REQUEST_TYPES.serviceRepair, assignedDepartment: REQUEST_DEPARTMENTS.service };
     }
-    if (role === 'sales_manager') {
-      return { ...filters, assignedDepartment: REQUEST_DEPARTMENTS.sales };
-    }
+    if (role === 'sales_manager') return { ...filters, assignedDepartment: REQUEST_DEPARTMENTS.sales };
     return filters;
   }
 
@@ -40,6 +38,10 @@ export function createAdminServiceController(serviceRepository) {
     if (scoped.assignedDepartment && request.assignedDepartment !== scoped.assignedDepartment) return false;
     if (scoped.assignedToUserId && request.assignedToUserId !== scoped.assignedToUserId) return false;
     return true;
+  }
+
+  function canManageAssignment(role) {
+    return role === 'service_head' || role === 'manager';
   }
 
   return {
@@ -108,14 +110,42 @@ export function createAdminServiceController(serviceRepository) {
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
+    async serviceEngineers(req, res) {
+      const role = req.adminUser?.role;
+      if (![ 'service_head', 'manager', 'service_engineer', 'owner', 'director' ].includes(role)) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+      const engineers = await serviceRepository.listServiceEngineers();
+      return res.json({ engineers });
+    },
+
     async assignManager(req, res) {
       const request = await serviceRepository.findForAdminById(req.params.id);
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
       }
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!canManageAssignment(req.adminUser?.role)) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
 
       const userId = String(req.body?.assignedToUserId || '').trim();
-      const updated = await serviceRepository.assignToUser(request.id, userId || null);
+      if (!userId) {
+        return res.status(400).json({ error: 'assigned_to_required' });
+      }
+
+      const assignee = await userRepository.findById(userId);
+      if (!assignee || assignee.role !== 'service_engineer' || !assignee.isActive) {
+        return res.status(400).json({ error: 'invalid_engineer' });
+      }
+
+      const comment = String(req.body?.comment || '').trim();
+      const updated = await serviceRepository.assignToUser(request.id, userId, {
+        assignedByUserId: req.adminUser?.id,
+        comment: comment || null,
+      });
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
@@ -128,6 +158,18 @@ export function createAdminServiceController(serviceRepository) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       const history = await serviceRepository.listHistory(request.id);
+      return res.json({ history });
+    },
+
+    async assignmentHistory(req, res) {
+      const request = await serviceRepository.findForAdminById(req.params.id);
+      if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      const history = await serviceRepository.listAssignmentHistory(request.id);
       return res.json({ history });
     },
 
