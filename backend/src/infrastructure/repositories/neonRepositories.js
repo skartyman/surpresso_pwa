@@ -66,11 +66,7 @@ function mapUser(user) {
     ...user,
     fullName: user.fullName || user.name || '',
     phone: user.phone || '',
-    notes: user.notes || '',
     positionTitle: user.positionTitle || '',
-    specializations: (user.specializations || []).map((item) => item.specializationKey),
-    brands: (user.brandSkills || []).map((item) => item.brandKey),
-    zones: (user.zones || []).map((item) => item.zoneKey),
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
@@ -81,10 +77,20 @@ export class NeonUserRepository {
     this.prisma = prisma;
   }
 
-  buildWhere({ q, role, isActive, roles } = {}) {
-    return {
+  async findByEmail(email) {
+    const normalized = String(email || '').trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: normalized } });
+    return mapUser(user);
+  }
+
+  async findById(id) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    return mapUser(user);
+  }
+
+  async listForAdmin({ q, role, isActive } = {}) {
+    const where = {
       ...(role ? { role } : {}),
-      ...(Array.isArray(roles) && roles.length ? { role: { in: roles } } : {}),
       ...(isActive === null || isActive === undefined ? {} : { isActive: Boolean(isActive) }),
       ...(q
         ? {
@@ -97,164 +103,37 @@ export class NeonUserRepository {
           }
         : {}),
     };
-  }
 
-  userInclude() {
-    return {
-      specializations: true,
-      brandSkills: true,
-      zones: true,
-    };
-  }
-
-  async findByEmail(email) {
-    const normalized = String(email || '').trim().toLowerCase();
-    const user = await this.prisma.user.findUnique({ where: { email: normalized }, include: this.userInclude() });
-    return mapUser(user);
-  }
-
-  async findById(id) {
-    const user = await this.prisma.user.findUnique({ where: { id }, include: this.userInclude() });
-    return mapUser(user);
-  }
-
-  async listForAdmin(filters = {}) {
-    return this.listUsers(filters);
-  }
-
-  async listUsers({ q, role, roles, isActive } = {}) {
-    const where = this.buildWhere({ q, role, roles, isActive });
     const users = await this.prisma.user.findMany({
       where: Object.keys(where).length ? where : undefined,
-      include: this.userInclude(),
       orderBy: { createdAt: 'desc' },
     });
+
     return users.map(mapUser);
   }
 
-  async getUserById(id) {
-    return this.findById(id);
-  }
-
-  async listServiceEngineers({ q, isActive } = {}) {
-    return this.listUsers({ q, isActive, roles: ['service_engineer', 'service_head'] });
-  }
-
   async create(payload) {
-    const userId = payload.id || `user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     const user = await this.prisma.user.create({
       data: {
-        id: userId,
+        id: payload.id || `user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         fullName: payload.fullName,
         email: payload.email,
-        phone: payload.phone || null,
-        notes: payload.notes || null,
-        workMode: payload.workMode || null,
-        capacity: payload.capacity ?? 6,
-        maxCritical: payload.maxCritical ?? 2,
-        priorityWeight: payload.priorityWeight ?? 0,
-        canTakeUrgent: payload.canTakeUrgent ?? true,
-        canTakeFieldRequests: payload.canTakeFieldRequests ?? false,
+        phone: payload.phone || '',
         passwordHash: payload.passwordHash,
         role: payload.role,
         positionTitle: payload.positionTitle || '',
         isActive: payload.isActive ?? true,
       },
-      include: this.userInclude(),
     });
-
-    await this.updateUserRelations(userId, payload);
-    return this.findById(userId);
+    return mapUser(user);
   }
 
   async updateById(id, patch) {
-    return this.updateUser(id, patch);
-  }
-
-  async updateUser(id, patch) {
-    const relationPayload = {
-      specializations: patch.specializations,
-      brands: patch.brands,
-      zones: patch.zones,
-    };
-
-    const nextPatch = {
-      ...patch,
-      ...(patch.phone !== undefined ? { phone: patch.phone || null } : {}),
-      ...(patch.notes !== undefined ? { notes: patch.notes || null } : {}),
-    };
-    delete nextPatch.specializations;
-    delete nextPatch.brands;
-    delete nextPatch.zones;
-
-    if (Object.keys(nextPatch).length) {
-      await this.prisma.user.update({ where: { id }, data: nextPatch });
-    }
-
-    await this.updateUserRelations(id, relationPayload);
-    return this.findById(id);
-  }
-
-  async setUserSpecializations(userId, specializations = []) {
-    await this.prisma.$transaction([
-      this.prisma.userSpecialization.deleteMany({ where: { userId } }),
-      ...(specializations.length
-        ? [
-            this.prisma.userSpecialization.createMany({
-              data: specializations.map((specializationKey, index) => ({
-                id: `uspec-${userId}-${index}-${Date.now()}`,
-                userId,
-                specializationKey,
-              })),
-              skipDuplicates: true,
-            }),
-          ]
-        : []),
-    ]);
-  }
-
-  async setUserBrands(userId, brands = []) {
-    await this.prisma.$transaction([
-      this.prisma.userBrandSkill.deleteMany({ where: { userId } }),
-      ...(brands.length
-        ? [
-            this.prisma.userBrandSkill.createMany({
-              data: brands.map((brandKey, index) => ({
-                id: `ubrand-${userId}-${index}-${Date.now()}`,
-                userId,
-                brandKey,
-              })),
-              skipDuplicates: true,
-            }),
-          ]
-        : []),
-    ]);
-  }
-
-  async setUserZones(userId, zones = []) {
-    await this.prisma.$transaction([
-      this.prisma.userZone.deleteMany({ where: { userId } }),
-      ...(zones.length
-        ? [
-            this.prisma.userZone.createMany({
-              data: zones.map((zoneKey, index) => ({
-                id: `uzone-${userId}-${index}-${Date.now()}`,
-                userId,
-                zoneKey,
-              })),
-              skipDuplicates: true,
-            }),
-          ]
-        : []),
-    ]);
-  }
-
-  async updateUserRelations(userId, payload = {}) {
-    const jobs = [];
-    if (payload.specializations !== undefined) jobs.push(this.setUserSpecializations(userId, payload.specializations));
-    if (payload.brands !== undefined) jobs.push(this.setUserBrands(userId, payload.brands));
-    if (payload.zones !== undefined) jobs.push(this.setUserZones(userId, payload.zones));
-    await Promise.all(jobs);
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: patch,
+    });
+    return mapUser(user);
   }
 }
 
