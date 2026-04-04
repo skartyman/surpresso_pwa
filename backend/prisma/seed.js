@@ -17,12 +17,58 @@ async function main() {
         email: user.email,
         passwordHash: user.passwordHash,
         fullName: user.fullName,
-        phone: user.phone,
+        phone: user.phone || null,
+        notes: user.notes || null,
+        workMode: user.workMode || null,
+        capacity: user.capacity ?? 6,
+        maxCritical: user.maxCritical ?? 2,
+        priorityWeight: user.priorityWeight ?? 0,
+        canTakeUrgent: user.canTakeUrgent ?? true,
+        canTakeFieldRequests: user.canTakeFieldRequests ?? false,
         role: user.role,
         positionTitle: user.positionTitle,
         isActive: user.isActive,
       },
-      create: user,
+      create: {
+        ...user,
+        phone: user.phone || null,
+        notes: user.notes || null,
+      },
+    });
+  }
+
+
+
+  for (const specialization of seed.userSpecializations || []) {
+    await prisma.userSpecialization.upsert({
+      where: { id: specialization.id },
+      update: {
+        userId: specialization.userId,
+        specializationKey: specialization.specializationKey,
+      },
+      create: specialization,
+    });
+  }
+
+  for (const brand of seed.userBrandSkills || []) {
+    await prisma.userBrandSkill.upsert({
+      where: { id: brand.id },
+      update: {
+        userId: brand.userId,
+        brandKey: brand.brandKey,
+      },
+      create: brand,
+    });
+  }
+
+  for (const zone of seed.userZones || []) {
+    await prisma.userZone.upsert({
+      where: { id: zone.id },
+      update: {
+        userId: zone.userId,
+        zoneKey: zone.zoneKey,
+      },
+      create: zone,
     });
   }
 
