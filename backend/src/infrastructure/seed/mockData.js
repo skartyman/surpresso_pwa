@@ -219,6 +219,8 @@ export const seed = {
       source: 'telegram_miniapp',
       assignedDepartment: 'sales',
       assignedToUserId: null,
+      assignedAt: null,
+      assignedByUserId: null,
       createdAt: '2026-04-01T08:20:00.000Z',
       updatedAt: '2026-04-01T08:20:00.000Z',
     },
@@ -243,6 +245,17 @@ export const seed = {
       authorRole: 'service_head',
       text: 'Проверить наличие прокладки перед выездом.',
       createdAt: '2026-03-31T11:10:00.000Z',
+    },
+  ],
+  serviceRequestAssignmentHistory: [
+    {
+      id: 'srah-1',
+      serviceRequestId: 'req-5001',
+      fromUserId: null,
+      toUserId: 'user-service-engineer-1',
+      assignedByUserId: 'user-service-head-1',
+      comment: 'Стартовое назначение дежурному инженеру.',
+      createdAt: '2026-03-31T10:25:00.000Z',
     },
   ],
 };

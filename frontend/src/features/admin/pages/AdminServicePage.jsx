@@ -19,11 +19,8 @@ const STATUS_OPTIONS = [
   { value: 'all', label: 'Все статусы' },
   { value: 'new', label: 'Новая' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'waiting_client', label: 'Ждёт клиента' },
-  { value: 'waiting_parts', label: 'Ждёт запчасти' },
   { value: 'resolved', label: 'Решена' },
   { value: 'closed', label: 'Закрыта' },
-  { value: 'overdue', label: 'Просрочена' },
 ];
 const TYPE_OPTIONS = [
   { value: 'all', label: 'Все типы' },
@@ -40,51 +37,74 @@ const SORT_OPTIONS = [
   { value: 'createdAt', label: 'Время создания' },
   { value: 'updatedAt', label: 'Последнее обновление' },
 ];
-const STATUS_LABELS = { new: 'Новая', in_progress: 'В работе', waiting_client: 'Ждёт клиента', waiting_parts: 'Ждёт запчасти', resolved: 'Решена', closed: 'Закрыта', overdue: 'Просрочена' };
+const STATUS_LABELS = { new: 'Новая', in_progress: 'В работе', resolved: 'Решена', closed: 'Закрыта' };
 const KPI_ICON = { new: 'dashboard', in_progress: 'service', overdue: 'bell', unassigned: 'clients', waiting_parts: 'equipment', closed_today: 'sales' };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
 function barWidth(v, max) { return `${Math.max(6, Math.round((v / (max || 1)) * 100))}%`; }
+function loadState(workload = {}) {
+  const score = (workload.activeCount || 0) + (workload.overdueCount || 0) * 2 + (workload.criticalCount || 0) * 2;
+  if (score >= 8) return 'danger';
+  if (score >= 4) return 'warning';
+  return 'calm';
+}
+
+function getLoadState(workload = {}) {
+  const score = (workload.activeCount || 0) + (workload.overdueCount || 0) * 2 + (workload.criticalCount || 0) * 2;
+  if (score >= 8) return 'danger';
+  if (score >= 4) return 'warning';
+  return 'calm';
+}
+
+function loadLabel(state) {
+  if (state === 'danger') return 'high';
+  if (state === 'warning') return 'medium';
+  return 'low';
+}
 
 function ServiceTicketCard({ request, active, onSelect }) {
-  const photos = (request.media || []).filter((item) => item.kind === 'photo').length;
-  const videos = (request.media || []).filter((item) => item.kind === 'video').length;
   return (
-    <button type="button" className={`ticket-card ${active ? 'active' : ''}`} onClick={() => onSelect(request.id)}>
+    <button type="button" className={`ticket-card ${active ? 'active' : ''} ${!request.assignedToUserId ? 'unassigned' : ''}`} onClick={() => onSelect(request.id)}>
       <i className="ticket-strip" data-status={request.status} />
       <div className="ticket-top"><StatusBadge status={request.status}>{STATUS_LABELS[request.status] || request.status}</StatusBadge><small>#{request.id}</small></div>
       <strong>{request.client?.companyName || 'Клиент без названия'}</strong>
       <p>{request.equipment?.brand || '—'} {request.equipment?.model || ''}</p>
       <div className="ticket-tags">
-        {!request.assignedToUserId ? <em className="danger">Без назначения</em> : <em>{request.assignedToUserId}</em>}
+        {!request.assignedToUserId ? <em className="danger">Без назначения</em> : <em>{request.assignedToUser?.fullName || request.assignedToUserId}</em>}
         <em>{request.urgency || 'normal'}</em>
-        {request.status === 'overdue' ? <em className="danger">Просрочена</em> : null}
       </div>
-      <div className="ticket-meta"><span>🕒 {formatDate(request.updatedAt)}</span><span>📷 {photos}</span><span>🎥 {videos}</span><span>💬 {request.commentCount || 0}</span></div>
+      <div className="ticket-meta"><span>🕒 {formatDate(request.updatedAt)}</span></div>
     </button>
   );
 }
 
 export function AdminServicePage() {
   const { user } = useAuth();
-  const canSeeGlobal = [ROLES.serviceHead, ROLES.owner, ROLES.director, ROLES.manager].includes(user?.role);
-  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', equipment: '', engineer: 'all', sort: 'urgency' });
+  const canAssign = [ROLES.serviceHead, ROLES.manager].includes(user?.role);
+  const [filters, setFilters] = useState({ status: 'all', type: 'all', id: '', client: '', engineer: 'all', quick: 'all', sort: 'urgency' });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
+  const [engineers, setEngineers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [assignForm, setAssignForm] = useState({ assignedToUserId: '', comment: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   async function load(next = filters) {
     setLoading(true);
     try {
-      const [list, dash] = await Promise.all([
+      const [list, dash, engineerPayload] = await Promise.all([
         adminServiceApi.list({ ...next, status: next.status === 'all' ? '' : next.status, type: next.type === 'all' ? '' : next.type, engineer: next.engineer === 'all' ? '' : next.engineer }),
         adminServiceApi.dashboard({ status: next.status === 'all' ? '' : next.status, type: next.type === 'all' ? '' : next.type, engineer: next.engineer === 'all' ? '' : next.engineer }),
+        canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
-      setRequests(list.requests || []);
+      let scoped = list.requests || [];
+      if (next.quickFilter === 'unassigned') scoped = scoped.filter((item) => !item.assignedToUserId);
+      setRequests(scoped);
       setDashboard(dash || null);
+      setEngineers(engineerPayload.engineers || []);
       setSelectedId((prev) => prev || list.requests?.[0]?.id || null);
       setError('');
     } catch {
@@ -92,10 +112,30 @@ export function AdminServicePage() {
     } finally { setLoading(false); }
   }
 
+  async function loadDetails(id) {
+    const [payload, assignment] = await Promise.all([
+      adminServiceApi.byId(id),
+      adminServiceApi.assignmentHistory(id).catch(() => ({ history: [] })),
+    ]);
+    setSelectedRequest(payload.request || null);
+    setAssignmentHistory(assignment.history || []);
+  }
+
+  async function submitAssignment() {
+    if (!assignForm.assignedToUserId) return;
+    await adminServiceApi.assignManager(selectedId, assignForm.assignedToUserId, assignForm.comment);
+    setAssignForm({ assignedToUserId: '', comment: '' });
+    await load();
+    await loadDetails(selectedId);
+  }
+
   useEffect(() => { load(); }, []); // eslint-disable-line
   useEffect(() => {
     if (!selectedId) return setSelectedRequest(null);
-    adminServiceApi.byId(selectedId).then((payload) => setSelectedRequest(payload.request || null)).catch(() => setSelectedRequest(null));
+    loadDetails(selectedId).catch(() => {
+      setSelectedRequest(null);
+      setAssignmentHistory([]);
+    });
   }, [selectedId]);
 
   const statusData = dashboard?.analytics?.statuses || [];
@@ -104,14 +144,19 @@ export function AdminServicePage() {
   const dailyMax = useChartMax(dailyData);
   const engineerData = dashboard?.engineerLoad || [];
   const engineerMax = Math.max(...engineerData.map((i) => i.active + i.overdue), 1);
-
   const kpis = dashboard?.kpis || [];
+
+  const filteredRequests = useMemo(() => requests.filter((item) => {
+    if (filters.quick === 'unassigned') return !item.assignedToUserId;
+    if (filters.quick === 'mine') return item.assignedToUserId === user?.id;
+    if (filters.quick.startsWith('engineer:')) return item.assignedToUserId === filters.quick.replace('engineer:', '');
+    return true;
+  }), [filters.quick, requests, user?.id]);
 
   return (
     <section className="service-dashboard">
       <header className="service-headline">
-        <div><h2>Service Dashboard</h2><p>Компактная операционная панель в фирменном стиле Surpresso.</p></div>
-        <div className="quick-tags"><span>Board</span><span>Analytics</span><span>Workload</span></div>
+        <div><h2>Service Dashboard</h2><p>Распределение и контроль заявок сервисной команды.</p></div>
       </header>
 
       <div className="kpi-row">
@@ -121,20 +166,27 @@ export function AdminServicePage() {
       <AlertPanel items={(dashboard?.attention || []).map((item) => <li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>)} />
 
       <FilterRow>
-        <label><span>Статус</span><select name="status" value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-        <label><span>Тип</span><select name="type" value={filters.type} onChange={(e) => { const n = { ...filters, type: e.target.value }; setFilters(n); load(n); }}>{TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-        <label><span>Инженер</span><select name="engineer" value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{(dashboard?.engineers || []).map((eng) => <option key={eng.userId} value={eng.userId}>{eng.name}</option>)}</select></label>
-        <label><span>ID</span><input name="id" value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-5001" /></label>
-        <label><span>Клиент</span><input name="client" value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
-        <label><span>Сортировка</span><select name="sort" value={filters.sort} onChange={(e) => { const n = { ...filters, sort: e.target.value }; setFilters(n); load(n); }}>{SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+        <label><span>Тип</span><select value={filters.type} onChange={(e) => { const n = { ...filters, type: e.target.value }; setFilters(n); load(n); }}>{TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quick} onChange={(e) => setFilters((prev) => ({ ...prev, quick: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{(dashboard?.engineers || []).map((eng) => <option key={eng.userId} value={eng.userId}>{eng.name}</option>)}</select></label>
+        <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-5001" /></label>
+        <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
+        <label><span>Сортировка</span><select value={filters.sort} onChange={(e) => { const n = { ...filters, sort: e.target.value }; setFilters(n); load(n); }}>{SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
       </FilterRow>
+
+      <div className="quick-filter-row">
+        <button type="button" className={filters.quickFilter === 'all' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'all' }; setFilters(n); load(n); }}>Все</button>
+        <button type="button" className={filters.quickFilter === 'unassigned' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'unassigned' }; setFilters(n); load(n); }}>Без назначения</button>
+        <button type="button" className={filters.quickFilter === 'mine' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'mine' }; setFilters(n); load(n); }}>Мои</button>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
 
       <div className="service-workspace">
         <div className="ticket-board">
           {loading ? <p>Загрузка...</p> : null}
-          {requests.map((request) => <ServiceTicketCard key={request.id} request={request} active={selectedId === request.id} onSelect={setSelectedId} />)}
+          {filteredRequests.map((request) => <ServiceTicketCard key={request.id} request={request} active={selectedId === request.id} onSelect={setSelectedId} />)}
         </div>
         <DetailPanel>
           {!selectedRequest ? <p>Выберите заявку в колонке слева.</p> : (
@@ -143,11 +195,25 @@ export function AdminServicePage() {
               <div className="detail-grid">
                 <p><Icon name="clients" /> {selectedRequest.client?.companyName || '—'}</p>
                 <p><Icon name="equipment" /> {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
-                <p><Icon name="employees" /> {selectedRequest.assignedToUserId || 'Без назначения'}</p>
-                <p><Icon name="service" /> SLA: {selectedRequest.slaHours || '—'} ч</p>
+                <p><Icon name="employees" /> {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
+                <p><Icon name="service" /> Назначил: {selectedRequest.assignedByUser?.fullName || '—'}</p>
               </div>
-              <p>{selectedRequest.description || 'Описание не добавлено.'}</p>
-              <small>Создана: {formatDate(selectedRequest.createdAt)} · Обновлена: {formatDate(selectedRequest.updatedAt)}</small>
+              <small>Назначено: {formatDate(selectedRequest.assignedAt)}</small>
+              {canAssign ? (
+                <div className="assignment-box">
+                  <h4>{selectedRequest.assignedToUserId ? 'Переназначить инженера' : 'Назначить инженера'}</h4>
+                  <select value={assignForm.assignedToUserId} onChange={(e) => setAssignForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))}>
+                    <option value="">Выберите инженера</option>
+                    {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName} · активных {eng.workload?.activeCount || 0}</option>)}
+                  </select>
+                  <input value={assignForm.comment} onChange={(e) => setAssignForm((prev) => ({ ...prev, comment: e.target.value }))} maxLength={200} placeholder="Комментарий к назначению" />
+                  <button type="button" onClick={() => submitAssignment().catch(() => setError('Не удалось назначить инженера.'))}>Сохранить назначение</button>
+                </div>
+              ) : null}
+              <div className="assignment-history">
+                <h4>История назначений</h4>
+                {(assignmentHistory || []).map((item) => <p key={item.id}>[{formatDate(item.createdAt)}] {item.fromUser?.fullName || '—'} → {item.toUser?.fullName || item.toUserId}, назначил {item.assignedByUser?.fullName || item.assignedByUserId} {item.comment ? `(${item.comment})` : ''}</p>)}
+              </div>
             </>
           )}
         </DetailPanel>
@@ -155,15 +221,17 @@ export function AdminServicePage() {
 
       <section className="metrics-grid">
         <ChartCard title="Загрузка инженеров">
-          <WorkloadWidget items={engineerData.map((item) => <CompactMetricCard key={item.userId} label={item.name} value={`${item.active} акт / ${item.overdue} проср`} progress={((item.active + item.overdue) / engineerMax) * 100} state={item.overdue > 1 ? 'warning' : 'normal'} />)} />
+          <WorkloadWidget items={engineers.map((item) => <CompactMetricCard key={item.id} label={item.fullName} value={`${item.workload?.activeCount || 0} акт / ${item.workload?.overdueCount || 0} проср`} progress={(((item.workload?.activeCount || 0) + (item.workload?.overdueCount || 0)) / Math.max(1, engineerMax)) * 100} state={loadState(item.workload)} />)} />
         </ChartCard>
-        <ChartCard title="Заявки по статусам">
-          <div className="bar-chart">{statusData.map((item) => <div key={item.key}><span>{item.label}</span><i style={{ width: barWidth(item.value, statusMax) }} /><strong>{item.value}</strong></div>)}</div>
+        <ChartCard title="Распределение">
+          <div className="bar-chart">
+            <div><span>Без назначения</span><i style={{ width: barWidth(dashboard?.assignment?.unassignedCount || 0, Math.max(1, requests.length)) }} /><strong>{dashboard?.assignment?.unassignedCount || 0}</strong></div>
+            <div><span>Перегружены</span><i style={{ width: barWidth((dashboard?.assignment?.overloadedEngineers || []).length, Math.max(1, engineers.length)) }} /><strong>{(dashboard?.assignment?.overloadedEngineers || []).length}</strong></div>
+            <div><span>Свободны</span><i style={{ width: barWidth((dashboard?.assignment?.freeEngineers || []).length, Math.max(1, engineers.length)) }} /><strong>{(dashboard?.assignment?.freeEngineers || []).length}</strong></div>
+          </div>
         </ChartCard>
-        <ChartCard title="Динамика по дням">
-          <div className="line-fake">{dailyData.map((item) => <b key={item.key} style={{ height: barWidth(item.value, dailyMax) }} title={`${item.label}: ${item.value}`} />)}</div>
-        </ChartCard>
-        {canSeeGlobal ? <ChartCard title="Типы техники"><div className="bar-chart">{(dashboard?.analytics?.equipmentTypes || []).map((item) => <div key={item.key}><span>{item.label}</span><i style={{ width: barWidth(item.value, Math.max(...(dashboard?.analytics?.equipmentTypes || []).map((s) => s.value), 1)) }} /><strong>{item.value}</strong></div>)}</div></ChartCard> : null}
+        <ChartCard title="По статусам"><div className="bar-chart">{statusData.map((item) => <div key={item.key}><span>{item.label}</span><i style={{ width: barWidth(item.value, statusMax) }} /><strong>{item.value}</strong></div>)}</div></ChartCard>
+        <ChartCard title="Динамика"><div className="line-fake">{dailyData.map((item) => <b key={item.key} style={{ height: barWidth(item.value, dailyMax) }} title={`${item.label}: ${item.value}`} />)}</div></ChartCard>
       </section>
     </section>
   );

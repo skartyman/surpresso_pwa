@@ -78,6 +78,7 @@ model UserZone {
   @@index([userId])
 }
 
+
 model Client {
   id             String   @id
   telegramUserId String   @unique
@@ -130,13 +131,16 @@ model ServiceRequest {
   client         Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
   equipment      Equipment?            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   assignedToUser User?                 @relation("AssignedUserRequests", fields: [assignedToUserId], references: [id])
+  assignedByUser User?                 @relation("AssignmentByUserRequests", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   media          ServiceRequestMedia[]
   history        ServiceRequestStatusHistory[]
   notes          ServiceRequestInternalNote[]
+  assignmentHistory ServiceRequestAssignmentHistory[]
 
   @@index([clientId])
   @@index([equipmentId])
   @@index([assignedToUserId])
+  @@index([assignedByUserId])
 }
 
 model ServiceRequestStatusHistory {
@@ -169,6 +173,27 @@ model ServiceRequestInternalNote {
 
   @@index([serviceRequestId])
   @@index([authorId])
+}
+
+
+model ServiceRequestAssignmentHistory {
+  id               String   @id
+  serviceRequestId String
+  fromUserId       String?
+  toUserId         String
+  assignedByUserId String
+  comment          String?
+  createdAt        DateTime @default(now())
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  fromUser      User?          @relation("AssignmentFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser        User           @relation("AssignmentToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+  assignedByUser User          @relation("AssignmentMadeByUser", fields: [assignedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([serviceRequestId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([assignedByUserId])
 }
 
 model ServiceRequestMedia {
