@@ -28,7 +28,7 @@ export function createApiRouter(deps) {
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
-  const adminServiceController = createAdminServiceController(deps.serviceRepository);
+  const adminServiceController = createAdminServiceController(deps.serviceRepository, deps.userRepository);
   const adminEmployeeController = createAdminEmployeeController(deps.userRepository);
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
@@ -40,6 +40,7 @@ export function createApiRouter(deps) {
   router.get('/admin/service', asyncHandler(adminAuth), requireRole(['manager', 'service']), adminController.serviceScope);
   router.get('/admin/content', asyncHandler(adminAuth), requireRole(['manager', 'seo']), adminController.seoScope);
 
+  router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.serviceEngineers));
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.list));
   router.get('/admin/service-requests/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.dashboard));
   router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_head']), asyncHandler(adminServiceController.listServiceEngineers));

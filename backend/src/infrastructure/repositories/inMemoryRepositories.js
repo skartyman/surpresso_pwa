@@ -173,9 +173,16 @@ export class InMemoryServiceRequestRepository {
       ...request,
       client,
       equipment: withEquipmentCompatibility(equipment),
-      assignedToUser,
-      assignedByUser,
-      assignmentHistory,
+      assignedToUser: this.users.find((entry) => entry.id === request.assignedToUserId) || null,
+      assignedByUser: this.users.find((entry) => entry.id === request.assignedByUserId) || null,
+      assignmentHistory: this.assignmentHistory
+        .filter((item) => item.serviceRequestId === request.id)
+        .map((item) => ({
+          ...item,
+          fromUser: this.users.find((entry) => entry.id === item.fromUserId) || null,
+          toUser: this.users.find((entry) => entry.id === item.toUserId) || null,
+          assignedByUser: this.users.find((entry) => entry.id === item.assignedByUserId) || null,
+        })),
     };
   }
 
@@ -428,6 +435,17 @@ export class InMemoryServiceRequestRepository {
 
   async listHistory(serviceRequestId) {
     return this.history.filter((item) => item.serviceRequestId === serviceRequestId);
+  }
+
+  async listAssignmentHistory(serviceRequestId) {
+    return this.assignmentHistory
+      .filter((item) => item.serviceRequestId === serviceRequestId)
+      .map((item) => ({
+        ...item,
+        fromUser: this.users.find((entry) => entry.id === item.fromUserId) || null,
+        toUser: this.users.find((entry) => entry.id === item.toUserId) || null,
+        assignedByUser: this.users.find((entry) => entry.id === item.assignedByUserId) || null,
+      }));
   }
 
   async listInternalNotes(serviceRequestId) {

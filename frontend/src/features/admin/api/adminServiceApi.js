@@ -36,6 +36,7 @@ export const adminServiceApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/service-requests/dashboard${query}`);
   },
+  serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
   updateStatus: async (id, status, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/status`, {
     method: 'POST',

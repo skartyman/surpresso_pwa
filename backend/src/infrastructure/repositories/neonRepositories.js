@@ -24,6 +24,7 @@ function mapServiceRequest(item) {
     type: item.type || 'service_repair',
     title: item.title || item.description || '',
     assignedDepartment: item.assignedDepartment || 'service',
+    assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     canOperate: item.canOperateNow,
     assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     createdAt: item.createdAt.toISOString(),
@@ -208,7 +209,7 @@ export class NeonServiceRequestRepository {
   async findById(id) {
     const item = await this.prisma.serviceRequest.findUnique({
       where: { id },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
     return mapServiceRequest(item);
   }
@@ -415,6 +416,8 @@ export class NeonServiceRequestRepository {
         status: payload.status || 'new',
         source: payload.source || 'telegram_mini_app',
         assignedToUserId: payload.assignedToUserId || null,
+        assignedAt: payload.assignedToUserId ? new Date() : null,
+        assignedByUserId: payload.assignedByUserId || null,
         media: {
           create: (payload.media || []).map((media) => ({
             id: media.id || `media-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -428,7 +431,7 @@ export class NeonServiceRequestRepository {
           })),
         },
       },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
     });
 
     return mapServiceRequest(created);
@@ -554,6 +557,27 @@ export class NeonServiceRequestRepository {
     return items.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
+    }));
+  }
+
+  async listAssignmentHistory(serviceRequestId) {
+    const items = await this.prisma.serviceRequestAssignmentHistory.findMany({
+      where: { serviceRequestId },
+      include: { fromUser: true, toUser: true, assignedByUser: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return items.map((item) => ({
+      id: item.id,
+      serviceRequestId: item.serviceRequestId,
+      fromUserId: item.fromUserId,
+      toUserId: item.toUserId,
+      assignedByUserId: item.assignedByUserId,
+      comment: item.comment || null,
+      createdAt: item.createdAt.toISOString(),
+      fromUser: mapUser(item.fromUser),
+      toUser: mapUser(item.toUser),
+      assignedByUser: mapUser(item.assignedByUser),
     }));
   }
 

@@ -49,6 +49,19 @@ function loadState(workload = {}) {
   return 'calm';
 }
 
+function getLoadState(workload = {}) {
+  const score = (workload.activeCount || 0) + (workload.overdueCount || 0) * 2 + (workload.criticalCount || 0) * 2;
+  if (score >= 8) return 'danger';
+  if (score >= 4) return 'warning';
+  return 'calm';
+}
+
+function loadLabel(state) {
+  if (state === 'danger') return 'high';
+  if (state === 'warning') return 'medium';
+  return 'low';
+}
+
 function ServiceTicketCard({ request, active, onSelect }) {
   return (
     <button type="button" className={`ticket-card ${active ? 'active' : ''} ${!request.assignedToUserId ? 'unassigned' : ''}`} onClick={() => onSelect(request.id)}>
@@ -87,7 +100,9 @@ export function AdminServicePage() {
         adminServiceApi.dashboard({ status: next.status === 'all' ? '' : next.status, type: next.type === 'all' ? '' : next.type, engineer: next.engineer === 'all' ? '' : next.engineer }),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
-      setRequests(list.requests || []);
+      let scoped = list.requests || [];
+      if (next.quickFilter === 'unassigned') scoped = scoped.filter((item) => !item.assignedToUserId);
+      setRequests(scoped);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
       setSelectedId((prev) => prev || list.requests?.[0]?.id || null);
@@ -159,6 +174,12 @@ export function AdminServicePage() {
         <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
         <label><span>Сортировка</span><select value={filters.sort} onChange={(e) => { const n = { ...filters, sort: e.target.value }; setFilters(n); load(n); }}>{SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
       </FilterRow>
+
+      <div className="quick-filter-row">
+        <button type="button" className={filters.quickFilter === 'all' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'all' }; setFilters(n); load(n); }}>Все</button>
+        <button type="button" className={filters.quickFilter === 'unassigned' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'unassigned' }; setFilters(n); load(n); }}>Без назначения</button>
+        <button type="button" className={filters.quickFilter === 'mine' ? 'secondary active' : 'secondary'} onClick={() => { const n = { ...filters, quickFilter: 'mine' }; setFilters(n); load(n); }}>Мои</button>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
 

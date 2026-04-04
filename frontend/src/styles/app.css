@@ -1096,4 +1096,6 @@ textarea {
   .admin-search { order: 10; width: 100%; flex: initial; }
   .kpi-row, .filter-row, .alert-panel ul { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
+  .quick-filter-row { flex-direction: column; }
+  .team-blocks { grid-template-columns: 1fr; }
 }

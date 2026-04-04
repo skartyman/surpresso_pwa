@@ -34,9 +34,7 @@ export function createAdminServiceController(serviceRepository) {
     if (role === 'service_head' || role === 'manager') {
       return { ...filters, type: REQUEST_TYPES.serviceRepair, assignedDepartment: REQUEST_DEPARTMENTS.service };
     }
-    if (role === 'sales_manager') {
-      return { ...filters, assignedDepartment: REQUEST_DEPARTMENTS.sales };
-    }
+    if (role === 'sales_manager') return { ...filters, assignedDepartment: REQUEST_DEPARTMENTS.sales };
     return filters;
   }
 
@@ -46,6 +44,10 @@ export function createAdminServiceController(serviceRepository) {
     if (scoped.assignedDepartment && request.assignedDepartment !== scoped.assignedDepartment) return false;
     if (scoped.assignedToUserId && request.assignedToUserId !== scoped.assignedToUserId) return false;
     return true;
+  }
+
+  function canManageAssignment(role) {
+    return role === 'service_head' || role === 'manager';
   }
 
   return {
