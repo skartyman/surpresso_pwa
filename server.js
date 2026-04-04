@@ -25,7 +25,6 @@ const app = express();
 const __dirname = path.resolve();
 const LEGACY_PUBLIC_DIR = __dirname;
 const TELEGRAM_MINIAPP_DIST_DIR = path.join(__dirname, "frontend", "dist");
-const TELEGRAM_MINIAPP_FALLBACK_DIR = path.join(__dirname, "frontend");
 const TELEGRAM_MINIAPP_UPLOADS_DIR = path.join(__dirname, "miniapp-telegram", "uploads");
 const PUBLIC_ROUTE_PATHS = new Set([
   "/",
@@ -46,6 +45,36 @@ function isPublicRoute(reqPath = "") {
 function shouldSampleRouteLogs() {
   if (!Number.isFinite(PUBLIC_ROUTE_LOG_SAMPLE_RATE) || PUBLIC_ROUTE_LOG_SAMPLE_RATE <= 1) return true;
   return Math.random() * PUBLIC_ROUTE_LOG_SAMPLE_RATE < 1;
+}
+
+function sendMiniAppBuildMissingPage(res) {
+  res.status(503).type("html");
+  return res.send(`<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Surpresso Mini App</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; font-family: Inter, system-ui, -apple-system, sans-serif; background: #09090b; color: #f3f4f6; }
+      .wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+      .card { max-width: 640px; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 20px; }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      p { margin: 0 0 10px; line-height: 1.5; color: #d1d5db; }
+      code { display: inline-block; padding: 2px 6px; border-radius: 8px; background: #111827; border: 1px solid #374151; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Mini App временно недоступен</h1>
+        <p>На сервере не найден production-сборка фронтенда Telegram Mini App.</p>
+        <p>Нужно собрать фронтенд и задеплоить содержимое <code>frontend/dist</code>.</p>
+      </section>
+    </main>
+  </body>
+</html>`);
 }
 
 await ensureIndexDir();
@@ -82,12 +111,7 @@ app.get("/tg", async (_req, res, next) => {
     await fs.access(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
     return res.sendFile(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
   } catch {
-    try {
-      await fs.access(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
-      return res.sendFile(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
-    } catch {
-      return next();
-    }
+    return sendMiniAppBuildMissingPage(res);
   }
 });
 
@@ -100,12 +124,7 @@ app.get("/tg/*", async (req, res, next) => {
     await fs.access(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
     return res.sendFile(path.join(TELEGRAM_MINIAPP_DIST_DIR, "index.html"));
   } catch {
-    try {
-      await fs.access(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
-      return res.sendFile(path.join(TELEGRAM_MINIAPP_FALLBACK_DIR, "index.html"));
-    } catch {
-      return next();
-    }
+    return sendMiniAppBuildMissingPage(res);
   }
 });
 
