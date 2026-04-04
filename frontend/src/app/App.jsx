@@ -50,7 +50,10 @@ function AdminRoutes({ basePath }) {
   return (
     <Route path={basePath} element={<AdminLayout />}>
       <Route index element={<RoleHomeRedirect />} />
-      <Route path="dashboard" element={<AdminDashboardPage />} />
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.dashboard} />}>
+        <Route path="dashboard" element={<AdminDashboardPage />} />
+      </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.service} />}>
         <Route path="service" element={<AdminServicePage />} />
@@ -60,16 +63,24 @@ function AdminRoutes({ basePath }) {
         <Route path="sales" element={<AdminSalesPage />} />
       </Route>
 
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.communications} />}>
-        <Route path="communications" element={<AdminPlaceholderPage title="Коммуникации" items={['Обращения', 'История общения', 'Каналы связи']} />} />
-      </Route>
-
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.employees} />}>
         <Route path="employees" element={<AdminEmployeesPage />} />
       </Route>
 
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.analytics} />}>
-        <Route path="analytics" element={<AdminPlaceholderPage title="Аналитика" items={['Финансы', 'Service KPI', 'Воронка продаж']} />} />
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.clients} />}>
+        <Route path="clients" element={<AdminPlaceholderPage title="Клиенты" items={['Сегменты', 'Карточки клиентов', 'LTV и риски']} />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.equipment} />}>
+        <Route path="equipment" element={<AdminPlaceholderPage title="Оборудование" items={['Парк техники', 'Состояние', 'Склад запчастей']} />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.content} />}>
+        <Route path="content" element={<AdminPlaceholderPage title="Контент и SEO" items={['Лендинги', 'Статьи', 'Поисковые запросы']} />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.settings} />}>
+        <Route path="settings" element={<AdminPlaceholderPage title="Настройки" items={['Роли', 'Интеграции', 'Шаблоны уведомлений']} />} />
       </Route>
     </Route>
   );
