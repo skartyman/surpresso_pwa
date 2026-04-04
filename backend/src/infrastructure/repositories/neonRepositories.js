@@ -26,13 +26,10 @@ function mapServiceRequest(item) {
     assignedDepartment: item.assignedDepartment || 'service',
     assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     canOperate: item.canOperateNow,
-    assignedAt: item.assignedAt ? item.assignedAt.toISOString() : null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     client: mapClient(item.client),
     equipment: mapEquipment(item.equipment),
-    assignedToUser: mapUser(item.assignedToUser),
-    assignedByUser: mapUser(item.assignedByUser),
     media: (item.media || []).map((media) => ({
       ...media,
       createdAt: media.createdAt.toISOString(),
@@ -50,13 +47,8 @@ function mapServiceRequest(item) {
       ...note,
       createdAt: note.createdAt.toISOString(),
     })),
-    assignmentHistory: (item.assignmentHistory || []).map((row) => ({
-      ...row,
-      createdAt: row.createdAt.toISOString(),
-      fromUser: mapUser(row.fromUser),
-      toUser: mapUser(row.toUser),
-      assignedByUser: mapUser(row.assignedByUser),
-    })),
+    assignedToUser: mapUser(item.assignedToUser),
+    assignedByUser: mapUser(item.assignedByUser),
   };
 }
 
@@ -361,11 +353,6 @@ export class NeonServiceRequestRepository {
       ],
       engineers: engineers.map((eng) => ({ userId: eng.id, name: eng.fullName })),
       engineerLoad,
-      assignment: {
-        unassignedCount: attention.unassigned,
-        overloadedEngineers: engineerLoad.filter((item) => item.active + item.overdue >= 6).map((item) => ({ userId: item.userId, name: item.name })),
-        freeEngineers: engineerLoad.filter((item) => item.active === 0 && item.overdue === 0).map((item) => ({ userId: item.userId, name: item.name })),
-      },
       analytics: {
         statuses: grouped(requests, (item) => item.status, (key) => key),
         equipmentTypes: grouped(requests.filter((item) => item.equipment), (item) => item.equipment.type, (key) => key),
@@ -389,11 +376,7 @@ export class NeonServiceRequestRepository {
         notes: { orderBy: { createdAt: 'desc' } },
         assignmentHistory: {
           orderBy: { createdAt: 'desc' },
-          include: {
-            fromUser: true,
-            toUser: true,
-            assignedByUser: true,
-          },
+          include: { fromUser: true, toUser: true, assignedByUser: true },
         },
       },
     });
@@ -468,6 +451,7 @@ export class NeonServiceRequestRepository {
       where: { id },
       select: { assignedToUserId: true },
     });
+
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: {
@@ -490,46 +474,21 @@ export class NeonServiceRequestRepository {
         },
       });
     }
+
     return mapServiceRequest(updated);
   }
 
-  async listAssignmentHistory(serviceRequestId) {
-    const items = await this.prisma.serviceRequestAssignmentHistory.findMany({
-      where: { serviceRequestId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        fromUser: true,
-        toUser: true,
-        assignedByUser: true,
-      },
-    });
-
-    return items.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      fromUser: mapUser(item.fromUser),
-      toUser: mapUser(item.toUser),
-      assignedByUser: mapUser(item.assignedByUser),
-    }));
-  }
-
-  async listServiceEngineersWithWorkload() {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+  async listServiceEngineers() {
     const engineers = await this.prisma.user.findMany({
       where: { role: 'service_engineer' },
       orderBy: { fullName: 'asc' },
     });
     const requests = await this.prisma.serviceRequest.findMany({
-      where: { assignedDepartment: 'service', type: 'service_repair' },
-      select: {
-        assignedToUserId: true,
-        urgency: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      where: { assignedToUserId: { in: engineers.map((eng) => eng.id) } },
+      select: { assignedToUserId: true, urgency: true, status: true, createdAt: true, updatedAt: true },
     });
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
 
     return engineers.map((eng) => {
       const own = requests.filter((item) => item.assignedToUserId === eng.id);
@@ -539,10 +498,10 @@ export class NeonServiceRequestRepository {
         role: eng.role,
         isActive: eng.isActive,
         workload: {
-          activeCount: own.filter((item) => !['closed', 'resolved'].includes(item.status)).length,
+          activeCount: own.filter((item) => item.status !== 'closed' && item.status !== 'resolved').length,
           overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
-          criticalCount: own.filter((item) => !['closed', 'resolved'].includes(item.status) && item.urgency === 'critical').length,
-          resolvedTodayCount: own.filter((item) => ['closed', 'resolved'].includes(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
+          criticalCount: own.filter((item) => item.urgency === 'critical' && item.status !== 'closed' && item.status !== 'resolved').length,
+          resolvedTodayCount: own.filter((item) => (item.status === 'resolved' || item.status === 'closed') && String(item.updatedAt).slice(0, 10) === today).length,
         },
       };
     });

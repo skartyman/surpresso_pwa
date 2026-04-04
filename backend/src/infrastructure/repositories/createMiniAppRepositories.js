@@ -50,8 +50,8 @@ async function ensureNeonSeed(prisma) {
     });
   }
 
-  for (const row of (seed.serviceRequestAssignmentHistory || [])) {
-    await prisma.serviceRequestAssignmentHistory.create({ data: row });
+  for (const item of seed.serviceRequestAssignmentHistory || []) {
+    await prisma.serviceRequestAssignmentHistory.create({ data: item });
   }
 }
 

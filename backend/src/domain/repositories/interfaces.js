@@ -23,9 +23,9 @@ export class ServiceRequestRepository {
   async findById(_) { throw new Error('Not implemented'); }
   async updateStatus(_, __, ___) { throw new Error('Not implemented'); }
   async assignToUser(_, __, ___) { throw new Error('Not implemented'); }
+  async listServiceEngineers(_) { throw new Error('Not implemented'); }
   async listHistory(_) { throw new Error('Not implemented'); }
   async listAssignmentHistory(_) { throw new Error('Not implemented'); }
-  async listServiceEngineersWithWorkload() { throw new Error('Not implemented'); }
   async listInternalNotes(_) { throw new Error('Not implemented'); }
   async addInternalNote(_, __) { throw new Error('Not implemented'); }
 }

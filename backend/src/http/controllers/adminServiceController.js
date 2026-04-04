@@ -15,13 +15,7 @@ function normalizeSort(value) {
   return ALLOWED_SORT.includes(normalized) ? normalized : 'createdAt';
 }
 
-export function createAdminServiceController(serviceRepository) {
-  const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
-
-  function canAssign(role) {
-    return ASSIGNMENT_ALLOWED_ROLES.includes(role);
-  }
-
+export function createAdminServiceController(serviceRepository, userRepository) {
   function scopeFiltersByRole(role, userId, filters = {}) {
     if (role === 'service_engineer') {
       return {
@@ -116,18 +110,16 @@ export function createAdminServiceController(serviceRepository) {
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
-    async listServiceEngineers(req, res) {
-      if (!canAssign(req.adminUser?.role)) {
+    async serviceEngineers(req, res) {
+      const role = req.adminUser?.role;
+      if (![ 'service_head', 'manager', 'service_engineer', 'owner', 'director' ].includes(role)) {
         return res.status(403).json({ error: 'forbidden' });
       }
-      const engineers = await serviceRepository.listServiceEngineersWithWorkload();
+      const engineers = await serviceRepository.listServiceEngineers();
       return res.json({ engineers });
     },
 
     async assignManager(req, res) {
-      if (!canAssign(req.adminUser?.role)) {
-        return res.status(403).json({ error: 'forbidden' });
-      }
       const request = await serviceRepository.findForAdminById(req.params.id);
       if (!request) {
         return res.status(404).json({ error: 'request_not_found' });
@@ -135,15 +127,24 @@ export function createAdminServiceController(serviceRepository) {
       if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
         return res.status(404).json({ error: 'request_not_found' });
       }
+      if (!canManageAssignment(req.adminUser?.role)) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
 
       const userId = String(req.body?.assignedToUserId || '').trim();
-      const comment = String(req.body?.comment || '').trim() || null;
       if (!userId) {
-        return res.status(400).json({ error: 'assigned_to_user_required' });
+        return res.status(400).json({ error: 'assigned_to_required' });
       }
+
+      const assignee = await userRepository.findById(userId);
+      if (!assignee || assignee.role !== 'service_engineer' || !assignee.isActive) {
+        return res.status(400).json({ error: 'invalid_engineer' });
+      }
+
+      const comment = String(req.body?.comment || '').trim();
       const updated = await serviceRepository.assignToUser(request.id, userId, {
         assignedByUserId: req.adminUser?.id,
-        comment,
+        comment: comment || null,
       });
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
