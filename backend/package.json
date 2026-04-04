@@ -12,12 +12,12 @@
     "prisma:seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.0.0",
+    "@prisma/client": "^7.0.0",
+    "dotenv": "^16.6.1",
     "express": "^4.21.0",
     "multer": "^1.4.5-lts.2",
-    "@prisma/client": "^7.0.0",
-    "@prisma/adapter-pg": "^7.0.0",
-    "pg": "^8.16.0",
-    "dotenv": "^16.4.5"
+    "pg": "^8.16.0"
   },
   "devDependencies": {
     "prisma": "^7.0.0"
