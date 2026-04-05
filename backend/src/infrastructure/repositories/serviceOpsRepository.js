@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { canTransitionServiceStatus } from '../../domain/serviceOpsWorkflowPolicy.js';
+import { canTransitionServiceStatus } from '../../domain/transitions.js';
+import { buildServiceStatusSideEffects } from '../../domain/serviceWorkflow.js';
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -115,21 +116,20 @@ export class NeonServiceOpsRepository {
     if (!existing) return null;
     if (!canTransitionServiceStatus(existing.serviceStatus, nextStatus)) throw new Error('invalid_transition');
 
-    const timePatch = {};
-    if (nextStatus === 'testing') timePatch.testingAt = new Date();
-    if (nextStatus === 'ready') timePatch.readyAt = new Date();
-    if (nextStatus === 'processed') timePatch.processedAt = new Date();
-    if (nextStatus === 'closed') timePatch.closedAt = new Date();
+    const sideEffectsPatch = buildServiceStatusSideEffects({
+      fromStatus: existing.serviceStatus,
+      toStatus: nextStatus,
+      actorUserId: options.changedByUserId || null,
+    });
 
     const updated = await this.prisma.serviceCase.update({
       where: { id },
       data: {
         serviceStatus: nextStatus,
-        ...timePatch,
+        ...sideEffectsPatch,
         ...(options.closingComment !== undefined ? { closingComment: options.closingComment } : {}),
         ...(options.invoiceNumber !== undefined ? { invoiceNumber: options.invoiceNumber } : {}),
         ...(options.invoiceStatus !== undefined ? { invoiceStatus: options.invoiceStatus } : {}),
-        ...(options.processedByUserId !== undefined ? { processedByUserId: options.processedByUserId } : {}),
       },
       include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
     });
