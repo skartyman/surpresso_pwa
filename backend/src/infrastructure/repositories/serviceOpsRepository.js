@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-
-const SERVICE_STATUS_FLOW = ['accepted', 'in_progress', 'testing', 'ready', 'processed', 'closed', 'cancelled'];
+import { canTransitionServiceStatus } from '../../domain/serviceOpsWorkflowPolicy.js';
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -31,14 +30,6 @@ function mapCase(item) {
     assignedByUser: item.assignedByUser ? { id: item.assignedByUser.id, fullName: item.assignedByUser.fullName, role: item.assignedByUser.role } : null,
     processedByUser: item.processedByUser ? { id: item.processedByUser.id, fullName: item.processedByUser.fullName, role: item.processedByUser.role } : null,
   };
-}
-
-function canTransition(from, to) {
-  if (from === to) return true;
-  const fromIdx = SERVICE_STATUS_FLOW.indexOf(from);
-  const toIdx = SERVICE_STATUS_FLOW.indexOf(to);
-  if (fromIdx === -1 || toIdx === -1) return false;
-  return toIdx >= fromIdx;
 }
 
 export class NeonServiceOpsRepository {
@@ -122,7 +113,7 @@ export class NeonServiceOpsRepository {
   async updateServiceCaseStatus(id, nextStatus, options = {}) {
     const existing = await this.prisma.serviceCase.findUnique({ where: { id }, include: { equipment: true } });
     if (!existing) return null;
-    if (!canTransition(existing.serviceStatus, nextStatus)) throw new Error('invalid_transition');
+    if (!canTransitionServiceStatus(existing.serviceStatus, nextStatus)) throw new Error('invalid_transition');
 
     const timePatch = {};
     if (nextStatus === 'testing') timePatch.testingAt = new Date();
