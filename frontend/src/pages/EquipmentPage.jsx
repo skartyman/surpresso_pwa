@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mockApi } from '../api/mockApi';
+import { useI18n } from '../i18n';
 
 export function EquipmentPage() {
   const [items, setItems] = useState([]);
+  const { t } = useI18n();
 
   useEffect(() => {
     mockApi.equipmentList().then(setItems);
@@ -11,13 +13,13 @@ export function EquipmentPage() {
 
   return (
     <section>
-      <h1>Мое оборудование</h1>
+      <h1>{t('my_equipment')}</h1>
       <div className="list">
         {items.map((item) => (
           <Link className="list-item" key={item.id} to={`/equipment/${item.id}`}>
             <strong>{item.model}</strong>
-            <p>Серийный № {item.serialNumber}</p>
-            <small>Статус: {item.status}</small>
+            <p>{t('serial_short')} {item.serialNumber}</p>
+            <small>{t('status')}: {item.status}</small>
           </Link>
         ))}
       </div>

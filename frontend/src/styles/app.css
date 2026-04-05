@@ -13,6 +13,19 @@ body { margin: 0; background: #09090b; }
   flex-direction: column;
 }
 
+
+.top-controls {
+  width: min(100%, 680px);
+  margin: 10px auto 0;
+  padding: 0 16px;
+}
+
+.language-toggle {
+  max-width: 160px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
 .page {
   flex: 1;
   width: min(100%, 680px);

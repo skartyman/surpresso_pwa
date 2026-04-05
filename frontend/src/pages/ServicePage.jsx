@@ -2,65 +2,67 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import { telegramClientApi } from '../api/telegramClientApi';
+import { useI18n } from '../i18n';
 
 const humanStatus = {
-  new: 'Новая',
-  in_progress: 'В работе',
-  waiting_client: 'Ожидает клиента',
-  resolved: 'Решена',
-  cancelled: 'Отменена',
+  new: 'status_new',
+  in_progress: 'in_progress',
+  waiting_client: 'status_waiting_client',
+  resolved: 'status_resolved',
+  cancelled: 'status_cancelled',
 };
 
 const humanCategory = {
-  coffee_machine: 'Кофемашина',
-  grinder: 'Кофемолка',
-  water: 'Фильтрация воды',
+  coffee_machine: 'cat_coffee_machine',
+  grinder: 'cat_grinder',
+  water: 'cat_water',
 };
 
 const humanType = {
-  service_repair: 'Ремонт и сервис',
-  coffee_order: 'Заказать кофе',
-  coffee_tasting: 'Дегустация',
-  grinder_check: 'Проверка помола',
-  rental_auto: 'Аренда авто',
-  rental_pro: 'Аренда проф.',
-  feedback: 'Обратная связь',
+  service_repair: 'type_service_repair',
+  coffee_order: 'type_coffee_order',
+  coffee_tasting: 'type_coffee_tasting',
+  grinder_check: 'type_grinder_check',
+  rental_auto: 'type_rental_auto',
+  rental_pro: 'type_rental_pro',
+  feedback: 'type_feedback',
 };
 
 const REQUEST_TYPE_CONFIG = {
-  service_repair: { title: 'Ремонт и сервис', serviceFlow: true },
-  coffee_order: { title: 'Заказать кофе', serviceFlow: false },
-  coffee_tasting: { title: 'Дегустация', serviceFlow: false },
-  grinder_check: { title: 'Проверка помола', serviceFlow: false },
-  rental_auto: { title: 'Аренда авто', serviceFlow: false },
-  rental_pro: { title: 'Аренда проф.', serviceFlow: false },
-  feedback: { title: 'Обратная связь', serviceFlow: false },
+  service_repair: { title: 'type_service_repair', serviceFlow: true },
+  coffee_order: { title: 'type_coffee_order', serviceFlow: false },
+  coffee_tasting: { title: 'type_coffee_tasting', serviceFlow: false },
+  grinder_check: { title: 'type_grinder_check', serviceFlow: false },
+  rental_auto: { title: 'type_rental_auto', serviceFlow: false },
+  rental_pro: { title: 'type_rental_pro', serviceFlow: false },
+  feedback: { title: 'type_feedback', serviceFlow: false },
 };
 
 const errorLabels = {
-  category_required: 'Выберите категорию заявки.',
-  description_required: 'Добавьте описание проблемы.',
-  urgency_required: 'Выберите срочность заявки.',
-  equipment_not_found: 'Выбранное оборудование не найдено.',
-  equipment_client_mismatch: 'Выбранное оборудование не принадлежит вашему профилю.',
-  service_unavailable: 'Сервис временно недоступен. Попробуйте снова через минуту.',
-  Invalid: 'Не удалось подтвердить Telegram-сессию. Перезапустите Mini App.',
-  request_failed: 'Не удалось отправить заявку. Попробуйте еще раз.',
+  category_required: 'err_category_required',
+  description_required: 'err_description_required',
+  urgency_required: 'err_urgency_required',
+  equipment_not_found: 'err_equipment_not_found',
+  equipment_client_mismatch: 'err_equipment_client_mismatch',
+  service_unavailable: 'err_service_unavailable',
+  Invalid: 'err_invalid',
+  request_failed: 'err_request_failed',
 };
 
-const formatError = (error) => {
+const formatError = (error, t) => {
   const message = String(error?.message || '').trim();
-  if (!message) return 'Не удалось отправить заявку. Попробуйте позже.';
+  if (!message) return t('err_request_failed_late');
 
   const known = Object.entries(errorLabels).find(([code]) => message.includes(code));
-  return known ? known[1] : message;
+  return known ? t(known[1]) : message;
 };
 
 export function ServicePage() {
   const { requestType } = useParams();
+  const { t, dateLocale } = useI18n();
   const activeType = REQUEST_TYPE_CONFIG[requestType] ? requestType : 'service_repair';
   const isServiceFlow = REQUEST_TYPE_CONFIG[activeType]?.serviceFlow;
-  const pageTitle = REQUEST_TYPE_CONFIG[activeType]?.title || 'Обращение';
+  const pageTitle = t(REQUEST_TYPE_CONFIG[activeType]?.title || 'generic_request');
 
   const [equipment, setEquipment] = useState([]);
   const [history, setHistory] = useState([]);
@@ -91,7 +93,7 @@ export function ServicePage() {
       telegramClientApi.listEquipment().catch(() => []),
       loadHistory().catch(() => {
         if (active) {
-          setError('Не удалось загрузить историю заявок.');
+          setError(t('history_load_error'));
         }
       }),
     ]).then(([equipmentItems]) => {
@@ -143,7 +145,7 @@ export function ServicePage() {
       setForm((prev) => ({ ...prev, title: '', category: '', description: '', media: [] }));
       await loadHistory();
     } catch (submitError) {
-      setError(formatError(submitError));
+      setError(formatError(submitError, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -152,41 +154,41 @@ export function ServicePage() {
   return (
     <section className="service-page">
       <header className="hero service-hero">
-        <h1>Сервис</h1>
-        <p>{pageTitle}. Создайте обращение в пару шагов, а ниже отслеживайте статусы.</p>
+        <h1>{t('service')}</h1>
+        <p>{pageTitle}. {t('service_intro')}</p>
       </header>
 
       <div className="service-panel">
-        <h2>Новая заявка</h2>
+        <h2>{t('service_new')}</h2>
 
         {error ? <div className="notice notice-error">{error}</div> : null}
         {successRequest ? (
           <div className="notice notice-success">
-            <strong>Заявка успешно отправлена.</strong>
+            <strong>{t('sent_ok')}</strong>
             <p>ID: {successRequest.id}</p>
-            <Link to={`/service/${successRequest.id}`}>Перейти к статусу заявки</Link>
+            <Link to={`/service/${successRequest.id}`}>{t('go_status')}</Link>
           </div>
         ) : null}
 
         <form className="service-form" onSubmit={onSubmit}>
           {isServiceFlow && !hasEquipment ? (
             <div className="notice service-empty-equipment">
-              <p><strong>У вас пока нет привязанного оборудования.</strong></p>
-              <p>Вы все равно можете отправить заявку.</p>
+              <p><strong>{t('no_equipment')}</strong></p>
+              <p>{t('can_submit_anyway')}</p>
             </div>
           ) : null}
 
           {isServiceFlow ? (
             <>
-              <label className="service-field-label" htmlFor="service-equipment-select">Оборудование (если известно)</label>
+              <label className="service-field-label" htmlFor="service-equipment-select">{t('equipment_optional')}</label>
               <select
                 id="service-equipment-select"
                 value={form.equipmentId}
-                aria-label="Оборудование (если известно)"
+                aria-label={t('equipment_optional')}
                 onChange={(event) => setForm((prev) => ({ ...prev, equipmentId: event.target.value }))}
                 disabled={isSubmitting}
               >
-                <option value="">Не указывать оборудование</option>
+                <option value="">{t('equipment_skip')}</option>
                 {equipment.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.brand} {item.model} ({item.internalNumber || item.id})
@@ -196,15 +198,15 @@ export function ServicePage() {
 
               <select
                 value={form.category}
-                aria-label="Категория проблемы"
+                aria-label={t('problem_category')}
                 onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
                 disabled={isSubmitting}
                 required
               >
-                <option value="" disabled>Категория проблемы</option>
-                <option value="coffee_machine">Кофемашина</option>
-                <option value="grinder">Кофемолка</option>
-                <option value="water">Фильтрация воды</option>
+                <option value="" disabled>{t('problem_category')}</option>
+                <option value="coffee_machine">{t('cat_coffee_machine')}</option>
+                <option value="grinder">{t('cat_grinder')}</option>
+                <option value="water">{t('cat_water')}</option>
               </select>
             </>
           ) : null}
@@ -212,8 +214,8 @@ export function ServicePage() {
           {!isServiceFlow ? (
             <input
               value={form.title}
-              aria-label="Тема обращения"
-              placeholder="Краткая тема обращения"
+              aria-label={t('topic')}
+              placeholder={t('topic_short')}
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               disabled={isSubmitting}
               required
@@ -221,8 +223,8 @@ export function ServicePage() {
           ) : null}
 
           <textarea
-            placeholder="Описание проблемы"
-            aria-label="Описание проблемы"
+            placeholder={t('problem_desc')}
+            aria-label={t('problem_desc')}
             value={form.description}
             onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
             required
@@ -232,14 +234,14 @@ export function ServicePage() {
           {isServiceFlow ? (
             <select
               value={form.urgency}
-              aria-label="Приоритет заявки"
+              aria-label={t('request_priority')}
               onChange={(event) => setForm((prev) => ({ ...prev, urgency: event.target.value }))}
               disabled={isSubmitting}
             >
-              <option value="low">Низкая</option>
-              <option value="normal">Средняя</option>
-              <option value="high">Высокая</option>
-              <option value="critical">Критичная</option>
+              <option value="low">{t('low')}</option>
+              <option value="normal">{t('normal')}</option>
+              <option value="high">{t('high')}</option>
+              <option value="critical">{t('critical')}</option>
             </select>
           ) : null}
 
@@ -251,13 +253,13 @@ export function ServicePage() {
                 onChange={(event) => setForm((prev) => ({ ...prev, canOperateNow: event.target.checked }))}
                 disabled={isSubmitting}
               />
-              <span>Можно продолжать работать</span>
+              <span>{t('can_operate')}</span>
             </label>
           ) : null}
 
           <label className="upload-block" htmlFor="service-attachments">
-            <span className="upload-block__title">Фото или видео</span>
-            <span className="upload-block__text">Приложите материал, чтобы инженер быстрее оценил ситуацию.</span>
+            <span className="upload-block__title">{t('photo_video')}</span>
+            <span className="upload-block__text">{t('upload_hint')}</span>
             <input
               id="service-attachments"
               type="file"
@@ -266,33 +268,33 @@ export function ServicePage() {
               onChange={(event) => setForm((prev) => ({ ...prev, media: Array.from(event.target.files || []) }))}
               disabled={isSubmitting}
             />
-            {form.media.length ? <small>Выбрано файлов: {form.media.length}</small> : null}
+            {form.media.length ? <small>{t('files_selected')}: {form.media.length}</small> : null}
           </label>
 
           <button type="submit" className="service-submit-btn" disabled={isSubmitting}>
-            {isSubmitting ? 'Отправляем…' : 'Отправить заявку'}
+            {isSubmitting ? t('sending') : t('send_request')}
           </button>
         </form>
 
         {isServiceFlow && selectedEquipment ? (
-          <p className="service-hint">Выбрано оборудование: {selectedEquipment.brand} {selectedEquipment.model}</p>
+          <p className="service-hint">{t('selected_equipment')}: {selectedEquipment.brand} {selectedEquipment.model}</p>
         ) : null}
       </div>
 
       <section className="service-history">
-        <h2>История заявок</h2>
-        {isLoadingHistory ? <p>Загрузка…</p> : null}
+        <h2>{t('requests_history')}</h2>
+        {isLoadingHistory ? <p>{t('loading')}</p> : null}
         <div className="list">
           {history.map((request) => (
             <Link key={request.id} className="list-item" to={`/service/${request.id}`}>
               <strong>{request.id}</strong>
-              <p>{humanType[request.type] || humanCategory[request.category] || request.category}</p>
+              <p>{t(humanType[request.type] || humanCategory[request.category] || request.category)}</p>
               <small>
-                Статус: {humanStatus[request.status] || request.status} · {new Date(request.createdAt).toLocaleString('ru-RU')}
+                {t('status')}: {t(humanStatus[request.status] || request.status)} · {new Date(request.createdAt).toLocaleString(dateLocale)}
               </small>
             </Link>
           ))}
-          {!history.length && !isLoadingHistory ? <p>Пока нет заявок.</p> : null}
+          {!history.length && !isLoadingHistory ? <p>{t('no_requests')}</p> : null}
         </div>
       </section>
     </section>

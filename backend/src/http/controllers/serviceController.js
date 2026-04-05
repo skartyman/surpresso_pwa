@@ -21,20 +21,20 @@ function normalizeText(value) {
 function formatNotifyMessage(request) {
   const equipmentText = request.equipment
     ? `${request.equipment.brand} ${request.equipment.model} (${request.equipment.id})`
-    : request.equipmentId || 'не выбрано';
+    : request.equipmentId || 'не вибрано';
 
   return [
-    request.type === REQUEST_TYPES.serviceRepair ? '🛠 Новая сервисная заявка' : '📩 Новое клиентское обращение',
+    request.type === REQUEST_TYPES.serviceRepair ? '🛠 Нова сервісна заявка' : '📩 Нове клієнтське звернення',
     `ID: ${request.id}`,
     `Тип: ${request.type}`,
     `Контур: ${request.assignedDepartment}`,
-    `Клиент: ${request.client?.companyName || request.clientId}`,
-    `Оборудование: ${equipmentText}`,
+    `Клієнт: ${request.client?.companyName || request.clientId}`,
+    `Обладнання: ${equipmentText}`,
     `Заголовок: ${request.title || '—'}`,
-    `Описание: ${request.description}`,
-    request.urgency ? `Срочность: ${request.urgency}` : null,
-    typeof request.canOperateNow === 'boolean' ? `Можно работать: ${request.canOperateNow ? 'да' : 'нет'}` : null,
-    `Медиа: ${request.media?.length || 0}`,
+    `Опис: ${request.description}`,
+    request.urgency ? `Терміновість: ${request.urgency}` : null,
+    typeof request.canOperateNow === 'boolean' ? `Можна працювати: ${request.canOperateNow ? 'так' : 'ні'}` : null,
+    `Медіа: ${request.media?.length || 0}`,
   ].filter(Boolean).join('\n');
 }
 
@@ -94,7 +94,7 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         type,
         equipmentId: equipmentId || null,
         category: isServiceRepair ? category : 'general',
-        title: title || 'Новое обращение',
+        title: title || 'Нове звернення',
         description,
         urgency: isServiceRepair ? urgency : 'normal',
         canOperateNow: isServiceRepair ? canOperateNow : true,

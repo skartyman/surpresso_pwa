@@ -20,8 +20,10 @@ import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
 import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
+import { useI18n } from '../i18n';
 
 function ClientRoutes() {
+  const { t } = useI18n();
   return (
     <AppShell>
       <Routes>
@@ -32,10 +34,10 @@ function ClientRoutes() {
         <Route path={`${routes.requestForm}/:requestType`} element={<ServicePage />} />
         <Route path={`${routes.service}/:requestId`} element={<ServiceStatusPage />} />
         <Route path={routes.support} element={<SupportPage />} />
-        <Route path={routes.rentals} element={<PlaceholderPage title="Аренда" />} />
-        <Route path={routes.coffee} element={<PlaceholderPage title="Кофе" />} />
-        <Route path={routes.supplies} element={<PlaceholderPage title="Расходники" />} />
-        <Route path={routes.guides} element={<PlaceholderPage title="Инструкции" />} />
+        <Route path={routes.rentals} element={<PlaceholderPage title={t('rentals')} />} />
+        <Route path={routes.coffee} element={<PlaceholderPage title={t('coffee')} />} />
+        <Route path={routes.supplies} element={<PlaceholderPage title={t('supplies')} />} />
+        <Route path={routes.guides} element={<PlaceholderPage title={t('guides')} />} />
       </Routes>
     </AppShell>
   );
