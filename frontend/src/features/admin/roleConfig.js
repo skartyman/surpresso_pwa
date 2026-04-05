@@ -21,7 +21,7 @@ export const ROLE_LABELS = {
 const ALL_ROLES = Object.values(ROLES);
 
 export const ADMIN_MENU = [
-  { key: 'dashboard', to: 'dashboard', icon: 'dashboard', label: 'Дашборд', roles: [ROLES.owner, ROLES.serviceHead] },
+  { key: 'dashboard', to: 'dashboard', icon: 'dashboard', label: 'Executive', roles: [ROLES.owner, ROLES.director] },
   { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
   { key: 'director', to: 'director', icon: 'dashboard', label: 'Director Queue', roles: [ROLES.director, ROLES.owner] },
   { key: 'employees', to: 'employees', icon: 'employees', label: 'Сотрудники', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
@@ -33,7 +33,7 @@ export const ADMIN_MENU = [
 ];
 
 export const PAGE_PERMISSIONS = {
-  dashboard: [ROLES.owner, ROLES.serviceHead],
+  dashboard: [ROLES.owner, ROLES.director],
   service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
   director: [ROLES.director, ROLES.owner],
   sales: [ROLES.salesManager, ROLES.owner],

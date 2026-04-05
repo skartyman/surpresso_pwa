@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
@@ -106,7 +107,14 @@ export function AdminServicePage() {
   const canUseServiceBoardActions = ![ROLES.salesManager].includes(user?.role);
   const canSeeInternalNotes = [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.manager, ROLES.director, ROLES.owner].includes(user?.role);
 
-  const [filters, setFilters] = useState({ quickFilter: 'all', engineer: 'all', id: '', client: '' });
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState({
+    quickFilter: searchParams.get('quickFilter') || 'all',
+    engineer: 'all',
+    id: '',
+    client: '',
+    status: searchParams.get('status') || 'all',
+  });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
@@ -127,7 +135,12 @@ export function AdminServicePage() {
     setLoading(true);
     try {
       const [list, dash, engineerPayload] = await Promise.all([
-        adminServiceApi.serviceCases({ ...next, assignedToUserId: next.engineer === 'all' ? '' : next.engineer, search: next.client || next.id || '' }),
+        adminServiceApi.serviceCases({
+          ...next,
+          serviceStatus: next.status === 'all' ? '' : next.status,
+          assignedToUserId: next.engineer === 'all' ? '' : next.engineer,
+          search: next.client || next.id || '',
+        }),
         adminServiceApi.serviceKpi(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
@@ -215,6 +228,14 @@ export function AdminServicePage() {
   const filteredRequests = useMemo(() => requests.filter((item) => {
     if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
     if (filters.quickFilter === 'mine') return item.assignedToUserId === user?.id;
+    if (filters.quickFilter === 'overdue') {
+      const ageHours = (Date.now() - new Date(item.updatedAt).getTime()) / 3600000;
+      return (item.serviceStatus === 'accepted' && ageHours > 12)
+        || (item.serviceStatus === 'in_progress' && ageHours > 48)
+        || (item.serviceStatus === 'testing' && ageHours > 24)
+        || (item.serviceStatus === 'ready' && ageHours > 24);
+    }
+    if (filters.quickFilter === 'stale_ready') return item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000;
     if (filters.quickFilter?.startsWith('engineer:')) return item.assignedToUserId === filters.quickFilter.replace('engineer:', '');
     return true;
   }), [filters.quickFilter, requests, user?.id]);
@@ -272,7 +293,8 @@ export function AdminServicePage() {
 
       <FilterRow>
         <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Overdue</option><option value="stale_ready">Stale ready</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="accepted">Accepted</option><option value="in_progress">In Progress</option><option value="testing">Testing</option><option value="ready">Ready</option></select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="sc-1001" /></label>
         <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
       </FilterRow>

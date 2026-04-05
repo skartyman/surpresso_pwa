@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge } from '../components/AdminUi';
 
@@ -43,6 +44,7 @@ function SalesCard({ item, active, onSelect }) {
 }
 
 export function AdminSalesPage() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -72,7 +74,7 @@ export function AdminSalesPage() {
     setRelatedCases(serviceCases.items || []);
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [searchParams]); // eslint-disable-line
   useEffect(() => {
     if (!selectedId) return setSelectedEquipment(null);
     loadDetails(selectedId).catch(() => {
@@ -81,11 +83,23 @@ export function AdminSalesPage() {
     });
   }, [selectedId]);
 
-  const columns = useMemo(() => SALES_COLUMNS.map((status) => ({
-    status,
-    label: LABELS[status],
-    items: items.filter((row) => (row.commercialStatus || 'none') === status),
-  })), [items]);
+  const columns = useMemo(() => {
+    const requested = searchParams.get('commercialStatus');
+    const source = items.filter((row) => {
+      const status = row.commercialStatus || 'none';
+      if (!requested) return true;
+      if (requested === 'rent_backlog') return ['ready_for_rent', 'reserved_for_rent'].includes(status);
+      if (requested === 'sale_backlog') return ['ready_for_sale', 'reserved_for_sale'].includes(status);
+      if (requested === 'reserved_aging') return ['reserved_for_rent', 'reserved_for_sale'].includes(status) && (Date.now() - new Date(row.updatedAt).getTime()) > 48 * 3600000;
+      return status === requested;
+    });
+
+    return SALES_COLUMNS.map((status) => ({
+      status,
+      label: LABELS[status],
+      items: source.filter((row) => (row.commercialStatus || 'none') === status),
+    }));
+  }, [items, searchParams]);
 
   const caseHint = relatedCases[0] || null;
   const caseId = caseHint?.id || null;
