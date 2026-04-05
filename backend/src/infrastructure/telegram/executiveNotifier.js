@@ -22,6 +22,14 @@ export class ExecutiveNotifier {
     };
   }
 
+  getRecipients(role) {
+    return this.chatMap[role] || [];
+  }
+
+  async sendToChat(chatId, message) {
+    return this.botGateway.sendMessage(chatId, message);
+  }
+
   buildTemplates({ alertState, metrics }) {
     const alerts = alertState?.alerts || [];
     const critical = alerts.filter((item) => item.severity === 'critical');
@@ -54,9 +62,9 @@ export class ExecutiveNotifier {
   }
 
   async notifyRole(role, message) {
-    const chats = this.chatMap[role] || [];
+    const chats = this.getRecipients(role);
     if (!chats.length) return { role, ok: false, reason: 'chat_ids_missing' };
-    const results = await Promise.allSettled(chats.map((chatId) => this.botGateway.sendMessage(chatId, message)));
+    const results = await Promise.allSettled(chats.map((chatId) => this.sendToChat(chatId, message)));
     return {
       role,
       ok: true,

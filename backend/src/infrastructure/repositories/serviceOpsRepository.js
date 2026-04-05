@@ -206,6 +206,12 @@ export class NeonServiceOpsRepository {
 
     const alertState = evaluateAlerts(cases, { now });
 
+    const [lastSentNotifications, deliveryState, topWorseningBottlenecks] = await Promise.all([
+      this.listNotificationLogs({ limit: 12 }),
+      this.getNotificationDeliveryState(),
+      this.getTopWorseningBottlenecks({ days: 7 }),
+    ]);
+
     const metrics = {
       newCount: cases.filter((c) => c.serviceStatus === 'accepted').length,
       inProgressCount: cases.filter((c) => c.serviceStatus === 'in_progress').length,
@@ -258,6 +264,9 @@ export class NeonServiceOpsRepository {
       alerts: alertState,
       notifications: {
         preview: alertState.notificationPreview,
+        lastSent: lastSentNotifications,
+        deliveryState,
+        nextScheduledDigest: this.getNextScheduledDigestPreview(now),
       },
       weeklyExecutiveReport: {
         generatedAt: now.toISOString(),
@@ -275,8 +284,184 @@ export class NeonServiceOpsRepository {
           },
         },
       },
+      executiveDashboard: {
+        lastSentNotifications,
+        deliveryState,
+        nextScheduledDigest: this.getNextScheduledDigestPreview(now),
+        topWorseningBottlenecks,
+      },
     };
     return metrics;
+  }
+
+  getNextScheduledDigestPreview(now = new Date()) {
+    return {
+      generatedAt: now.toISOString(),
+      daily: new Date(now.getTime() + (24 * 3600000)).toISOString(),
+      weekly: new Date(now.getTime() + (7 * 24 * 3600000)).toISOString(),
+    };
+  }
+
+  async createNotificationLog(payload = {}) {
+    return this.prisma.notificationLog.create({
+      data: {
+        id: payload.id || `nlog-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        channel: payload.channel || 'telegram',
+        recipientRole: payload.recipientRole || 'unknown',
+        recipientChatId: String(payload.recipientChatId || ''),
+        digestType: payload.digestType || 'manual_digest',
+        severity: payload.severity || 'info',
+        payloadHash: payload.payloadHash || '',
+        payloadPreview: payload.payloadPreview || null,
+        status: payload.status || 'sent',
+        sentAt: payload.sentAt ? new Date(payload.sentAt) : null,
+        errorMessage: payload.errorMessage || null,
+        retryCount: Number(payload.retryCount || 0),
+        triggerType: payload.triggerType || 'manual',
+      },
+    });
+  }
+
+  async updateNotificationLog(id, patch = {}) {
+    return this.prisma.notificationLog.update({
+      where: { id },
+      data: {
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.errorMessage !== undefined ? { errorMessage: patch.errorMessage } : {}),
+        ...(patch.retryCount !== undefined ? { retryCount: patch.retryCount } : {}),
+        ...(patch.sentAt !== undefined ? { sentAt: patch.sentAt ? new Date(patch.sentAt) : null } : {}),
+      },
+    });
+  }
+
+  async findRecentNotificationDuplicate({ channel, recipientRole, recipientChatId, digestType, payloadHash, windowMinutes = 90 } = {}) {
+    const since = new Date(Date.now() - (Math.max(1, Number(windowMinutes || 90)) * 60000));
+    return this.prisma.notificationLog.findFirst({
+      where: {
+        channel,
+        recipientRole,
+        recipientChatId: String(recipientChatId || ''),
+        digestType,
+        payloadHash,
+        status: { in: ['sent', 'retry_pending', 'skipped_duplicate'] },
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async listNotificationLogs({ limit = 20 } = {}) {
+    const rows = await this.prisma.notificationLog.findMany({
+      take: Math.max(1, Math.min(100, Number(limit || 20))),
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((item) => ({
+      ...item,
+      createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+      updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+      sentAt: item.sentAt?.toISOString?.() || item.sentAt || null,
+    }));
+  }
+
+  async listPendingNotificationRetries({ limit = 20 } = {}) {
+    return this.prisma.notificationLog.findMany({
+      where: { status: 'retry_pending' },
+      take: Math.max(1, Math.min(100, Number(limit || 20))),
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async getNotificationDeliveryState() {
+    const rows = await this.prisma.notificationLog.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+    return rows.reduce((acc, row) => ({ ...acc, [row.status]: row._count._all }), {});
+  }
+
+  async getTopWorseningBottlenecks({ days = 7 } = {}) {
+    const d = Math.max(2, Number(days || 7));
+    const now = Date.now();
+    const split = new Date(now - Math.floor(d / 2) * 24 * 3600000);
+    const from = new Date(now - d * 24 * 3600000);
+    const [recent, previous] = await Promise.all([
+      this.prisma.serviceCase.count({ where: { updatedAt: { gte: split }, serviceStatus: { in: ['accepted', 'in_progress', 'testing', 'ready'] } } }),
+      this.prisma.serviceCase.count({ where: { updatedAt: { gte: from, lt: split }, serviceStatus: { in: ['accepted', 'in_progress', 'testing', 'ready'] } } }),
+    ]);
+    return [
+      { metric: 'active_backlog', current: recent, previous, delta: recent - previous },
+    ].sort((a, b) => b.delta - a.delta);
+  }
+
+  async createReportExportHistory(payload = {}) {
+    return this.prisma.reportExportHistory.create({
+      data: {
+        id: payload.id || `rexp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        reportType: payload.reportType || 'unknown',
+        format: payload.format || 'csv',
+        triggerType: payload.triggerType || 'manual',
+        requestedByRole: payload.requestedByRole || null,
+        requestedByUserId: payload.requestedByUserId || null,
+        filtersJson: payload.filtersJson || null,
+        status: payload.status || 'success',
+      },
+    });
+  }
+
+  async listReportExportHistory({ limit = 25 } = {}) {
+    const rows = await this.prisma.reportExportHistory.findMany({
+      take: Math.max(1, Math.min(200, Number(limit || 25))),
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((item) => ({ ...item, createdAt: item.createdAt?.toISOString?.() || item.createdAt }));
+  }
+
+  async saveReportPreset(payload = {}) {
+    const id = payload.id || `rpre-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const key = payload.key || `${payload.reportType || 'report'}-${payload.ownerRole || 'global'}`;
+    const upserted = await this.prisma.reportPreset.upsert({
+      where: { key },
+      update: {
+        title: payload.title || key,
+        reportType: payload.reportType || 'service_cases',
+        filtersJson: payload.filtersJson || '{}',
+        isSystem: payload.isSystem ?? false,
+        ownerRole: payload.ownerRole || null,
+        ownerUserId: payload.ownerUserId || null,
+        createdByUserId: payload.createdByUserId || null,
+      },
+      create: {
+        id,
+        key,
+        title: payload.title || key,
+        reportType: payload.reportType || 'service_cases',
+        filtersJson: payload.filtersJson || '{}',
+        isSystem: payload.isSystem ?? false,
+        ownerRole: payload.ownerRole || null,
+        ownerUserId: payload.ownerUserId || null,
+        createdByUserId: payload.createdByUserId || null,
+      },
+    });
+    return {
+      ...upserted,
+      createdAt: upserted.createdAt?.toISOString?.() || upserted.createdAt,
+      updatedAt: upserted.updatedAt?.toISOString?.() || upserted.updatedAt,
+    };
+  }
+
+  async listReportPresets({ reportType, ownerRole } = {}) {
+    const rows = await this.prisma.reportPreset.findMany({
+      where: {
+        ...(reportType ? { reportType } : {}),
+        ...(ownerRole ? { OR: [{ ownerRole }, { ownerRole: null }] } : {}),
+      },
+      orderBy: [{ isSystem: 'desc' }, { updatedAt: 'desc' }],
+    });
+    return rows.map((item) => ({
+      ...item,
+      createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+      updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    }));
   }
 
   buildWhere(filters = {}) {
@@ -504,6 +689,9 @@ export class InMemoryServiceOpsRepository {
     this.history = [];
     this.notes = [];
     this.media = [];
+    this.notificationLogs = [];
+    this.reportExportHistory = [];
+    this.reportPresets = [];
   }
 
   async dashboard() {
@@ -536,6 +724,12 @@ export class InMemoryServiceOpsRepository {
       },
       alerts: { generatedAt: new Date().toISOString(), alerts: [], summary: { total: 0, critical: 0, warning: 0, info: 0, byType: {}, bySeverity: {} }, escalationBlocks: { serviceHead: [], director: [], salesManager: [], owner: [] }, recentCriticalChanges: [], notificationPreview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 } },
       notifications: { preview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 } },
+      executiveDashboard: {
+        lastSentNotifications: this.notificationLogs.slice(-12).reverse(),
+        deliveryState: this.notificationLogs.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {}),
+        nextScheduledDigest: { daily: new Date(Date.now() + 24 * 3600000).toISOString(), weekly: new Date(Date.now() + 7 * 24 * 3600000).toISOString() },
+        topWorseningBottlenecks: [],
+      },
       weeklyExecutiveReport: { generatedAt: new Date().toISOString(), serviceTotals: { totalCases: 0, unassigned: 0 }, alertsSummary: { total: 0, critical: 0, warning: 0, info: 0, byType: {}, bySeverity: {} }, roleAnalytics: { director: { readyAgingCount: 0, routeBacklogCount: 0 }, sales: { rentBacklogCount: 0, saleBacklogCount: 0, reservedAgingCount: 0 } } },
     };
   }
@@ -550,6 +744,87 @@ export class InMemoryServiceOpsRepository {
   async getEquipmentById() { return null; }
   async updateEquipmentCommercialStatus() { return null; }
   async listEquipmentServiceCases() { return []; }
+  async createNotificationLog(payload = {}) {
+    const row = {
+      id: payload.id || `nlog-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      channel: payload.channel || 'telegram',
+      recipientRole: payload.recipientRole || 'unknown',
+      recipientChatId: String(payload.recipientChatId || ''),
+      digestType: payload.digestType || 'manual_digest',
+      severity: payload.severity || 'info',
+      payloadHash: payload.payloadHash || '',
+      payloadPreview: payload.payloadPreview || null,
+      status: payload.status || 'sent',
+      sentAt: payload.sentAt || new Date().toISOString(),
+      errorMessage: payload.errorMessage || null,
+      retryCount: Number(payload.retryCount || 0),
+      triggerType: payload.triggerType || 'manual',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.notificationLogs.unshift(row);
+    return row;
+  }
+  async updateNotificationLog(id, patch = {}) {
+    const idx = this.notificationLogs.findIndex((item) => item.id === id);
+    if (idx < 0) return null;
+    this.notificationLogs[idx] = { ...this.notificationLogs[idx], ...patch, updatedAt: new Date().toISOString() };
+    return this.notificationLogs[idx];
+  }
+  async findRecentNotificationDuplicate({ channel, recipientRole, recipientChatId, digestType, payloadHash, windowMinutes = 90 } = {}) {
+    const since = Date.now() - (Math.max(1, Number(windowMinutes || 90)) * 60000);
+    return this.notificationLogs.find((item) => item.channel === channel
+      && item.recipientRole === recipientRole
+      && item.recipientChatId === String(recipientChatId || '')
+      && item.digestType === digestType
+      && item.payloadHash === payloadHash
+      && new Date(item.createdAt).getTime() >= since) || null;
+  }
+  async listNotificationLogs({ limit = 20 } = {}) { return this.notificationLogs.slice(0, limit); }
+  async listPendingNotificationRetries({ limit = 20 } = {}) { return this.notificationLogs.filter((item) => item.status === 'retry_pending').slice(0, limit); }
+  async getNotificationDeliveryState() {
+    return this.notificationLogs.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {});
+  }
+  async getTopWorseningBottlenecks() { return []; }
+  async createReportExportHistory(payload = {}) {
+    const row = {
+      id: payload.id || `rexp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      reportType: payload.reportType || 'unknown',
+      format: payload.format || 'csv',
+      triggerType: payload.triggerType || 'manual',
+      requestedByRole: payload.requestedByRole || null,
+      requestedByUserId: payload.requestedByUserId || null,
+      filtersJson: payload.filtersJson || null,
+      status: payload.status || 'success',
+      createdAt: new Date().toISOString(),
+    };
+    this.reportExportHistory.unshift(row);
+    return row;
+  }
+  async listReportExportHistory({ limit = 25 } = {}) { return this.reportExportHistory.slice(0, limit); }
+  async saveReportPreset(payload = {}) {
+    const key = payload.key || `${payload.reportType || 'report'}-${payload.ownerRole || 'global'}`;
+    const idx = this.reportPresets.findIndex((item) => item.key === key);
+    const row = {
+      id: payload.id || this.reportPresets[idx]?.id || `rpre-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      key,
+      title: payload.title || key,
+      reportType: payload.reportType || 'service_cases',
+      filtersJson: payload.filtersJson || '{}',
+      isSystem: payload.isSystem ?? false,
+      ownerRole: payload.ownerRole || null,
+      ownerUserId: payload.ownerUserId || null,
+      createdByUserId: payload.createdByUserId || null,
+      createdAt: this.reportPresets[idx]?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (idx >= 0) this.reportPresets[idx] = row;
+    else this.reportPresets.unshift(row);
+    return row;
+  }
+  async listReportPresets({ reportType, ownerRole } = {}) {
+    return this.reportPresets.filter((item) => (!reportType || item.reportType === reportType) && (!ownerRole || !item.ownerRole || item.ownerRole === ownerRole));
+  }
 }
 
 export async function storeServiceMediaFile({ uploadsRoot, file, prefix = 'service-cases' }) {

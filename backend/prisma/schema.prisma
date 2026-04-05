@@ -109,6 +109,7 @@ model User {
   uploadedServiceMedia  ServiceCaseMedia[]
   changedServiceHistory ServiceStatusHistory[]
   serviceCaseNotes      ServiceCaseNote[]
+  reportPresets         ReportPreset[]
 }
 
 model UserSpecialization {
@@ -318,6 +319,63 @@ model ServiceCaseNote {
 
   @@index([serviceCaseId])
   @@index([authorUserId])
+}
+
+model NotificationLog {
+  id              String   @id
+  channel         String
+  recipientRole   String
+  recipientChatId String
+  digestType      String
+  severity        String
+  payloadHash     String
+  payloadPreview  String?
+  status          String
+  sentAt          DateTime?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  triggerType     String   @default("manual")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([channel, recipientRole, digestType])
+  @@index([recipientChatId, payloadHash, createdAt])
+  @@index([status, createdAt])
+}
+
+model ReportExportHistory {
+  id         String   @id
+  reportType String
+  format     String
+  triggerType String
+  requestedByRole String?
+  requestedByUserId String?
+  filtersJson String?
+  status     String
+  createdAt  DateTime @default(now())
+
+  @@index([reportType, createdAt])
+  @@index([triggerType, createdAt])
+}
+
+model ReportPreset {
+  id           String   @id
+  key          String
+  title        String
+  reportType   String
+  filtersJson  String
+  isSystem     Boolean  @default(false)
+  ownerRole    String?
+  ownerUserId  String?
+  createdByUserId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdByUser User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([key])
+  @@index([reportType])
+  @@index([ownerRole])
 }
 
 model ServiceRequest {
