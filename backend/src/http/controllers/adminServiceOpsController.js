@@ -24,6 +24,12 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.json(metrics);
     },
 
+    async serviceKpi(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      const metrics = await serviceOpsRepository.dashboard(req.query || {});
+      return res.json(metrics);
+    },
+
     async listServiceCases(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listServiceCases(req.query || {});
@@ -38,7 +44,14 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         .filter((toStatus) => canChangeServiceStatus(req.adminUser, item.serviceStatus, toStatus));
       const commercialActions = Object.keys(getAllowedCommercialTransitions(item.equipment?.commercialStatus || 'none'))
         .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.equipment?.commercialStatus || 'none', toStatus).allowed);
-      return res.json({ item: { ...item, availableServiceActions: serviceActions, availableCommercialActions: commercialActions } });
+      return res.json({
+        item: {
+          ...item,
+          invoiceIssued: ['issued', 'paid'].includes(String(item.invoiceStatus || '').toLowerCase()),
+          availableServiceActions: serviceActions,
+          availableCommercialActions: commercialActions,
+        },
+      });
     },
 
     async assign(req, res) {
@@ -78,6 +91,42 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         });
         if (!item) return res.status(404).json({ error: 'not_found' });
         return res.json({ item });
+      } catch (error) {
+        if (error?.message === 'invalid_transition') return res.status(409).json({ error: 'invalid_transition' });
+        throw error;
+      }
+    },
+
+    async directorProcess(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.directorProcess)) return res.status(403).json({ error: 'forbidden' });
+      const serviceStatus = String(req.body?.serviceStatus || '').trim();
+      if (!serviceStatus) return res.status(400).json({ error: 'service_status_required' });
+
+      const existing = await serviceOpsRepository.getServiceCaseById(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'not_found' });
+
+      const decision = evaluateServiceStatusChange(req.adminUser, existing.serviceStatus, serviceStatus);
+      if (!decision.allowed) {
+        if (decision.reason === 'invalid_transition') return res.status(409).json({ error: 'invalid_transition' });
+        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
+      }
+
+      const invoiceIssued = req.body?.invoiceIssued === true;
+      try {
+        const item = await serviceOpsRepository.updateServiceCaseStatus(req.params.id, serviceStatus, {
+          comment: req.body?.comment || null,
+          actorLabel: req.adminUser?.fullName || req.adminUser?.email || req.adminUser?.id || 'director',
+          changedByUserId: req.adminUser?.id || null,
+          invoiceNumber: req.body?.invoiceNumber || undefined,
+          invoiceStatus: req.body?.invoiceStatus || (invoiceIssued ? 'issued' : undefined),
+        });
+        if (!item) return res.status(404).json({ error: 'not_found' });
+        return res.json({
+          item: {
+            ...item,
+            invoiceIssued: ['issued', 'paid'].includes(String(item.invoiceStatus || '').toLowerCase()),
+          },
+        });
       } catch (error) {
         if (error?.message === 'invalid_transition') return res.status(409).json({ error: 'invalid_transition' });
         throw error;
@@ -167,6 +216,43 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         changedByUserId: req.adminUser?.id || null,
         actorLabel: req.adminUser?.fullName || req.adminUser?.id || 'admin',
         serviceCaseId: req.body?.serviceCaseId || null,
+      });
+      if (!item) return res.status(404).json({ error: 'not_found' });
+      return res.json({ item });
+    },
+
+    async directorCommercialRoute(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.directorProcess)) return res.status(403).json({ error: 'forbidden' });
+      const serviceCaseId = String(req.body?.serviceCaseId || req.params.id || '').trim();
+      const commercialStatus = String(req.body?.commercialStatus || '').trim();
+      if (!serviceCaseId) return res.status(400).json({ error: 'service_case_required' });
+      if (!commercialStatus) return res.status(400).json({ error: 'commercial_status_required' });
+
+      const serviceCase = await serviceOpsRepository.getServiceCaseById(serviceCaseId);
+      if (!serviceCase) return res.status(404).json({ error: 'not_found' });
+      if (!serviceCase.equipmentId) return res.status(409).json({ error: 'equipment_required' });
+
+      const equipment = await serviceOpsRepository.getEquipmentById(serviceCase.equipmentId);
+      if (!equipment) return res.status(404).json({ error: 'equipment_not_found' });
+
+      const decision = evaluateCommercialStatusChange(
+        req.adminUser,
+        serviceCase.serviceStatus,
+        equipment.commercialStatus || 'none',
+        commercialStatus,
+      );
+      if (!decision.allowed) {
+        if (decision.reason === 'invalid_transition' || decision.reason === 'service_status_not_processed') {
+          return res.status(409).json({ error: decision.reason });
+        }
+        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
+      }
+
+      const item = await serviceOpsRepository.updateEquipmentCommercialStatus(serviceCase.equipmentId, commercialStatus, {
+        comment: req.body?.comment || null,
+        changedByUserId: req.adminUser?.id || null,
+        actorLabel: req.adminUser?.fullName || req.adminUser?.id || 'director',
+        serviceCaseId,
       });
       if (!item) return res.status(404).json({ error: 'not_found' });
       return res.json({ item });
