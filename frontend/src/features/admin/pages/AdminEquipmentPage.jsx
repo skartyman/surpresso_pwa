@@ -46,20 +46,46 @@ function EquipmentListCard({ item, active, onClick }) {
 }
 
 function MediaGallery({ rows = [], onOpen }) {
-  if (!rows.length) return <p className="empty-copy">Нет медиа.</p>;
+  const [filter, setFilter] = useState('all');
+  const filtered = useMemo(
+    () => rows.filter((item) => filter === 'all' || item.mediaType === filter),
+    [rows, filter],
+  );
+
+  if (!rows.length) return <p className="empty-copy">Нет медиа по этому оборудованию.</p>;
   return (
-    <div className="equipment-media-grid">
-      {rows.map((media, index) => (
-        <button type="button" key={media.id || `${media.fileUrl}-${index}`} className="equipment-media-thumb" onClick={() => onOpen(index)}>
-          {media.kind === 'video'
-            ? <video src={media.fileUrl} muted playsInline preload="metadata" />
-            : <img src={media.fileUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
-          <div>
-            <strong>{media.caption || media.originalName || media.kind || 'media'}</strong>
-            <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
-          </div>
-        </button>
-      ))}
+    <div className="equipment-detail-section">
+      <div className="quick-filter-row">
+        {[
+          { key: 'all', label: 'Все' },
+          { key: 'photo', label: 'Фото' },
+          { key: 'video', label: 'Видео' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={filter === item.key ? 'active' : ''}
+            onClick={() => setFilter(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="equipment-media-grid">
+        {filtered.map((media, index) => (
+          <button type="button" key={media.id || `${media.fullUrl || media.fileUrl}-${index}`} className="equipment-media-thumb" onClick={() => onOpen(rows.findIndex((item) => item.id === media.id))}>
+            {media.mediaType === 'video'
+              ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
+              : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
+            <div>
+              <strong>{media.caption || media.originalName || media.mediaType || 'media'}</strong>
+              <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
+              {media.serviceCaseId ? <span>Кейс: {media.serviceCaseId}</span> : null}
+            </div>
+          </button>
+        ))}
+        {!filtered.length ? <p className="empty-copy media-empty">По выбранному фильтру файлов нет.</p> : null}
+      </div>
     </div>
   );
 }
@@ -70,11 +96,12 @@ function Lightbox({ media, index, onClose }) {
     <div className="equipment-lightbox" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="equipment-lightbox__content" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="equipment-lightbox__close" onClick={onClose}>×</button>
-        {media.kind === 'video'
-          ? <video src={media.fileUrl} controls autoPlay />
-          : <img src={media.fileUrl} alt={media.caption || media.originalName || `media-${index + 1}`} />}
+        {media.mediaType === 'video'
+          ? <video src={media.fullUrl || media.fileUrl} controls autoPlay />
+          : <img src={media.fullUrl || media.fileUrl} alt={media.caption || media.originalName || `media-${index + 1}`} />}
         <p>{media.caption || media.originalName || '—'}</p>
         <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
+        {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
       </div>
     </div>
   );
@@ -102,16 +129,17 @@ function TabPanel({ tab, detail, onOpenMedia }) {
   }
   if (tab === 'media') return <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} />;
   if (tab === 'history') {
-    const rows = detail.history || [];
+    const rows = detail.timeline || [];
     if (!rows.length) return <p className="empty-copy">История отсутствует.</p>;
     return (
       <ul className="equipment-history-list">
         {rows.map((row) => (
           <li key={row.id}>
-            <p><strong>{row.eventType === 'commercial' ? 'Commercial' : 'Service'}:</strong> {row.fromStatus || '—'} → {row.toStatus || '—'}</p>
-            <p>Actor: {row.actor?.fullName || row.actorLabel || 'system'} · {formatDate(row.timestamp)}</p>
+            <p><strong>{row.type}:</strong> {row.payload?.fromStatus || '—'} → {row.payload?.toStatus || '—'}</p>
+            <p>Actor: {row.actor || 'system'} · {formatDate(row.timestamp)}</p>
             <p>Comment: {row.comment || '—'}</p>
-            <p>Legacy raw: {row.raw?.fromStatusRaw || '—'} → {row.raw?.toStatusRaw || '—'}</p>
+            {row.payload?.serviceCaseId ? <p>Case: {row.payload?.serviceCaseId}</p> : null}
+            {row.payload?.raw ? <p>Legacy raw: {row.payload.raw?.fromStatusRaw || '—'} → {row.payload.raw?.toStatusRaw || '—'}</p> : null}
           </li>
         ))}
       </ul>
@@ -122,6 +150,7 @@ function TabPanel({ tab, detail, onOpenMedia }) {
     if (!rows.length) return <p className="empty-copy">Кейсов не найдено.</p>;
     return (
       <div className="equipment-cases-list">
+        {detail.activeServiceCaseId ? <p>Активный кейс: <strong>{detail.activeServiceCaseId}</strong></p> : <p>Активный кейс отсутствует.</p>}
         {rows.map((row) => (
           <article key={row.id} className="equipment-case-card">
             <header>
@@ -130,7 +159,7 @@ function TabPanel({ tab, detail, onOpenMedia }) {
             </header>
             <p>Status: {row.serviceStatus || '—'}</p>
             <p>Created: {formatDate(row.createdAt)} · Updated: {formatDate(row.updatedAt)}</p>
-            <a href={`#service-case:${row.id}`}>Открыть detail case view: {row.id}</a>
+            <a href={`/admin/service?caseId=${encodeURIComponent(row.id)}`}>Открыть detail case view: {row.id}</a>
           </article>
         ))}
       </div>
