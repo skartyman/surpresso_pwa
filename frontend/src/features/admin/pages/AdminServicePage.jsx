@@ -27,13 +27,30 @@ const COMMERCIAL_STATUS_LABELS = {
   reserved_for_sale: 'Бронь продажи',
   sold: 'Продано',
 };
-const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', testingCount: 'service', readyCount: 'equipment', overdueCount: 'bell', unassignedCount: 'clients' };
+const KPI_ICON = {
+  newCount: 'dashboard',
+  inProgressCount: 'service',
+  testingCount: 'service',
+  readyCount: 'equipment',
+  overdueCount: 'bell',
+  unassignedCount: 'clients',
+  assignAvg: 'employees',
+  repairAvg: 'service',
+  slaReady: 'equipment',
+  slaBacklog: 'sales',
+};
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes', 'equipment', 'commercial'];
 const TAB_LABELS = {
   overview: 'Обзор', history: 'История', media: 'Медиа', notes: 'Заметки', equipment: 'Оборудование', commercial: 'Коммерция',
 };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
+function formatDuration(value) { return Number.isFinite(value) ? `${value} мин` : '—'; }
+function formatPersonAudit(item) {
+  if (!item) return '—';
+  if (item.user?.fullName) return item.user.fullName;
+  return item.actorLabel || '—';
+}
 
 function ServiceTicketCard({ request, active, onSelect }) {
   const status = request.serviceStatus || request.status;
@@ -229,6 +246,10 @@ export function AdminServicePage() {
     { key: 'readyCount', label: 'Ready', value: dashboard?.readyCount || 0 },
     { key: 'unassignedCount', label: 'Unassigned', value: dashboard?.unassignedCount || 0 },
     { key: 'overdueCount', label: 'Overdue', value: dashboard?.overdueCount || 0 },
+    { key: 'assignAvg', label: 'Avg assign', value: formatDuration(dashboard?.roleAnalytics?.service?.avgAssignTimeMinutes) },
+    { key: 'repairAvg', label: 'Avg repair', value: formatDuration(dashboard?.roleAnalytics?.service?.avgRepairTimeMinutes) },
+    { key: 'slaReady', label: 'Stale ready', value: dashboard?.slaAging?.staleReadyCount || 0 },
+    { key: 'slaBacklog', label: 'Stale rent/sale', value: dashboard?.slaAging?.staleRentSaleBacklogCount || 0 },
   ];
 
   return (
@@ -326,6 +347,29 @@ export function AdminServicePage() {
                       <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitAssignment().catch(() => setError('Не удалось назначить инженера.'))}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</button>
                     </div>
                   ) : null}
+
+                  <div className="assignment-box">
+                    <h4>Audit trail</h4>
+                    <div className="detail-grid">
+                      <p><Icon name="employees" /> Назначил: {formatPersonAudit(selectedRequest.auditTrail?.assigned)} · {formatDate(selectedRequest.auditTrail?.assigned?.at)}</p>
+                      <p><Icon name="service" /> Взял в работу: {formatPersonAudit(selectedRequest.auditTrail?.takenInWork)} · {formatDate(selectedRequest.auditTrail?.takenInWork?.at)}</p>
+                      <p><Icon name="service" /> Перевёл в testing: {formatPersonAudit(selectedRequest.auditTrail?.movedToTesting)} · {formatDate(selectedRequest.auditTrail?.movedToTesting?.at)}</p>
+                      <p><Icon name="equipment" /> Перевёл в ready: {formatPersonAudit(selectedRequest.auditTrail?.movedToReady)} · {formatDate(selectedRequest.auditTrail?.movedToReady?.at)}</p>
+                      <p><Icon name="dashboard" /> Processed: {formatPersonAudit(selectedRequest.auditTrail?.processed)} · {formatDate(selectedRequest.auditTrail?.processed?.at)}</p>
+                    </div>
+                    <div className="timeline-list compact">
+                      {(selectedRequest.auditTrail?.commercialChanges || []).map((item) => (
+                        <article key={item.id} className="timeline-item">
+                          <i />
+                          <div>
+                            <strong>Commercial: {item.fromStatus || '—'} → {item.toStatus || '—'}</strong>
+                            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'system'}</small>
+                          </div>
+                        </article>
+                      ))}
+                      {!(selectedRequest.auditTrail?.commercialChanges || []).length ? <p className="empty-copy">Изменений commercial status пока нет.</p> : null}
+                    </div>
+                  </div>
                 </>
               ) : null}
 
@@ -333,19 +377,38 @@ export function AdminServicePage() {
 
               {activeTab === 'media' ? (
                 <div className="media-tab">
+                  <div className="timeline-list compact">
+                    {[...(selectedRequest.media || [])]
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((item) => (
+                        <article key={`timeline-${item.id}`} className="timeline-item">
+                          <i />
+                          <div>
+                            <strong>{item.kind === 'video' ? 'Видео' : 'Фото'} · {item.caption || item.originalName || 'Без подписи'}</strong>
+                            <small>{formatDate(item.createdAt)} · {item.uploadedByUser?.fullName || 'system'}</small>
+                          </div>
+                        </article>
+                      ))}
+                    {!(selectedRequest.media || []).length ? <p className="empty-copy">Хронология медиа пока пустая.</p> : null}
+                  </div>
                   <div className="media-grid">
-                    {(selectedRequest.media || []).map((item) => (
+                    {[...(selectedRequest.media || [])]
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((item) => (
                       <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
                         {item.kind === 'photo' ? <img src={item.fileUrl} alt={item.caption || item.originalName || 'photo'} /> : <video src={item.fileUrl} controls preload="metadata" />}
                         <small>{item.caption || item.originalName || item.kind}</small>
                       </a>
                     ))}
+                    {!(selectedRequest.media || []).length ? <p className="empty-copy media-empty">Пока нет файлов. Загрузите фото/видео для кейса.</p> : null}
                   </div>
                   {canUseServiceBoardActions ? (
                     <div className="assignment-box">
                       <h4>Upload media</h4>
+                      <p className="empty-copy">Поддерживаются фото и видео. Файлы сохраняются в disk storage.</p>
                       <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
                       <input value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Подпись (опц.)" maxLength={200} />
+                      {mediaFiles.length ? <small>К загрузке: {mediaFiles.length} файл(ов).</small> : <small>Файлы не выбраны.</small>}
                       <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitMedia().catch(() => setError('Не удалось загрузить медиа.'))}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</button>
                     </div>
                   ) : null}

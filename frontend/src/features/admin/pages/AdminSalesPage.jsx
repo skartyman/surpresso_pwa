@@ -125,6 +125,9 @@ export function AdminSalesPage() {
         <KPIChipCard label="Ready for sale" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
         <KPIChipCard label="Reserved for sale" value={columns.find((c) => c.status === 'reserved_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
         <KPIChipCard label="Sold" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="Sales" />
+        <KPIChipCard label="Rent backlog" value={items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
+        <KPIChipCard label="Sale backlog" value={items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
+        <KPIChipCard label="Reserved aging" value={items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length} icon="bell" hint="Sales" />
       </div>
 
       <AlertPanel items={[

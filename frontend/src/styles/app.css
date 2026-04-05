@@ -1094,6 +1094,7 @@ textarea {
 .detail-tabs button { border: 1px solid var(--sa-line); background: var(--sa-surface-2); border-radius: 8px; padding: 6px 10px; color: var(--sa-text); white-space: nowrap; }
 .detail-tabs button.active { background: var(--sa-brand); border-color: transparent; color: #1f1300; font-weight: 600; }
 .timeline-list { display: grid; gap: 8px; }
+.timeline-list.compact { gap: 6px; }
 .timeline-item { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; }
 .timeline-item i { width: 10px; height: 10px; background: var(--sa-brand); border-radius: 50%; margin-top: 4px; box-shadow: 0 0 0 4px color-mix(in oklab, var(--sa-brand), transparent 80%); }
 .timeline-item p { margin: 3px 0; font-size: 13px; color: var(--sa-muted); }
@@ -1101,6 +1102,7 @@ textarea {
 .media-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .media-card { border: 1px solid var(--sa-line); border-radius: 10px; padding: 6px; color: var(--sa-text); text-decoration: none; display: grid; gap: 6px; background: var(--sa-surface-2); }
 .media-card img, .media-card video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: #111827; }
+.media-empty { grid-column: 1 / -1; border: 1px dashed var(--sa-line); border-radius: 8px; }
 .note-item { border: 1px solid var(--sa-line); border-radius: 8px; padding: 8px; background: var(--sa-surface-2); display: grid; gap: 4px; }
 .note-item p { margin: 0; font-size: 13px; }
 .note-composer textarea { border: 1px solid var(--sa-line); border-radius: 8px; background: transparent; color: var(--sa-text); padding: 8px; resize: vertical; }

@@ -160,6 +160,14 @@ export function AdminDirectorPage() {
         <KPIChipCard label="Ready for issue" value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint="Commercial" />
         <KPIChipCard label="Ready for rent" value={commercialColumns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Commercial" />
         <KPIChipCard label="Ready for sale" value={commercialColumns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Commercial" />
+        <KPIChipCard label="Ready aging" value={serviceCases.filter((item) => item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000).length} icon="bell" hint="Director" />
+        <KPIChipCard label="Processed today" value={serviceCases.filter((item) => {
+          const ts = item.processedAt ? new Date(item.processedAt).getTime() : null;
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+          return ts && ts >= start.getTime();
+        }).length} icon="dashboard" hint="Director" />
+        <KPIChipCard label="Route backlog" value={commercialQueue.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Director" />
       </div>
 
       <AlertPanel items={[

@@ -19,6 +19,7 @@ async function apiFetch(path, options = {}) {
 export const adminServiceApi = {
   serviceDashboard: async () => apiFetch('/api/telegram/admin/service/dashboard'),
   serviceKpi: async () => apiFetch('/api/telegram/admin/service/kpi'),
+  executiveSummary: async () => apiFetch('/api/telegram/admin/executive/summary'),
   serviceCases: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {
