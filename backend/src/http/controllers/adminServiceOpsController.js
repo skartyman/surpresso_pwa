@@ -1,4 +1,9 @@
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
+import {
+  canApplyCommercialStatusForServiceStatus,
+  canRoleTransitionCommercialStatus,
+  canRoleTransitionServiceStatus,
+} from '../../domain/serviceOpsWorkflowPolicy.js';
 
 const ROLES = {
   dashboard: ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director'],
@@ -44,16 +49,29 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     async updateStatus(req, res) {
       const serviceStatus = String(req.body?.serviceStatus || '').trim();
       if (!serviceStatus) return res.status(400).json({ error: 'service_status_required' });
-      const item = await serviceOpsRepository.updateServiceCaseStatus(req.params.id, serviceStatus, {
-        comment: req.body?.comment || null,
-        actorLabel: req.adminUser?.fullName || req.adminUser?.email || req.adminUser?.id || 'admin',
-        changedByUserId: req.adminUser?.id || null,
-        processedByUserId: can(req.adminUser?.role, ROLES.director) && serviceStatus === 'processed' ? req.adminUser?.id : null,
-        invoiceNumber: req.body?.invoiceNumber || undefined,
-        invoiceStatus: req.body?.invoiceStatus || undefined,
-      });
-      if (!item) return res.status(404).json({ error: 'not_found' });
-      return res.json({ item });
+
+      const existing = await serviceOpsRepository.getServiceCaseById(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'not_found' });
+
+      if (!canRoleTransitionServiceStatus({ role: req.adminUser?.role, fromStatus: existing.serviceStatus, toStatus: serviceStatus })) {
+        return res.status(403).json({ error: 'forbidden_transition' });
+      }
+
+      try {
+        const item = await serviceOpsRepository.updateServiceCaseStatus(req.params.id, serviceStatus, {
+          comment: req.body?.comment || null,
+          actorLabel: req.adminUser?.fullName || req.adminUser?.email || req.adminUser?.id || 'admin',
+          changedByUserId: req.adminUser?.id || null,
+          processedByUserId: can(req.adminUser?.role, ROLES.director) && serviceStatus === 'processed' ? req.adminUser?.id : null,
+          invoiceNumber: req.body?.invoiceNumber || undefined,
+          invoiceStatus: req.body?.invoiceStatus || undefined,
+        });
+        if (!item) return res.status(404).json({ error: 'not_found' });
+        return res.json({ item });
+      } catch (error) {
+        if (error?.message === 'invalid_transition') return res.status(400).json({ error: 'invalid_transition' });
+        throw error;
+      }
     },
 
     async addNote(req, res) {
@@ -105,6 +123,26 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser?.role, ROLES.sales)) return res.status(403).json({ error: 'forbidden' });
       const commercialStatus = String(req.body?.commercialStatus || '').trim();
       if (!commercialStatus) return res.status(400).json({ error: 'commercial_status_required' });
+
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+
+      if (!canRoleTransitionCommercialStatus({
+        role: req.adminUser?.role,
+        fromStatus: equipment.commercialStatus || 'none',
+        toStatus: commercialStatus,
+      })) {
+        return res.status(403).json({ error: 'forbidden_transition' });
+      }
+
+      const lastServiceCase = req.body?.serviceCaseId
+        ? await serviceOpsRepository.getServiceCaseById(req.body.serviceCaseId)
+        : null;
+      const effectiveServiceStatus = lastServiceCase?.serviceStatus || equipment.serviceStatus;
+      if (!canApplyCommercialStatusForServiceStatus({ serviceStatus: effectiveServiceStatus, commercialStatus })) {
+        return res.status(400).json({ error: 'service_status_not_processed' });
+      }
+
       const item = await serviceOpsRepository.updateEquipmentCommercialStatus(req.params.id, commercialStatus, {
         comment: req.body?.comment || null,
         changedByUserId: req.adminUser?.id || null,
