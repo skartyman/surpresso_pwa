@@ -17,6 +17,37 @@ function can(user, permission) {
 export function createAdminServiceOpsController(serviceOpsRepository, opts = {}) {
   const uploadsRoot = opts.uploadsRoot;
 
+  async function applyCommercialStatusChange(req, res, {
+    equipmentId,
+    serviceStatus,
+    fromCommercialStatus,
+    toCommercialStatus,
+    serviceCaseId = null,
+    actorFallback = 'admin',
+  }) {
+    const decision = evaluateCommercialStatusChange(
+      req.adminUser,
+      serviceStatus,
+      fromCommercialStatus,
+      toCommercialStatus,
+    );
+    if (!decision.allowed) {
+      if (decision.reason === 'invalid_transition' || decision.reason === 'service_status_not_processed') {
+        return res.status(409).json({ error: decision.reason });
+      }
+      return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
+    }
+
+    const item = await serviceOpsRepository.updateEquipmentCommercialStatus(equipmentId, toCommercialStatus, {
+      comment: req.body?.comment || null,
+      changedByUserId: req.adminUser?.id || null,
+      actorLabel: req.adminUser?.fullName || req.adminUser?.id || actorFallback,
+      serviceCaseId,
+    });
+    if (!item) return res.status(404).json({ error: 'not_found' });
+    return res.json({ item });
+  }
+
   return {
     async dashboard(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
@@ -133,6 +164,23 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       }
     },
 
+    async directorQueue(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.directorProcess)) return res.status(403).json({ error: 'forbidden' });
+      const serviceCases = await serviceOpsRepository.listServiceCases({
+        ...(req.query || {}),
+        serviceStatus: req.query?.serviceStatus || 'ready',
+      });
+      const equipment = await serviceOpsRepository.listEquipment({
+        ...(req.query || {}),
+      });
+      const commercialQueue = equipment.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus));
+
+      return res.json({
+        serviceCases,
+        commercialQueue,
+      });
+    },
+
     async addNote(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseAddNote)) return res.status(403).json({ error: 'forbidden' });
       const body = String(req.body?.body || '').trim();
@@ -198,27 +246,14 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         : null;
       const effectiveServiceStatus = lastServiceCase?.serviceStatus || equipment.serviceStatus;
 
-      const decision = evaluateCommercialStatusChange(
-        req.adminUser,
-        effectiveServiceStatus,
-        equipment.commercialStatus || 'none',
-        commercialStatus,
-      );
-      if (!decision.allowed) {
-        if (decision.reason === 'invalid_transition' || decision.reason === 'service_status_not_processed') {
-          return res.status(409).json({ error: decision.reason });
-        }
-        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
-      }
-
-      const item = await serviceOpsRepository.updateEquipmentCommercialStatus(req.params.id, commercialStatus, {
-        comment: req.body?.comment || null,
-        changedByUserId: req.adminUser?.id || null,
-        actorLabel: req.adminUser?.fullName || req.adminUser?.id || 'admin',
+      return applyCommercialStatusChange(req, res, {
+        equipmentId: req.params.id,
+        serviceStatus: effectiveServiceStatus,
+        fromCommercialStatus: equipment.commercialStatus || 'none',
+        toCommercialStatus: commercialStatus,
         serviceCaseId: req.body?.serviceCaseId || null,
+        actorFallback: 'admin',
       });
-      if (!item) return res.status(404).json({ error: 'not_found' });
-      return res.json({ item });
     },
 
     async directorCommercialRoute(req, res) {
@@ -235,27 +270,61 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const equipment = await serviceOpsRepository.getEquipmentById(serviceCase.equipmentId);
       if (!equipment) return res.status(404).json({ error: 'equipment_not_found' });
 
-      const decision = evaluateCommercialStatusChange(
-        req.adminUser,
-        serviceCase.serviceStatus,
-        equipment.commercialStatus || 'none',
-        commercialStatus,
-      );
-      if (!decision.allowed) {
-        if (decision.reason === 'invalid_transition' || decision.reason === 'service_status_not_processed') {
-          return res.status(409).json({ error: decision.reason });
-        }
-        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
-      }
-
-      const item = await serviceOpsRepository.updateEquipmentCommercialStatus(serviceCase.equipmentId, commercialStatus, {
-        comment: req.body?.comment || null,
-        changedByUserId: req.adminUser?.id || null,
-        actorLabel: req.adminUser?.fullName || req.adminUser?.id || 'director',
+      return applyCommercialStatusChange(req, res, {
+        equipmentId: serviceCase.equipmentId,
+        serviceStatus: serviceCase.serviceStatus,
+        fromCommercialStatus: equipment.commercialStatus || 'none',
+        toCommercialStatus: commercialStatus,
         serviceCaseId,
+        actorFallback: 'director',
       });
-      if (!item) return res.status(404).json({ error: 'not_found' });
-      return res.json({ item });
+    },
+
+    async listSalesEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.salesOperate)) return res.status(403).json({ error: 'forbidden' });
+      const items = await serviceOpsRepository.listEquipment({
+        ...(req.query || {}),
+      });
+      const allowedStatuses = new Set([
+        'ready_for_rent',
+        'reserved_for_rent',
+        'out_on_rent',
+        'out_on_replacement',
+        'ready_for_sale',
+        'reserved_for_sale',
+        'sold',
+      ]);
+      return res.json({ items: items.filter((item) => allowedStatuses.has(String(item.commercialStatus || 'none'))) });
+    },
+
+    async reserveForRent(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.salesOperate)) return res.status(403).json({ error: 'forbidden' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+
+      return applyCommercialStatusChange(req, res, {
+        equipmentId: req.params.id,
+        serviceStatus: equipment.serviceStatus,
+        fromCommercialStatus: equipment.commercialStatus || 'none',
+        toCommercialStatus: 'reserved_for_rent',
+        serviceCaseId: req.body?.serviceCaseId || null,
+        actorFallback: 'sales',
+      });
+    },
+
+    async reserveForSale(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.salesOperate)) return res.status(403).json({ error: 'forbidden' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+
+      return applyCommercialStatusChange(req, res, {
+        equipmentId: req.params.id,
+        serviceStatus: equipment.serviceStatus,
+        fromCommercialStatus: equipment.commercialStatus || 'none',
+        toCommercialStatus: 'reserved_for_sale',
+        serviceCaseId: req.body?.serviceCaseId || null,
+        actorFallback: 'sales',
+      });
     },
 
     async equipmentServiceCases(req, res) {

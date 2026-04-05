@@ -61,7 +61,9 @@ export function createApiRouter(deps) {
   router.get('/admin/service-cases/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.byServiceCaseId));
   router.post('/admin/service-cases/:id/assign', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.assign));
   router.post('/admin/service-cases/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateStatus));
+  router.post('/admin/service-cases/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.addNote));
   router.post('/admin/director/service-cases/:id/process', asyncHandler(adminAuth), requireRole(['director', 'owner']), asyncHandler(adminServiceOpsController.directorProcess));
+  router.get('/admin/director/queue', asyncHandler(adminAuth), requireRole(['director', 'owner']), asyncHandler(adminServiceOpsController.directorQueue));
   router.post('/admin/director/service-cases/:id/commercial-route', asyncHandler(adminAuth), requireRole(['director', 'owner']), asyncHandler(adminServiceOpsController.directorCommercialRoute));
   router.post('/admin/service-cases/:id/note', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.addNote));
   router.post('/admin/service-cases/:id/media', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), upload.array('media', 6), asyncHandler(adminServiceOpsController.addMedia));
@@ -69,6 +71,9 @@ export function createApiRouter(deps) {
   router.get('/admin/equipment', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listEquipment));
   router.get('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentById));
   router.post('/admin/equipment/:id/commercial-status', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateCommercialStatus));
+  router.get('/admin/sales/equipment', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listSalesEquipment));
+  router.post('/admin/equipment/:id/reserve-rent', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForRent));
+  router.post('/admin/equipment/:id/reserve-sale', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForSale));
   router.get('/admin/equipment/:id/service-cases', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentServiceCases));
 
   router.get('/admin/users', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.list));
