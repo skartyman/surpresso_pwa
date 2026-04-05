@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
-import { getAvailableCommercialActions, getAvailableServiceActions } from '../workflowConfig';
 import {
   AlertPanel,
   DetailPanel,
@@ -14,15 +13,6 @@ import {
 
 const BOARD_COLUMNS = ['accepted', 'in_progress', 'testing', 'ready'];
 const BOARD_LABELS = { accepted: 'Accepted', in_progress: 'In Progress', testing: 'Testing', ready: 'Ready' };
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'Все статусы' },
-  { value: 'accepted', label: 'Принятые' },
-  { value: 'in_progress', label: 'В работе' },
-  { value: 'testing', label: 'Тест' },
-  { value: 'ready', label: 'Готово директору' },
-  { value: 'processed', label: 'Проведено' },
-  { value: 'closed', label: 'Закрыто' },
-];
 const STATUS_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тест', ready: 'Готово', processed: 'Проведено', closed: 'Закрыто' };
 const COMMERCIAL_STATUS_LABELS = {
   none: 'Нет',
@@ -86,7 +76,7 @@ export function AdminServicePage() {
   const canUseServiceBoardActions = ![ROLES.salesManager].includes(user?.role);
   const canSeeInternalNotes = [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.manager, ROLES.director, ROLES.owner].includes(user?.role);
 
-  const [filters, setFilters] = useState({ status: 'all', quickFilter: 'all', engineer: 'all', id: '', client: '' });
+  const [filters, setFilters] = useState({ quickFilter: 'all', engineer: 'all', id: '', client: '' });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
@@ -105,7 +95,7 @@ export function AdminServicePage() {
     setLoading(true);
     try {
       const [list, dash, engineerPayload] = await Promise.all([
-        adminServiceApi.serviceCases({ ...next, serviceStatus: next.status === 'all' ? '' : next.status, assignedToUserId: next.engineer === 'all' ? '' : next.engineer, search: next.client || next.id || '' }),
+        adminServiceApi.serviceCases({ ...next, assignedToUserId: next.engineer === 'all' ? '' : next.engineer, search: next.client || next.id || '' }),
         adminServiceApi.serviceKpi(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
@@ -190,8 +180,9 @@ export function AdminServicePage() {
 
   const selectedServiceStatus = selectedRequest?.serviceStatus || selectedRequest?.status;
   const selectedCommercialStatus = selectedRequest?.equipment?.commercialStatus || 'none';
-  const serviceActions = (selectedRequest?.availableServiceActions || getAvailableServiceActions(user?.role, selectedServiceStatus));
-  const commercialActions = (selectedRequest?.availableCommercialActions || getAvailableCommercialActions(user?.role, selectedServiceStatus, selectedCommercialStatus));
+  const workflowActions = selectedRequest?.nextActions?.all || [];
+  const serviceActions = workflowActions.filter((action) => action.type === 'service');
+  const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
 
   const requiresAttention = {
     unassigned: requests.filter((i) => !i.assignedToUserId).length,
@@ -230,7 +221,6 @@ export function AdminServicePage() {
       ]} />
 
       <FilterRow>
-        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
         <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
         <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="sc-1001" /></label>
@@ -288,14 +278,14 @@ export function AdminServicePage() {
                   {canUseServiceBoardActions && serviceActions.length ? (
                     <div className="assignment-box">
                       <h4>Доступные сервисные действия</h4>
-                      <div className="quick-filter-row">{serviceActions.map((statusKey) => <button key={statusKey} type="button" onClick={() => applyServiceStatus(statusKey).catch(() => setError('Не удалось обновить сервисный статус.'))}>→ {STATUS_LABELS[statusKey] || statusKey}</button>)}</div>
+                      <div className="quick-filter-row">{serviceActions.map((action) => <button key={action.key + action.targetStatus} type="button" onClick={() => applyServiceStatus(action.targetStatus).catch(() => setError('Не удалось обновить сервисный статус.'))}>{action.label}</button>)}</div>
                     </div>
                   ) : null}
 
                   {canUseServiceBoardActions && commercialActions.length ? (
                     <div className="assignment-box">
                       <h4>Доступные коммерческие действия</h4>
-                      <div className="quick-filter-row">{commercialActions.map((statusKey) => <button key={statusKey} type="button" onClick={() => applyCommercialStatus(statusKey).catch(() => setError('Не удалось обновить коммерческий статус.'))}>→ {COMMERCIAL_STATUS_LABELS[statusKey] || statusKey}</button>)}</div>
+                      <div className="quick-filter-row">{commercialActions.map((action) => <button key={action.key + action.targetStatus} type="button" onClick={() => applyCommercialStatus(action.targetStatus).catch(() => setError('Не удалось обновить коммерческий статус.'))}>{action.label}</button>)}</div>
                     </div>
                   ) : null}
 
