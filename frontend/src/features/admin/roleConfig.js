@@ -22,7 +22,7 @@ const ALL_ROLES = Object.values(ROLES);
 
 export const ADMIN_MENU = [
   { key: 'dashboard', to: 'dashboard', icon: 'dashboard', label: 'Дашборд', roles: [ROLES.owner, ROLES.serviceHead] },
-  { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
+  { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
   { key: 'director', to: 'director', icon: 'dashboard', label: 'Director Queue', roles: [ROLES.director, ROLES.owner] },
   { key: 'employees', to: 'employees', icon: 'employees', label: 'Сотрудники', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
   { key: 'clients', to: 'clients', icon: 'clients', label: 'Клиенты', roles: [ROLES.manager, ROLES.owner] },
@@ -34,7 +34,7 @@ export const ADMIN_MENU = [
 
 export const PAGE_PERMISSIONS = {
   dashboard: [ROLES.owner, ROLES.serviceHead],
-  service: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
+  service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
   director: [ROLES.director, ROLES.owner],
   sales: [ROLES.salesManager, ROLES.owner],
   employees: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
@@ -45,11 +45,11 @@ export const PAGE_PERMISSIONS = {
 };
 
 export function getDefaultAdminSection(role) {
-  if (role === ROLES.serviceEngineer || role === ROLES.serviceHead || role === ROLES.manager) return 'service';
+  if (role === ROLES.serviceEngineer || role === ROLES.serviceHead) return 'service';
   if (role === ROLES.salesManager) return 'sales';
   if (role === ROLES.director) return 'director';
   if (role === ROLES.owner) return 'dashboard';
-  return 'service';
+  return 'dashboard';
 }
 
 export const LEGACY_COMPATIBLE_ADMIN_ROLES = ALL_ROLES;

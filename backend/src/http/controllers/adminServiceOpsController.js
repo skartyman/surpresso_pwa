@@ -14,6 +14,49 @@ function can(user, permission) {
   return hasPermission(user, permission);
 }
 
+function buildNextActions({ serviceStatus, commercialStatus, serviceActions = [], commercialActions = [] }) {
+  const normalizedServiceStatus = String(serviceStatus || '').trim().toLowerCase();
+  const normalizedCommercialStatus = String(commercialStatus || 'none').trim().toLowerCase() || 'none';
+  const serviceSet = new Set(serviceActions);
+  const commercialSet = new Set(commercialActions);
+
+  const actions = [];
+  if (serviceSet.has('in_progress') && ['accepted', 'testing', 'ready'].includes(normalizedServiceStatus)) {
+    actions.push({ key: 'process', type: 'service', targetStatus: 'in_progress', label: 'Process' });
+  }
+  if (serviceSet.has('testing')) {
+    actions.push({ key: 'move_to_testing', type: 'service', targetStatus: 'testing', label: 'Move to testing' });
+  }
+  if (serviceSet.has('ready')) {
+    actions.push({ key: 'mark_ready', type: 'service', targetStatus: 'ready', label: 'Mark ready' });
+  }
+  if (serviceSet.has('processed')) {
+    actions.push({ key: 'process', type: 'service', targetStatus: 'processed', label: 'Process' });
+  }
+  if (serviceSet.has('closed')) {
+    actions.push({ key: 'close', type: 'service', targetStatus: 'closed', label: 'Close case' });
+  }
+
+  if (commercialSet.has('ready_for_issue')) actions.push({ key: 'route_to_issue', type: 'commercial', targetStatus: 'ready_for_issue', label: 'Route to issue' });
+  if (commercialSet.has('ready_for_rent')) actions.push({ key: 'route_to_rent', type: 'commercial', targetStatus: 'ready_for_rent', label: 'Route to rent' });
+  if (commercialSet.has('ready_for_sale')) actions.push({ key: 'route_to_sale', type: 'commercial', targetStatus: 'ready_for_sale', label: 'Route to sale' });
+  if (commercialSet.has('reserved_for_rent')) actions.push({ key: 'reserve-rent', type: 'commercial', targetStatus: 'reserved_for_rent', label: 'Reserve rent' });
+  if (commercialSet.has('reserved_for_sale')) actions.push({ key: 'reserve-sale', type: 'commercial', targetStatus: 'reserved_for_sale', label: 'Reserve sale' });
+  if (commercialSet.has('out_on_rent')) actions.push({ key: 'mark_out_on_rent', type: 'commercial', targetStatus: 'out_on_rent', label: 'Mark out on rent' });
+  if (commercialSet.has('out_on_replacement')) actions.push({ key: 'mark_out_on_replacement', type: 'commercial', targetStatus: 'out_on_replacement', label: 'Mark out on replacement' });
+  if (commercialSet.has('sold')) actions.push({ key: 'mark_sold', type: 'commercial', targetStatus: 'sold', label: 'Mark sold' });
+
+  return {
+    service: serviceActions,
+    commercial: commercialActions,
+    all: actions,
+    boardStatus: {
+      service: normalizedServiceStatus,
+      commercial: normalizedCommercialStatus,
+    },
+  };
+}
+
 export function createAdminServiceOpsController(serviceOpsRepository, opts = {}) {
   const uploadsRoot = opts.uploadsRoot;
 
@@ -75,12 +118,20 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         .filter((toStatus) => canChangeServiceStatus(req.adminUser, item.serviceStatus, toStatus));
       const commercialActions = Object.keys(getAllowedCommercialTransitions(item.equipment?.commercialStatus || 'none'))
         .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.equipment?.commercialStatus || 'none', toStatus).allowed);
+      const nextActions = buildNextActions({
+        serviceStatus: item.serviceStatus,
+        commercialStatus: item.equipment?.commercialStatus || 'none',
+        serviceActions,
+        commercialActions,
+      });
       return res.json({
         item: {
           ...item,
           invoiceIssued: ['issued', 'paid'].includes(String(item.invoiceStatus || '').toLowerCase()),
           availableServiceActions: serviceActions,
           availableCommercialActions: commercialActions,
+          availableActions: nextActions.all,
+          nextActions,
         },
       });
     },
@@ -175,10 +226,20 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       });
       const commercialQueue = equipment.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus));
 
-      return res.json({
-        serviceCases,
-        commercialQueue,
+      const withActions = serviceCases.map((item) => {
+        const serviceActions = Object.keys(getAllowedServiceTransitions(item.serviceStatus || ''))
+          .filter((toStatus) => canChangeServiceStatus(req.adminUser, item.serviceStatus, toStatus));
+        const commercialActions = Object.keys(getAllowedCommercialTransitions(item.equipment?.commercialStatus || 'none'))
+          .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.equipment?.commercialStatus || 'none', toStatus).allowed);
+        const nextActions = buildNextActions({
+          serviceStatus: item.serviceStatus,
+          commercialStatus: item.equipment?.commercialStatus || 'none',
+          serviceActions,
+          commercialActions,
+        });
+        return { ...item, availableActions: nextActions.all, nextActions };
       });
+      return res.json({ serviceCases: withActions, commercialQueue });
     },
 
     async addNote(req, res) {
@@ -230,7 +291,19 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!item) return res.status(404).json({ error: 'not_found' });
       const availableCommercialActions = Object.keys(getAllowedCommercialTransitions(item.commercialStatus || 'none'))
         .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.commercialStatus || 'none', toStatus).allowed);
-      return res.json({ item: { ...item, availableCommercialActions } });
+      const nextActions = buildNextActions({
+        serviceStatus: item.serviceStatus,
+        commercialStatus: item.commercialStatus || 'none',
+        commercialActions: availableCommercialActions,
+      });
+      return res.json({
+        item: {
+          ...item,
+          availableCommercialActions,
+          availableActions: nextActions.all,
+          nextActions,
+        },
+      });
     },
 
     async updateCommercialStatus(req, res) {
@@ -294,7 +367,18 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         'reserved_for_sale',
         'sold',
       ]);
-      return res.json({ items: items.filter((item) => allowedStatuses.has(String(item.commercialStatus || 'none'))) });
+      const filtered = items.filter((item) => allowedStatuses.has(String(item.commercialStatus || 'none')));
+      const withActions = filtered.map((item) => {
+        const commercialActions = Object.keys(getAllowedCommercialTransitions(item.commercialStatus || 'none'))
+          .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.commercialStatus || 'none', toStatus).allowed);
+        const nextActions = buildNextActions({
+          serviceStatus: item.serviceStatus,
+          commercialStatus: item.commercialStatus || 'none',
+          commercialActions,
+        });
+        return { ...item, availableActions: nextActions.all, nextActions };
+      });
+      return res.json({ items: withActions });
     },
 
     async reserveForRent(req, res) {
