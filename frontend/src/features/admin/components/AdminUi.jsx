@@ -80,6 +80,62 @@ export function DetailPanel({ children }) {
   return <article className="detail-panel">{children}</article>;
 }
 
+function getFirstMedia(item) {
+  if (!item) return null;
+  const media = item.media || item.equipment?.media || [];
+  return Array.isArray(media) && media.length ? media[0] : null;
+}
+
+export function OpsBoardCard({
+  item,
+  id,
+  status,
+  statusLabel,
+  title,
+  subtitle,
+  assignedMaster,
+  ownerType,
+  intakeType,
+  serviceStatus,
+  commercialStatus,
+  updatedAt,
+  warnings = [],
+  active,
+  onSelect,
+}) {
+  const media = getFirstMedia(item);
+  const mediaUrl = media?.previewUrl || media?.fileUrl || null;
+  return (
+    <button type="button" className={`ticket-card ticket-card-rich ${active ? 'active' : ''}`} onClick={() => onSelect(id)}>
+      <i className="ticket-strip" data-status={status} />
+      <div className="ticket-top">
+        <StatusBadge status={status}>{statusLabel || status}</StatusBadge>
+        <small>#{id}</small>
+      </div>
+      <strong>{title || 'Без названия'}</strong>
+      <p>{subtitle || '—'}</p>
+      <div className="ticket-tags">
+        <em>{ownerType || 'owner: —'}</em>
+        <em>{intakeType || 'intake: —'}</em>
+      </div>
+      <div className="ticket-tags">
+        <em>{assignedMaster || 'Мастер: не назначен'}</em>
+      </div>
+      <div className="ticket-tags">
+        {serviceStatus ? <em>{serviceStatus}</em> : null}
+        {commercialStatus ? <em>{commercialStatus}</em> : null}
+      </div>
+      {warnings.length ? (
+        <div className="warning-badges">
+          {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+        </div>
+      ) : null}
+      {mediaUrl ? <img className="ticket-preview" src={mediaUrl} alt="preview" loading="lazy" /> : null}
+      <div className="ticket-meta"><span>🕒 {updatedAt}</span></div>
+    </button>
+  );
+}
+
 export function useChartMax(items) {
   return useMemo(() => Math.max(...items.map((item) => item.value), 1), [items]);
 }

@@ -8,6 +8,7 @@ import {
   FilterRow,
   Icon,
   KPIChipCard,
+  OpsBoardCard,
   StatusBadge,
 } from '../components/AdminUi';
 
@@ -26,7 +27,7 @@ const COMMERCIAL_STATUS_LABELS = {
   reserved_for_sale: 'Бронь продажи',
   sold: 'Продано',
 };
-const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', testingCount: 'service', readyCount: 'equipment', overdueCount: 'bell', unassignedCount: 'clients', closedTodayCount: 'sales' };
+const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', testingCount: 'service', readyCount: 'equipment', overdueCount: 'bell', unassignedCount: 'clients' };
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes', 'equipment', 'commercial'];
 const TAB_LABELS = {
   overview: 'Обзор', history: 'История', media: 'Медиа', notes: 'Заметки', equipment: 'Оборудование', commercial: 'Коммерция',
@@ -36,18 +37,30 @@ function formatDate(value) { return value ? new Date(value).toLocaleString('ru-R
 
 function ServiceTicketCard({ request, active, onSelect }) {
   const status = request.serviceStatus || request.status;
+  const warnings = [];
+  if (!request.assignedToUserId) warnings.push('Unassigned');
+  if (!request.equipmentId) warnings.push('No equipment');
+  if (status === 'in_progress' && (Date.now() - new Date(request.updatedAt).getTime()) > 48 * 3600000) warnings.push('Stale');
+  if (status === 'ready' && (Date.now() - new Date(request.updatedAt).getTime()) > 24 * 3600000) warnings.push('Ready too long');
+
   return (
-    <button type="button" className={`ticket-card ${active ? 'active' : ''} ${!request.assignedToUserId ? 'unassigned' : ''}`} onClick={() => onSelect(request.id)}>
-      <i className="ticket-strip" data-status={status} />
-      <div className="ticket-top"><StatusBadge status={status}>{STATUS_LABELS[status] || status}</StatusBadge><small>#{request.id}</small></div>
-      <strong>{request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}</strong>
-      <p>{request.equipment?.brand || '—'} {request.equipment?.model || ''}</p>
-      <div className="ticket-tags">
-        {!request.assignedToUserId ? <em className="danger">Без назначения</em> : <em>{request.assignedToUser?.fullName || request.assignedToUserId}</em>}
-        <em>{request.intakeType || '—'}</em>
-      </div>
-      <div className="ticket-meta"><span>🕒 {formatDate(request.updatedAt)}</span></div>
-    </button>
+    <OpsBoardCard
+      item={request}
+      id={request.id}
+      status={status}
+      statusLabel={STATUS_LABELS[status] || status}
+      title={request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}
+      subtitle={`${request.equipment?.brand || '—'} ${request.equipment?.model || ''} · ${request.equipment?.internalNumber || request.internalNumberSnapshot || '—'} / ${request.equipment?.serial || request.serialNumberSnapshot || '—'}`}
+      ownerType={`owner: ${request.equipment?.ownerType || '—'}`}
+      intakeType={`intake: ${request.intakeType || '—'}`}
+      assignedMaster={request.assignedToUser?.fullName || 'Мастер: не назначен'}
+      serviceStatus={STATUS_LABELS[status] || status}
+      commercialStatus={COMMERCIAL_STATUS_LABELS[request.equipment?.commercialStatus || 'none'] || 'none'}
+      updatedAt={formatDate(request.updatedAt)}
+      warnings={warnings}
+      active={active}
+      onSelect={onSelect}
+    />
   );
 }
 
@@ -89,6 +102,8 @@ export function AdminServicePage() {
   const [mediaFiles, setMediaFiles] = useState([]);
   const [mediaCaption, setMediaCaption] = useState('');
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState('');
+  const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
   async function load(next = filters) {
@@ -120,40 +135,55 @@ export function AdminServicePage() {
 
   async function submitAssignment() {
     if (!assignForm.assignedToUserId) return;
+    setActionLoading('assign');
     await adminServiceApi.assignServiceCase(selectedId, assignForm.assignedToUserId);
     setAssignForm({ assignedToUserId: '' });
     await load();
     await loadDetails(selectedId);
+    setFeedback('Назначение обновлено.');
+    setActionLoading('');
   }
 
   async function applyServiceStatus(toStatus) {
     if (!selectedId || !toStatus) return;
+    setActionLoading(`service:${toStatus}`);
     await adminServiceApi.updateServiceCaseStatus(selectedId, { serviceStatus: toStatus });
     await load();
     await loadDetails(selectedId);
+    setFeedback(`Сервисный статус обновлен: ${STATUS_LABELS[toStatus] || toStatus}.`);
+    setActionLoading('');
   }
 
   async function applyCommercialStatus(toStatus) {
     const equipmentId = selectedRequest?.equipmentId;
     if (!equipmentId || !toStatus) return;
+    setActionLoading(`commercial:${toStatus}`);
     await adminServiceApi.updateCommercialStatus(equipmentId, toStatus, '', selectedId);
     await load();
     await loadDetails(selectedId);
+    setFeedback(`Коммерческий статус обновлен: ${COMMERCIAL_STATUS_LABELS[toStatus] || toStatus}.`);
+    setActionLoading('');
   }
 
   async function submitNote() {
     if (!selectedId || !noteBody.trim()) return;
+    setActionLoading('note');
     await adminServiceApi.addServiceCaseNote(selectedId, noteBody.trim(), true);
     setNoteBody('');
     await loadDetails(selectedId);
+    setFeedback('Заметка добавлена.');
+    setActionLoading('');
   }
 
   async function submitMedia() {
     if (!selectedId || !mediaFiles.length) return;
+    setActionLoading('media');
     await adminServiceApi.uploadServiceCaseMedia(selectedId, mediaFiles, mediaCaption.trim());
     setMediaFiles([]);
     setMediaCaption('');
     await loadDetails(selectedId);
+    setFeedback('Медиа загружено.');
+    setActionLoading('');
   }
 
   useEffect(() => { load(); }, []); // eslint-disable-line
@@ -186,38 +216,37 @@ export function AdminServicePage() {
 
   const requiresAttention = {
     unassigned: requests.filter((i) => !i.assignedToUserId).length,
-    critical: requests.filter((i) => String(i.priority || '').toLowerCase() === 'critical').length,
-    readyNotProcessed: requests.filter((i) => i.serviceStatus === 'ready').length,
-    stuckInProgress: requests.filter((i) => i.serviceStatus === 'in_progress' && (Date.now() - new Date(i.updatedAt).getTime()) > 48 * 3600000).length,
     withoutEquipment: requests.filter((i) => !i.equipmentId).length,
+    stuckInProgress: requests.filter((i) => i.serviceStatus === 'in_progress' && (Date.now() - new Date(i.updatedAt).getTime()) > 48 * 3600000).length,
+    readyTooLong: requests.filter((i) => i.serviceStatus === 'ready' && (Date.now() - new Date(i.updatedAt).getTime()) > 24 * 3600000).length,
+    rentSaleBacklog: requests.filter((i) => ['ready_for_rent', 'ready_for_sale'].includes(i.equipment?.commercialStatus)).length,
   };
 
   const kpis = [
-    { key: 'newCount', label: 'Новых', value: dashboard?.newCount || 0 },
-    { key: 'inProgressCount', label: 'В работе', value: dashboard?.inProgressCount || 0 },
-    { key: 'testingCount', label: 'Тест', value: dashboard?.testingCount || 0 },
+    { key: 'newCount', label: 'Accepted', value: dashboard?.newCount || 0 },
+    { key: 'inProgressCount', label: 'In progress', value: dashboard?.inProgressCount || 0 },
+    { key: 'testingCount', label: 'Testing', value: dashboard?.testingCount || 0 },
     { key: 'readyCount', label: 'Ready', value: dashboard?.readyCount || 0 },
-    { key: 'unassignedCount', label: 'Без назначения', value: dashboard?.unassignedCount || 0 },
-    { key: 'overdueCount', label: 'Просроченных', value: dashboard?.overdueCount || 0 },
-    { key: 'closedTodayCount', label: 'Закрыто сегодня', value: dashboard?.closedTodayCount || 0 },
+    { key: 'unassignedCount', label: 'Unassigned', value: dashboard?.unassignedCount || 0 },
+    { key: 'overdueCount', label: 'Overdue', value: dashboard?.overdueCount || 0 },
   ];
 
   return (
     <section className="service-dashboard">
       <header className="service-headline">
-        <div><h2>Service Board</h2><p>Kanban/ops-доска поверх workflow engine с role-driven UI.</p></div>
+        <div><h2>Service Board</h2><p>Polished ops board: action-based workflow + role-driven UX.</p></div>
       </header>
 
       <div className="kpi-row">
-        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint="Оперативно" />)}
+        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint="Service" />)}
       </div>
 
       <AlertPanel items={[
-        <li key="unassigned"><span>Без назначения</span><strong>{requiresAttention.unassigned}</strong></li>,
-        <li key="critical"><span>Критические</span><strong>{requiresAttention.critical}</strong></li>,
-        <li key="ready"><span>Готово, не проведено</span><strong>{requiresAttention.readyNotProcessed}</strong></li>,
-        <li key="stuck"><span>Зависшие в работе</span><strong>{requiresAttention.stuckInProgress}</strong></li>,
-        <li key="without_equipment"><span>Без оборудования</span><strong>{requiresAttention.withoutEquipment}</strong></li>,
+        <li key="unassigned"><span>Unassigned</span><strong>{requiresAttention.unassigned}</strong></li>,
+        <li key="without_equipment"><span>No equipment data</span><strong>{requiresAttention.withoutEquipment}</strong></li>,
+        <li key="stuck"><span>Stale in progress</span><strong>{requiresAttention.stuckInProgress}</strong></li>,
+        <li key="ready"><span>Ready too long</span><strong>{requiresAttention.readyTooLong}</strong></li>,
+        <li key="backlog"><span>Rent/sale backlog</span><strong>{requiresAttention.rentSaleBacklog}</strong></li>,
       ]} />
 
       <FilterRow>
@@ -228,16 +257,7 @@ export function AdminServicePage() {
       </FilterRow>
 
       {error ? <p className="error-text">{error}</p> : null}
-
-      {user?.role === ROLES.director ? (
-        <section className="director-block">
-          <h3>Director workflow block</h3>
-          <div>
-            <span>Ready: <strong>{requests.filter((i) => i.serviceStatus === 'ready').length}</strong></span>
-            <span>Processed: <strong>{requests.filter((i) => i.serviceStatus === 'processed').length}</strong></span>
-          </div>
-        </section>
-      ) : null}
+      {feedback ? <p>{feedback}</p> : null}
 
       <div className="service-workspace kanban-layout">
         <div className="kanban-board">
@@ -266,26 +286,33 @@ export function AdminServicePage() {
 
               {activeTab === 'overview' ? (
                 <>
-                  <div className="detail-grid">
-                    <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
-                    <p><Icon name="service" /> Intake type: {selectedRequest.intakeType || '—'}</p>
-                    <p><Icon name="dashboard" /> Service status: {STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</p>
-                    <p><Icon name="employees" /> Assigned: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
-                    <p><Icon name="clients" /> Created: {formatDate(selectedRequest.createdAt)}</p>
-                    <p><Icon name="clients" /> Updated: {formatDate(selectedRequest.updatedAt)}</p>
+                  <div className="detail-split">
+                    <div className="detail-grid">
+                      <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
+                      <p><Icon name="equipment" /> Internal/Serial: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'} / {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
+                      <p><Icon name="service" /> Intake type: {selectedRequest.intakeType || '—'}</p>
+                      <p><Icon name="clients" /> Owner type: {selectedRequest.equipment?.ownerType || '—'}</p>
+                      <p><Icon name="dashboard" /> Service status: {STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</p>
+                      <p><Icon name="sales" /> Commercial status: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
+                      <p><Icon name="employees" /> Assigned: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
+                      <p><Icon name="clients" /> Last update: {formatDate(selectedRequest.updatedAt)}</p>
+                    </div>
+                    <div className="detail-stack">
+                      {(selectedRequest.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedRequest.media || [])[0].fileUrl} alt="preview" /> : null}
+                    </div>
                   </div>
 
                   {canUseServiceBoardActions && serviceActions.length ? (
                     <div className="assignment-box">
                       <h4>Доступные сервисные действия</h4>
-                      <div className="quick-filter-row">{serviceActions.map((action) => <button key={action.key + action.targetStatus} type="button" onClick={() => applyServiceStatus(action.targetStatus).catch(() => setError('Не удалось обновить сервисный статус.'))}>{action.label}</button>)}</div>
+                      <div className="quick-filter-row">{serviceActions.map((action) => <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => applyServiceStatus(action.targetStatus).catch(() => setError('Не удалось обновить сервисный статус.'))}>{actionLoading === `service:${action.targetStatus}` ? 'Сохраняем...' : action.label}</button>)}</div>
                     </div>
                   ) : null}
 
                   {canUseServiceBoardActions && commercialActions.length ? (
                     <div className="assignment-box">
                       <h4>Доступные коммерческие действия</h4>
-                      <div className="quick-filter-row">{commercialActions.map((action) => <button key={action.key + action.targetStatus} type="button" onClick={() => applyCommercialStatus(action.targetStatus).catch(() => setError('Не удалось обновить коммерческий статус.'))}>{action.label}</button>)}</div>
+                      <div className="quick-filter-row">{commercialActions.map((action) => <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => applyCommercialStatus(action.targetStatus).catch(() => setError('Не удалось обновить коммерческий статус.'))}>{actionLoading === `commercial:${action.targetStatus}` ? 'Сохраняем...' : action.label}</button>)}</div>
                     </div>
                   ) : null}
 
@@ -296,7 +323,7 @@ export function AdminServicePage() {
                         <option value="">Выберите инженера</option>
                         {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}
                       </select>
-                      <button type="button" onClick={() => submitAssignment().catch(() => setError('Не удалось назначить инженера.'))}>Сохранить назначение</button>
+                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitAssignment().catch(() => setError('Не удалось назначить инженера.'))}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</button>
                     </div>
                   ) : null}
                 </>
@@ -319,7 +346,7 @@ export function AdminServicePage() {
                       <h4>Upload media</h4>
                       <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
                       <input value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Подпись (опц.)" maxLength={200} />
-                      <button type="button" onClick={() => submitMedia().catch(() => setError('Не удалось загрузить медиа.'))}>Загрузить</button>
+                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitMedia().catch(() => setError('Не удалось загрузить медиа.'))}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</button>
                     </div>
                   ) : null}
                 </div>
@@ -341,7 +368,7 @@ export function AdminServicePage() {
                     <div className="assignment-box note-composer">
                       <h4>Добавить внутреннюю заметку</h4>
                       <textarea value={noteBody} onChange={(e) => setNoteBody(e.target.value)} rows={3} placeholder="Комментарий для service/manager/director" />
-                      <button type="button" onClick={() => submitNote().catch(() => setError('Не удалось сохранить заметку.'))}>Сохранить заметку</button>
+                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitNote().catch(() => setError('Не удалось сохранить заметку.'))}>{actionLoading === 'note' ? 'Сохраняем...' : 'Сохранить заметку'}</button>
                     </div>
                   ) : null}
                 </div>
