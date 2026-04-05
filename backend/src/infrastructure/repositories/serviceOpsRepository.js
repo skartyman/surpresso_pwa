@@ -68,6 +68,9 @@ export class NeonServiceOpsRepository {
   async dashboard(filters = {}) {
     const where = this.buildWhere(filters);
     const cases = await this.prisma.serviceCase.findMany({ where, include: { equipment: true } });
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const dayEnd = dayStart + 24 * 3600000;
     const metrics = {
       newCount: cases.filter((c) => c.serviceStatus === 'accepted').length,
       inProgressCount: cases.filter((c) => c.serviceStatus === 'in_progress').length,
@@ -76,6 +79,10 @@ export class NeonServiceOpsRepository {
       processedCount: cases.filter((c) => c.serviceStatus === 'processed').length,
       overdueCount: cases.filter((c) => ['accepted', 'in_progress', 'testing'].includes(c.serviceStatus) && (Date.now() - new Date(c.createdAt).getTime()) > 72 * 3600000).length,
       unassignedCount: cases.filter((c) => !c.assignedToUserId).length,
+      closedTodayCount: cases.filter((c) => {
+        const closedAt = c.closedAt ? new Date(c.closedAt).getTime() : null;
+        return closedAt && closedAt >= dayStart && closedAt < dayEnd;
+      }).length,
       readyForDirectorCount: cases.filter((c) => c.serviceStatus === 'ready').length,
       readyForRentCount: cases.filter((c) => c.equipment?.commercialStatus === 'ready_for_rent').length,
       readyForSaleCount: cases.filter((c) => c.equipment?.commercialStatus === 'ready_for_sale').length,
@@ -307,7 +314,7 @@ export class InMemoryServiceOpsRepository {
     this.media = [];
   }
 
-  async dashboard() { return { newCount: 0, inProgressCount: 0, testingCount: 0, readyCount: 0, processedCount: 0, overdueCount: 0, unassignedCount: 0, readyForDirectorCount: 0, readyForRentCount: 0, readyForSaleCount: 0 }; }
+  async dashboard() { return { newCount: 0, inProgressCount: 0, testingCount: 0, readyCount: 0, processedCount: 0, overdueCount: 0, unassignedCount: 0, closedTodayCount: 0, readyForDirectorCount: 0, readyForRentCount: 0, readyForSaleCount: 0 }; }
   async listServiceCases() { return []; }
   async getServiceCaseById() { return null; }
   async assignServiceCase() { return null; }

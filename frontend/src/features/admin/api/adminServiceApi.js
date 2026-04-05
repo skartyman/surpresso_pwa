@@ -18,6 +18,7 @@ async function apiFetch(path, options = {}) {
 
 export const adminServiceApi = {
   serviceDashboard: async () => apiFetch('/api/telegram/admin/service/dashboard'),
+  serviceKpi: async () => apiFetch('/api/telegram/admin/service/kpi'),
   serviceCases: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {
@@ -29,6 +30,8 @@ export const adminServiceApi = {
   serviceCaseById: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}`),
   assignServiceCase: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-cases/${id}/assign`, { method: 'POST', body: JSON.stringify({ assignedToUserId }) }),
   updateServiceCaseStatus: async (id, payload) => apiFetch(`/api/telegram/admin/service-cases/${id}/status`, { method: 'POST', body: JSON.stringify(payload) }),
+  directorProcessServiceCase: async (id, payload) => apiFetch(`/api/telegram/admin/director/service-cases/${id}/process`, { method: 'POST', body: JSON.stringify(payload) }),
+  directorCommercialRoute: async (id, commercialStatus, comment = '') => apiFetch(`/api/telegram/admin/director/service-cases/${id}/commercial-route`, { method: 'POST', body: JSON.stringify({ serviceCaseId: id, commercialStatus, comment }) }),
   addServiceCaseNote: async (id, body, isInternal = true) => apiFetch(`/api/telegram/admin/service-cases/${id}/note`, { method: 'POST', body: JSON.stringify({ body, isInternal }) }),
   uploadServiceCaseMedia: async (id, files, caption = '') => {
     const form = new FormData();

@@ -36,7 +36,7 @@ const COMMERCIAL_STATUS_LABELS = {
   reserved_for_sale: 'Бронь продажи',
   sold: 'Продано',
 };
-const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', testingCount: 'service', readyCount: 'equipment', processedCount: 'sales', overdueCount: 'bell', unassignedCount: 'clients' };
+const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', testingCount: 'service', readyCount: 'equipment', overdueCount: 'bell', unassignedCount: 'clients', closedTodayCount: 'sales' };
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes', 'equipment', 'commercial'];
 const TAB_LABELS = {
   overview: 'Обзор', history: 'История', media: 'Медиа', notes: 'Заметки', equipment: 'Оборудование', commercial: 'Коммерция',
@@ -106,7 +106,7 @@ export function AdminServicePage() {
     try {
       const [list, dash, engineerPayload] = await Promise.all([
         adminServiceApi.serviceCases({ ...next, serviceStatus: next.status === 'all' ? '' : next.status, assignedToUserId: next.engineer === 'all' ? '' : next.engineer, search: next.client || next.id || '' }),
-        adminServiceApi.serviceDashboard(),
+        adminServiceApi.serviceKpi(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
       setRequests(list.items || []);
@@ -202,12 +202,13 @@ export function AdminServicePage() {
   };
 
   const kpis = [
-    { key: 'newCount', label: 'Принятые', value: dashboard?.newCount || 0 },
+    { key: 'newCount', label: 'Новых', value: dashboard?.newCount || 0 },
     { key: 'inProgressCount', label: 'В работе', value: dashboard?.inProgressCount || 0 },
     { key: 'testingCount', label: 'Тест', value: dashboard?.testingCount || 0 },
-    { key: 'readyCount', label: 'Готово директору', value: dashboard?.readyCount || 0 },
-    { key: 'processedCount', label: 'Проведено', value: dashboard?.processedCount || 0 },
+    { key: 'readyCount', label: 'Ready', value: dashboard?.readyCount || 0 },
     { key: 'unassignedCount', label: 'Без назначения', value: dashboard?.unassignedCount || 0 },
+    { key: 'overdueCount', label: 'Просроченных', value: dashboard?.overdueCount || 0 },
+    { key: 'closedTodayCount', label: 'Закрыто сегодня', value: dashboard?.closedTodayCount || 0 },
   ];
 
   return (

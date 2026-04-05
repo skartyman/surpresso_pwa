@@ -20,6 +20,7 @@ import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
 import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
+import { AdminDirectorPage } from '../features/admin/pages/AdminDirectorPage';
 import { useI18n } from '../i18n';
 
 function ClientRoutes() {
@@ -59,6 +60,10 @@ function AdminRoutes({ basePath }) {
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.service} />}>
         <Route path="service" element={<AdminServicePage />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.director} />}>
+        <Route path="director" element={<AdminDirectorPage />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.sales} />}>
