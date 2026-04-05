@@ -27,6 +27,8 @@ export function AdminDashboardPage() {
   const canDrillDown = user?.role === ROLES.owner;
 
   const [summary, setSummary] = useState(null);
+  const [alertsState, setAlertsState] = useState(null);
+  const [notificationState, setNotificationState] = useState(null);
   const [serviceCases, setServiceCases] = useState([]);
   const [salesItems, setSalesItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +38,16 @@ export function AdminDashboardPage() {
     async function load() {
       setLoading(true);
       try {
-        const [summaryPayload, servicePayload, salesPayload] = await Promise.all([
+        const [summaryPayload, servicePayload, salesPayload, notificationPayload] = await Promise.all([
           adminServiceApi.executiveSummary(),
           adminServiceApi.serviceCases().catch(() => ({ items: [] })),
           adminServiceApi.salesEquipment().catch(() => ({ items: [] })),
+          adminServiceApi.notificationsPreview().catch(() => ({ notificationPreview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 }, templates: {} })),
         ]);
 
         setSummary(summaryPayload.summary || null);
+        setAlertsState(summaryPayload.alerts || null);
+        setNotificationState(notificationPayload || null);
         setServiceCases(servicePayload.items || []);
         setSalesItems(salesPayload.items || []);
         setError('');
@@ -142,13 +147,11 @@ export function AdminDashboardPage() {
     ],
   };
 
-  const alerts = {
-    unassignedTooLong: serviceCases.filter((item) => !item.assignedToUserId && (Date.now() - new Date(item.createdAt).getTime()) > 12 * 3600000).length,
-    staleInProgress: serviceCases.filter((item) => item.serviceStatus === 'in_progress' && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
-    staleReady: sla.staleReadyCount || 0,
-    staleRentSaleBacklog: sla.staleRentSaleBacklogCount || 0,
-    incompleteEquipmentData: serviceCases.filter((item) => !item.equipmentId || !item.equipment?.serial || !item.equipment?.internalNumber).length,
-  };
+  const alertsSummary = alertsState?.summary || {};
+  const alertsByType = alertsSummary.byType || {};
+  const escalationBlocks = alertsState?.escalationBlocks || {};
+  const recentCritical = alertsState?.recentCriticalChanges || [];
+  const notificationPreview = notificationState?.notificationPreview || { pendingCritical: 0, pendingWarning: 0, digestSize: 0 };
 
   return (
     <section className="owner-dashboard">
@@ -226,12 +229,33 @@ export function AdminDashboardPage() {
         </article>
 
         <AlertPanel items={[
-          <li key="unassigned"><span>Unassigned too long</span><strong>{alerts.unassignedTooLong}</strong></li>,
-          <li key="stale_in_progress"><span>Stale in progress</span><strong>{alerts.staleInProgress}</strong></li>,
-          <li key="stale_ready"><span>Stale ready</span><strong>{alerts.staleReady}</strong></li>,
-          <li key="stale_rent_sale"><span>Stale rent/sale backlog</span><strong>{alerts.staleRentSaleBacklog}</strong></li>,
-          <li key="equipment"><span>Incomplete equipment data</span><strong>{alerts.incompleteEquipmentData}</strong></li>,
+          <li key="unassigned"><span>Unassigned too long</span><strong>{alertsByType.unassigned_too_long || 0}</strong></li>,
+          <li key="stale_in_progress"><span>Stale in progress</span><strong>{alertsByType.stale_in_progress || 0}</strong></li>,
+          <li key="stale_ready"><span>Stale ready</span><strong>{alertsByType.stale_ready || 0}</strong></li>,
+          <li key="stale_reserved"><span>Stale reserved</span><strong>{alertsByType.stale_reserved || 0}</strong></li>,
+          <li key="overdue_by_stage"><span>Overdue by stage</span><strong>{alertsByType.overdue_by_stage || 0}</strong></li>,
+          <li key="equipment"><span>Incomplete equipment data</span><strong>{alertsByType.incomplete_equipment_data || 0}</strong></li>,
         ]} />
+      </div>
+
+      <div className="owner-grid owner-grid--2">
+        <article className="owner-card">
+          <header><h3><Icon name="dashboard" /> Escalations</h3></header>
+          <ul className="simple-list">
+            <li>Service Head: {(escalationBlocks.serviceHead || []).length}</li>
+            <li>Director: {(escalationBlocks.director || []).length}</li>
+            <li>Sales: {(escalationBlocks.salesManager || []).length}</li>
+            <li>Owner: {(escalationBlocks.owner || []).length}</li>
+          </ul>
+          <p className="muted-copy">Notification preview: critical {notificationPreview.pendingCritical}, warning {notificationPreview.pendingWarning}, digest {notificationPreview.digestSize}.</p>
+        </article>
+        <article className="owner-card">
+          <header><h3><Icon name="service" /> Recent critical changes</h3></header>
+          <ul className="simple-list">
+            {recentCritical.slice(0, 5).map((item, idx) => <li key={`${item.caseId || idx}-${item.type}`}>{item.message || item.type}</li>)}
+            {!recentCritical.length ? <li>Нет критичных изменений.</li> : null}
+          </ul>
+        </article>
       </div>
     </section>
   );

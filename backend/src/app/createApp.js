@@ -4,6 +4,7 @@ import { config } from '../config/env.js';
 import { createMiniAppRepositories } from '../infrastructure/repositories/createMiniAppRepositories.js';
 import { TelegramBotGateway } from '../infrastructure/telegram/botApi.js';
 import { createServiceRequestNotifier } from '../infrastructure/telegram/serviceRequestNotifier.js';
+import { ExecutiveNotifier } from '../infrastructure/telegram/executiveNotifier.js';
 import { createApiRouter } from '../http/routes/apiRoutes.js';
 import { createWebhookRouter } from '../http/routes/webhookRoutes.js';
 import { createSupportController } from '../http/controllers/supportController.js';
@@ -19,6 +20,7 @@ export async function createApp() {
   const botGateway = new TelegramBotGateway({ token: config.telegramBotToken });
   const supportController = createSupportController(botGateway);
   const serviceRequestNotifier = createServiceRequestNotifier(botGateway);
+  const executiveNotifier = new ExecutiveNotifier(botGateway, config);
   const sessionManager = createAdminSessionManager(config.adminSessionSecret);
 
   app.get('/health', async (_, res) => {
@@ -59,7 +61,7 @@ export async function createApp() {
     }
   });
 
-  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, sessionManager, uploadsRoot }));
+  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, executiveNotifier, sessionManager, uploadsRoot }));
   app.use('/webhooks', createWebhookRouter(botGateway));
   app.post('/api/v1/support/notify', supportController.notify);
 

@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { canTransitionServiceStatus } from '../../domain/transitions.js';
 import { buildServiceStatusSideEffects } from '../../domain/serviceWorkflow.js';
+import { evaluateAlerts } from '../../domain/alertsEngine.js';
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -203,6 +204,8 @@ export class NeonServiceOpsRepository {
       if (item.serviceStatus === 'processed') bucket.processedCases += 1;
     }
 
+    const alertState = evaluateAlerts(cases, { now });
+
     const metrics = {
       newCount: cases.filter((c) => c.serviceStatus === 'accepted').length,
       inProgressCount: cases.filter((c) => c.serviceStatus === 'in_progress').length,
@@ -250,6 +253,26 @@ export class NeonServiceOpsRepository {
           rentBacklogCount: cases.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.equipment?.commercialStatus)).length,
           saleBacklogCount: cases.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.equipment?.commercialStatus)).length,
           reservedAgingCount: cases.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.equipment?.commercialStatus) && (nowTs - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
+        },
+      },
+      alerts: alertState,
+      notifications: {
+        preview: alertState.notificationPreview,
+      },
+      weeklyExecutiveReport: {
+        generatedAt: now.toISOString(),
+        serviceTotals: { totalCases: cases.length, unassigned: cases.filter((item) => !item.assignedToUserId).length },
+        alertsSummary: alertState.summary,
+        roleAnalytics: {
+          director: {
+            readyAgingCount: cases.filter((item) => item.serviceStatus === 'ready' && (nowTs - new Date(item.updatedAt).getTime()) > 24 * 3600000).length,
+            routeBacklogCount: cases.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.equipment?.commercialStatus)).length,
+          },
+          sales: {
+            rentBacklogCount: cases.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.equipment?.commercialStatus)).length,
+            saleBacklogCount: cases.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.equipment?.commercialStatus)).length,
+            reservedAgingCount: cases.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.equipment?.commercialStatus) && (nowTs - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
+          },
         },
       },
     };
@@ -511,6 +534,9 @@ export class InMemoryServiceOpsRepository {
         director: { readyAgingCount: 0, processedTodayCount: 0, routeBacklogCount: 0 },
         sales: { rentBacklogCount: 0, saleBacklogCount: 0, reservedAgingCount: 0 },
       },
+      alerts: { generatedAt: new Date().toISOString(), alerts: [], summary: { total: 0, critical: 0, warning: 0, info: 0, byType: {}, bySeverity: {} }, escalationBlocks: { serviceHead: [], director: [], salesManager: [], owner: [] }, recentCriticalChanges: [], notificationPreview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 } },
+      notifications: { preview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 } },
+      weeklyExecutiveReport: { generatedAt: new Date().toISOString(), serviceTotals: { totalCases: 0, unassigned: 0 }, alertsSummary: { total: 0, critical: 0, warning: 0, info: 0, byType: {}, bySeverity: {} }, roleAnalytics: { director: { readyAgingCount: 0, routeBacklogCount: 0 }, sales: { rentBacklogCount: 0, saleBacklogCount: 0, reservedAgingCount: 0 } } },
     };
   }
   async listServiceCases() { return []; }
