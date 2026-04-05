@@ -10,6 +10,7 @@ import {
   NeonServiceRequestRepository,
   NeonUserRepository,
 } from './neonRepositories.js';
+import { InMemoryServiceOpsRepository, NeonServiceOpsRepository } from './serviceOpsRepository.js';
 import { seed } from '../seed/mockData.js';
 
 async function ensureNeonSeed(prisma) {
@@ -78,6 +79,7 @@ export async function createMiniAppRepositories(databaseUrl) {
         clientRepository: new InMemoryClientRepository(),
         equipmentRepository: new InMemoryEquipmentRepository(),
         serviceRepository: new InMemoryServiceRequestRepository(),
+        serviceOpsRepository: new InMemoryServiceOpsRepository(),
         userRepository: new InMemoryUserRepository(),
       },
     };
@@ -93,6 +95,7 @@ export async function createMiniAppRepositories(databaseUrl) {
       clientRepository: new NeonClientRepository(prisma),
       equipmentRepository: new NeonEquipmentRepository(prisma),
       serviceRepository: new NeonServiceRequestRepository(prisma),
+      serviceOpsRepository: new NeonServiceOpsRepository(prisma),
       userRepository: new NeonUserRepository(prisma),
     },
   };

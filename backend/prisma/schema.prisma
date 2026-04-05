@@ -13,6 +13,67 @@ enum WorkMode {
   hybrid
 }
 
+enum OwnerType {
+  company
+  client
+}
+
+enum ClientServiceType {
+  service_contract
+  regular_client
+}
+
+enum EquipmentType {
+  grinder
+  pro_coffee
+  auto_coffee
+  filter_system
+}
+
+enum EquipmentServiceStatus {
+  accepted
+  in_progress
+  testing
+  ready
+  processed
+  closed
+  cancelled
+}
+
+enum EquipmentCommercialStatus {
+  issued_to_client
+  ready_for_issue
+  ready_for_rent
+  out_on_rent
+  out_on_replacement
+  ready_for_sale
+  reserved_for_rent
+  reserved_for_sale
+  sold
+}
+
+enum ServiceIntakeType {
+  client_repair
+  after_rent
+  after_replacement
+  new_purchase
+  manual_intake
+}
+
+enum MediaKind {
+  photo
+  video
+  document
+}
+
+enum InvoiceStatus {
+  not_required
+  pending
+  issued
+  paid
+  cancelled
+}
+
 model User {
   id                    String    @id
   fullName              String
@@ -42,6 +103,12 @@ model User {
   specializations       UserSpecialization[]
   brandSkills           UserBrandSkill[]
   zones                 UserZone[]
+  assignedServiceCases  ServiceCase[]          @relation("ServiceCaseAssignedTo")
+  delegatedServiceCases ServiceCase[]          @relation("ServiceCaseAssignedBy")
+  processedServiceCases ServiceCase[]          @relation("ServiceCaseProcessedBy")
+  uploadedServiceMedia  ServiceCaseMedia[]
+  changedServiceHistory ServiceStatusHistory[]
+  serviceCaseNotes      ServiceCaseNote[]
 }
 
 model UserSpecialization {
@@ -100,20 +167,157 @@ model Client {
 
 model Equipment {
   id             String   @id
-  clientId       String
+  clientId       String?
   type           String
   brand          String
-  model          String
-  serial         String
-  internalNumber String
+  name           String?
+  model          String?
+  serial         String?
+  internalNumber String?
   status         String
+  ownerType          OwnerType?
+  clientServiceType  ClientServiceType?
+  equipmentType      EquipmentType?
+  currentStatusRaw   String?
+  serviceStatus      EquipmentServiceStatus?
+  commercialStatus   EquipmentCommercialStatus?
+  clientName         String?
+  clientPhone        String?
+  clientLocation     String?
+  companyLocation    String?
+  lastComment        String?
+  folderId           String?
+  folderUrl          String?
+  passportPdfId      String?
+  passportPdfUrl     String?
+  qrUrl              String?
+  isActive           Boolean   @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client          Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
   serviceRequests ServiceRequest[]
+  serviceCases    ServiceCase[]
+  serviceMedia    ServiceCaseMedia[]
+  serviceHistory  ServiceStatusHistory[]
 
   @@index([clientId])
+  @@index([ownerType])
+  @@index([clientServiceType])
+  @@index([equipmentType])
+  @@index([serviceStatus])
+  @@index([commercialStatus])
+  @@index([internalNumber])
+  @@index([serial])
+}
+
+model ServiceCase {
+  id                         String   @id
+  equipmentId                String
+  intakeType                 ServiceIntakeType
+  serviceStatus              EquipmentServiceStatus
+  commercialStatusAfter      EquipmentCommercialStatus?
+  priority                   String?
+  problemDescription         String?
+  damageDescription          String?
+  intakeComment              String?
+  closingComment             String?
+  ownerTypeSnapshot          OwnerType?
+  clientServiceTypeSnapshot  ClientServiceType?
+  clientNameSnapshot         String?
+  clientPhoneSnapshot        String?
+  clientLocationSnapshot     String?
+  companyLocationSnapshot    String?
+  modelSnapshot              String?
+  serialNumberSnapshot       String?
+  internalNumberSnapshot     String?
+  equipmentNameSnapshot      String?
+  assignedToUserId           String?
+  assignedByUserId           String?
+  processedByUserId          String?
+  invoiceNumber              String?
+  invoiceStatus              InvoiceStatus?
+  acceptedAt                 DateTime?
+  assignedAt                 DateTime?
+  testingAt                  DateTime?
+  readyAt                    DateTime?
+  processedAt                DateTime?
+  closedAt                   DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  equipment       Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  assignedToUser  User?               @relation("ServiceCaseAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  assignedByUser  User?               @relation("ServiceCaseAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  processedByUser User?               @relation("ServiceCaseProcessedBy", fields: [processedByUserId], references: [id], onDelete: SetNull)
+  media           ServiceCaseMedia[]
+  history         ServiceStatusHistory[]
+  notes           ServiceCaseNote[]
+
+  @@index([equipmentId])
+  @@index([serviceStatus])
+  @@index([assignedToUserId])
+  @@index([acceptedAt])
+}
+
+model ServiceCaseMedia {
+  id               String   @id
+  equipmentId      String
+  serviceCaseId    String?
+  kind             MediaKind
+  filePath         String
+  fileUrl          String
+  mimeType         String?
+  originalName     String?
+  fileSize         Int      @default(0)
+  caption          String?
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  equipment      Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  serviceCase    ServiceCase? @relation(fields: [serviceCaseId], references: [id], onDelete: SetNull)
+  uploadedByUser User?        @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([serviceCaseId])
+  @@index([uploadedByUserId])
+}
+
+model ServiceStatusHistory {
+  id                 String   @id
+  equipmentId        String
+  serviceCaseId      String?
+  fromStatusRaw      String?
+  toStatusRaw        String
+  fromServiceStatus  EquipmentServiceStatus?
+  toServiceStatus    EquipmentServiceStatus?
+  comment            String?
+  actorLabel         String?
+  changedByUserId    String?
+  changedAt          DateTime @default(now())
+
+  equipment     Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  serviceCase   ServiceCase? @relation(fields: [serviceCaseId], references: [id], onDelete: SetNull)
+  changedByUser User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([serviceCaseId])
+  @@index([changedByUserId])
+}
+
+model ServiceCaseNote {
+  id            String   @id
+  serviceCaseId String
+  authorUserId  String?
+  body          String
+  isInternal    Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  serviceCase ServiceCase @relation(fields: [serviceCaseId], references: [id], onDelete: Cascade)
+  authorUser  User?       @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([serviceCaseId])
+  @@index([authorUserId])
 }
 
 model ServiceRequest {
