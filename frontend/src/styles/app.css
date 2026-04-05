@@ -1073,9 +1073,16 @@ textarea {
 .ticket-tags em { font-style: normal; font-size: 11px; border:1px solid var(--sa-line); border-radius: 999px; padding:2px 7px; }
 .ticket-tags .danger { border-color:#ef4444; color:#ef4444; }
 .ticket-meta { font-size:11px; color:var(--sa-muted); }
+.ticket-card-rich { gap: 7px; }
+.ticket-preview { width: 100%; aspect-ratio: 16 / 8; object-fit: cover; border-radius: 8px; border: 1px solid var(--sa-line); background: #111827; }
+.warning-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.warning-badges span { font-size: 10px; border-radius: 999px; padding: 2px 7px; border: 1px solid #f59e0b; color: #b45309; background: #fffbeb; }
+:root[data-admin-theme='dark'] .warning-badges span { color: #facc15; border-color: #ca8a04; background: #2a2111; }
 .detail-panel { background: var(--sa-surface); border: 1px solid var(--sa-line); border-radius: 12px; padding: 12px; display:grid; gap:10px; }
 .detail-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:6px; }
 .detail-grid p { margin:0; font-size:13px; display:flex; gap:6px; align-items:center; }
+.detail-split { display: grid; grid-template-columns: 1.2fr .8fr; gap: 8px; align-items: start; }
+.detail-stack { display: grid; gap: 8px; }
 .assignment-box { display: grid; gap: 6px; border: 1px dashed var(--sa-line); border-radius: 10px; padding: 8px; }
 .assignment-box h4, .assignment-history h4 { margin: 0; font-size: 13px; }
 .assignment-box input, .assignment-box select, .assignment-box button { min-height: 34px; border-radius: 8px; border: 1px solid var(--sa-line); background: transparent; color: var(--sa-text); }
@@ -1136,6 +1143,7 @@ textarea {
   .kpi-row, .filter-row, .alert-panel ul { grid-template-columns: 1fr; }
   .kanban-board { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
+  .detail-split { grid-template-columns: 1fr; }
   .quick-filter-row { flex-direction: column; }
   .team-blocks { grid-template-columns: 1fr; }
 }
