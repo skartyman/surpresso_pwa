@@ -1,7 +1,8 @@
 async function apiFetch(path, options = {}) {
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetch(path, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) },
     ...options,
   });
 
@@ -28,7 +29,13 @@ export const adminServiceApi = {
   serviceCaseById: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}`),
   assignServiceCase: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-cases/${id}/assign`, { method: 'POST', body: JSON.stringify({ assignedToUserId }) }),
   updateServiceCaseStatus: async (id, payload) => apiFetch(`/api/telegram/admin/service-cases/${id}/status`, { method: 'POST', body: JSON.stringify(payload) }),
-  addServiceCaseNote: async (id, body) => apiFetch(`/api/telegram/admin/service-cases/${id}/note`, { method: 'POST', body: JSON.stringify({ body }) }),
+  addServiceCaseNote: async (id, body, isInternal = true) => apiFetch(`/api/telegram/admin/service-cases/${id}/note`, { method: 'POST', body: JSON.stringify({ body, isInternal }) }),
+  uploadServiceCaseMedia: async (id, files, caption = '') => {
+    const form = new FormData();
+    (files || []).forEach((file) => form.append('media', file));
+    if (caption) form.append('caption', caption);
+    return apiFetch(`/api/telegram/admin/service-cases/${id}/media`, { method: 'POST', body: form });
+  },
   serviceCaseHistory: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}/history`),
   equipmentList: async (filters = {}) => {
     const params = new URLSearchParams();
@@ -40,7 +47,7 @@ export const adminServiceApi = {
   },
   equipmentById: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`),
   equipmentServiceCases: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/service-cases`),
-  updateCommercialStatus: async (id, commercialStatus, comment = '') => apiFetch(`/api/telegram/admin/equipment/${id}/commercial-status`, { method: 'POST', body: JSON.stringify({ commercialStatus, comment }) }),
+  updateCommercialStatus: async (id, commercialStatus, comment = '', serviceCaseId = null) => apiFetch(`/api/telegram/admin/equipment/${id}/commercial-status`, { method: 'POST', body: JSON.stringify({ commercialStatus, comment, serviceCaseId }) }),
   list: async ({ status, type, id, client, equipment, engineer, sort } = {}) => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);

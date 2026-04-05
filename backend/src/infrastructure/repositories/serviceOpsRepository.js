@@ -33,6 +33,33 @@ function mapCase(item) {
   };
 }
 
+function mapHistoryRow(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    changedAt: item.changedAt?.toISOString?.() || item.changedAt,
+    changedByUser: item.changedByUser ? { id: item.changedByUser.id, fullName: item.changedByUser.fullName, role: item.changedByUser.role } : null,
+  };
+}
+
+function mapNote(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    authorUser: item.authorUser ? { id: item.authorUser.id, fullName: item.authorUser.fullName, role: item.authorUser.role } : null,
+  };
+}
+
+function mapMedia(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    uploadedByUser: item.uploadedByUser ? { id: item.uploadedByUser.id, fullName: item.uploadedByUser.fullName, role: item.uploadedByUser.role } : null,
+  };
+}
+
 export class NeonServiceOpsRepository {
   constructor(prisma) {
     this.prisma = prisma;
@@ -97,9 +124,22 @@ export class NeonServiceOpsRepository {
   async getServiceCaseById(id) {
     const row = await this.prisma.serviceCase.findUnique({
       where: { id },
-      include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
+      include: {
+        equipment: true,
+        assignedToUser: true,
+        assignedByUser: true,
+        processedByUser: true,
+        notes: { include: { authorUser: true }, orderBy: { createdAt: 'desc' } },
+        media: { include: { uploadedByUser: true }, orderBy: { createdAt: 'desc' } },
+      },
     });
-    return mapCase(row);
+    const mapped = mapCase(row);
+    if (!mapped) return null;
+    return {
+      ...mapped,
+      notes: (row?.notes || []).map(mapNote),
+      media: (row?.media || []).map(mapMedia),
+    };
   }
 
   async assignServiceCase(id, assignedToUserId, assignedByUserId) {
@@ -170,13 +210,18 @@ export class NeonServiceOpsRepository {
         body: payload.body,
         isInternal: payload.isInternal ?? true,
       },
+      include: { authorUser: true },
     });
-    return { ...row, createdAt: row.createdAt.toISOString() };
+    return mapNote(row);
   }
 
   async listServiceCaseHistory(id) {
-    const rows = await this.prisma.serviceStatusHistory.findMany({ where: { serviceCaseId: id }, orderBy: { changedAt: 'desc' } });
-    return rows.map((r) => ({ ...r, changedAt: r.changedAt.toISOString() }));
+    const rows = await this.prisma.serviceStatusHistory.findMany({
+      where: { serviceCaseId: id },
+      orderBy: { changedAt: 'desc' },
+      include: { changedByUser: true },
+    });
+    return rows.map(mapHistoryRow);
   }
 
   async createMedia(id, payload) {
@@ -194,8 +239,9 @@ export class NeonServiceOpsRepository {
         caption: payload.caption || null,
         uploadedByUserId: payload.uploadedByUserId || null,
       },
+      include: { uploadedByUser: true },
     });
-    return { ...row, createdAt: row.createdAt.toISOString() };
+    return mapMedia(row);
   }
 
   async listEquipment(filters = {}) {
