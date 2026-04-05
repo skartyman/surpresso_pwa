@@ -17,34 +17,35 @@ function can(user, permission) {
 function buildNextActions({ serviceStatus, commercialStatus, serviceActions = [], commercialActions = [] }) {
   const normalizedServiceStatus = String(serviceStatus || '').trim().toLowerCase();
   const normalizedCommercialStatus = String(commercialStatus || 'none').trim().toLowerCase() || 'none';
-  const serviceSet = new Set(serviceActions);
-  const commercialSet = new Set(commercialActions);
 
   const actions = [];
-  if (serviceSet.has('in_progress') && ['accepted', 'testing', 'ready'].includes(normalizedServiceStatus)) {
-    actions.push({ key: 'process', type: 'service', targetStatus: 'in_progress', label: 'Process' });
-  }
-  if (serviceSet.has('testing')) {
-    actions.push({ key: 'move_to_testing', type: 'service', targetStatus: 'testing', label: 'Move to testing' });
-  }
-  if (serviceSet.has('ready')) {
-    actions.push({ key: 'mark_ready', type: 'service', targetStatus: 'ready', label: 'Mark ready' });
-  }
-  if (serviceSet.has('processed')) {
-    actions.push({ key: 'process', type: 'service', targetStatus: 'processed', label: 'Process' });
-  }
-  if (serviceSet.has('closed')) {
-    actions.push({ key: 'close', type: 'service', targetStatus: 'closed', label: 'Close case' });
+  const serviceActionMeta = {
+    in_progress: { key: 'take_in_work', label: 'Take in work' },
+    testing: { key: 'move_to_testing', label: 'Move to testing' },
+    ready: { key: 'mark_ready', label: 'Mark ready' },
+    processed: { key: 'process', label: 'Process' },
+    closed: { key: 'close', label: 'Close case' },
+  };
+  for (const targetStatus of serviceActions) {
+    const meta = serviceActionMeta[targetStatus] || { key: `service_${targetStatus}`, label: `Move to ${targetStatus}` };
+    actions.push({ key: meta.key, type: 'service', targetStatus, label: meta.label });
   }
 
-  if (commercialSet.has('ready_for_issue')) actions.push({ key: 'route_to_issue', type: 'commercial', targetStatus: 'ready_for_issue', label: 'Route to issue' });
-  if (commercialSet.has('ready_for_rent')) actions.push({ key: 'route_to_rent', type: 'commercial', targetStatus: 'ready_for_rent', label: 'Route to rent' });
-  if (commercialSet.has('ready_for_sale')) actions.push({ key: 'route_to_sale', type: 'commercial', targetStatus: 'ready_for_sale', label: 'Route to sale' });
-  if (commercialSet.has('reserved_for_rent')) actions.push({ key: 'reserve-rent', type: 'commercial', targetStatus: 'reserved_for_rent', label: 'Reserve rent' });
-  if (commercialSet.has('reserved_for_sale')) actions.push({ key: 'reserve-sale', type: 'commercial', targetStatus: 'reserved_for_sale', label: 'Reserve sale' });
-  if (commercialSet.has('out_on_rent')) actions.push({ key: 'mark_out_on_rent', type: 'commercial', targetStatus: 'out_on_rent', label: 'Mark out on rent' });
-  if (commercialSet.has('out_on_replacement')) actions.push({ key: 'mark_out_on_replacement', type: 'commercial', targetStatus: 'out_on_replacement', label: 'Mark out on replacement' });
-  if (commercialSet.has('sold')) actions.push({ key: 'mark_sold', type: 'commercial', targetStatus: 'sold', label: 'Mark sold' });
+  const commercialActionMeta = {
+    ready_for_issue: { key: 'route_to_issue', label: 'Route to issue' },
+    ready_for_rent: { key: 'route_to_rent', label: 'Route to rent' },
+    ready_for_sale: { key: 'route_to_sale', label: 'Route to sale' },
+    reserved_for_rent: { key: 'reserve-rent', label: 'Reserve rent' },
+    reserved_for_sale: { key: 'reserve-sale', label: 'Reserve sale' },
+    out_on_rent: { key: 'mark_out_on_rent', label: 'Mark out on rent' },
+    out_on_replacement: { key: 'mark_out_on_replacement', label: 'Mark out on replacement' },
+    sold: { key: 'mark_sold', label: 'Mark sold' },
+    issued_to_client: { key: 'mark_issued', label: 'Mark issued' },
+  };
+  for (const targetStatus of commercialActions) {
+    const meta = commercialActionMeta[targetStatus] || { key: `commercial_${targetStatus}`, label: `Move to ${targetStatus}` };
+    actions.push({ key: meta.key, type: 'commercial', targetStatus, label: meta.label });
+  }
 
   return {
     service: serviceActions,
@@ -102,6 +103,20 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
       const metrics = await serviceOpsRepository.dashboard(req.query || {});
       return res.json(metrics);
+    },
+
+    async executiveSummary(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      const metrics = await serviceOpsRepository.dashboard(req.query || {});
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        summary: {
+          service: metrics.roleAnalytics?.service || {},
+          director: metrics.roleAnalytics?.director || {},
+          sales: metrics.roleAnalytics?.sales || {},
+          sla: metrics.slaAging || {},
+        },
+      });
     },
 
     async listServiceCases(req, res) {
@@ -246,6 +261,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser, PERMISSIONS.serviceCaseAddNote)) return res.status(403).json({ error: 'forbidden' });
       const body = String(req.body?.body || '').trim();
       if (!body) return res.status(400).json({ error: 'note_required' });
+      const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
+      if (!serviceCase) return res.status(404).json({ error: 'not_found' });
       const note = await serviceOpsRepository.addServiceCaseNote(req.params.id, {
         authorUserId: req.adminUser?.id || null,
         body,
@@ -275,6 +292,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
 
     async history(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
+      const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
+      if (!serviceCase) return res.status(404).json({ error: 'not_found' });
       const history = await serviceOpsRepository.listServiceCaseHistory(req.params.id);
       return res.json({ history });
     },
@@ -413,6 +432,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
 
     async equipmentServiceCases(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
       const items = await serviceOpsRepository.listEquipmentServiceCases(req.params.id);
       return res.json({ items });
     },
