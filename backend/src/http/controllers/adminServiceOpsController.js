@@ -524,6 +524,37 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       });
     },
 
+    async equipmentDetail(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const payload = await serviceOpsRepository.getEquipmentDetail(req.params.id);
+      if (!payload) return res.status(404).json({ error: 'not_found' });
+
+      const activeCase = (payload.serviceCases || []).find((item) => item.isActive)
+        || (payload.serviceCases || [])[0]
+        || null;
+      const serviceStatus = activeCase?.serviceStatus || payload.equipment?.serviceStatus || '';
+      const commercialStatus = payload.equipment?.commercialStatus || 'none';
+      const serviceActions = activeCase
+        ? Object.keys(getAllowedServiceTransitions(serviceStatus))
+          .filter((toStatus) => canChangeServiceStatus(req.adminUser, serviceStatus, toStatus))
+        : [];
+      const commercialActions = Object.keys(getAllowedCommercialTransitions(commercialStatus))
+        .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, serviceStatus, commercialStatus, toStatus).allowed);
+      const currentActions = buildNextActions({
+        serviceStatus,
+        commercialStatus,
+        serviceActions,
+        commercialActions,
+      });
+
+      return res.json({
+        item: {
+          ...payload,
+          currentActions,
+        },
+      });
+    },
+
     async updateCommercialStatus(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
       const commercialStatus = String(req.body?.commercialStatus || '').trim();
