@@ -9,6 +9,7 @@ import {
 } from '../../domain/workflow/serviceWorkflowGuards.js';
 import { getAllowedServiceTransitions } from '../../domain/workflow/serviceTransitions.js';
 import { getAllowedCommercialTransitions } from '../../domain/workflow/commercialTransitions.js';
+import { buildEquipmentTimeline, normalizeEquipmentMedia } from '../utils/equipmentDetailView.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
@@ -546,10 +547,14 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         serviceActions,
         commercialActions,
       });
+      const normalizedMedia = normalizeEquipmentMedia(req, payload.media || []);
+      const timeline = buildEquipmentTimeline({ ...payload, media: normalizedMedia });
 
       return res.json({
         item: {
           ...payload,
+          media: normalizedMedia,
+          timeline,
           currentActions,
         },
       });

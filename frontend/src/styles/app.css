@@ -1254,6 +1254,8 @@ textarea {
 .equipment-detail-section { display: grid; gap: 10px; }
 .equipment-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .equipment-detail-grid p { margin: 0; color: #d8e1ef; display: inline-flex; gap: 8px; align-items: center; }
+.equipment-detail-section .quick-filter-row button { border: 1px solid #2a3a54; background: #0a1222; color: #cdd7e5; border-radius: 999px; padding: 6px 10px; }
+.equipment-detail-section .quick-filter-row button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }
 .equipment-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .equipment-media-thumb { border: 1px solid #2a3a54; border-radius: 10px; background: #0a1222; color: #d8e1ef; overflow: hidden; text-align: left; }
 .equipment-media-thumb img,
