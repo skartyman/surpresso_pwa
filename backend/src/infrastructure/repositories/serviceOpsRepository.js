@@ -647,6 +647,78 @@ export class NeonServiceOpsRepository {
     return mapEquipment(row);
   }
 
+  async getEquipmentDetail(id) {
+    const equipmentRow = await this.prisma.equipment.findUnique({ where: { id } });
+    if (!equipmentRow) return null;
+
+    const [serviceCasesRows, mediaRows, historyRows, notesRows] = await Promise.all([
+      this.prisma.serviceCase.findMany({
+        where: { equipmentId: id },
+        include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.serviceCaseMedia.findMany({
+        where: {
+          OR: [
+            { equipmentId: id },
+            { serviceCase: { equipmentId: id } },
+          ],
+        },
+        include: { uploadedByUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.serviceStatusHistory.findMany({
+        where: { equipmentId: id },
+        include: { changedByUser: true },
+        orderBy: { changedAt: 'asc' },
+      }),
+      this.prisma.serviceCaseNote.findMany({
+        where: { serviceCase: { equipmentId: id } },
+        include: { authorUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const activeStatuses = new Set(['accepted', 'in_progress', 'testing', 'ready']);
+    const serviceCases = serviceCasesRows.map((row) => {
+      const mapped = mapCase(row);
+      return {
+        ...mapped,
+        isActive: activeStatuses.has(String(row.serviceStatus || '')),
+      };
+    });
+
+    const history = historyRows.map((row) => {
+      const toServiceStatus = row.toServiceStatus || null;
+      const fromServiceStatus = row.fromServiceStatus || null;
+      const eventType = toServiceStatus || fromServiceStatus ? 'service' : 'commercial';
+      return {
+        id: row.id,
+        eventType,
+        serviceCaseId: row.serviceCaseId || null,
+        fromStatus: fromServiceStatus || row.fromStatusRaw || null,
+        toStatus: toServiceStatus || row.toStatusRaw || null,
+        actorLabel: row.changedByUser?.fullName || row.actorLabel || null,
+        actor: row.changedByUser ? { id: row.changedByUser.id, fullName: row.changedByUser.fullName, role: row.changedByUser.role } : null,
+        comment: row.comment || null,
+        timestamp: row.changedAt?.toISOString?.() || row.changedAt,
+        raw: {
+          fromStatusRaw: row.fromStatusRaw || null,
+          toStatusRaw: row.toStatusRaw || null,
+        },
+      };
+    });
+
+    return {
+      equipment: mapEquipment(equipmentRow),
+      media: mediaRows.map(mapMedia),
+      history,
+      serviceCases,
+      notes: notesRows.map((row) => ({ ...mapNote(row), serviceCaseId: row.serviceCaseId })),
+      activeServiceCaseId: serviceCases.find((row) => row.isActive)?.id || null,
+    };
+  }
+
   async updateEquipmentCommercialStatus(id, status, meta = {}) {
     const current = await this.prisma.equipment.findUnique({ where: { id } });
     if (!current) return null;
@@ -742,6 +814,7 @@ export class InMemoryServiceOpsRepository {
   async createMedia() { return null; }
   async listEquipment() { return []; }
   async getEquipmentById() { return null; }
+  async getEquipmentDetail() { return null; }
   async updateEquipmentCommercialStatus() { return null; }
   async listEquipmentServiceCases() { return []; }
   async createNotificationLog(payload = {}) {

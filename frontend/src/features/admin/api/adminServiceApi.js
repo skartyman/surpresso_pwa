@@ -62,6 +62,7 @@ export const adminServiceApi = {
     return apiFetch(`/api/telegram/admin/equipment${query}`);
   },
   equipmentById: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`),
+  equipmentDetail: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/detail`),
   equipmentServiceCases: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/service-cases`),
   salesEquipment: async (filters = {}) => {
     const params = new URLSearchParams();

@@ -21,6 +21,7 @@ import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
 import { AdminDirectorPage } from '../features/admin/pages/AdminDirectorPage';
+import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
 import { useI18n } from '../i18n';
 
 function ClientRoutes() {
@@ -79,7 +80,8 @@ function AdminRoutes({ basePath }) {
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.equipment} />}>
-        <Route path="equipment" element={<AdminPlaceholderPage title="Оборудование" items={['Парк техники', 'Состояние', 'Склад запчастей']} />} />
+        <Route path="equipment" element={<AdminEquipmentPage />} />
+        <Route path="equipment/:equipmentId" element={<AdminEquipmentPage />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.content} />}>
