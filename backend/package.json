@@ -9,7 +9,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "import:equipment-xlsx": "python3 scripts/import_equipment_xlsx.py"
   },
   "dependencies": {
     "express": "^4.21.0",

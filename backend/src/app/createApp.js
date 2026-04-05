@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import { config } from '../config/env.js';
 import { createMiniAppRepositories } from '../infrastructure/repositories/createMiniAppRepositories.js';
 import { TelegramBotGateway } from '../infrastructure/telegram/botApi.js';
@@ -11,6 +12,7 @@ import { createAdminSessionManager } from '../http/middleware/adminAuth.js';
 export async function createApp() {
   const app = express();
   app.use(express.json());
+  const uploadsRoot = path.resolve(process.cwd(), 'miniapp-telegram', 'uploads');
   app.use('/media', express.static(config.mediaUploadPath));
 
   const { repositories: deps, storage } = await createMiniAppRepositories(config.databaseUrl);
@@ -19,7 +21,22 @@ export async function createApp() {
   const serviceRequestNotifier = createServiceRequestNotifier(botGateway);
   const sessionManager = createAdminSessionManager(config.adminSessionSecret);
 
-  app.get('/health', (_, res) => res.json({ ok: true, storage }));
+  app.get('/health', async (_, res) => {
+    let dbOk = false;
+    let adminServiceModuleOk = Boolean(deps.serviceOpsRepository);
+    try {
+      if (storage === 'neon-postgres') {
+        await deps.serviceOpsRepository.listServiceCases({});
+        dbOk = true;
+      } else {
+        dbOk = true;
+      }
+    } catch {
+      dbOk = false;
+      adminServiceModuleOk = false;
+    }
+    res.json({ ok: true, storage, dbOk, adminServiceModuleOk });
+  });
   app.get('/proxy-drive/:fileId', async (req, res) => {
     try {
       const fileId = String(req.params.fileId || '').trim();
@@ -42,7 +59,7 @@ export async function createApp() {
     }
   });
 
-  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, sessionManager }));
+  app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, sessionManager, uploadsRoot }));
   app.use('/webhooks', createWebhookRouter(botGateway));
   app.post('/api/v1/support/notify', supportController.notify);
 

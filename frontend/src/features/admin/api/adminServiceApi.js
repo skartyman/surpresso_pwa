@@ -16,6 +16,31 @@ async function apiFetch(path, options = {}) {
 }
 
 export const adminServiceApi = {
+  serviceDashboard: async () => apiFetch('/api/telegram/admin/service/dashboard'),
+  serviceCases: async (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '' && value !== 'all') params.set(key, value);
+    });
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/api/telegram/admin/service-cases${query}`);
+  },
+  serviceCaseById: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}`),
+  assignServiceCase: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-cases/${id}/assign`, { method: 'POST', body: JSON.stringify({ assignedToUserId }) }),
+  updateServiceCaseStatus: async (id, payload) => apiFetch(`/api/telegram/admin/service-cases/${id}/status`, { method: 'POST', body: JSON.stringify(payload) }),
+  addServiceCaseNote: async (id, body) => apiFetch(`/api/telegram/admin/service-cases/${id}/note`, { method: 'POST', body: JSON.stringify({ body }) }),
+  serviceCaseHistory: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}/history`),
+  equipmentList: async (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '' && value !== 'all') params.set(key, value);
+    });
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/api/telegram/admin/equipment${query}`);
+  },
+  equipmentById: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`),
+  equipmentServiceCases: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/service-cases`),
+  updateCommercialStatus: async (id, commercialStatus, comment = '') => apiFetch(`/api/telegram/admin/equipment/${id}/commercial-status`, { method: 'POST', body: JSON.stringify({ commercialStatus, comment }) }),
   list: async ({ status, type, id, client, equipment, engineer, sort } = {}) => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);

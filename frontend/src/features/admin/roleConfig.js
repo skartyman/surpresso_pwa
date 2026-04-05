@@ -5,6 +5,7 @@ export const ROLES = {
   salesManager: 'sales_manager',
   owner: 'owner',
   director: 'director',
+  seo: 'seo',
 };
 
 export const ROLE_LABELS = {
@@ -14,6 +15,7 @@ export const ROLE_LABELS = {
   [ROLES.salesManager]: 'Менеджер по продажам',
   [ROLES.owner]: 'Собственник',
   [ROLES.director]: 'Директор',
+  [ROLES.seo]: 'SEO',
 };
 
 const ALL_ROLES = Object.values(ROLES);
@@ -25,7 +27,7 @@ export const ADMIN_MENU = [
   { key: 'clients', to: 'clients', icon: 'clients', label: 'Клиенты', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
   { key: 'equipment', to: 'equipment', icon: 'equipment', label: 'Оборудование', roles: [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director] },
   { key: 'sales', to: 'sales', icon: 'sales', label: 'Продажи', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
-  { key: 'content', to: 'content', icon: 'content', label: 'Контент и SEO', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
+  { key: 'content', to: 'content', icon: 'content', label: 'Контент и SEO', roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director, ROLES.seo] },
   { key: 'settings', to: 'settings', icon: 'settings', label: 'Настройки', roles: ALL_ROLES },
 ];
 
@@ -36,7 +38,7 @@ export const PAGE_PERMISSIONS = {
   employees: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
   clients: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
   equipment: [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director],
-  content: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
+  content: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director, ROLES.seo],
   settings: ALL_ROLES,
 };
 

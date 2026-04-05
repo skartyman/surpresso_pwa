@@ -146,6 +146,7 @@ const PASSPORT_BASE_URL =
   process.env.PUBLIC_APP_URL ||
   process.env.APP_URL ||
   "";
+let miniAppStatus = { enabled: false, storage: 'legacy-only', adminServiceModuleOk: false };
 
 // Trello
 const TRELLO_KEY = process.env.TRELLO_KEY || "";
@@ -179,23 +180,27 @@ async function setupMiniAppLayer() {
     ]);
 
     const { repositories: miniAppDeps, storage } = await createMiniAppRepositories(process.env.DATABASE_URL);
+    const uploadsRoot = TELEGRAM_MINIAPP_UPLOADS_DIR;
     miniAppDeps.sessionManager = createAdminSessionManager(
       process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || "change-me-admin-secret"
     );
-    console.info(`[miniapp] storage backend: ${storage}`);
+    console.info(`[bootstrap] using legacy equipment flow`);
+    console.info(`[bootstrap] using prisma service flow: ${storage}`);
     const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
     const miniAppSupportController = createSupportController(miniAppBotGateway);
 
-    app.use("/api/telegram", createApiRouter(miniAppDeps));
+    app.use("/api/telegram", createApiRouter({ ...miniAppDeps, uploadsRoot }));
     app.post("/api/telegram/support/notify", miniAppSupportController.notify);
+    miniAppStatus = { enabled: true, storage, adminServiceModuleOk: Boolean(miniAppDeps.serviceOpsRepository) };
   } catch (error) {
     const code = error?.code || "unknown_error";
     console.error(`[miniapp] disabled due to startup error (${code}): ${error?.message || error}`);
+    miniAppStatus = { enabled: false, storage: 'legacy-only', adminServiceModuleOk: false };
   }
 }
 
 app.get("/health", (_req, res) => {
-  res.send({ ok: true });
+  res.send({ ok: true, dbOk: miniAppStatus.storage !== 'legacy-only', adminServiceModuleOk: miniAppStatus.adminServiceModuleOk, miniApp: miniAppStatus });
 });
 
 function sanitizeManualText(value, max = 120) {

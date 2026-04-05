@@ -17,10 +17,12 @@ import {
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Все статусы' },
-  { value: 'new', label: 'Новая' },
+  { value: 'accepted', label: 'Принятые' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'resolved', label: 'Решена' },
-  { value: 'closed', label: 'Закрыта' },
+  { value: 'testing', label: 'Тест' },
+  { value: 'ready', label: 'Готово директору' },
+  { value: 'processed', label: 'Проведено' },
+  { value: 'closed', label: 'Закрыто' },
 ];
 const TYPE_OPTIONS = [
   { value: 'all', label: 'Все типы' },
@@ -37,13 +39,13 @@ const SORT_OPTIONS = [
   { value: 'createdAt', label: 'Время создания' },
   { value: 'updatedAt', label: 'Последнее обновление' },
 ];
-const STATUS_LABELS = { new: 'Новая', in_progress: 'В работе', resolved: 'Решена', closed: 'Закрыта' };
-const KPI_ICON = { new: 'dashboard', in_progress: 'service', overdue: 'bell', unassigned: 'clients', waiting_parts: 'equipment', closed_today: 'sales' };
+const STATUS_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тест', ready: 'Готово', processed: 'Проведено', closed: 'Закрыто' };
+const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', overdueCount: 'bell', unassignedCount: 'clients', readyCount: 'equipment', processedCount: 'sales' };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
 function barWidth(v, max) { return `${Math.max(6, Math.round((v / (max || 1)) * 100))}%`; }
 function loadState(workload = {}) {
-  const score = (workload.activeCount || 0) + (workload.overdueCount || 0) * 2 + (workload.criticalCount || 0) * 2;
+  const score = (workload.active || 0) + (workload.overdue || 0) * 2;
   if (score >= 8) return 'danger';
   if (score >= 4) return 'warning';
   return 'calm';
@@ -96,16 +98,16 @@ export function AdminServicePage() {
     setLoading(true);
     try {
       const [list, dash, engineerPayload] = await Promise.all([
-        adminServiceApi.list({ ...next, status: next.status === 'all' ? '' : next.status, type: next.type === 'all' ? '' : next.type, engineer: next.engineer === 'all' ? '' : next.engineer }),
-        adminServiceApi.dashboard({ status: next.status === 'all' ? '' : next.status, type: next.type === 'all' ? '' : next.type, engineer: next.engineer === 'all' ? '' : next.engineer }),
+        adminServiceApi.serviceCases({ ...next, serviceStatus: next.status === 'all' ? '' : next.status, assignedToUserId: next.engineer === 'all' ? '' : next.engineer, search: next.client || next.id || '' }),
+        adminServiceApi.serviceDashboard(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
-      let scoped = list.requests || [];
+      let scoped = list.items || [];
       if (next.quickFilter === 'unassigned') scoped = scoped.filter((item) => !item.assignedToUserId);
       setRequests(scoped);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
-      setSelectedId((prev) => prev || list.requests?.[0]?.id || null);
+      setSelectedId((prev) => prev || list.items?.[0]?.id || null);
       setError('');
     } catch {
       setError('Не удалось загрузить сервисный дашборд.');
@@ -114,16 +116,16 @@ export function AdminServicePage() {
 
   async function loadDetails(id) {
     const [payload, assignment] = await Promise.all([
-      adminServiceApi.byId(id),
-      adminServiceApi.assignmentHistory(id).catch(() => ({ history: [] })),
+      adminServiceApi.serviceCaseById(id),
+      adminServiceApi.serviceCaseHistory(id).catch(() => ({ history: [] })),
     ]);
-    setSelectedRequest(payload.request || null);
+    setSelectedRequest(payload.item || null);
     setAssignmentHistory(assignment.history || []);
   }
 
   async function submitAssignment() {
     if (!assignForm.assignedToUserId) return;
-    await adminServiceApi.assignManager(selectedId, assignForm.assignedToUserId, assignForm.comment);
+    await adminServiceApi.assignServiceCase(selectedId, assignForm.assignedToUserId);
     setAssignForm({ assignedToUserId: '', comment: '' });
     await load();
     await loadDetails(selectedId);
@@ -138,13 +140,27 @@ export function AdminServicePage() {
     });
   }, [selectedId]);
 
-  const statusData = dashboard?.analytics?.statuses || [];
+  const statusData = [
+    { key: 'accepted', label: 'Принятые', value: dashboard?.newCount || 0 },
+    { key: 'in_progress', label: 'В работе', value: dashboard?.inProgressCount || 0 },
+    { key: 'testing', label: 'Тест', value: dashboard?.testingCount || 0 },
+    { key: 'ready', label: 'Готово', value: dashboard?.readyCount || 0 },
+    { key: 'processed', label: 'Проведено', value: dashboard?.processedCount || 0 },
+  ];
   const statusMax = useChartMax(statusData);
-  const dailyData = dashboard?.analytics?.daily || [];
+  const dailyData = [];
   const dailyMax = useChartMax(dailyData);
   const engineerData = dashboard?.engineerLoad || [];
   const engineerMax = Math.max(...engineerData.map((i) => i.active + i.overdue), 1);
-  const kpis = dashboard?.kpis || [];
+  const kpis = [
+    { key: 'newCount', label: 'Принятые', value: dashboard?.newCount || 0 },
+    { key: 'inProgressCount', label: 'В работе', value: dashboard?.inProgressCount || 0 },
+    { key: 'testingCount', label: 'Тест', value: dashboard?.testingCount || 0 },
+    { key: 'readyCount', label: 'Готово директору', value: dashboard?.readyCount || 0 },
+    { key: 'processedCount', label: 'Проведено', value: dashboard?.processedCount || 0 },
+    { key: 'overdueCount', label: 'Просроченные', value: dashboard?.overdueCount || 0 },
+    { key: 'unassignedCount', label: 'Без назначения', value: dashboard?.unassignedCount || 0 },
+  ];
 
   const filteredRequests = useMemo(() => requests.filter((item) => {
     if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
@@ -163,11 +179,16 @@ export function AdminServicePage() {
         {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint={item.deltaLabel || 'Оперативно'} />)}
       </div>
 
-      <AlertPanel items={(dashboard?.attention || []).map((item) => <li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>)} />
+      <AlertPanel items={[
+        <li key="without_equipment"><span>Без оборудования</span><strong>{requests.filter((i) => !i.equipmentId).length}</strong></li>,
+        <li key="unassigned"><span>Без назначения</span><strong>{dashboard?.unassignedCount || 0}</strong></li>,
+        <li key="stuck"><span>Зависшие</span><strong>{dashboard?.overdueCount || 0}</strong></li>,
+        <li key="critical"><span>Критические</span><strong>{requests.filter((i) => (i.priority || '').toLowerCase() === 'critical').length}</strong></li>,
+      ]} />
 
       <FilterRow>
         <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-        <label><span>Тип</span><select value={filters.type} onChange={(e) => { const n = { ...filters, type: e.target.value }; setFilters(n); load(n); }}>{TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+        <label><span>Приёмка</span><select value={filters.type} onChange={(e) => { const n = { ...filters, type: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="client_repair">Ремонт клиента</option><option value="after_rent">После аренды</option><option value="after_replacement">После подмены</option><option value="new_purchase">Новокупленное</option></select></label>
         <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
         <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{(dashboard?.engineers || []).map((eng) => <option key={eng.userId} value={eng.userId}>{eng.name}</option>)}</select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-5001" /></label>
@@ -211,8 +232,8 @@ export function AdminServicePage() {
                 </div>
               ) : null}
               <div className="assignment-history">
-                <h4>История назначений</h4>
-                {(assignmentHistory || []).map((item) => <p key={item.id}>[{formatDate(item.createdAt)}] {item.fromUser?.fullName || '—'} → {item.toUser?.fullName || item.toUserId}, назначил {item.assignedByUser?.fullName || item.assignedByUserId} {item.comment ? `(${item.comment})` : ''}</p>)}
+                <h4>История статусов</h4>
+                {(assignmentHistory || []).map((item) => <p key={item.id}>[{formatDate(item.changedAt)}] {item.fromServiceStatus || item.fromStatusRaw || '—'} → {item.toServiceStatus || item.toStatusRaw} {item.comment ? `(${item.comment})` : ''}</p>)}
               </div>
             </>
           )}
