@@ -20,6 +20,10 @@ export const adminServiceApi = {
   serviceDashboard: async () => apiFetch('/api/telegram/admin/service/dashboard'),
   serviceKpi: async () => apiFetch('/api/telegram/admin/service/kpi'),
   executiveSummary: async () => apiFetch('/api/telegram/admin/executive/summary'),
+  executiveAlerts: async () => apiFetch('/api/telegram/admin/executive/alerts'),
+  notificationsPreview: async () => apiFetch('/api/telegram/admin/executive/notifications/preview'),
+  triggerNotifications: async (roles = []) => apiFetch('/api/telegram/admin/executive/notifications/trigger', { method: 'POST', body: JSON.stringify({ roles }) }),
+  weeklyExecutiveReport: async () => apiFetch('/api/telegram/admin/reports/executive-weekly'),
   serviceCases: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {
