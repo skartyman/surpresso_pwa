@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
+import { getAvailableCommercialActions, getAvailableServiceActions } from '../workflowConfig';
 import {
   AlertPanel,
   ChartCard,
@@ -40,6 +41,18 @@ const SORT_OPTIONS = [
   { value: 'updatedAt', label: 'Последнее обновление' },
 ];
 const STATUS_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тест', ready: 'Готово', processed: 'Проведено', closed: 'Закрыто' };
+const COMMERCIAL_STATUS_LABELS = {
+  none: 'Нет',
+  ready_for_issue: 'Готово к выдаче',
+  ready_for_rent: 'Готово к аренде',
+  ready_for_sale: 'Готово к продаже',
+  issued_to_client: 'Выдано клиенту',
+  reserved_for_rent: 'Бронь аренды',
+  out_on_rent: 'В аренде',
+  out_on_replacement: 'На подмене',
+  reserved_for_sale: 'Бронь продажи',
+  sold: 'Продано',
+};
 const KPI_ICON = { newCount: 'dashboard', inProgressCount: 'service', overdueCount: 'bell', unassignedCount: 'clients', readyCount: 'equipment', processedCount: 'sales' };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
@@ -65,10 +78,11 @@ function loadLabel(state) {
 }
 
 function ServiceTicketCard({ request, active, onSelect }) {
+  const status = request.serviceStatus || request.status;
   return (
     <button type="button" className={`ticket-card ${active ? 'active' : ''} ${!request.assignedToUserId ? 'unassigned' : ''}`} onClick={() => onSelect(request.id)}>
-      <i className="ticket-strip" data-status={request.status} />
-      <div className="ticket-top"><StatusBadge status={request.status}>{STATUS_LABELS[request.status] || request.status}</StatusBadge><small>#{request.id}</small></div>
+      <i className="ticket-strip" data-status={status} />
+      <div className="ticket-top"><StatusBadge status={status}>{STATUS_LABELS[status] || status}</StatusBadge><small>#{request.id}</small></div>
       <strong>{request.client?.companyName || 'Клиент без названия'}</strong>
       <p>{request.equipment?.brand || '—'} {request.equipment?.model || ''}</p>
       <div className="ticket-tags">
@@ -131,6 +145,21 @@ export function AdminServicePage() {
     await loadDetails(selectedId);
   }
 
+  async function applyServiceStatus(toStatus) {
+    if (!selectedId || !toStatus) return;
+    await adminServiceApi.updateServiceCaseStatus(selectedId, { serviceStatus: toStatus });
+    await load();
+    await loadDetails(selectedId);
+  }
+
+  async function applyCommercialStatus(toStatus) {
+    const equipmentId = selectedRequest?.equipmentId;
+    if (!equipmentId || !toStatus) return;
+    await adminServiceApi.updateCommercialStatus(equipmentId, toStatus);
+    await load();
+    await loadDetails(selectedId);
+  }
+
   useEffect(() => { load(); }, []); // eslint-disable-line
   useEffect(() => {
     if (!selectedId) return setSelectedRequest(null);
@@ -168,6 +197,11 @@ export function AdminServicePage() {
     if (filters.quickFilter?.startsWith('engineer:')) return item.assignedToUserId === filters.quickFilter.replace('engineer:', '');
     return true;
   }), [filters.quickFilter, requests, user?.id]);
+
+  const selectedServiceStatus = selectedRequest?.serviceStatus || selectedRequest?.status;
+  const selectedCommercialStatus = selectedRequest?.equipment?.commercialStatus || 'none';
+  const serviceActions = (selectedRequest?.availableServiceActions || getAvailableServiceActions(user?.role, selectedServiceStatus));
+  const commercialActions = (selectedRequest?.availableCommercialActions || getAvailableCommercialActions(user?.role, selectedServiceStatus, selectedCommercialStatus));
 
   return (
     <section className="service-dashboard">
@@ -212,7 +246,7 @@ export function AdminServicePage() {
         <DetailPanel>
           {!selectedRequest ? <p>Выберите заявку в колонке слева.</p> : (
             <>
-              <header><h3>Заявка #{selectedRequest.id}</h3><StatusBadge status={selectedRequest.status}>{STATUS_LABELS[selectedRequest.status] || selectedRequest.status}</StatusBadge></header>
+              <header><h3>Заявка #{selectedRequest.id}</h3><StatusBadge status={selectedServiceStatus}>{STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</StatusBadge></header>
               <div className="detail-grid">
                 <p><Icon name="clients" /> {selectedRequest.client?.companyName || '—'}</p>
                 <p><Icon name="equipment" /> {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
@@ -220,6 +254,31 @@ export function AdminServicePage() {
                 <p><Icon name="service" /> Назначил: {selectedRequest.assignedByUser?.fullName || '—'}</p>
               </div>
               <small>Назначено: {formatDate(selectedRequest.assignedAt)}</small>
+              <small>Коммерческий статус: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</small>
+              {serviceActions.length ? (
+                <div className="assignment-box">
+                  <h4>Действия по сервису</h4>
+                  <div className="quick-filter-row">
+                    {serviceActions.map((statusKey) => (
+                      <button key={statusKey} type="button" onClick={() => applyServiceStatus(statusKey).catch(() => setError('Не удалось обновить сервисный статус.'))}>
+                        → {STATUS_LABELS[statusKey] || statusKey}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {commercialActions.length ? (
+                <div className="assignment-box">
+                  <h4>Коммерческие действия</h4>
+                  <div className="quick-filter-row">
+                    {commercialActions.map((statusKey) => (
+                      <button key={statusKey} type="button" onClick={() => applyCommercialStatus(statusKey).catch(() => setError('Не удалось обновить коммерческий статус.'))}>
+                        → {COMMERCIAL_STATUS_LABELS[statusKey] || statusKey}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {canAssign ? (
                 <div className="assignment-box">
                   <h4>{selectedRequest.assignedToUserId ? 'Переназначить инженера' : 'Назначить инженера'}</h4>
