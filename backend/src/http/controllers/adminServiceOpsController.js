@@ -1,10 +1,14 @@
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
+import { PERMISSIONS } from '../../domain/workflow/permissions.js';
 import {
-  canChangeCommercialStatus,
-  canRoleTransitionCommercialStatus,
-  canRoleTransitionServiceStatus,
-} from '../../domain/transitions.js';
-import { PERMISSIONS, hasPermission } from '../../domain/roles.js';
+  canAssignServiceCase,
+  canChangeServiceStatus,
+  evaluateServiceStatusChange,
+  evaluateCommercialStatusChange,
+  hasPermission,
+} from '../../domain/workflow/serviceWorkflowGuards.js';
+import { getAllowedServiceTransitions } from '../../domain/workflow/serviceTransitions.js';
+import { getAllowedCommercialTransitions } from '../../domain/workflow/commercialTransitions.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
@@ -30,13 +34,22 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const item = await serviceOpsRepository.getServiceCaseById(req.params.id);
       if (!item) return res.status(404).json({ error: 'not_found' });
-      return res.json({ item });
+      const serviceActions = Object.keys(getAllowedServiceTransitions(item.serviceStatus || ''))
+        .filter((toStatus) => canChangeServiceStatus(req.adminUser, item.serviceStatus, toStatus));
+      const commercialActions = Object.keys(getAllowedCommercialTransitions(item.equipment?.commercialStatus || 'none'))
+        .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.equipment?.commercialStatus || 'none', toStatus).allowed);
+      return res.json({ item: { ...item, availableServiceActions: serviceActions, availableCommercialActions: commercialActions } });
     },
 
     async assign(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseAssign)) return res.status(403).json({ error: 'forbidden' });
       const assignedToUserId = String(req.body?.assignedToUserId || '').trim();
       if (!assignedToUserId) return res.status(400).json({ error: 'assigned_to_user_required' });
+
+      const existing = await serviceOpsRepository.getServiceCaseById(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'not_found' });
+      if (!canAssignServiceCase(req.adminUser, existing)) return res.status(403).json({ error: 'forbidden' });
+
       const item = await serviceOpsRepository.assignServiceCase(req.params.id, assignedToUserId, req.adminUser?.id || null);
       return res.json({ item });
     },
@@ -49,8 +62,10 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const existing = await serviceOpsRepository.getServiceCaseById(req.params.id);
       if (!existing) return res.status(404).json({ error: 'not_found' });
 
-      if (!canRoleTransitionServiceStatus({ role: req.adminUser?.role, fromStatus: existing.serviceStatus, toStatus: serviceStatus })) {
-        return res.status(403).json({ error: 'forbidden_transition' });
+      const decision = evaluateServiceStatusChange(req.adminUser, existing.serviceStatus, serviceStatus);
+      if (!decision.allowed) {
+        if (decision.reason === 'invalid_transition') return res.status(409).json({ error: 'invalid_transition' });
+        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
       }
 
       try {
@@ -64,7 +79,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         if (!item) return res.status(404).json({ error: 'not_found' });
         return res.json({ item });
       } catch (error) {
-        if (error?.message === 'invalid_transition') return res.status(400).json({ error: 'invalid_transition' });
+        if (error?.message === 'invalid_transition') return res.status(409).json({ error: 'invalid_transition' });
         throw error;
       }
     },
@@ -116,7 +131,9 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const item = await serviceOpsRepository.getEquipmentById(req.params.id);
       if (!item) return res.status(404).json({ error: 'not_found' });
-      return res.json({ item });
+      const availableCommercialActions = Object.keys(getAllowedCommercialTransitions(item.commercialStatus || 'none'))
+        .filter((toStatus) => evaluateCommercialStatusChange(req.adminUser, item.serviceStatus, item.commercialStatus || 'none', toStatus).allowed);
+      return res.json({ item: { ...item, availableCommercialActions } });
     },
 
     async updateCommercialStatus(req, res) {
@@ -127,25 +144,22 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
       if (!equipment) return res.status(404).json({ error: 'not_found' });
 
-      if (!canRoleTransitionCommercialStatus({
-        role: req.adminUser?.role,
-        fromStatus: equipment.commercialStatus || 'none',
-        toStatus: commercialStatus,
-      })) {
-        return res.status(403).json({ error: 'forbidden_transition' });
-      }
-
       const lastServiceCase = req.body?.serviceCaseId
         ? await serviceOpsRepository.getServiceCaseById(req.body.serviceCaseId)
         : null;
       const effectiveServiceStatus = lastServiceCase?.serviceStatus || equipment.serviceStatus;
-      if (!canChangeCommercialStatus({
-        role: req.adminUser?.role,
-        currentServiceStatus: effectiveServiceStatus,
-        fromCommercialStatus: equipment.commercialStatus || 'none',
-        toCommercialStatus: commercialStatus,
-      })) {
-        return res.status(400).json({ error: 'service_status_not_processed' });
+
+      const decision = evaluateCommercialStatusChange(
+        req.adminUser,
+        effectiveServiceStatus,
+        equipment.commercialStatus || 'none',
+        commercialStatus,
+      );
+      if (!decision.allowed) {
+        if (decision.reason === 'invalid_transition' || decision.reason === 'service_status_not_processed') {
+          return res.status(409).json({ error: decision.reason });
+        }
+        return res.status(403).json({ error: decision.reason || 'forbidden_transition' });
       }
 
       const item = await serviceOpsRepository.updateEquipmentCommercialStatus(req.params.id, commercialStatus, {
