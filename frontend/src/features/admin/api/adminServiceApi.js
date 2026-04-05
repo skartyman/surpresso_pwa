@@ -32,7 +32,14 @@ export const adminServiceApi = {
   assignServiceCase: async (id, assignedToUserId) => apiFetch(`/api/telegram/admin/service-cases/${id}/assign`, { method: 'POST', body: JSON.stringify({ assignedToUserId }) }),
   updateServiceCaseStatus: async (id, payload) => apiFetch(`/api/telegram/admin/service-cases/${id}/status`, { method: 'POST', body: JSON.stringify(payload) }),
   directorProcessServiceCase: async (id, payload) => apiFetch(`/api/telegram/admin/director/service-cases/${id}/process`, { method: 'POST', body: JSON.stringify(payload) }),
-  directorQueue: async () => apiFetch('/api/telegram/admin/director/queue'),
+  directorQueue: async (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '' && value !== 'all') params.set(key, value);
+    });
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/api/telegram/admin/director/queue${query}`);
+  },
   directorCommercialRoute: async (id, commercialStatus, comment = '') => apiFetch(`/api/telegram/admin/director/service-cases/${id}/commercial-route`, { method: 'POST', body: JSON.stringify({ serviceCaseId: id, commercialStatus, comment }) }),
   addServiceCaseNote: async (id, body, isInternal = true) => apiFetch(`/api/telegram/admin/service-cases/${id}/note`, { method: 'POST', body: JSON.stringify({ body, isInternal }) }),
   uploadServiceCaseMedia: async (id, files, caption = '') => {

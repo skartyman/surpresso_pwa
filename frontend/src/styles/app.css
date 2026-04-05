@@ -1194,3 +1194,28 @@ textarea {
   .employees-filters, .employees-grid { grid-template-columns: 1fr; }
   .employees-topbar { align-items: start; flex-direction: column; }
 }
+
+/* Owner Executive Dashboard */
+.owner-dashboard { display: grid; gap: 10px; }
+.owner-hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 10px; align-items: stretch; background: linear-gradient(140deg, color-mix(in oklab, var(--sa-surface), #0b1324 10%), var(--sa-surface-2)); border: 1px solid var(--sa-line); border-radius: 14px; padding: 12px; }
+.owner-hero h2 { margin: 0; font-size: 22px; letter-spacing: .01em; }
+.owner-hero p { margin: 6px 0 0; color: var(--sa-muted); max-width: 72ch; }
+.owner-hero__meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.owner-grid { display: grid; gap: 10px; }
+.owner-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.owner-grid--2 { grid-template-columns: 1.5fr 1fr; }
+.owner-card { background: var(--sa-surface); border: 1px solid var(--sa-line); border-radius: 12px; padding: 10px; display: grid; gap: 10px; }
+.owner-card h3 { margin: 0; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; }
+.owner-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.owner-kpi-block { border: 1px solid var(--sa-line); border-radius: 10px; background: var(--sa-surface-2); padding: 8px; display: grid; gap: 4px; }
+.owner-kpi-block span { color: var(--sa-muted); font-size: 12px; }
+.owner-kpi-block strong { font-size: 24px; line-height: 1.05; }
+.owner-kpi-block a, .owner-kpi-block small { font-size: 12px; color: var(--sa-brand); text-decoration: none; }
+.team-performance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+@media (max-width: 1180px) {
+  .owner-hero,
+  .owner-grid--3,
+  .owner-grid--2,
+  .owner-hero__meta { grid-template-columns: 1fr; }
+}

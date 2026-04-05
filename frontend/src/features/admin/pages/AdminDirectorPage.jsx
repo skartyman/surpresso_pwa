@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge } from '../components/AdminUi';
 
@@ -65,6 +66,7 @@ function RouteCard({ item, active, onSelect }) {
 }
 
 export function AdminDirectorPage() {
+  const [searchParams] = useSearchParams();
   const [serviceCases, setServiceCases] = useState([]);
   const [commercialQueue, setCommercialQueue] = useState([]);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
@@ -77,7 +79,8 @@ export function AdminDirectorPage() {
 
   async function load() {
     try {
-      const payload = await adminServiceApi.directorQueue();
+      const requestedStatus = searchParams.get('serviceStatus');
+      const payload = await adminServiceApi.directorQueue(requestedStatus ? { serviceStatus: requestedStatus } : {});
       const nextCases = payload.serviceCases || [];
       const nextCommercial = payload.commercialQueue || [];
       setServiceCases(nextCases);
@@ -97,7 +100,7 @@ export function AdminDirectorPage() {
     setInvoiceIssued(Boolean(item?.invoiceIssued));
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [searchParams]); // eslint-disable-line
   useEffect(() => {
     if (!selectedCaseId) return setSelectedCase(null);
     loadCaseDetails(selectedCaseId).catch(() => setSelectedCase(null));
@@ -109,11 +112,20 @@ export function AdminDirectorPage() {
     items: serviceCases.filter((item) => item.serviceStatus === status),
   })), [serviceCases]);
 
-  const commercialColumns = useMemo(() => COMMERCIAL_COLUMNS.map((status) => ({
-    status,
-    label: COMMERCIAL_LABELS[status],
-    items: commercialQueue.filter((item) => item.commercialStatus === status),
-  })), [commercialQueue]);
+  const commercialColumns = useMemo(() => {
+    const filterStatus = searchParams.get('commercialStatus');
+    const source = commercialQueue.filter((item) => {
+      if (!filterStatus) return true;
+      if (filterStatus === 'route_backlog') return ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus);
+      return item.commercialStatus === filterStatus;
+    });
+
+    return COMMERCIAL_COLUMNS.map((status) => ({
+      status,
+      label: COMMERCIAL_LABELS[status],
+      items: source.filter((item) => item.commercialStatus === status),
+    }));
+  }, [commercialQueue, searchParams]);
 
   const actions = selectedCase?.nextActions?.all || [];
   const processActions = actions.filter((action) => action.key === 'process' && action.type === 'service');
