@@ -7,7 +7,7 @@ export function createWebhookRouter(botGateway) {
     const update = req.body;
     if (update?.message?.text === '/start') {
       const chatId = update.message.chat.id;
-      await botGateway.sendMessage(chatId, 'Откройте клиентский кабинет Surpresso через кнопку ниже.');
+      await botGateway.sendMessage(chatId, 'Відкрийте клієнтський кабінет Surpresso через кнопку нижче.');
     }
 
     return res.json({ ok: true });

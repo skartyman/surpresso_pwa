@@ -1,8 +1,12 @@
+import { useI18n } from '../i18n';
+
 export function PlaceholderPage({ title }) {
+  const { t } = useI18n();
+
   return (
     <section>
       <h1>{title}</h1>
-      <p>Раздел подготовлен как точка расширения для следующего релиза.</p>
+      <p>{t('placeholder_subtitle')}</p>
     </section>
   );
 }

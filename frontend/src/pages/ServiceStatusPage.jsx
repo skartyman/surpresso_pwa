@@ -1,14 +1,16 @@
 import { useParams } from 'react-router-dom';
+import { useI18n } from '../i18n';
 
 export function ServiceStatusPage() {
   const { requestId } = useParams();
+  const { t } = useI18n();
 
   return (
     <section>
-      <h1>Статус заявки {requestId}</h1>
+      <h1>{t('request_status')} {requestId}</h1>
       <div className="status-card">
-        <p>Текущий статус: В работе</p>
-        <p>Инженер назначен, ожидаем подтверждение времени визита.</p>
+        <p>{t('current_status')}: {t('in_progress')}</p>
+        <p>{t('engineer_assigned')}</p>
       </div>
     </section>
   );
