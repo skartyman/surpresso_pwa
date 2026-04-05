@@ -33,6 +33,7 @@ export function createApiRouter(deps) {
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
     uploadsRoot: deps.uploadsRoot,
     executiveNotifier: deps.executiveNotifier,
+    notificationCenterService: deps.notificationCenterService,
   });
   const adminEmployeeController = createAdminEmployeeController(deps.userRepository, deps.serviceRepository);
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
@@ -62,10 +63,16 @@ export function createApiRouter(deps) {
   router.get('/admin/executive/alerts', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.alerts));
   router.get('/admin/executive/notifications/preview', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.notificationsPreview));
   router.post('/admin/executive/notifications/trigger', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.notificationsTrigger));
-  router.get('/admin/reports/service-cases.csv', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.exportServiceCases));
+  router.get('/admin/executive/notification-center', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.notificationCenter));
+  router.get('/admin/executive/digests/plan', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.scheduledDigestPlan));
+  router.post('/admin/executive/digests/run', asyncHandler(adminAuth), requireRole(['owner']), asyncHandler(adminServiceOpsController.scheduledDigestRun));
+  router.get('/admin/reports/service-cases.csv', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner']), asyncHandler(adminServiceOpsController.exportServiceCases));
   router.get('/admin/reports/executive-summary.csv', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.exportExecutiveSummary));
-  router.get('/admin/reports/sales-flow.csv', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.exportSalesFlow));
+  router.get('/admin/reports/sales-flow.csv', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.exportSalesFlow));
   router.get('/admin/reports/executive-weekly', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.weeklyExecutiveReport));
+  router.get('/admin/reports/history', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.reportExportHistory));
+  router.get('/admin/reports/presets', asyncHandler(adminAuth), requireRole(['owner', 'director']), asyncHandler(adminServiceOpsController.reportPresets));
+  router.post('/admin/reports/presets', asyncHandler(adminAuth), requireRole(['owner']), asyncHandler(adminServiceOpsController.saveReportPreset));
   router.get('/admin/service-cases', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listServiceCases));
   router.get('/admin/service-cases/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.byServiceCaseId));
   router.post('/admin/service-cases/:id/assign', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.assign));

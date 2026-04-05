@@ -21,9 +21,10 @@ function csvEscape(value) {
 }
 
 function toCsv(columns, rows) {
-  const header = columns.map((col) => csvEscape(col.label)).join(',');
-  const body = rows.map((row) => columns.map((col) => csvEscape(row[col.key])).join(',')).join('\n');
-  return `${header}\n${body}`;
+  const normalizedColumns = [...columns];
+  const header = normalizedColumns.map((col) => csvEscape(col.label)).join(',');
+  const body = (rows || []).map((row) => normalizedColumns.map((col) => csvEscape(row[col.key])).join(',')).join('\r\n');
+  return `\uFEFF${header}\r\n${body}`;
 }
 
 function filterAlertsByRole(alertState = {}, role = '') {
@@ -82,6 +83,7 @@ function buildNextActions({ serviceStatus, commercialStatus, serviceActions = []
 
 export function createAdminServiceOpsController(serviceOpsRepository, opts = {}) {
   const uploadsRoot = opts.uploadsRoot;
+  const notificationCenterService = opts.notificationCenterService;
 
   async function applyCommercialStatusChange(req, res, {
     equipmentId,
@@ -143,6 +145,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         escalationBlocks: scopedAlerts.escalationBlocks || {},
         recentCriticalChanges: scopedAlerts.recentCriticalChanges || [],
         notifications: metrics.notifications || { preview: { pendingCritical: 0, pendingWarning: 0, digestSize: 0 } },
+        notificationCenter: metrics.executiveDashboard || {},
       });
     },
 
@@ -159,20 +162,46 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const preview = await opts.executiveNotifier?.triggerDigest({ roles: [], alertState, metrics })
         .then((x) => ({ templates: x.templates, generatedAt: x.generatedAt }))
         .catch(() => ({ templates: {}, generatedAt: new Date().toISOString() }));
+      const schedule = notificationCenterService?.buildSchedulePlan(new Date()) || null;
       return res.json({
         generatedAt: preview.generatedAt,
         notificationPreview: metrics.notifications?.preview || { pendingCritical: 0, pendingWarning: 0, digestSize: 0 },
         templates: preview.templates,
+        schedule,
       });
     },
 
     async notificationsTrigger(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
       const roles = Array.isArray(req.body?.roles) ? req.body.roles : [];
+      if (!notificationCenterService) return res.status(503).json({ error: 'notifier_unavailable' });
+      const result = await notificationCenterService.runDigest({ digestType: 'manual_digest', roles, trigger: 'manual' });
+      return res.json(result);
+    },
+
+    async notificationCenter(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
       const metrics = await serviceOpsRepository.dashboard(req.query || {});
-      const alertState = filterAlertsByRole(metrics.alerts || {}, req.adminUser?.role || '');
-      if (!opts.executiveNotifier) return res.status(503).json({ error: 'notifier_unavailable' });
-      const result = await opts.executiveNotifier.triggerDigest({ roles, alertState, metrics });
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        lastSentNotifications: metrics.executiveDashboard?.lastSentNotifications || [],
+        deliveryState: metrics.executiveDashboard?.deliveryState || {},
+        nextScheduledDigest: metrics.executiveDashboard?.nextScheduledDigest || {},
+        topWorseningBottlenecks: metrics.executiveDashboard?.topWorseningBottlenecks || [],
+      });
+    },
+
+    async scheduledDigestPlan(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      if (!notificationCenterService) return res.status(503).json({ error: 'notifier_unavailable' });
+      return res.json(notificationCenterService.buildSchedulePlan(new Date()));
+    },
+
+    async scheduledDigestRun(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      if (!notificationCenterService) return res.status(503).json({ error: 'notifier_unavailable' });
+      const includeWeekly = Boolean(req.body?.includeWeekly);
+      const result = await notificationCenterService.runScheduledDigests({ includeWeekly });
       return res.json(result);
     },
 
@@ -189,6 +218,15 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       ], rows);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename=\"service-cases.csv\"');
+      await serviceOpsRepository.createReportExportHistory?.({
+        reportType: 'service_cases',
+        format: 'csv',
+        triggerType: req.query?.trigger === 'scheduled' ? 'scheduled' : 'manual',
+        requestedByRole: req.adminUser?.role || null,
+        requestedByUserId: req.adminUser?.id || null,
+        filtersJson: JSON.stringify(req.query || {}),
+        status: 'success',
+      });
       return res.send(csv);
     },
 
@@ -205,6 +243,15 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const csv = toCsv([{ key: 'metric', label: 'metric' }, { key: 'value', label: 'value' }], flatRows);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename=\"executive-summary.csv\"');
+      await serviceOpsRepository.createReportExportHistory?.({
+        reportType: 'executive_summary',
+        format: 'csv',
+        triggerType: req.query?.trigger === 'scheduled' ? 'scheduled' : 'manual',
+        requestedByRole: req.adminUser?.role || null,
+        requestedByUserId: req.adminUser?.id || null,
+        filtersJson: JSON.stringify(req.query || {}),
+        status: 'success',
+      });
       return res.send(csv);
     },
 
@@ -220,6 +267,15 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       ], rows);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename=\"sales-flow.csv\"');
+      await serviceOpsRepository.createReportExportHistory?.({
+        reportType: 'sales_flow',
+        format: 'csv',
+        triggerType: req.query?.trigger === 'scheduled' ? 'scheduled' : 'manual',
+        requestedByRole: req.adminUser?.role || null,
+        requestedByUserId: req.adminUser?.id || null,
+        filtersJson: JSON.stringify(req.query || {}),
+        status: 'success',
+      });
       return res.send(csv);
     },
 
@@ -231,6 +287,35 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         period: 'weekly',
         payload: metrics.weeklyExecutiveReport || {},
       });
+    },
+
+    async reportExportHistory(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      const limit = Number(req.query?.limit || 25);
+      const items = await serviceOpsRepository.listReportExportHistory?.({ limit }) || [];
+      return res.json({ items });
+    },
+
+    async reportPresets(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
+      const reportType = req.query?.reportType ? String(req.query.reportType) : undefined;
+      const items = await serviceOpsRepository.listReportPresets?.({ reportType, ownerRole: req.adminUser?.role || null }) || [];
+      return res.json({ items });
+    },
+
+    async saveReportPreset(req, res) {
+      if ((req.adminUser?.role || '') !== 'owner') return res.status(403).json({ error: 'forbidden' });
+      const payload = {
+        key: String(req.body?.key || '').trim(),
+        title: String(req.body?.title || '').trim() || 'Preset',
+        reportType: String(req.body?.reportType || 'service_cases'),
+        filtersJson: JSON.stringify(req.body?.filters || {}),
+        ownerRole: req.body?.ownerRole ? String(req.body.ownerRole) : null,
+        ownerUserId: req.body?.ownerUserId ? String(req.body.ownerUserId) : null,
+        createdByUserId: req.adminUser?.id || null,
+      };
+      const item = await serviceOpsRepository.saveReportPreset?.(payload);
+      return res.json({ item });
     },
 
     async listServiceCases(req, res) {
