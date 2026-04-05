@@ -1,19 +1,13 @@
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
 import {
-  canApplyCommercialStatusForServiceStatus,
+  canChangeCommercialStatus,
   canRoleTransitionCommercialStatus,
   canRoleTransitionServiceStatus,
-} from '../../domain/serviceOpsWorkflowPolicy.js';
+} from '../../domain/transitions.js';
+import { PERMISSIONS, hasPermission } from '../../domain/roles.js';
 
-const ROLES = {
-  dashboard: ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director'],
-  serviceView: ['manager', 'service_engineer', 'service_head', 'owner', 'director'],
-  director: ['director', 'owner'],
-  sales: ['sales_manager', 'manager', 'owner', 'director'],
-};
-
-function can(role, allow) {
-  return allow.includes(role);
+function can(user, permission) {
+  return hasPermission(user, permission);
 }
 
 export function createAdminServiceOpsController(serviceOpsRepository, opts = {}) {
@@ -21,25 +15,26 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
 
   return {
     async dashboard(req, res) {
-      if (!can(req.adminUser?.role, ROLES.dashboard)) return res.status(403).json({ error: 'forbidden' });
+      if (!can(req.adminUser, PERMISSIONS.serviceDashboardRead)) return res.status(403).json({ error: 'forbidden' });
       const metrics = await serviceOpsRepository.dashboard(req.query || {});
       return res.json(metrics);
     },
 
     async listServiceCases(req, res) {
-      if (!can(req.adminUser?.role, ROLES.dashboard)) return res.status(403).json({ error: 'forbidden' });
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listServiceCases(req.query || {});
       return res.json({ items });
     },
 
     async byServiceCaseId(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const item = await serviceOpsRepository.getServiceCaseById(req.params.id);
       if (!item) return res.status(404).json({ error: 'not_found' });
       return res.json({ item });
     },
 
     async assign(req, res) {
-      if (!can(req.adminUser?.role, ['service_head', 'manager', 'owner', 'director'])) return res.status(403).json({ error: 'forbidden' });
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseAssign)) return res.status(403).json({ error: 'forbidden' });
       const assignedToUserId = String(req.body?.assignedToUserId || '').trim();
       if (!assignedToUserId) return res.status(400).json({ error: 'assigned_to_user_required' });
       const item = await serviceOpsRepository.assignServiceCase(req.params.id, assignedToUserId, req.adminUser?.id || null);
@@ -47,6 +42,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     },
 
     async updateStatus(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseUpdateStatus)) return res.status(403).json({ error: 'forbidden' });
       const serviceStatus = String(req.body?.serviceStatus || '').trim();
       if (!serviceStatus) return res.status(400).json({ error: 'service_status_required' });
 
@@ -62,7 +58,6 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
           comment: req.body?.comment || null,
           actorLabel: req.adminUser?.fullName || req.adminUser?.email || req.adminUser?.id || 'admin',
           changedByUserId: req.adminUser?.id || null,
-          processedByUserId: can(req.adminUser?.role, ROLES.director) && serviceStatus === 'processed' ? req.adminUser?.id : null,
           invoiceNumber: req.body?.invoiceNumber || undefined,
           invoiceStatus: req.body?.invoiceStatus || undefined,
         });
@@ -75,6 +70,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     },
 
     async addNote(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseAddNote)) return res.status(403).json({ error: 'forbidden' });
       const body = String(req.body?.body || '').trim();
       if (!body) return res.status(400).json({ error: 'note_required' });
       const note = await serviceOpsRepository.addServiceCaseNote(req.params.id, {
@@ -86,6 +82,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     },
 
     async addMedia(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseUploadMedia)) return res.status(403).json({ error: 'forbidden' });
       const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
       if (!serviceCase) return res.status(404).json({ error: 'not_found' });
       if (!req.files?.length) return res.status(400).json({ error: 'file_required' });
@@ -104,23 +101,26 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     },
 
     async history(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const history = await serviceOpsRepository.listServiceCaseHistory(req.params.id);
       return res.json({ history });
     },
 
     async listEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listEquipment(req.query || {});
       return res.json({ items });
     },
 
     async equipmentById(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const item = await serviceOpsRepository.getEquipmentById(req.params.id);
       if (!item) return res.status(404).json({ error: 'not_found' });
       return res.json({ item });
     },
 
     async updateCommercialStatus(req, res) {
-      if (!can(req.adminUser?.role, ROLES.sales)) return res.status(403).json({ error: 'forbidden' });
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
       const commercialStatus = String(req.body?.commercialStatus || '').trim();
       if (!commercialStatus) return res.status(400).json({ error: 'commercial_status_required' });
 
@@ -139,7 +139,12 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         ? await serviceOpsRepository.getServiceCaseById(req.body.serviceCaseId)
         : null;
       const effectiveServiceStatus = lastServiceCase?.serviceStatus || equipment.serviceStatus;
-      if (!canApplyCommercialStatusForServiceStatus({ serviceStatus: effectiveServiceStatus, commercialStatus })) {
+      if (!canChangeCommercialStatus({
+        role: req.adminUser?.role,
+        currentServiceStatus: effectiveServiceStatus,
+        fromCommercialStatus: equipment.commercialStatus || 'none',
+        toCommercialStatus: commercialStatus,
+      })) {
         return res.status(400).json({ error: 'service_status_not_processed' });
       }
 
@@ -154,6 +159,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     },
 
     async equipmentServiceCases(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listEquipmentServiceCases(req.params.id);
       return res.json({ items });
     },
