@@ -13,16 +13,16 @@ const TABS = [
 ];
 
 const COMMERCIAL_LABELS = {
-  none: 'None',
-  ready_for_issue: 'Ready for issue',
-  issued_to_client: 'Issued to client',
-  ready_for_rent: 'Ready for rent',
-  reserved_for_rent: 'Reserved for rent',
-  out_on_rent: 'Out on rent',
-  out_on_replacement: 'Out on replacement',
-  ready_for_sale: 'Ready for sale',
-  reserved_for_sale: 'Reserved for sale',
-  sold: 'Sold',
+  none: 'Без статуса',
+  ready_for_issue: 'Готово к выдаче',
+  issued_to_client: 'Выдано клиенту',
+  ready_for_rent: 'Готово к аренде',
+  reserved_for_rent: 'Зарезервировано под аренду',
+  out_on_rent: 'В аренде',
+  out_on_replacement: 'На подмене',
+  ready_for_sale: 'Готово к продаже',
+  reserved_for_sale: 'Зарезервировано к продаже',
+  sold: 'Продано',
 };
 
 const EVENT_META = {
@@ -357,7 +357,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
             <div className="equipment-summary-hero__statuses">
               <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>Service: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
-              <StatusBadge status={equipment.commercialStatus || 'none'}>Commercial: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</StatusBadge>
+              <StatusBadge status={equipment.commercialStatus || 'none'}>Коммерция: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</StatusBadge>
             </div>
           </div>
           {latestMedia
@@ -383,7 +383,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
           <p><Icon name="dashboard" /> Active case: {activeCase?.id || '—'}</p>
           <p><Icon name="employees" /> Assigned master: {activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</p>
           <p><Icon name="service" /> Current service status: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</p>
-          <p><Icon name="sales" /> Current commercial status: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</p>
+          <p><Icon name="sales" /> Текущий коммерческий статус: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</p>
           <p><Icon name="dashboard" /> Обновлено: {formatDate(equipment.updatedAt)}</p>
         </div>
 
@@ -437,7 +437,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
   const actions = detail.currentActions?.all || [];
   return (
     <section className="equipment-detail-section">
-      <p>Текущий commercial status: {COMMERCIAL_LABELS[detail.equipment?.commercialStatus || 'none'] || (detail.equipment?.commercialStatus || 'none')}</p>
+      <p>Текущий коммерческий статус: {COMMERCIAL_LABELS[detail.equipment?.commercialStatus || 'none'] || (detail.equipment?.commercialStatus || 'none')}</p>
       <div className="quick-filter-row">
         {actions.map((action) => <span key={action.key + action.targetStatus} className="signal-chip signal-chip--warning">{action.label}</span>)}
         {!actions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
@@ -531,8 +531,8 @@ export function AdminEquipmentPage() {
     <section className="equipment-ops-page">
       <header className="service-headline">
         <div>
-          <h2>Operations Asset View</h2>
-          <p>Краткий список оборудования + полноценная деталка как operational passport.</p>
+          <h2>Операционный реестр оборудования</h2>
+          <p>Краткий список оборудования + полноценная детализация в формате операционного паспорта.</p>
         </div>
       </header>
 

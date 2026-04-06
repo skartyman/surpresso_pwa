@@ -28,7 +28,7 @@ export function ThemeToggle({ theme, onToggle }) {
   return (
     <button type="button" className="theme-toggle" onClick={onToggle} aria-label="Переключить тему">
       <Icon name={theme === 'light' ? 'moon' : 'sun'} />
-      <span>{theme === 'light' ? 'Dark' : 'Light'}</span>
+      <span>{theme === 'light' ? 'Тёмная' : 'Светлая'}</span>
     </button>
   );
 }
