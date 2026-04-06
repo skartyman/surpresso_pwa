@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminEmployeesApi } from '../api/adminEmployeesApi';
+import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLE_LABELS, ROLES } from '../roleConfig';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -56,17 +57,19 @@ export function AdminEmployeesPage() {
   const [createMode, setCreateMode] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
+  const [serviceKpi, setServiceKpi] = useState(null);
   const isEngineer = user?.role === ROLES.serviceEngineer;
   const canEdit = [ROLES.owner, ROLES.director, ROLES.serviceHead, ROLES.manager].includes(user?.role);
 
   const roleOptions = useMemo(() => Object.values(ROLES), []);
 
   async function load(query = filters) {
-    const [usersPayload, specializationsPayload, brandsPayload, zonesPayload] = await Promise.all([
+    const [usersPayload, specializationsPayload, brandsPayload, zonesPayload, serviceKpiPayload] = await Promise.all([
       adminEmployeesApi.list(query),
       adminEmployeesApi.specializations(),
       adminEmployeesApi.brands(),
       adminEmployeesApi.zones(),
+      adminServiceApi.serviceKpi().catch(() => null),
     ]);
 
     const users = usersPayload.users || [];
@@ -76,6 +79,7 @@ export function AdminEmployeesPage() {
       brands: brandsPayload.items || [],
       zones: zonesPayload.items || [],
     });
+    setServiceKpi(serviceKpiPayload);
 
     if (!selected && users.length) {
       setSelected(cloneForEdit(users[0]));
@@ -134,6 +138,27 @@ export function AdminEmployeesPage() {
   }
 
   const current = createMode ? form : selected;
+  const workloadByUserId = useMemo(() => {
+    const rows = serviceKpi?.roleAnalytics?.service?.engineerWorkload || [];
+    return rows.reduce((acc, row) => {
+      acc[row.userId] = row;
+      return acc;
+    }, {});
+  }, [serviceKpi]);
+
+  const avgAssignMinutes = serviceKpi?.roleAnalytics?.service?.avgAssignTimeMinutes ?? null;
+  const avgRepairMinutes = serviceKpi?.roleAnalytics?.service?.avgRepairTimeMinutes ?? null;
+  const summary = useMemo(() => {
+    const team = employees.length;
+    const active = employees.filter((item) => item.isActive).length;
+    const activeCases = employees.reduce((sum, item) => sum + Number(item.activeCount || 0), 0);
+    const overdue = employees.reduce((sum, item) => sum + Number(item.overdueCount || 0), 0);
+    return { team, active, activeCases, overdue };
+  }, [employees]);
+
+  function formatMinutes(value) {
+    return Number.isFinite(value) ? `${Math.round(value)} мин` : '—';
+  }
 
   return (
     <section className="employees-page">
@@ -164,6 +189,15 @@ export function AdminEmployeesPage() {
         </label>
       </div>
 
+      <section className="employees-kpi-strip">
+        <article><span>Сотрудников</span><strong>{summary.team}</strong></article>
+        <article><span>Активных</span><strong>{summary.active}</strong></article>
+        <article><span>Активные кейсы</span><strong>{summary.activeCases}</strong></article>
+        <article><span>Просрочки</span><strong>{summary.overdue}</strong></article>
+        <article><span>Ср. назначение</span><strong>{formatMinutes(avgAssignMinutes)}</strong></article>
+        <article><span>Ср. ремонт / обработка</span><strong>{formatMinutes(avgRepairMinutes)}</strong></article>
+      </section>
+
       <div className="employees-workspace">
         <aside className="employees-list">
           {employees.map((employee) => (
@@ -175,9 +209,12 @@ export function AdminEmployeesPage() {
               <small>{ROLE_LABELS[employee.role] || employee.role}</small>
               <p>{(employee.specializations || []).join(', ') || 'Без специализаций'}</p>
               <div className="employee-card__metrics">
-                <span>active {employee.activeCount || 0}</span>
-                <span>overdue {employee.overdueCount || 0}</span>
-                <span>critical {employee.criticalCount || 0}</span>
+                <span>Активность: {employee.isActive ? 'Да' : 'Нет'}</span>
+                <span>Нагрузка: {employee.activeCount || 0}/{employee.capacity || 6}</span>
+                <span>Кейсы: {(workloadByUserId[employee.id]?.activeCases ?? employee.activeCount) || 0}</span>
+                <span>Просрочки: {employee.overdueCount || 0}</span>
+                <span>Критические: {employee.criticalCount || 0}</span>
+                <span>KPI: закрыто сегодня {employee.resolvedTodayCount || 0}</span>
               </div>
             </button>
           ))}
