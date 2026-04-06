@@ -8,8 +8,11 @@ const TABS = [
   { key: 'media', label: 'Фото и видео' },
   { key: 'history', label: 'История' },
   { key: 'service_cases', label: 'Сервисные кейсы' },
+  { key: 'tasks', label: 'Задачи' },
+  { key: 'comments', label: 'Комментарии' },
   { key: 'notes', label: 'Заметки' },
   { key: 'commercial', label: 'Коммерция' },
+  { key: 'documents', label: 'Документы' },
 ];
 
 const COMMERCIAL_LABELS = {
@@ -445,6 +448,12 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
 }
 
 function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, basePath }) {
+  const [commentBody, setCommentBody] = useState('');
+  const [noteBody, setNoteBody] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [editForm, setEditForm] = useState({ brand: '', model: '', serial: '', internalNumber: '' });
+  const [busy, setBusy] = useState('');
   if (!detail) return <p className="empty-copy">Выберите единицу оборудования.</p>;
   if (tab === 'overview') {
     const equipment = detail.equipment || {};
@@ -453,6 +462,10 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
     const warnings = getEquipmentWarnings(detail);
     return (
       <section className="equipment-detail-section">
+        <div className="quick-filter-row">
+          <button type="button" onClick={() => navigateToBoard('equipment_create')}>Добавить оборудование</button>
+          <button type="button" onClick={() => navigateToBoard('equipment_intake')}>Принять оборудование (intake)</button>
+        </div>
         <article className="equipment-summary-hero">
           <div>
             <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
@@ -501,6 +514,30 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
           <p><Icon name="dashboard" /> Обновлено: {formatDate(equipment.updatedAt)}</p>
         </div>
 
+        <article className="equipment-detail-section">
+          <h4>Редактирование Equipment card</h4>
+          <div className="equipment-detail-grid">
+            <input placeholder={equipment.brand || 'Бренд'} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
+            <input placeholder={equipment.model || 'Модель'} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
+            <input placeholder={equipment.serial || 'Серийный'} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
+            <input placeholder={equipment.internalNumber || 'Инв. №'} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+          </div>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={async () => {
+              setBusy('edit');
+              try {
+                await adminServiceApi.updateEquipment(equipment.id, editForm);
+                setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                await onRefreshDetail?.();
+              } finally { setBusy(''); }
+            }}
+          >
+            {busy === 'edit' ? 'Сохраняем...' : 'Сохранить карточку'}
+          </button>
+        </article>
+
         <ActionPanel
           detail={detail}
           onQuickMediaUploaded={onRefreshDetail}
@@ -510,7 +547,38 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
       </section>
     );
   }
-  if (tab === 'media') return <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} />;
+  if (tab === 'media') {
+    const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
+    return (
+      <section className="equipment-detail-section">
+        <p>Загрузка медиа: можно сохранить в паспорт техники или в активный сервисный кейс.</p>
+        <div className="quick-filter-row">
+          <input type="file" multiple accept="image/*,video/*" />
+          <button
+            type="button"
+            onClick={async () => {
+              const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
+              const files = Array.from(fileInput?.files || []);
+              if (!files.length) return;
+              const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите \"Отмена\" чтобы сохранить в Equipment паспорт.`);
+              await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
+              if (fileInput) fileInput.value = '';
+              await onRefreshDetail?.();
+            }}
+          >Загрузить</button>
+        </div>
+        <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} />
+        <div className="equipment-notes-list">
+          {(detail.media || []).map((row) => (
+            <div key={`media-delete-${row.id}`} className="quick-filter-row">
+              <small>{row.originalName || row.id}</small>
+              <button type="button" onClick={() => adminServiceApi.deleteMedia(row.id).then(() => onRefreshDetail?.())}>Удалить</button>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
   if (tab === 'history') return <TimelineView rows={detail.timeline || []} />;
   if (tab === 'service_cases') {
     const rows = detail.serviceCases || [];
@@ -554,17 +622,111 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
     );
   }
   if (tab === 'notes') {
-    const rows = detail.notes || [];
+    const rows = [...(detail.equipmentNotes || []), ...(detail.notes || [])];
     if (!rows.length) return <p className="empty-copy">Заметок пока нет.</p>;
     return (
-      <ul className="equipment-notes-list">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <p>{row.body}</p>
-            <small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)} · кейс {row.serviceCaseId || '—'}</small>
-          </li>
-        ))}
-      </ul>
+      <section className="equipment-detail-section">
+        <div className="quick-filter-row">
+          <input value={noteBody} onChange={(e) => setNoteBody(e.target.value)} placeholder="Новая заметка по оборудованию" />
+          <button
+            type="button"
+            disabled={!noteBody.trim() || Boolean(busy)}
+            onClick={async () => {
+              setBusy('note');
+              try {
+                await adminServiceApi.addEquipmentNote(detail.equipment.id, noteBody.trim());
+                setNoteBody('');
+                await onRefreshDetail?.();
+              } finally { setBusy(''); }
+            }}
+          >{busy === 'note' ? 'Сохраняем...' : 'Добавить заметку'}</button>
+        </div>
+        <ul className="equipment-notes-list">
+          {rows.map((row) => (
+            <li key={row.id}>
+              <p>{row.body}</p>
+              <small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)} · кейс {row.serviceCaseId || '—'}</small>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  if (tab === 'comments') {
+    const rows = detail.comments || [];
+    return (
+      <section className="equipment-detail-section">
+        <div className="quick-filter-row">
+          <input value={commentBody} onChange={(e) => setCommentBody(e.target.value)} placeholder="Комментарий по карточке" />
+          <button
+            type="button"
+            disabled={!commentBody.trim() || Boolean(busy)}
+            onClick={async () => {
+              setBusy('comment');
+              try {
+                await adminServiceApi.addEquipmentComment(detail.equipment.id, commentBody.trim());
+                setCommentBody('');
+                await onRefreshDetail?.();
+              } finally { setBusy(''); }
+            }}
+          >{busy === 'comment' ? 'Сохраняем...' : 'Добавить комментарий'}</button>
+        </div>
+        {!rows.length ? <p className="empty-copy">Комментариев пока нет.</p> : (
+          <ul className="equipment-notes-list">
+            {rows.map((row) => <li key={row.id}><p>{row.body}</p><small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)}</small></li>)}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
+  if (tab === 'tasks') {
+    const rows = detail.tasks || [];
+    return (
+      <section className="equipment-detail-section">
+        <div className="equipment-detail-grid">
+          <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Название задачи" />
+          <input value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Описание" />
+          <button
+            type="button"
+            disabled={!taskTitle.trim() || Boolean(busy)}
+            onClick={async () => {
+              setBusy('task');
+              try {
+                await adminServiceApi.createEquipmentTask(detail.equipment.id, { title: taskTitle.trim(), description: taskDescription.trim() || null });
+                setTaskTitle('');
+                setTaskDescription('');
+                await onRefreshDetail?.();
+              } finally { setBusy(''); }
+            }}
+          >{busy === 'task' ? 'Создаём...' : 'Создать задачу'}</button>
+        </div>
+        {!rows.length ? <p className="empty-copy">Задач пока нет.</p> : (
+          <ul className="equipment-notes-list">
+            {rows.map((row) => (
+              <li key={row.id}>
+                <p><strong>{row.title}</strong> — {row.description || 'без описания'}</p>
+                <small>{row.status} · {row.assignedToUser?.fullName || 'не назначено'} · до {formatDate(row.dueAt)}</small>
+                <div className="quick-filter-row">
+                  {['todo', 'in_progress', 'done'].map((status) => (
+                    <button key={status} type="button" onClick={() => adminServiceApi.updateTaskStatus(row.id, status).then(() => onRefreshDetail?.())}>{status}</button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
+  if (tab === 'documents') {
+    return (
+      <section className="equipment-detail-section">
+        <p>Документы оборудования: паспорт PDF, акты и файлы intake (legacy-compatible зона).</p>
+        <p>Passport URL: {detail.equipment?.passportPdfUrl || '—'}</p>
+      </section>
     );
   }
 
@@ -669,6 +831,14 @@ export function AdminEquipmentPage() {
     }
     if (target === 'sales_board') {
       navigate(`${basePath}/sales${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
+      return;
+    }
+    if (target === 'equipment_intake') {
+      navigate(`${basePath}/equipment/intake`);
+      return;
+    }
+    if (target === 'equipment_create') {
+      navigate(`${basePath}/equipment/intake?mode=create`);
     }
   }
 

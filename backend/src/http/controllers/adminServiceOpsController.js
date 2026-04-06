@@ -490,6 +490,39 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.status(201).json({ media: saved });
     },
 
+    async addEquipmentMedia(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseUploadMedia)) return res.status(403).json({ error: 'forbidden' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+      if (!req.files?.length) return res.status(400).json({ error: 'file_required' });
+
+      const serviceCaseId = String(req.body?.serviceCaseId || '').trim() || null;
+      if (serviceCaseId) {
+        const serviceCase = await serviceOpsRepository.getServiceCaseById(serviceCaseId);
+        if (!serviceCase || serviceCase.equipmentId !== req.params.id) return res.status(409).json({ error: 'invalid_service_case' });
+      }
+
+      const saved = [];
+      for (const file of req.files) {
+        const meta = await storeServiceMediaFile({ uploadsRoot, file, prefix: 'equipment' });
+        const row = await serviceOpsRepository.createMedia(serviceCaseId, {
+          equipmentId: req.params.id,
+          ...meta,
+          uploadedByUserId: req.adminUser?.id || null,
+          caption: String(req.body?.caption || '').trim() || null,
+        });
+        saved.push(row);
+      }
+      return res.status(201).json({ media: saved, placement: serviceCaseId ? 'service_case' : 'equipment' });
+    },
+
+    async deleteMedia(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.serviceCaseUploadMedia)) return res.status(403).json({ error: 'forbidden' });
+      const removed = await serviceOpsRepository.deleteMediaById(req.params.mediaId);
+      if (!removed) return res.status(404).json({ error: 'not_found' });
+      return res.json({ removed });
+    },
+
     async history(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
@@ -531,6 +564,22 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       });
     },
 
+    async updateEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      const existing = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!existing) return res.status(404).json({ error: 'not_found' });
+      const item = await serviceOpsRepository.updateEquipmentById(req.params.id, req.body || {});
+      return res.json({ item });
+    },
+
+    async createEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      const created = await serviceOpsRepository.createEquipmentCard({
+        ...req.body,
+      });
+      return res.status(201).json({ item: { equipment: created, serviceCase: null } });
+    },
+
     async equipmentDetail(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const payload = await serviceOpsRepository.getEquipmentDetail(req.params.id);
@@ -564,6 +613,79 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
           currentActions,
         },
       });
+    },
+
+    async addEquipmentComment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const body = String(req.body?.body || '').trim();
+      if (!body) return res.status(400).json({ error: 'comment_required' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+      const item = await serviceOpsRepository.addEquipmentComment(req.params.id, {
+        body,
+        authorUserId: req.adminUser?.id || null,
+      });
+      return res.status(201).json({ item });
+    },
+
+    async addEquipmentNote(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const body = String(req.body?.body || '').trim();
+      if (!body) return res.status(400).json({ error: 'note_required' });
+      const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
+      if (!equipment) return res.status(404).json({ error: 'not_found' });
+      const item = await serviceOpsRepository.addEquipmentNote(req.params.id, {
+        body,
+        authorUserId: req.adminUser?.id || null,
+      });
+      return res.status(201).json({ item });
+    },
+
+    async createServiceTask(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const title = String(req.body?.title || '').trim();
+      if (!title) return res.status(400).json({ error: 'title_required' });
+      const item = await serviceOpsRepository.createServiceTask({
+        serviceCaseId: req.body?.serviceCaseId || null,
+        equipmentId: req.body?.equipmentId || req.params.id || null,
+        title,
+        description: String(req.body?.description || '').trim() || null,
+        status: String(req.body?.status || 'todo'),
+        assignedToUserId: req.body?.assignedToUserId || null,
+        createdByUserId: req.adminUser?.id || null,
+        dueAt: req.body?.dueAt || null,
+      });
+      return res.status(201).json({ item });
+    },
+
+    async listServiceTasks(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const items = await serviceOpsRepository.listServiceTasks({
+        equipmentId: req.query?.equipmentId || req.params.id || undefined,
+        serviceCaseId: req.query?.serviceCaseId || undefined,
+      });
+      return res.json({ items });
+    },
+
+    async updateServiceTaskStatus(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const status = String(req.body?.status || '').trim();
+      if (!status) return res.status(400).json({ error: 'status_required' });
+      const item = await serviceOpsRepository.updateServiceTaskStatus(req.params.taskId, status);
+      if (!item) return res.status(404).json({ error: 'not_found' });
+      return res.json({ item });
+    },
+
+    async intakeCreate(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      const created = await serviceOpsRepository.createEquipmentWithIntake({
+        ...req.body,
+        changedByUserId: req.adminUser?.id || null,
+        actorLabel: req.adminUser?.fullName || req.adminUser?.id || 'admin',
+        intakeType: req.body?.intakeType || 'manual_intake',
+        serviceStatus: req.body?.serviceStatus || 'accepted',
+      });
+      return res.status(201).json({ item: created });
     },
 
     async updateCommercialStatus(req, res) {
