@@ -340,13 +340,13 @@ export function AdminServicePage() {
                   <div className="detail-split">
                     <div className="detail-grid">
                       <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
-                      <p><Icon name="equipment" /> Internal/Serial: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'} / {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
-                      <p><Icon name="service" /> Intake type: {selectedRequest.intakeType || '—'}</p>
-                      <p><Icon name="clients" /> Owner type: {selectedRequest.equipment?.ownerType || '—'}</p>
-                      <p><Icon name="dashboard" /> Service status: {STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</p>
-                      <p><Icon name="sales" /> Commercial status: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
-                      <p><Icon name="employees" /> Assigned: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
-                      <p><Icon name="clients" /> Last update: {formatDate(selectedRequest.updatedAt)}</p>
+                      <p><Icon name="equipment" /> Внутренний номер/Серийный номер: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'} / {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
+                      <p><Icon name="service" /> Тип приёма: {selectedRequest.intakeType || '—'}</p>
+                      <p><Icon name="clients" /> Тип владельца: {selectedRequest.equipment?.ownerType || '—'}</p>
+                      <p><Icon name="dashboard" /> Сервисный статус: {STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</p>
+                      <p><Icon name="sales" /> Коммерческий статус: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
+                      <p><Icon name="employees" /> Назначен: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
+                      <p><Icon name="clients" /> Последнее обновление: {formatDate(selectedRequest.updatedAt)}</p>
                     </div>
                     <div className="detail-stack">
                       {(selectedRequest.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedRequest.media || [])[0].fileUrl} alt="preview" /> : null}

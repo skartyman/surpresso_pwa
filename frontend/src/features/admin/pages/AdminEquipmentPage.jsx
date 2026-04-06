@@ -26,13 +26,13 @@ const COMMERCIAL_LABELS = {
 };
 
 const EVENT_META = {
-  service_status_changed: { label: 'Service status changed', tone: 'service', icon: 'service' },
-  commercial_status_changed: { label: 'Commercial status changed', tone: 'commercial', icon: 'sales' },
-  assignment: { label: 'Assignment', tone: 'assignment', icon: 'employees' },
-  processed: { label: 'Processed', tone: 'processed', icon: 'dashboard' },
-  media_uploaded: { label: 'Media uploaded', tone: 'media', icon: 'content' },
-  note_added: { label: 'Note added', tone: 'note', icon: 'content' },
-  legacy_event: { label: 'Legacy event', tone: 'legacy', icon: 'bell' },
+  service_status_changed: { label: 'Изменён сервисный статус', tone: 'service', icon: 'service' },
+  commercial_status_changed: { label: 'Изменён коммерческий статус', tone: 'commercial', icon: 'sales' },
+  assignment: { label: 'Назначение', tone: 'assignment', icon: 'employees' },
+  processed: { label: 'Обработано', tone: 'processed', icon: 'dashboard' },
+  media_uploaded: { label: 'Медиа загружено', tone: 'media', icon: 'content' },
+  note_added: { label: 'Добавлена заметка', tone: 'note', icon: 'content' },
+  legacy_event: { label: 'Событие из legacy-системы', tone: 'legacy', icon: 'bell' },
 };
 
 function formatDate(value) {
@@ -221,7 +221,7 @@ function TimelineView({ rows = [] }) {
             </header>
             <p><strong>{row.payload?.fromStatus || '—'} → {row.payload?.toStatus || '—'}</strong></p>
             <p>{row.comment || 'Без комментария'}</p>
-            <small>Actor: {row.actor || 'system'}{row.payload?.serviceCaseId ? ` · case ${row.payload.serviceCaseId}` : ''}</small>
+            <small>Автор: {row.actor || 'system'}{row.payload?.serviceCaseId ? ` · кейс ${row.payload.serviceCaseId}` : ''}</small>
           </li>
         );
       })}
@@ -279,31 +279,31 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
   return (
     <section className="equipment-detail-section equipment-action-panel">
       <header>
-        <h4>Action panel</h4>
+        <h4>Панель действий</h4>
         <p>Операционные действия по оборудованию без перехода между экранами.</p>
       </header>
 
       <div className="quick-filter-row">
         <button type="button" disabled={!activeCase?.id} onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}>
-          Open active service case
+          Открыть активный сервисный кейс
         </button>
         <button type="button" onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>
-          Create/Open service flow
+          Создать/открыть сервисный поток
         </button>
         <button type="button" onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>
-          Service board
+          Сервисная доска
         </button>
         <button type="button" onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>
-          Director board
+          Доска директора
         </button>
         <button type="button" onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>
-          Sales board
+          Доска продаж
         </button>
       </div>
 
       <div className="equipment-action-panel__media">
-        <h5>Quick add media</h5>
-        {!activeCase?.id ? <p className="empty-copy">Активный кейс не найден — быстрый upload недоступен.</p> : null}
+        <h5>Быстрое добавление медиа</h5>
+        {!activeCase?.id ? <p className="empty-copy">Активный кейс не найден — быстрая загрузка недоступна.</p> : null}
         <input type="file" multiple accept="image/*,video/*" onChange={(event) => setQuickMediaFiles(Array.from(event.target.files || []))} />
         <input
           type="text"
@@ -312,12 +312,12 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
           placeholder="Комментарий к медиа"
         />
         <button type="button" disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)} onClick={() => submitQuickMedia()}>
-          {actionLoading === 'media' ? 'Загрузка...' : 'Upload media to active case'}
+          {actionLoading === 'media' ? 'Загрузка...' : 'Загрузить медиа в активный кейс'}
         </button>
       </div>
 
       <div className="equipment-action-panel__commercial">
-        <h5>Quick commercial actions</h5>
+        <h5>Быстрые коммерческие действия</h5>
         <div className="quick-filter-row">
           {commercialActions.map((action) => (
             <button
@@ -334,7 +334,7 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
       </div>
 
       <p className="equipment-action-panel__links">
-        Быстрые ссылки: <a href={`${basePath}/service`}>Service board</a> · <a href={`${basePath}/director`}>Director board</a> · <a href={`${basePath}/sales`}>Sales board</a>
+        Быстрые ссылки: <a href={`${basePath}/service`}>Сервисная доска</a> · <a href={`${basePath}/director`}>Доска директора</a> · <a href={`${basePath}/sales`}>Доска продаж</a>
       </p>
       {feedback ? <p>{feedback}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
@@ -356,7 +356,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
             <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
             <div className="equipment-summary-hero__statuses">
-              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>Service: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
+              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>Сервис: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
               <StatusBadge status={equipment.commercialStatus || 'none'}>Коммерция: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</StatusBadge>
             </div>
           </div>
@@ -365,7 +365,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
               <button type="button" className="equipment-summary-hero__preview" onClick={() => onOpenMedia(0)}>
                 {latestMedia.mediaType === 'video'
                   ? <video src={latestMedia.previewUrl || latestMedia.fullUrl} muted playsInline preload="metadata" />
-                  : <img src={latestMedia.previewUrl || latestMedia.fullUrl} alt={latestMedia.caption || latestMedia.originalName || 'latest media'} loading="lazy" />}
+                  : <img src={latestMedia.previewUrl || latestMedia.fullUrl} alt={latestMedia.caption || latestMedia.originalName || 'последнее медиа'} loading="lazy" />}
               </button>
             )
             : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">Нет превью</div>}
@@ -379,10 +379,10 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
 
         <div className="equipment-detail-grid">
           <p><Icon name="clients" /> Клиент: {equipment.clientName || '—'}</p>
-          <p><Icon name="equipment" /> Owner type: {equipment.ownerType || '—'}</p>
-          <p><Icon name="dashboard" /> Active case: {activeCase?.id || '—'}</p>
-          <p><Icon name="employees" /> Assigned master: {activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</p>
-          <p><Icon name="service" /> Current service status: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</p>
+          <p><Icon name="equipment" /> Тип владельца: {equipment.ownerType || '—'}</p>
+          <p><Icon name="dashboard" /> Активный кейс: {activeCase?.id || '—'}</p>
+          <p><Icon name="employees" /> Назначенный мастер: {activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</p>
+          <p><Icon name="service" /> Текущий сервисный статус: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</p>
           <p><Icon name="sales" /> Текущий коммерческий статус: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</p>
           <p><Icon name="dashboard" /> Обновлено: {formatDate(equipment.updatedAt)}</p>
         </div>
@@ -408,12 +408,12 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
           <article key={row.id} className="equipment-case-card">
             <header>
               <strong>{row.id}</strong>
-              {row.isActive ? <span className="signal-chip signal-chip--critical">active case</span> : null}
+              {row.isActive ? <span className="signal-chip signal-chip--critical">активный кейс</span> : null}
             </header>
-            <p>Status: {row.serviceStatus || '—'}</p>
-            <p>Assigned: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
-            <p>Created: {formatDate(row.createdAt)} · Updated: {formatDate(row.updatedAt)}</p>
-            <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>Открыть detail case view: {row.id}</a>
+            <p>Статус: {row.serviceStatus || '—'}</p>
+            <p>Назначен: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
+            <p>Создан: {formatDate(row.createdAt)} · Обновлён: {formatDate(row.updatedAt)}</p>
+            <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>Открыть детальный просмотр кейса: {row.id}</a>
           </article>
         ))}
       </div>
@@ -427,7 +427,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
         {rows.map((row) => (
           <li key={row.id}>
             <p>{row.body}</p>
-            <small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)} · case {row.serviceCaseId || '—'}</small>
+            <small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)} · кейс {row.serviceCaseId || '—'}</small>
           </li>
         ))}
       </ul>
