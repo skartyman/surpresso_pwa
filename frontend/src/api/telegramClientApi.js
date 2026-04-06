@@ -113,6 +113,11 @@ export const telegramClientApi = {
       throw error;
     }
   },
+  registerProfile: async (payload) => apiFetch('/api/telegram/v1/auth/register-profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
   listEquipment: async () => apiFetch('/api/telegram/equipment'),
   equipmentById: async (id) => apiFetch(`/api/telegram/equipment/${id}`),
   listServiceRequests: async () => apiFetch('/api/telegram/service-requests'),

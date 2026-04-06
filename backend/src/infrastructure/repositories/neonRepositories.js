@@ -9,11 +9,45 @@ function mapClient(client) {
   };
 }
 
+function mapNetwork(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+  };
+}
+
+function mapLocation(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    network: mapNetwork(item.network),
+  };
+}
+
+function mapPointUser(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    client: mapClient(item.client),
+    network: mapNetwork(item.network),
+    location: mapLocation(item.location),
+  };
+}
+
 function mapEquipment(item) {
   if (!item) return null;
   return {
     ...item,
     serialNumber: item.serial,
+    locationName: item.location?.name || null,
+    address: item.location?.address || item.clientLocation || null,
+    networkName: item.network?.name || null,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
   };
@@ -31,6 +65,8 @@ function mapServiceRequest(item) {
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     client: mapClient(item.client),
+    pointUser: mapPointUser(item.pointUser),
+    location: mapLocation(item.location),
     equipment: mapEquipment(item.equipment),
     assignedToUser: mapUser(item.assignedToUser),
     assignedByUser: mapUser(item.assignedByUser),
@@ -293,6 +329,73 @@ export class NeonClientRepository {
 
     return mapClient(client);
   }
+
+  async getMiniAppProfileByTelegramUserId(telegramUserId) {
+    const normalized = String(telegramUserId || '').trim();
+    const [client, pointUser, networks, locations] = await Promise.all([
+      this.findByTelegramUserId(normalized),
+      this.prisma.pointUser.findUnique({
+        where: { telegramUserId: normalized },
+        include: { client: true, network: true, location: { include: { network: true } } },
+      }),
+      this.prisma.network.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+      this.prisma.location.findMany({ where: { isActive: true }, include: { network: true }, orderBy: [{ city: 'asc' }, { name: 'asc' }] }),
+    ]);
+    return {
+      client,
+      pointUser: mapPointUser(pointUser),
+      network: mapNetwork(pointUser?.network || null),
+      location: mapLocation(pointUser?.location || null),
+      onboardingComplete: Boolean(pointUser?.networkId && pointUser?.locationId),
+      availableNetworks: networks.map(mapNetwork),
+      availableLocations: locations.map(mapLocation),
+    };
+  }
+
+  async registerMiniAppProfile(telegramUser, payload = {}) {
+    const telegramUserId = String(telegramUser?.id || '').trim();
+    const client = await this.findOrCreateFromTelegramUser(telegramUser, {
+      contactName: payload.contactName || payload.fullName || `Telegram user ${telegramUserId}`,
+      companyName: payload.companyName || 'Telegram client',
+      phone: payload.phone || '',
+      isActive: true,
+    });
+
+    await this.prisma.client.update({
+      where: { id: client.id },
+      data: {
+        ...(payload.contactName !== undefined || payload.fullName !== undefined ? { contactName: payload.contactName || payload.fullName || client.contactName } : {}),
+        ...(payload.phone !== undefined ? { phone: payload.phone || '' } : {}),
+        ...(payload.companyName !== undefined ? { companyName: payload.companyName || client.companyName } : {}),
+      },
+    });
+
+    await this.prisma.pointUser.upsert({
+      where: { telegramUserId },
+      update: {
+        clientId: client.id,
+        networkId: payload.networkId || null,
+        locationId: payload.locationId || null,
+        role: payload.role || 'barista',
+        fullName: payload.fullName || payload.contactName || client.contactName || null,
+        phone: payload.phone || client.phone || null,
+        isActive: true,
+      },
+      create: {
+        id: `point-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        telegramUserId,
+        clientId: client.id,
+        networkId: payload.networkId || null,
+        locationId: payload.locationId || null,
+        role: payload.role || 'barista',
+        fullName: payload.fullName || payload.contactName || client.contactName || null,
+        phone: payload.phone || client.phone || null,
+        isActive: true,
+      },
+    });
+
+    return this.getMiniAppProfileByTelegramUserId(telegramUserId);
+  }
 }
 
 export class NeonEquipmentRepository {
@@ -303,13 +406,26 @@ export class NeonEquipmentRepository {
   async listByClientId(clientId) {
     const items = await this.prisma.equipment.findMany({
       where: { clientId },
+      include: { location: true, network: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return items.map(mapEquipment);
+  }
+
+  async listByMiniAppScope({ clientId, locationId } = {}) {
+    const items = await this.prisma.equipment.findMany({
+      where: {
+        clientId,
+        ...(locationId ? { locationId } : {}),
+      },
+      include: { location: true, network: true },
       orderBy: { createdAt: 'desc' },
     });
     return items.map(mapEquipment);
   }
 
   async findById(id) {
-    const item = await this.prisma.equipment.findUnique({ where: { id } });
+    const item = await this.prisma.equipment.findUnique({ where: { id }, include: { location: true, network: true } });
     return mapEquipment(item);
   }
 }
@@ -322,7 +438,28 @@ export class NeonServiceRequestRepository {
   async listByClientId(clientId) {
     const items = await this.prisma.serviceRequest.findMany({
       where: { clientId },
-      include: { media: true, client: true, equipment: true },
+      include: { media: true, client: true, pointUser: { include: { network: true, location: { include: { network: true } }, client: true } }, location: { include: { network: true } }, equipment: { include: { location: true, network: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return items.map(mapServiceRequest);
+  }
+
+  async listByMiniAppScope({ clientId, pointUserId, locationId } = {}) {
+    const items = await this.prisma.serviceRequest.findMany({
+      where: {
+        clientId,
+        ...(locationId ? { OR: [{ locationId }, { equipment: { locationId } }] } : {}),
+        ...(!locationId && pointUserId ? { OR: [{ pointUserId: null }, { pointUserId }] } : {}),
+      },
+      include: {
+        media: true,
+        client: true,
+        pointUser: { include: { network: true, location: { include: { network: true } }, client: true } },
+        location: { include: { network: true } },
+        equipment: { include: { location: true, network: true } },
+        assignedToUser: true,
+        assignedByUser: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
     return items.map(mapServiceRequest);
@@ -331,9 +468,38 @@ export class NeonServiceRequestRepository {
   async findById(id) {
     const item = await this.prisma.serviceRequest.findUnique({
       where: { id },
-      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
+      include: {
+        media: true,
+        client: true,
+        pointUser: { include: { network: true, location: { include: { network: true } }, client: true } },
+        location: { include: { network: true } },
+        equipment: { include: { location: true, network: true } },
+        assignedToUser: true,
+        assignedByUser: true,
+      },
     });
     return mapServiceRequest(item);
+  }
+
+  async findByIdForMiniAppScope(id, { clientId, pointUserId, locationId } = {}) {
+    const item = await this.prisma.serviceRequest.findUnique({
+      where: { id },
+      include: {
+        media: true,
+        client: true,
+        pointUser: { include: { network: true, location: { include: { network: true } }, client: true } },
+        location: { include: { network: true } },
+        equipment: { include: { location: true, network: true } },
+        assignedToUser: true,
+        assignedByUser: true,
+      },
+    });
+    const mapped = mapServiceRequest(item);
+    if (!mapped || mapped.clientId !== clientId) return null;
+    const requestLocationId = mapped.locationId || mapped.equipment?.locationId || null;
+    if (locationId && requestLocationId !== locationId) return null;
+    if (!locationId && pointUserId && mapped.pointUserId && mapped.pointUserId !== pointUserId) return null;
+    return mapped;
   }
 
   buildAdminWhere({ status, id, client, equipment, type, assignedDepartment, assignedToUserId } = {}) {
@@ -529,6 +695,8 @@ export class NeonServiceRequestRepository {
         type: payload.type || 'service_repair',
         title: payload.title || payload.description || 'Новое обращение',
         clientId: payload.clientId,
+        pointUserId: payload.pointUserId || null,
+        locationId: payload.locationId || null,
         equipmentId: payload.equipmentId,
         assignedDepartment: payload.assignedDepartment || 'service',
         category: payload.category,
@@ -553,7 +721,15 @@ export class NeonServiceRequestRepository {
           })),
         },
       },
-      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
+      include: {
+        media: true,
+        client: true,
+        pointUser: { include: { network: true, location: { include: { network: true } }, client: true } },
+        location: { include: { network: true } },
+        equipment: { include: { location: true, network: true } },
+        assignedToUser: true,
+        assignedByUser: true,
+      },
     });
 
     return mapServiceRequest(created);
@@ -567,7 +743,15 @@ export class NeonServiceRequestRepository {
     const updated = await this.prisma.serviceRequest.update({
       where: { id },
       data: { status },
-      include: { media: true, client: true, equipment: true, assignedToUser: true, assignedByUser: true },
+      include: {
+        media: true,
+        client: true,
+        pointUser: { include: { network: true, location: { include: { network: true } }, client: true } },
+        location: { include: { network: true } },
+        equipment: { include: { location: true, network: true } },
+        assignedToUser: true,
+        assignedByUser: true,
+      },
     });
 
     await this.prisma.serviceRequestStatusHistory.create({

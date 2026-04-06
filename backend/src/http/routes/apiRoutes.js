@@ -25,7 +25,7 @@ export function createApiRouter(deps) {
   const authMiddleware = telegramAuth(deps.clientRepository);
   const authMeMiddleware = telegramAuth(deps.clientRepository, { allowInitDataFallback: false });
   const telegramAuthController = createTelegramAuthController(deps.clientRepository);
-  const authController = createAuthController();
+  const authController = createAuthController(deps.clientRepository);
   const equipmentController = createEquipmentController(deps.equipmentRepository);
   const serviceController = createServiceController(deps.serviceRepository, deps.equipmentRepository, deps.serviceRequestNotifier);
 
@@ -123,6 +123,7 @@ export function createApiRouter(deps) {
   router.patch('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer', 'sales_manager', 'seo']), asyncHandler(adminEmployeeController.update));
 
   router.get('/v1/auth/me', asyncHandler(authMeMiddleware), authController.me);
+  router.post('/v1/auth/register-profile', asyncHandler(authMiddleware), asyncHandler(authController.registerProfile));
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/v1/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);

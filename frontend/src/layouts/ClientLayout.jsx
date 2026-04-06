@@ -37,11 +37,21 @@ export function ClientLayout({ children }) {
     <div className="client-shell">
       <aside className={`client-sidebar ${drawerOpen ? 'is-open' : ''}`}>
         <div className="client-sidebar__brand">
-          <div className="client-logo">S</div>
+          <div className="client-logo client-logo--rich">
+            <span className="client-logo__bean" />
+            <span className="client-logo__steam" />
+            <span className="client-logo__letter">S</span>
+          </div>
           <div>
             <strong>Surpresso</strong>
             <p>{t('client_cabinet')}</p>
           </div>
+        </div>
+
+        <div className="client-sidebar__promo">
+          <small>{t('welcome_kicker')}</small>
+          <strong>Workshop flow, point equipment, service requests.</strong>
+          <p>Mini App для клиента, точки и сети с быстрым доступом к сервису.</p>
         </div>
 
         <nav className="client-nav">
@@ -69,7 +79,10 @@ export function ClientLayout({ children }) {
           <button type="button" className="menu-btn secondary" onClick={() => setDrawerOpen((prev) => !prev)}>
             ☰
           </button>
-          <h1>Surpresso Mini App</h1>
+          <div className="client-topbar__title">
+            <small>{t('welcome_kicker')}</small>
+            <h1>Surpresso Mini App</h1>
+          </div>
           <button type="button" className="theme-inline-btn secondary" onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>

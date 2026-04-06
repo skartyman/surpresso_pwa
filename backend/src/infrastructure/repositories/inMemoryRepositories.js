@@ -22,6 +22,18 @@ function withRequestCompatibility(item) {
   };
 }
 
+function mapNetwork(item) {
+  return item ? { ...item } : null;
+}
+
+function mapLocation(item) {
+  return item ? { ...item } : null;
+}
+
+function mapPointUser(item) {
+  return item ? { ...item } : null;
+}
+
 export class InMemoryUserRepository {
   constructor() {
     this.users = [...seed.users];
@@ -158,6 +170,9 @@ export class InMemoryUserRepository {
 export class InMemoryClientRepository {
   constructor() {
     this.clients = [...seed.clients];
+    this.networks = [...(seed.networks || [])];
+    this.locations = [...(seed.locations || [])];
+    this.pointUsers = [...(seed.pointUsers || [])];
   }
 
   async findByTelegramUserId(telegramUserId) {
@@ -190,19 +205,99 @@ export class InMemoryClientRepository {
     this.clients.unshift(created);
     return created;
   }
+
+  async getMiniAppProfileByTelegramUserId(telegramUserId) {
+    const client = await this.findByTelegramUserId(telegramUserId);
+    const pointUser = this.pointUsers.find((item) => item.telegramUserId === String(telegramUserId)) || null;
+    const network = this.networks.find((item) => item.id === pointUser?.networkId) || null;
+    const location = this.locations.find((item) => item.id === pointUser?.locationId) || null;
+    return {
+      client,
+      pointUser: mapPointUser(pointUser),
+      network: mapNetwork(network),
+      location: mapLocation(location),
+      onboardingComplete: Boolean(pointUser?.networkId && pointUser?.locationId),
+      availableNetworks: this.networks.filter((item) => item.isActive).map(mapNetwork),
+      availableLocations: this.locations.filter((item) => item.isActive).map((item) => ({
+        ...mapLocation(item),
+        network: mapNetwork(this.networks.find((networkRow) => networkRow.id === item.networkId) || null),
+      })),
+    };
+  }
+
+  async registerMiniAppProfile(telegramUser, payload = {}) {
+    const client = await this.findOrCreateFromTelegramUser(telegramUser, {
+      contactName: payload.contactName || payload.fullName || `Telegram user ${telegramUser?.id}`,
+      companyName: payload.companyName || 'Telegram client',
+      phone: payload.phone || '',
+      isActive: true,
+    });
+    const telegramUserId = String(telegramUser?.id || '').trim();
+    const existingIndex = this.pointUsers.findIndex((item) => item.telegramUserId === telegramUserId);
+    const now = new Date().toISOString();
+    const pointUser = {
+      id: existingIndex >= 0 ? this.pointUsers[existingIndex].id : `point-user-${Date.now()}`,
+      telegramUserId,
+      clientId: client.id,
+      networkId: payload.networkId || null,
+      locationId: payload.locationId || null,
+      role: payload.role || 'barista',
+      fullName: payload.fullName || payload.contactName || client.contactName || '',
+      phone: payload.phone || client.phone || '',
+      isActive: true,
+      createdAt: existingIndex >= 0 ? this.pointUsers[existingIndex].createdAt : now,
+      updatedAt: now,
+    };
+    if (existingIndex >= 0) this.pointUsers[existingIndex] = pointUser;
+    else this.pointUsers.unshift(pointUser);
+
+    const clientIndex = this.clients.findIndex((item) => item.id === client.id);
+    if (clientIndex >= 0) {
+      this.clients[clientIndex] = {
+        ...this.clients[clientIndex],
+        contactName: payload.contactName || payload.fullName || this.clients[clientIndex].contactName,
+        phone: payload.phone || this.clients[clientIndex].phone,
+        companyName: payload.companyName || this.clients[clientIndex].companyName,
+        updatedAt: now,
+      };
+    }
+
+    return this.getMiniAppProfileByTelegramUserId(telegramUserId);
+  }
 }
 
 export class InMemoryEquipmentRepository {
   constructor() {
     this.equipment = [...seed.equipment];
+    this.locations = [...(seed.locations || [])];
+    this.networks = [...(seed.networks || [])];
   }
 
   async listByClientId(clientId) {
     return this.equipment.filter((item) => item.clientId === clientId).map(withEquipmentCompatibility);
   }
 
+  async listByMiniAppScope({ clientId, locationId } = {}) {
+    return this.equipment
+      .filter((item) => item.clientId === clientId)
+      .filter((item) => !locationId || item.locationId === locationId)
+      .map((item) => ({
+        ...withEquipmentCompatibility(item),
+        locationName: this.locations.find((row) => row.id === item.locationId)?.name || null,
+        address: this.locations.find((row) => row.id === item.locationId)?.address || item.clientLocation || null,
+        networkName: this.networks.find((row) => row.id === item.networkId)?.name || null,
+      }));
+  }
+
   async findById(id) {
-    return withEquipmentCompatibility(this.equipment.find((item) => item.id === id) || null);
+    const item = this.equipment.find((entry) => entry.id === id) || null;
+    if (!item) return null;
+    return {
+      ...withEquipmentCompatibility(item),
+      locationName: this.locations.find((row) => row.id === item.locationId)?.name || null,
+      address: this.locations.find((row) => row.id === item.locationId)?.address || item.clientLocation || null,
+      networkName: this.networks.find((row) => row.id === item.networkId)?.name || null,
+    };
   }
 }
 
@@ -211,6 +306,9 @@ export class InMemoryServiceRequestRepository {
     this.requests = [...seed.serviceRequests];
     this.clients = [...seed.clients];
     this.equipment = [...seed.equipment];
+    this.locations = [...(seed.locations || [])];
+    this.networks = [...(seed.networks || [])];
+    this.pointUsers = [...(seed.pointUsers || [])];
     this.history = [...(seed.serviceRequestHistory || [])];
     this.notes = [...(seed.serviceRequestNotes || [])];
     this.assignmentHistory = [...(seed.serviceRequestAssignmentHistory || [])];
@@ -223,6 +321,8 @@ export class InMemoryServiceRequestRepository {
 
     const client = this.clients.find((entry) => entry.id === request.clientId) || null;
     const equipment = this.equipment.find((entry) => entry.id === request.equipmentId) || null;
+    const pointUser = this.pointUsers.find((entry) => entry.id === request.pointUserId) || null;
+    const location = this.locations.find((entry) => entry.id === (request.locationId || equipment?.locationId)) || null;
     const assignedToUser = this.users.find((entry) => entry.id === request.assignedToUserId) || null;
     const assignedByUser = this.users.find((entry) => entry.id === request.assignedByUserId) || null;
     const assignmentHistory = this.assignmentHistory
@@ -238,7 +338,14 @@ export class InMemoryServiceRequestRepository {
     return {
       ...request,
       client,
-      equipment: withEquipmentCompatibility(equipment),
+      pointUser,
+      location,
+      equipment: equipment ? {
+        ...withEquipmentCompatibility(equipment),
+        locationName: location?.name || null,
+        address: location?.address || equipment.clientLocation || null,
+        networkName: this.networks.find((entry) => entry.id === equipment.networkId)?.name || null,
+      } : null,
       assignedToUser: this.users.find((entry) => entry.id === request.assignedToUserId) || null,
       assignedByUser: this.users.find((entry) => entry.id === request.assignedByUserId) || null,
       assignmentHistory: this.assignmentHistory
@@ -254,6 +361,20 @@ export class InMemoryServiceRequestRepository {
 
   async listByClientId(clientId) {
     return this.requests.filter((item) => item.clientId === clientId).map((item) => this.hydrate(item));
+  }
+
+  async listByMiniAppScope({ clientId, pointUserId, locationId } = {}) {
+    return this.requests
+      .filter((item) => item.clientId === clientId)
+      .filter((item) => {
+        if (locationId) {
+          const equipment = this.equipment.find((entry) => entry.id === item.equipmentId) || null;
+          return (item.locationId || equipment?.locationId || null) === locationId;
+        }
+        if (pointUserId && item.pointUserId) return item.pointUserId === pointUserId;
+        return true;
+      })
+      .map((item) => this.hydrate(item));
   }
 
   sortRequests(items, sort) {
@@ -388,6 +509,19 @@ export class InMemoryServiceRequestRepository {
     return this.hydrate(this.requests.find((item) => item.id === id) || null);
   }
 
+  async findByIdForMiniAppScope(id, { clientId, pointUserId, locationId } = {}) {
+    const item = this.requests.find((entry) => entry.id === id) || null;
+    if (!item || item.clientId !== clientId) return null;
+    if (locationId) {
+      const equipment = this.equipment.find((entry) => entry.id === item.equipmentId) || null;
+      const requestLocationId = item.locationId || equipment?.locationId || null;
+      if (requestLocationId !== locationId) return null;
+    } else if (pointUserId && item.pointUserId && item.pointUserId !== pointUserId) {
+      return null;
+    }
+    return this.hydrate(item);
+  }
+
   async findForAdminById(id) {
     return this.findById(id);
   }
@@ -402,6 +536,8 @@ export class InMemoryServiceRequestRepository {
       status: payload.assignedToUserId ? 'assigned' : 'new',
       createdAt: now,
       updatedAt: now,
+      pointUserId: payload.pointUserId || null,
+      locationId: payload.locationId || null,
       ...payload,
     };
     this.requests.unshift(next);

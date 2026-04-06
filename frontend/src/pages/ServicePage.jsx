@@ -1,26 +1,88 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { telegramClientApi } from '../api/telegramClientApi';
+import { ClientPointOnboarding } from '../components/ClientPointOnboarding';
 import { useI18n } from '../i18n';
 
 export function ServicePage() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
   const [equipment, setEquipment] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [successId, setSuccessId] = useState('');
   const [error, setError] = useState('');
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const mountedRef = useRef(true);
   const [form, setForm] = useState({
-    equipmentId: '',
+    equipmentId: searchParams.get('equipmentId') || '',
     category: 'coffee_machine',
     description: '',
     urgency: 'normal',
     canOperateNow: true,
   });
 
+  const loadContext = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [equipmentData, meData] = await Promise.all([
+        telegramClientApi.listEquipment(),
+        telegramClientApi.me(),
+      ]);
+      if (!mountedRef.current) return;
+      setEquipment(Array.isArray(equipmentData?.items) ? equipmentData.items : []);
+      setProfile(meData?.profile || null);
+    } catch (loadError) {
+      if (!mountedRef.current) return;
+      setError(loadError?.message || t('tg_auth_unavailable'));
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [t]);
+
   useEffect(() => {
-    telegramClientApi.listEquipment().then((data) => {
-      setEquipment(Array.isArray(data?.items) ? data.items : []);
-    });
-  }, []);
+    mountedRef.current = true;
+    loadContext();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [loadContext]);
+
+  useEffect(() => {
+    const preselectedId = searchParams.get('equipmentId') || '';
+    if (preselectedId) {
+      setForm((prev) => ({ ...prev, equipmentId: prev.equipmentId || preselectedId }));
+    }
+  }, [searchParams]);
+
+  const selectedEquipment = useMemo(
+    () => equipment.find((item) => item.id === form.equipmentId) || null,
+    [equipment, form.equipmentId],
+  );
+
+  const handleRegisterProfile = useCallback(async (payload) => {
+    setIsSavingProfile(true);
+    setError('');
+    try {
+      const data = await telegramClientApi.registerProfile(payload);
+      if (!mountedRef.current) return;
+      setProfile(data?.profile || null);
+      const equipmentData = await telegramClientApi.listEquipment();
+      if (!mountedRef.current) return;
+      setEquipment(Array.isArray(equipmentData?.items) ? equipmentData.items : []);
+    } catch (saveError) {
+      if (!mountedRef.current) return;
+      setError(saveError?.message || t('tg_auth_unavailable'));
+    } finally {
+      if (mountedRef.current) {
+        setIsSavingProfile(false);
+      }
+    }
+  }, [t]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -35,37 +97,97 @@ export function ServicePage() {
       payload.append('description', form.description.trim());
       payload.append('urgency', form.urgency);
       payload.append('canOperateNow', String(form.canOperateNow));
+      mediaFiles.forEach((file) => payload.append('media', file));
       const created = await telegramClientApi.createServiceRequest(payload);
       setSuccessId(created.id);
+      setMediaFiles([]);
       setForm((prev) => ({ ...prev, description: '' }));
-    } catch (e) {
-      setError(e.message || t('err_request_failed'));
+    } catch (submitError) {
+      setError(submitError.message || t('err_request_failed'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <p>{t('loading')}</p>;
+  }
+
+  if (!profile?.onboardingComplete) {
+    return (
+      <section className="service-page client-page">
+        <header className="hero hero--service-form">
+          <div className="hero__copy">
+            <small>{t('new_request_card')}</small>
+            <h2>{t('service_new')}</h2>
+            <p>{t('onboarding_required')}</p>
+          </div>
+        </header>
+
+        <ClientPointOnboarding
+          profile={profile}
+          submitting={isSavingProfile}
+          onSubmit={handleRegisterProfile}
+        />
+
+        {error ? <p className="notice notice-error">{error}</p> : null}
+      </section>
+    );
+  }
+
   return (
-    <section className="service-page">
-      <header className="hero service-hero">
-        <h2>{t('service_new')}</h2>
-        <p>{t('service_intro')}</p>
+    <section className="service-page client-page">
+      <header className="hero hero--service-form">
+        <div className="hero__copy">
+          <small>{t('new_request_card')}</small>
+          <h2>{t('service_new')}</h2>
+          <p>{t('service_intro')}</p>
+        </div>
+        <div className="service-form__overview">
+          <span>{profile?.location?.name || t('request_pick_equipment')}</span>
+          <strong>{selectedEquipment ? `${selectedEquipment.brand} ${selectedEquipment.model}` : t('equipment_skip')}</strong>
+          <em>{selectedEquipment?.locationName || selectedEquipment?.clientLocation || selectedEquipment?.address || profile?.network?.name || t('request_no_equipment_hint')}</em>
+        </div>
       </header>
 
-      <form className="service-panel service-form" onSubmit={submit}>
-        <label className="service-field-label">{t('equipment_optional')}</label>
-        <select value={form.equipmentId} onChange={(e) => setForm((prev) => ({ ...prev, equipmentId: e.target.value }))}>
-          <option value="">{t('equipment_skip')}</option>
-          {equipment.map((item) => (
-            <option key={item.id} value={item.id}>{item.brand} {item.model}</option>
-          ))}
-        </select>
+      <form className="service-panel service-form service-form--rich" onSubmit={submit}>
+        <div className="service-form__equipment-picker">
+          <label className="service-field-label">{t('request_pick_equipment')}</label>
+          <div className="service-form__equipment-grid">
+            {equipment.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={`service-equipment-option ${form.equipmentId === item.id ? 'active' : ''}`}
+                onClick={() => setForm((prev) => ({ ...prev, equipmentId: item.id }))}
+              >
+                <strong>{item.brand} {item.model}</strong>
+                <span>{item.locationName || item.clientLocation || item.address || item.serialNumber || item.id}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <select value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}>
-          <option value="coffee_machine">{t('cat_coffee_machine')}</option>
-          <option value="grinder">{t('cat_grinder')}</option>
-          <option value="water">{t('cat_water')}</option>
-        </select>
+        <div className="service-form__grid">
+          <label>
+            <span className="service-field-label">{t('request_problem_type')}</span>
+            <select value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}>
+              <option value="coffee_machine">{t('cat_coffee_machine')}</option>
+              <option value="grinder">{t('cat_grinder')}</option>
+              <option value="water">{t('cat_water')}</option>
+            </select>
+          </label>
+
+          <label>
+            <span className="service-field-label">{t('request_priority')}</span>
+            <select value={form.urgency} onChange={(e) => setForm((prev) => ({ ...prev, urgency: e.target.value }))}>
+              <option value="low">{t('low')}</option>
+              <option value="normal">{t('normal')}</option>
+              <option value="high">{t('high')}</option>
+              <option value="critical">{t('critical')}</option>
+            </select>
+          </label>
+        </div>
 
         <textarea
           value={form.description}
@@ -74,23 +196,23 @@ export function ServicePage() {
           onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
         />
 
-        <select value={form.urgency} onChange={(e) => setForm((prev) => ({ ...prev, urgency: e.target.value }))}>
-          <option value="low">{t('low')}</option>
-          <option value="normal">{t('normal')}</option>
-          <option value="high">{t('high')}</option>
-          <option value="critical">{t('critical')}</option>
-        </select>
-
-        <label className="checkbox">
+        <label className="checkbox service-form__checkbox">
           <input
             type="checkbox"
             checked={form.canOperateNow}
             onChange={(e) => setForm((prev) => ({ ...prev, canOperateNow: e.target.checked }))}
           />
-          <span>{t('can_operate')}</span>
+          <span>{t('request_can_work')}</span>
         </label>
 
-        <button type="submit" disabled={isSubmitting}>{isSubmitting ? t('sending') : t('send_request')}</button>
+        <div className="service-form__media">
+          <label className="service-field-label">{t('request_attach_media')}</label>
+          <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
+          <small>{t('request_media_hint')}</small>
+          {mediaFiles.length ? <small>{t('request_selected')}: {mediaFiles.length}</small> : null}
+        </div>
+
+        <button type="submit" disabled={isSubmitting || !form.equipmentId}>{isSubmitting ? t('sending') : t('send_request')}</button>
 
         {successId ? <p className="notice notice-success">{t('sent_ok')} ID: {successId}</p> : null}
         {error ? <p className="notice notice-error">{error}</p> : null}

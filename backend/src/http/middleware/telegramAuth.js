@@ -95,6 +95,13 @@ async function findOrCreateClient(clientRepository, telegramUser) {
   return clientRepository.findByTelegramUserId(telegramUser.id);
 }
 
+async function loadMiniAppProfile(clientRepository, telegramUserId) {
+  if (typeof clientRepository.getMiniAppProfileByTelegramUserId === 'function') {
+    return clientRepository.getMiniAppProfileByTelegramUserId(telegramUserId);
+  }
+  return null;
+}
+
 function getSessionCookieValue(req) {
   const cookies = parseCookies(req.headers.cookie);
   return cookies[TELEGRAM_COOKIE_NAME] || null;
@@ -276,6 +283,16 @@ export function telegramAuth(clientRepository, options = {}) {
     }
 
     req.auth = { telegramUser: result.telegramUser, client: result.client };
+    const profile = await loadMiniAppProfile(clientRepository, result.telegramUser.id);
+    if (profile) {
+      req.auth = {
+        ...req.auth,
+        profile,
+        pointUser: profile.pointUser || null,
+        network: profile.network || null,
+        location: profile.location || null,
+      };
+    }
 
     console.info('[telegramAuth] authorization success', {
       source: result.source,

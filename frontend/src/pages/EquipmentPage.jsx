@@ -6,27 +6,41 @@ import { useI18n } from '../i18n';
 export function EquipmentPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
   const { t } = useI18n();
 
   useEffect(() => {
     telegramClientApi.listEquipment()
       .then((data) => setItems(Array.isArray(data?.items) ? data.items : []))
       .finally(() => setLoading(false));
+    telegramClientApi.me()
+      .then((data) => setProfile(data?.profile || null))
+      .catch(() => setProfile(null));
   }, []);
 
   return (
-    <section>
-      <h2>{t('my_equipment')}</h2>
+    <section className="client-page">
+      <header className="client-page__header">
+        <div>
+          <small>{t('linked_equipment')}</small>
+          <h2>{t('my_equipment')}</h2>
+          <p>{profile?.location?.name ? `${profile.location.name} · ${profile.network?.name || ''}` : t('equipment_empty_hint')}</p>
+        </div>
+      </header>
       {loading ? <p>{t('loading')}</p> : null}
-      <div className="list">
+      <div className="list client-equipment-grid">
         {items.map((item) => (
-          <Link className="list-item" key={item.id} to={`/equipment/${item.id}`}>
-            <strong>{item.brand} {item.model}</strong>
+          <Link className="list-item client-equipment-card" key={item.id} to={`/equipment/${item.id}`}>
+            <div className="client-equipment-card__head">
+              <strong>{item.brand} {item.model}</strong>
+              <span>{item.status || 'active'}</span>
+            </div>
             <p>{t('serial_short')}: {item.serialNumber || '—'}</p>
-            <small>{t('status')}: {item.status || 'active'}</small>
+            <p>{t('equipment_point')}: {item.locationName || item.clientLocation || item.address || '—'}</p>
+            <small>{t('equipment_owner')}: {item.clientName || item.ownerType || '—'}</small>
           </Link>
         ))}
-        {!loading && items.length === 0 ? <p>{t('no_equipment')}</p> : null}
+        {!loading && items.length === 0 ? <p className="empty-copy">{t('no_equipment')}</p> : null}
       </div>
     </section>
   );

@@ -40,6 +40,18 @@ async function ensureNeonSeed(prisma) {
     await prisma.client.create({ data: client });
   }
 
+  for (const network of (seed.networks || [])) {
+    await prisma.network.create({ data: network });
+  }
+
+  for (const location of (seed.locations || [])) {
+    await prisma.location.create({ data: location });
+  }
+
+  for (const pointUser of (seed.pointUsers || [])) {
+    await prisma.pointUser.create({ data: pointUser });
+  }
+
   for (const equipment of seed.equipment) {
     await prisma.equipment.create({ data: equipment });
   }

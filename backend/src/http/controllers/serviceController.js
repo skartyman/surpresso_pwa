@@ -43,7 +43,13 @@ export function createServiceController(serviceRepository, equipmentRepository, 
 
   return {
     async list(req, res) {
-      const requests = await serviceRepository.listByClientId(req.auth.client.id);
+      const requests = typeof serviceRepository.listByMiniAppScope === 'function'
+        ? await serviceRepository.listByMiniAppScope({
+          clientId: req.auth.client.id,
+          pointUserId: req.auth.pointUser?.id || null,
+          locationId: req.auth.location?.id || null,
+        })
+        : await serviceRepository.listByClientId(req.auth.client.id);
       return res.json({ items: requests.map((item) => enrichServiceRequestMedia(req, item)) });
     },
     async create(req, res) {
@@ -79,6 +85,10 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         if (equipment.clientId !== req.auth.client.id) {
           return res.status(403).json({ error: 'equipment_client_mismatch' });
         }
+
+        if (req.auth.location?.id && equipment.locationId && equipment.locationId !== req.auth.location.id) {
+          return res.status(403).json({ error: 'equipment_location_mismatch' });
+        }
       }
 
       const requestId = `req-${Date.now()}`;
@@ -93,6 +103,8 @@ export function createServiceController(serviceRepository, equipmentRepository, 
         id: requestId,
         type,
         equipmentId: equipmentId || null,
+        pointUserId: req.auth.pointUser?.id || null,
+        locationId: req.auth.location?.id || null,
         category: isServiceRepair ? category : 'general',
         title: title || 'Нове звернення',
         description,
@@ -109,14 +121,26 @@ export function createServiceController(serviceRepository, equipmentRepository, 
       return res.status(201).json(enrichServiceRequestMedia(req, created));
     },
     async status(req, res) {
-      const request = await serviceRepository.findById(req.params.id);
+      const request = typeof serviceRepository.findByIdForMiniAppScope === 'function'
+        ? await serviceRepository.findByIdForMiniAppScope(req.params.id, {
+          clientId: req.auth.client.id,
+          pointUserId: req.auth.pointUser?.id || null,
+          locationId: req.auth.location?.id || null,
+        })
+        : await serviceRepository.findById(req.params.id);
       if (!request || request.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Request not found' });
       }
       return res.json({ id: request.id, status: request.status, updatedAt: request.updatedAt });
     },
     async updateStatus(req, res) {
-      const request = await serviceRepository.findById(req.params.id);
+      const request = typeof serviceRepository.findByIdForMiniAppScope === 'function'
+        ? await serviceRepository.findByIdForMiniAppScope(req.params.id, {
+          clientId: req.auth.client.id,
+          pointUserId: req.auth.pointUser?.id || null,
+          locationId: req.auth.location?.id || null,
+        })
+        : await serviceRepository.findById(req.params.id);
       if (!request || request.clientId !== req.auth.client.id) {
         return res.status(404).json({ error: 'Request not found' });
       }
