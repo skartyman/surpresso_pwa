@@ -67,6 +67,11 @@ const messages = {
     profile_company: 'Компанія',
     profile_client_id: 'ID клієнта',
     profile_telegram: 'Telegram',
+    retry: 'Спробувати ще раз',
+    tg_auth_title: 'Авторизація Telegram',
+    tg_open_in_telegram: 'Відкрийте застосунок через Telegram.',
+    tg_auth_failed: 'Не вдалося авторизуватись у Telegram Mini App. Спробуйте оновити або повторити вхід.',
+    tg_auth_unavailable: 'Сервіс тимчасово недоступний. Спробуйте ще раз пізніше.',
   },
   ru: {
     nav_home: 'Главная',
@@ -132,6 +137,11 @@ const messages = {
     profile_company: 'Компания',
     profile_client_id: 'ID клиента',
     profile_telegram: 'Telegram',
+    retry: 'Повторить',
+    tg_auth_title: 'Авторизация Telegram',
+    tg_open_in_telegram: 'Откройте приложение через Telegram.',
+    tg_auth_failed: 'Не удалось авторизоваться в Telegram Mini App. Попробуйте обновить или повторить вход.',
+    tg_auth_unavailable: 'Сервис временно недоступен. Попробуйте позже.',
   },
 };
 

@@ -13,5 +13,6 @@ export const config = {
   gasWebAppUrl: process.env.GAS_WEBAPP_URL || '',
   gasServerKey: process.env.GAS_SECRET || process.env.SURPRESSO_SERVER_KEY || '',
   adminSessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || 'change-me-admin-secret',
+  telegramSessionCookieDomain: process.env.TELEGRAM_SESSION_COOKIE_DOMAIN || '',
   databaseUrl: process.env.DATABASE_URL || '',
 };
