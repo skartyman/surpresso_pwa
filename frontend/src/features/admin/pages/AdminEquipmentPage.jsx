@@ -66,7 +66,7 @@ function isUrlLike(value = '') {
 }
 
 function getMediaDisplayTitle(media, fallback = 'Медиафайл') {
-  if (media?.caption?.trim()) return media.caption.trim();
+  if (media?.caption?.trim() && !isUrlLike(media.caption)) return media.caption.trim();
   if (media?.originalName?.trim() && !isUrlLike(media.originalName)) return media.originalName.trim();
   return media?.mediaType === 'video' ? 'Видео' : (media?.mediaType === 'photo' ? 'Фото' : fallback);
 }
@@ -278,7 +278,6 @@ function Lightbox({ rows = [], index, onClose, onNavigate }) {
           <p>{getMediaDisplayTitle(media, '—')}</p>
           <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
           {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
-          <a href={media.fullUrl || media.fileUrl} target="_blank" rel="noreferrer">Открыть оригинал в новой вкладке</a>
         </div>
         <div className="equipment-lightbox__carousel">
           {rows.map((item, thumbIndex) => (
