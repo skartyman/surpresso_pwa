@@ -1333,6 +1333,21 @@ textarea {
   color: var(--sa-text);
   padding: 8px 10px;
 }
+.equipment-action-panel__upload-btn {
+  border: none;
+  border-radius: 14px;
+  background: #e27b00;
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  min-height: 52px;
+  padding: 12px 16px;
+  transition: filter .15s ease, transform .15s ease;
+}
+.equipment-action-panel__upload-btn:hover:not(:disabled),
+.equipment-action-panel__upload-btn:focus-visible:not(:disabled) { filter: brightness(1.06); }
+.equipment-action-panel__upload-btn:active:not(:disabled) { transform: translateY(1px); }
+.equipment-action-panel__upload-btn:disabled { opacity: .55; cursor: not-allowed; }
 .equipment-action-panel__links { color: var(--sa-muted); margin: 4px 0 0; }
 .equipment-action-panel__links a { color: #2563eb; text-decoration: none; }
 
@@ -1418,6 +1433,7 @@ textarea {
 :root[data-admin-theme='dark'] .equipment-action-panel header p { color: #9fb0ca; }
 :root[data-admin-theme='dark'] .equipment-action-panel input[type="text"],
 :root[data-admin-theme='dark'] .equipment-action-panel input[type="file"] { border-color: #2a3a54; background: #0a1222; color: #d8e1ef; }
+:root[data-admin-theme='dark'] .equipment-action-panel__upload-btn { background: #f59e0b; color: #1f1300; }
 :root[data-admin-theme='dark'] .equipment-action-panel__links { color: #9fb0ca; }
 :root[data-admin-theme='dark'] .equipment-action-panel__links a,
 :root[data-admin-theme='dark'] .equipment-lightbox__meta a { color: #93c5fd; }

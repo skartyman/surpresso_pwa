@@ -311,7 +311,12 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
           onChange={(event) => setQuickMediaCaption(event.target.value)}
           placeholder="Комментарий к медиа"
         />
-        <button type="button" disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)} onClick={() => submitQuickMedia()}>
+        <button
+          type="button"
+          className="equipment-action-panel__upload-btn"
+          disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)}
+          onClick={() => submitQuickMedia()}
+        >
           {actionLoading === 'media' ? 'Загрузка...' : 'Загрузить медиа в активный кейс'}
         </button>
       </div>
