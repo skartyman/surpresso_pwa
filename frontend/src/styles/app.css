@@ -78,6 +78,14 @@ body { margin: 0; font-family: inherit; background: var(--bg); color: var(--text
 .client-logo__steam::before { left: 8px; top: -2px; }
 .client-logo__steam::after { left: 16px; top: 1px; }
 .client-logo__letter { position: relative; z-index: 1; font-size: 22px; font-weight: 800; }
+.client-logo-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid color-mix(in oklab, var(--border), white 15%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .22);
+}
 .client-sidebar__promo {
   border: 1px solid var(--border);
   border-radius: 18px;
