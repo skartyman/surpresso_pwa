@@ -1,5 +1,6 @@
 import { seed } from '../seed/mockData.js';
 import { REQUEST_TYPES, resolveDepartmentByType } from '../../domain/entities/requestTypes.js';
+import { isServiceRequestClosed } from '../../domain/workflow/serviceRequestStatuses.js';
 
 function withEquipmentCompatibility(item) {
   if (!item) return null;
@@ -290,7 +291,7 @@ export class InMemoryServiceRequestRepository {
   }
 
   isOverdue(item, now = new Date()) {
-    if (!item || item.status === 'closed' || item.status === 'resolved') return false;
+    if (!item || isServiceRequestClosed(item.status)) return false;
     const slaHours = { critical: 4, high: 8, medium: 24, low: 48 };
     const hours = slaHours[item.urgency] || 24;
     return (now.getTime() - new Date(item.createdAt).getTime()) > hours * 3600000;
@@ -311,7 +312,7 @@ export class InMemoryServiceRequestRepository {
       critical: requests.filter((item) => item.urgency === 'critical').length,
       withoutEquipment: requests.filter((item) => !item.equipmentId).length,
       withoutResponse: requests.filter((item) => !this.history.some((h) => h.serviceRequestId === item.id)).length,
-      stuckInProgress: requests.filter((item) => item.status === 'in_progress' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
+      stuckInProgress: requests.filter((item) => item.status === 'taken_in_work' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length,
       overdue: requests.filter((item) => this.isOverdue(item, now)).length,
     };
 
@@ -321,17 +322,17 @@ export class InMemoryServiceRequestRepository {
     }, {});
 
     const waitingParts = requests.filter((item) => (noteByRequest[item.id] || []).some((n) => String(n.text || '').toLowerCase().includes('waiting_parts') || String(n.text || '').toLowerCase().includes('запчаст'))).length;
-    const closedToday = requests.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length;
+    const closedToday = requests.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length;
 
     const engineerLoad = serviceEngineers.map((eng) => {
       const own = requests.filter((item) => item.assignedToUserId === eng.id);
-      const closed = own.filter((item) => item.status === 'closed');
+      const closed = own.filter((item) => isServiceRequestClosed(item.status));
       return {
         userId: eng.id,
         name: eng.fullName || eng.name,
-        active: own.filter((item) => item.status !== 'closed').length,
+        active: own.filter((item) => !isServiceRequestClosed(item.status)).length,
         overdue: own.filter((item) => this.isOverdue(item, now)).length,
-        closedToday: own.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length,
+        closedToday: own.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
         avgCloseHours: closed.length ? closed.reduce((sum, item) => sum + ((new Date(item.updatedAt) - new Date(item.createdAt)) / 3600000), 0) / closed.length : null,
       };
     });
@@ -353,7 +354,7 @@ export class InMemoryServiceRequestRepository {
     return {
       kpis: [
         { key: 'new', label: 'Новые заявки', value: statusCount.new || 0 },
-        { key: 'in_progress', label: 'В работе', value: statusCount.in_progress || 0 },
+        { key: 'taken_in_work', label: 'В работе', value: statusCount.taken_in_work || 0 },
         { key: 'overdue', label: 'Просроченные', value: attention.overdue },
         { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
         { key: 'waiting_parts', label: 'Ждут запчасти', value: waitingParts },
@@ -398,7 +399,7 @@ export class InMemoryServiceRequestRepository {
       type: payload.type || REQUEST_TYPES.serviceRepair,
       title: payload.title || payload.description || 'Новое обращение',
       assignedDepartment: payload.assignedDepartment || resolveDepartmentByType(payload.type || REQUEST_TYPES.serviceRepair),
-      status: 'new',
+      status: payload.assignedToUserId ? 'assigned' : 'new',
       createdAt: now,
       updatedAt: now,
       ...payload,
@@ -443,6 +444,7 @@ export class InMemoryServiceRequestRepository {
     this.requests[index] = {
       ...this.requests[index],
       assignedToUserId: assignedToUserId || null,
+      status: assignedToUserId ? 'assigned' : this.requests[index].status,
       assignedAt: assignedToUserId ? new Date().toISOString() : null,
       assignedByUserId: assignedToUserId ? (meta.assignedByUserId || null) : null,
       updatedAt: new Date().toISOString(),
@@ -489,10 +491,10 @@ export class InMemoryServiceRequestRepository {
         role: eng.role,
         isActive: eng.isActive,
         workload: {
-          activeCount: own.filter((item) => !['closed', 'resolved'].includes(item.status)).length,
+          activeCount: own.filter((item) => !isServiceRequestClosed(item.status)).length,
           overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
-          criticalCount: own.filter((item) => !['closed', 'resolved'].includes(item.status) && item.urgency === 'critical').length,
-          resolvedTodayCount: own.filter((item) => ['closed', 'resolved'].includes(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
+          criticalCount: own.filter((item) => !isServiceRequestClosed(item.status) && item.urgency === 'critical').length,
+          resolvedTodayCount: own.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
         },
       };
     });

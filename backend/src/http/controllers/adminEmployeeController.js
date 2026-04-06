@@ -6,6 +6,7 @@ import {
   WORK_MODES,
   normalizeStringList,
 } from '../../domain/entities/serviceTeamCatalog.js';
+import { isServiceRequestClosed } from '../../domain/workflow/serviceRequestStatuses.js';
 
 const ALLOWED_ROLES = ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director'];
 const SERVICE_TEAM_VIEW_ROLES = ['owner', 'director', 'service_head', 'manager', 'service_engineer'];
@@ -44,7 +45,7 @@ function toDateKey(value) {
 }
 
 function isOverdue(item, now = new Date()) {
-  if (!item || item.status === 'resolved' || item.status === 'closed') return false;
+  if (!item || isServiceRequestClosed(item.status)) return false;
   const slaHours = { critical: 4, high: 8, medium: 24, normal: 24, low: 48 };
   const limit = (slaHours[item.urgency] || 24) * 60 * 60 * 1000;
   return now.getTime() - new Date(item.createdAt).getTime() > limit;
@@ -53,12 +54,12 @@ function isOverdue(item, now = new Date()) {
 function mapWorkloadMetrics(requests = []) {
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date();
-  const activeStatuses = new Set(['new', 'in_progress', 'waiting_client', 'waiting_parts']);
+  const activeStatuses = new Set(['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced']);
   return {
     activeCount: requests.filter((item) => activeStatuses.has(item.status)).length,
     overdueCount: requests.filter((item) => isOverdue(item, now)).length,
-    criticalCount: requests.filter((item) => item.urgency === 'critical' && item.status !== 'resolved' && item.status !== 'closed').length,
-    resolvedTodayCount: requests.filter((item) => item.status === 'resolved' && toDateKey(item.updatedAt) === today).length,
+    criticalCount: requests.filter((item) => item.urgency === 'critical' && !isServiceRequestClosed(item.status)).length,
+    resolvedTodayCount: requests.filter((item) => isServiceRequestClosed(item.status) && toDateKey(item.updatedAt) === today).length,
   };
 }
 
