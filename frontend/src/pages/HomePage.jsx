@@ -6,10 +6,10 @@ export function HomePage() {
   const { t } = useI18n();
 
   const cards = [
-    { to: routes.equipment, title: t('nav_equipment_full'), subtitle: t('home_equipment_subtitle') },
-    { to: routes.service, title: t('service_new'), subtitle: t('home_service_subtitle') },
-    { to: routes.requests, title: t('nav_requests'), subtitle: t('home_requests_subtitle') },
-    { to: routes.support, title: t('nav_support_full'), subtitle: t('home_support_subtitle') },
+    { to: routes.equipment, title: t('nav_equipment_full'), subtitle: t('home_equipment_subtitle'), icon: '☕' },
+    { to: routes.service, title: t('service_new'), subtitle: t('home_service_subtitle'), icon: '🛠️' },
+    { to: routes.requests, title: t('nav_requests'), subtitle: t('home_requests_subtitle'), icon: '📋' },
+    { to: routes.support, title: t('nav_support_full'), subtitle: t('home_support_subtitle'), icon: '💬' },
   ];
 
   return (
@@ -22,8 +22,11 @@ export function HomePage() {
       <div className="cards-grid">
         {cards.map((card) => (
           <Link className="section-card" key={card.to} to={card.to}>
-            <strong>{card.title}</strong>
-            <p>{card.subtitle}</p>
+            <div className="section-card__media" aria-hidden="true">{card.icon}</div>
+            <div>
+              <strong>{card.title}</strong>
+              <p>{card.subtitle}</p>
+            </div>
           </Link>
         ))}
       </div>

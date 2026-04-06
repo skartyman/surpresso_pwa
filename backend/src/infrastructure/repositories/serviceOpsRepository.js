@@ -96,6 +96,7 @@ function mapCase(item) {
     processedAt: item.processedAt?.toISOString?.() || item.processedAt || null,
     closedAt: item.closedAt?.toISOString?.() || item.closedAt || null,
     equipment: mapEquipment(item.equipment),
+    media: Array.isArray(item.media) ? item.media.map(mapMedia) : [],
     assignedToUser: item.assignedToUser ? { id: item.assignedToUser.id, fullName: item.assignedToUser.fullName, role: item.assignedToUser.role } : null,
     assignedByUser: item.assignedByUser ? { id: item.assignedByUser.id, fullName: item.assignedByUser.fullName, role: item.assignedByUser.role } : null,
     processedByUser: item.processedByUser ? { id: item.processedByUser.id, fullName: item.processedByUser.fullName, role: item.processedByUser.role } : null,
@@ -538,7 +539,13 @@ export class NeonServiceOpsRepository {
     const where = this.buildWhere(filters);
     const rows = await this.prisma.serviceCase.findMany({
       where,
-      include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
+      include: {
+        equipment: true,
+        assignedToUser: true,
+        assignedByUser: true,
+        processedByUser: true,
+        media: { include: { uploadedByUser: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return rows.map(mapCase);
@@ -933,7 +940,7 @@ export class NeonServiceOpsRepository {
     });
 
     const ids = rows.map((item) => item.id);
-    const [activeCases, mediaBuckets] = ids.length ? await Promise.all([
+    const [activeCases, mediaBuckets, latestMediaRows] = ids.length ? await Promise.all([
       this.prisma.serviceCase.findMany({
         where: { equipmentId: { in: ids }, serviceStatus: { in: ['accepted', 'in_progress', 'testing', 'ready'] } },
         select: { id: true, equipmentId: true, serviceStatus: true, updatedAt: true },
@@ -944,7 +951,12 @@ export class NeonServiceOpsRepository {
         where: { equipmentId: { in: ids } },
         _count: { _all: true },
       }),
-    ]) : [[], []];
+      this.prisma.serviceCaseMedia.findMany({
+        where: { equipmentId: { in: ids } },
+        include: { uploadedByUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]) : [[], [], []];
 
     const activeByEquipmentId = new Map();
     for (const row of activeCases) {
@@ -955,6 +967,11 @@ export class NeonServiceOpsRepository {
     for (const bucket of mediaBuckets) {
       if (!bucket.equipmentId) continue;
       mediaCountByEquipmentId.set(bucket.equipmentId, Number(bucket._count?._all || 0));
+    }
+    const latestMediaByEquipmentId = new Map();
+    for (const row of latestMediaRows) {
+      if (!row.equipmentId || latestMediaByEquipmentId.has(row.equipmentId)) continue;
+      latestMediaByEquipmentId.set(row.equipmentId, mapMedia(row));
     }
 
     return rows.map((item) => {
@@ -967,6 +984,8 @@ export class NeonServiceOpsRepository {
       });
       const listItem = {
         ...mapped,
+        media: latestMediaByEquipmentId.has(item.id) ? [latestMediaByEquipmentId.get(item.id)] : [],
+        previewUrl: latestMediaByEquipmentId.get(item.id)?.fileUrl || '',
         activeServiceCaseId: activeCase?.id || null,
         activeServiceCaseStatus: activeCase?.serviceStatus || null,
         warnings,
