@@ -67,7 +67,23 @@ export const adminServiceApi = {
     return apiFetch(`/api/telegram/admin/equipment${query}`);
   },
   equipmentById: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`),
+  createEquipment: async (payload) => apiFetch('/api/telegram/admin/equipment', { method: 'POST', body: JSON.stringify(payload) }),
+  intakeCreate: async (payload) => apiFetch('/api/telegram/admin/intake', { method: 'POST', body: JSON.stringify(payload) }),
+  updateEquipment: async (id, payload) => apiFetch(`/api/telegram/admin/equipment/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   equipmentDetail: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/detail`),
+  addEquipmentComment: async (id, body) => apiFetch(`/api/telegram/admin/equipment/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+  addEquipmentNote: async (id, body) => apiFetch(`/api/telegram/admin/equipment/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
+  listEquipmentTasks: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/tasks`),
+  createEquipmentTask: async (id, payload) => apiFetch(`/api/telegram/admin/equipment/${id}/tasks`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateTaskStatus: async (taskId, status) => apiFetch(`/api/telegram/admin/tasks/${taskId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteMedia: async (mediaId) => apiFetch(`/api/telegram/admin/media/${mediaId}`, { method: 'DELETE' }),
+  uploadEquipmentMedia: async (id, files, { caption = '', serviceCaseId = null } = {}) => {
+    const form = new FormData();
+    (files || []).forEach((file) => form.append('media', file));
+    if (caption) form.append('caption', caption);
+    if (serviceCaseId) form.append('serviceCaseId', serviceCaseId);
+    return apiFetch(`/api/telegram/admin/equipment/${id}/media`, { method: 'POST', body: form });
+  },
   equipmentServiceCases: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/service-cases`),
   salesEquipment: async (filters = {}) => {
     const params = new URLSearchParams();

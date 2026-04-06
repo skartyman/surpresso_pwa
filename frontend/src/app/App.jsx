@@ -20,6 +20,7 @@ import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
 import { AdminDirectorPage } from '../features/admin/pages/AdminDirectorPage';
 import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
+import { AdminIntakeWizardPage } from '../features/admin/pages/AdminIntakeWizardPage';
 import { AdminReportsPage } from '../features/admin/pages/AdminReportsPage';
 import { AdminNotificationCenterPage } from '../features/admin/pages/AdminNotificationCenterPage';
 import { useI18n } from '../i18n';
@@ -73,6 +74,7 @@ function AdminRoutes({ basePath }) {
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.equipment} />}>
         <Route path="equipment" element={<AdminEquipmentPage />} />
+        <Route path="equipment/intake" element={<AdminIntakeWizardPage />} />
         <Route path="equipment/:equipmentId" element={<AdminEquipmentPage />} />
       </Route>
 

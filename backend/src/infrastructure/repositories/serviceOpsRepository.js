@@ -120,12 +120,34 @@ function mapNote(item) {
   };
 }
 
+function mapEquipmentComment(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    authorUser: item.authorUser ? { id: item.authorUser.id, fullName: item.authorUser.fullName, role: item.authorUser.role } : null,
+  };
+}
+
 function mapMedia(item) {
   if (!item) return null;
   return {
     ...item,
     createdAt: item.createdAt?.toISOString?.() || item.createdAt,
     uploadedByUser: item.uploadedByUser ? { id: item.uploadedByUser.id, fullName: item.uploadedByUser.fullName, role: item.uploadedByUser.role } : null,
+  };
+}
+
+function mapTask(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    dueAt: item.dueAt?.toISOString?.() || item.dueAt || null,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    assignedToUser: item.assignedToUser ? { id: item.assignedToUser.id, fullName: item.assignedToUser.fullName, role: item.assignedToUser.role } : null,
+    createdByUser: item.createdByUser ? { id: item.createdByUser.id, fullName: item.createdByUser.fullName, role: item.createdByUser.role } : null,
   };
 }
 
@@ -648,6 +670,184 @@ export class NeonServiceOpsRepository {
     return mapMedia(row);
   }
 
+  async deleteMediaById(id) {
+    const row = await this.prisma.serviceCaseMedia.findUnique({ where: { id } });
+    if (!row) return null;
+    await this.prisma.serviceCaseMedia.delete({ where: { id } });
+    return mapMedia(row);
+  }
+
+  async updateEquipmentById(id, patch = {}) {
+    const row = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        ...(patch.brand !== undefined ? { brand: patch.brand || '' } : {}),
+        ...(patch.model !== undefined ? { model: patch.model || null } : {}),
+        ...(patch.serial !== undefined ? { serial: patch.serial || null } : {}),
+        ...(patch.internalNumber !== undefined ? { internalNumber: patch.internalNumber || null } : {}),
+        ...(patch.clientName !== undefined ? { clientName: patch.clientName || null } : {}),
+        ...(patch.clientPhone !== undefined ? { clientPhone: patch.clientPhone || null } : {}),
+        ...(patch.clientLocation !== undefined ? { clientLocation: patch.clientLocation || null } : {}),
+        ...(patch.companyLocation !== undefined ? { companyLocation: patch.companyLocation || null } : {}),
+        ...(patch.ownerType !== undefined ? { ownerType: patch.ownerType || null } : {}),
+        ...(patch.equipmentType !== undefined ? { equipmentType: patch.equipmentType || null } : {}),
+        ...(patch.name !== undefined ? { name: patch.name || null } : {}),
+      },
+    });
+    return mapEquipment(row);
+  }
+
+  async addEquipmentComment(equipmentId, payload = {}) {
+    const row = await this.prisma.equipmentComment.create({
+      data: {
+        id: `eqc-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        equipmentId,
+        authorUserId: payload.authorUserId || null,
+        body: payload.body,
+      },
+      include: { authorUser: true },
+    });
+    return mapEquipmentComment(row);
+  }
+
+  async addEquipmentNote(equipmentId, payload = {}) {
+    const row = await this.prisma.equipmentNote.create({
+      data: {
+        id: `eqn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        equipmentId,
+        authorUserId: payload.authorUserId || null,
+        body: payload.body,
+      },
+      include: { authorUser: true },
+    });
+    return mapEquipmentComment(row);
+  }
+
+  async createServiceTask(payload = {}) {
+    const row = await this.prisma.serviceTask.create({
+      data: {
+        id: payload.id || `st-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        serviceCaseId: payload.serviceCaseId || null,
+        equipmentId: payload.equipmentId || null,
+        title: payload.title,
+        description: payload.description || null,
+        status: payload.status || 'todo',
+        assignedToUserId: payload.assignedToUserId || null,
+        createdByUserId: payload.createdByUserId || null,
+        dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
+      },
+      include: { assignedToUser: true, createdByUser: true },
+    });
+    return mapTask(row);
+  }
+
+  async listServiceTasks(filters = {}) {
+    const rows = await this.prisma.serviceTask.findMany({
+      where: {
+        ...(filters.equipmentId ? { equipmentId: filters.equipmentId } : {}),
+        ...(filters.serviceCaseId ? { serviceCaseId: filters.serviceCaseId } : {}),
+      },
+      include: { assignedToUser: true, createdByUser: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(mapTask);
+  }
+
+  async updateServiceTaskStatus(id, status) {
+    const row = await this.prisma.serviceTask.update({
+      where: { id },
+      data: { status },
+      include: { assignedToUser: true, createdByUser: true },
+    });
+    return mapTask(row);
+  }
+
+  async createEquipmentWithIntake(payload = {}) {
+    return this.prisma.$transaction(async (tx) => {
+      const equipment = await tx.equipment.create({
+        data: {
+          id: payload.equipmentId || `eq-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          type: payload.type || 'service',
+          brand: payload.brand || 'Unknown',
+          model: payload.model || null,
+          name: payload.name || null,
+          serial: payload.serial || null,
+          internalNumber: payload.internalNumber || null,
+          status: payload.status || 'accepted',
+          ownerType: payload.ownerType || null,
+          equipmentType: payload.equipmentType || null,
+          serviceStatus: payload.serviceStatus || 'accepted',
+          commercialStatus: payload.commercialStatus || null,
+          currentStatusRaw: payload.serviceStatus || 'accepted',
+          clientName: payload.clientName || null,
+          clientPhone: payload.clientPhone || null,
+          clientLocation: payload.clientLocation || null,
+          companyLocation: payload.companyLocation || null,
+          lastComment: payload.problemDescription || payload.intakeComment || null,
+        },
+      });
+
+      const serviceCase = await tx.serviceCase.create({
+        data: {
+          id: payload.serviceCaseId || `sc-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          equipmentId: equipment.id,
+          intakeType: payload.intakeType || 'manual_intake',
+          serviceStatus: payload.serviceStatus || 'accepted',
+          problemDescription: payload.problemDescription || null,
+          damageDescription: payload.damageDescription || null,
+          intakeComment: payload.intakeComment || null,
+          ownerTypeSnapshot: payload.ownerType || null,
+          clientNameSnapshot: payload.clientName || null,
+          clientPhoneSnapshot: payload.clientPhone || null,
+          clientLocationSnapshot: payload.clientLocation || null,
+          companyLocationSnapshot: payload.companyLocation || null,
+          modelSnapshot: payload.model || null,
+          serialNumberSnapshot: payload.serial || null,
+          internalNumberSnapshot: payload.internalNumber || null,
+          acceptedAt: new Date(),
+        },
+      });
+
+      await tx.serviceStatusHistory.create({
+        data: {
+          id: `ssh-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          equipmentId: equipment.id,
+          serviceCaseId: serviceCase.id,
+          toStatusRaw: payload.serviceStatus || 'accepted',
+          toServiceStatus: payload.serviceStatus || 'accepted',
+          comment: payload.problemDescription || payload.intakeComment || 'Intake created',
+          actorLabel: payload.actorLabel || null,
+          changedByUserId: payload.changedByUserId || null,
+        },
+      });
+
+      return { equipment: mapEquipment(equipment), serviceCase: mapCase(serviceCase) };
+    });
+  }
+
+  async createEquipmentCard(payload = {}) {
+    const row = await this.prisma.equipment.create({
+      data: {
+        id: payload.equipmentId || `eq-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        type: payload.type || 'service',
+        brand: payload.brand || 'Unknown',
+        model: payload.model || null,
+        name: payload.name || null,
+        serial: payload.serial || null,
+        internalNumber: payload.internalNumber || null,
+        status: payload.status || 'registered',
+        ownerType: payload.ownerType || null,
+        equipmentType: payload.equipmentType || null,
+        serviceStatus: payload.serviceStatus || null,
+        commercialStatus: payload.commercialStatus || null,
+        currentStatusRaw: payload.currentStatusRaw || payload.serviceStatus || 'registered',
+        clientName: payload.clientName || null,
+        clientPhone: payload.clientPhone || null,
+      },
+    });
+    return mapEquipment(row);
+  }
+
   async equipmentDashboard() {
     const [equipmentRows, activeServiceCases, mediaBuckets] = await Promise.all([
       this.prisma.equipment.findMany({
@@ -785,7 +985,7 @@ export class NeonServiceOpsRepository {
     const equipmentRow = await this.prisma.equipment.findUnique({ where: { id } });
     if (!equipmentRow) return null;
 
-    const [serviceCasesRows, mediaRows, historyRows, notesRows] = await Promise.all([
+    const [serviceCasesRows, mediaRows, historyRows, notesRows, commentsRows, equipmentNotesRows, tasksRows] = await Promise.all([
       this.prisma.serviceCase.findMany({
         where: { equipmentId: id },
         include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
@@ -809,6 +1009,26 @@ export class NeonServiceOpsRepository {
       this.prisma.serviceCaseNote.findMany({
         where: { serviceCase: { equipmentId: id } },
         include: { authorUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.equipmentComment.findMany({
+        where: { equipmentId: id },
+        include: { authorUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.equipmentNote.findMany({
+        where: { equipmentId: id },
+        include: { authorUser: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.serviceTask.findMany({
+        where: {
+          OR: [
+            { equipmentId: id },
+            { serviceCase: { equipmentId: id } },
+          ],
+        },
+        include: { assignedToUser: true, createdByUser: true },
         orderBy: { createdAt: 'desc' },
       }),
     ]);
@@ -849,6 +1069,9 @@ export class NeonServiceOpsRepository {
       history,
       serviceCases,
       notes: notesRows.map((row) => ({ ...mapNote(row), serviceCaseId: row.serviceCaseId })),
+      comments: commentsRows.map(mapEquipmentComment),
+      equipmentNotes: equipmentNotesRows.map(mapEquipmentComment),
+      tasks: tasksRows.map(mapTask),
       activeServiceCaseId: serviceCases.find((row) => row.isActive)?.id || null,
     };
   }
@@ -946,6 +1169,15 @@ export class InMemoryServiceOpsRepository {
   async addServiceCaseNote() { return null; }
   async listServiceCaseHistory() { return []; }
   async createMedia() { return null; }
+  async deleteMediaById() { return null; }
+  async updateEquipmentById() { return null; }
+  async addEquipmentComment() { return null; }
+  async addEquipmentNote() { return null; }
+  async createServiceTask() { return null; }
+  async listServiceTasks() { return []; }
+  async updateServiceTaskStatus() { return null; }
+  async createEquipmentWithIntake() { return { equipment: null, serviceCase: null }; }
+  async createEquipmentCard() { return null; }
   async equipmentDashboard() {
     return {
       generatedAt: new Date().toISOString(),
