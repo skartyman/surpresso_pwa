@@ -130,11 +130,12 @@ export function AdminServicePage() {
   const [actionLoading, setActionLoading] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
+  const [engineersLoadError, setEngineersLoadError] = useState('');
 
   async function load(next = filters) {
     setLoading(true);
     try {
-      const [list, dash, engineerPayload] = await Promise.all([
+      const [listResult, dashResult, engineerResult] = await Promise.allSettled([
         adminServiceApi.serviceCases({
           ...next,
           serviceStatus: next.status === 'all' ? '' : next.status,
@@ -144,9 +145,24 @@ export function AdminServicePage() {
         adminServiceApi.serviceKpi(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
       ]);
+
+      if (listResult.status === 'rejected' || dashResult.status === 'rejected') {
+        throw new Error('service_board_data_failed');
+      }
+
+      const list = listResult.value;
+      const dash = dashResult.value;
+      const engineerPayload = engineerResult.status === 'fulfilled' ? engineerResult.value : { engineers: [] };
+
       setRequests(list.items || []);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
+      const engineersFailed = engineerResult.status === 'rejected';
+      const nextFilters = engineersFailed && next.engineer !== 'all' ? { ...next, engineer: 'all' } : next;
+      if (engineersFailed && next.engineer !== 'all') {
+        setFilters(nextFilters);
+      }
+      setEngineersLoadError(engineersFailed ? 'Список инженеров недоступен. Назначение временно скрыто.' : '');
       const requestedCaseId = searchParams.get('caseId');
       const requestedEquipmentId = searchParams.get('equipmentId');
       setSelectedId((prev) => prev
@@ -259,6 +275,7 @@ export function AdminServicePage() {
   const workflowActions = selectedRequest?.nextActions?.all || [];
   const serviceActions = workflowActions.filter((action) => action.type === 'service');
   const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
+  const canAssignWithLoadedEngineers = canAssign && engineers.length > 0 && !engineersLoadError;
 
   const requiresAttention = {
     unassigned: requests.filter((i) => !i.assignedToUserId).length,
@@ -300,14 +317,15 @@ export function AdminServicePage() {
       ]} />
 
       <FilterRow>
-        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Просрочено</option><option value="stale_ready">Залежалось в готово</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }} disabled={Boolean(engineersLoadError)}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Просрочено</option><option value="stale_ready">Залежалось в готово</option>{engineersLoadError ? null : engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
         <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="accepted">Принято</option><option value="in_progress">В работе</option><option value="testing">Тестирование</option><option value="ready">Готово</option></select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="sc-1001" /></label>
         <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
       </FilterRow>
 
       {error ? <p className="error-text">{error}</p> : null}
+      {engineersLoadError ? <p className="error-text">{engineersLoadError}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
 
       <div className="service-workspace kanban-layout">
@@ -367,7 +385,7 @@ export function AdminServicePage() {
                     </div>
                   ) : null}
 
-                  {canAssign ? (
+                  {canAssignWithLoadedEngineers ? (
                     <div className="assignment-box">
                       <h4>{selectedRequest.assignedToUserId ? 'Переназначить инженера' : 'Назначить инженера'}</h4>
                       <select value={assignForm.assignedToUserId} onChange={(e) => setAssignForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))}>
