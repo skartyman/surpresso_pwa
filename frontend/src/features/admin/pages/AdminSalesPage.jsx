@@ -5,12 +5,12 @@ import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge }
 
 const SALES_COLUMNS = ['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'ready_for_sale', 'reserved_for_sale', 'sold'];
 const LABELS = {
-  ready_for_rent: 'Ready for rent',
-  reserved_for_rent: 'Reserved for rent',
-  out_on_rent: 'Out on rent',
-  ready_for_sale: 'Ready for sale',
-  reserved_for_sale: 'Reserved for sale',
-  sold: 'Sold',
+  ready_for_rent: 'Готово к аренде',
+  reserved_for_rent: 'Зарезервировано под аренду',
+  out_on_rent: 'В аренде',
+  ready_for_sale: 'Готово к продаже',
+  reserved_for_sale: 'Зарезервировано к продаже',
+  sold: 'Продано',
 };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
@@ -19,8 +19,8 @@ function SalesCard({ item, active, onSelect }) {
   const status = item.commercialStatus || 'none';
   const warnings = [];
   if (!item.serial) warnings.push('No serial');
-  if (status === 'ready_for_rent' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Ready too long');
-  if (status === 'ready_for_sale' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Ready too long');
+  if (status === 'ready_for_rent' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
+  if (status === 'ready_for_sale' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
 
   return (
     <OpsBoardCard
@@ -136,12 +136,12 @@ export function AdminSalesPage() {
     <section className="service-dashboard">
       <header className="service-headline"><div><h2>Sales Board</h2><p>Action-based commercial workflow для salesManager.</p></div></header>
       <div className="kpi-row">
-        <KPIChipCard label="Ready for rent" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Reserved for rent" value={columns.find((c) => c.status === 'reserved_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Out on rent" value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Ready for sale" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Reserved for sale" value={columns.find((c) => c.status === 'reserved_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Sold" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="Sales" />
+        <KPIChipCard label="Готово к аренде" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
+        <KPIChipCard label="Зарезервировано под аренду" value={columns.find((c) => c.status === 'reserved_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
+        <KPIChipCard label="В аренде" value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="Sales" />
+        <KPIChipCard label="Готово к продаже" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
+        <KPIChipCard label="Зарезервировано к продаже" value={columns.find((c) => c.status === 'reserved_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
+        <KPIChipCard label="Продано" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="Sales" />
         <KPIChipCard label="Rent backlog" value={items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
         <KPIChipCard label="Sale backlog" value={items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
         <KPIChipCard label="Reserved aging" value={items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length} icon="bell" hint="Sales" />
@@ -151,7 +151,7 @@ export function AdminSalesPage() {
         <li key="unassigned"><span>Unassigned</span><strong>{attention.unassigned}</strong></li>,
         <li key="equipment"><span>No equipment data</span><strong>{attention.noEquipment}</strong></li>,
         <li key="stale"><span>Stale in progress</span><strong>{attention.staleInProgress}</strong></li>,
-        <li key="ready"><span>Ready too long</span><strong>{attention.readyTooLong}</strong></li>,
+        <li key="ready"><span>Слишком долго в статусе «Готово»</span><strong>{attention.readyTooLong}</strong></li>,
         <li key="backlog"><span>Rent/sale backlog</span><strong>{attention.rentSaleBacklog}</strong></li>,
       ]} />
 

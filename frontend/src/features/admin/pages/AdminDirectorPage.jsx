@@ -5,11 +5,11 @@ import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge }
 
 const CASE_COLUMNS = ['ready', 'processed'];
 const COMMERCIAL_COLUMNS = ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'];
-const SERVICE_LABELS = { ready: 'Ready', processed: 'Processed' };
+const SERVICE_LABELS = { ready: 'Готово', processed: 'Обработано' };
 const COMMERCIAL_LABELS = {
-  ready_for_issue: 'Ready for issue',
-  ready_for_rent: 'Ready for rent',
-  ready_for_sale: 'Ready for sale',
+  ready_for_issue: 'Готово к выдаче',
+  ready_for_rent: 'Готово к аренде',
+  ready_for_sale: 'Готово к продаже',
 };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
@@ -18,7 +18,7 @@ function DirectorCard({ item, active, onSelect }) {
   const warnings = [];
   if (!item.assignedToUserId) warnings.push('Unassigned');
   if (!item.equipmentId) warnings.push('No equipment');
-  if (item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Ready too long');
+  if (item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
 
   return (
     <OpsBoardCard
@@ -184,13 +184,13 @@ export function AdminDirectorPage() {
     <section className="service-dashboard">
       <header className="service-headline"><div><h2>Director Queue</h2><p>Operational routing board for director decisions.</p></div></header>
       <div className="kpi-row">
-        <KPIChipCard label="Ready" value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="Service" />
-        <KPIChipCard label="Processed" value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="Service" />
-        <KPIChipCard label="Ready for issue" value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint="Commercial" />
-        <KPIChipCard label="Ready for rent" value={commercialColumns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Commercial" />
-        <KPIChipCard label="Ready for sale" value={commercialColumns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Commercial" />
-        <KPIChipCard label="Ready aging" value={serviceCases.filter((item) => item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000).length} icon="bell" hint="Director" />
-        <KPIChipCard label="Processed today" value={serviceCases.filter((item) => {
+        <KPIChipCard label="Готово" value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="Service" />
+        <KPIChipCard label="Обработано" value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="Service" />
+        <KPIChipCard label="Готово к выдаче" value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint="Commercial" />
+        <KPIChipCard label="Готово к аренде" value={commercialColumns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Commercial" />
+        <KPIChipCard label="Готово к продаже" value={commercialColumns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Commercial" />
+        <KPIChipCard label="Просрочка «Готово»" value={serviceCases.filter((item) => item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000).length} icon="bell" hint="Director" />
+        <KPIChipCard label="Обработано сегодня" value={serviceCases.filter((item) => {
           const ts = item.processedAt ? new Date(item.processedAt).getTime() : null;
           const start = new Date();
           start.setHours(0, 0, 0, 0);
@@ -203,7 +203,7 @@ export function AdminDirectorPage() {
         <li key="unassigned"><span>Unassigned</span><strong>{attention.unassigned}</strong></li>,
         <li key="equipment"><span>No equipment data</span><strong>{attention.noEquipment}</strong></li>,
         <li key="stale"><span>Stale in progress</span><strong>{attention.staleInProgress}</strong></li>,
-        <li key="ready"><span>Ready too long</span><strong>{attention.readyTooLong}</strong></li>,
+        <li key="ready"><span>Слишком долго в статусе «Готово»</span><strong>{attention.readyTooLong}</strong></li>,
         <li key="backlog"><span>Rent/sale backlog</span><strong>{attention.rentSaleBacklog}</strong></li>,
       ]} />
 
