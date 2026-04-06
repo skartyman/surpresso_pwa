@@ -12,6 +12,7 @@ import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { routes } from './routes';
 import { RequireAuth, RequireRole } from '../features/auth/guards';
 import { useAuth } from '../features/auth/AuthContext';
+import { TelegramMiniAppGate } from '../features/auth/TelegramMiniAppGate';
 import { AdminLayout } from '../features/admin/components/AdminLayout';
 import { PAGE_PERMISSIONS, getDefaultAdminSection } from '../features/admin/roleConfig';
 import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPage';
@@ -31,16 +32,18 @@ function ClientRoutes() {
   useI18n();
   return (
     <ClientLayout>
-      <Routes>
-        <Route path={routes.home} element={<HomePage />} />
-        <Route path={routes.equipment} element={<EquipmentPage />} />
-        <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentDetailPage />} />
-        <Route path={routes.service} element={<ServicePage />} />
-        <Route path={routes.requests} element={<RequestsPage />} />
-        <Route path={`${routes.requests}/:requestId`} element={<ServiceStatusPage />} />
-        <Route path={routes.support} element={<SupportPage />} />
-        <Route path={routes.profile} element={<ProfilePage />} />
-      </Routes>
+      <TelegramMiniAppGate>
+        <Routes>
+          <Route path={routes.home} element={<HomePage />} />
+          <Route path={routes.equipment} element={<EquipmentPage />} />
+          <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentDetailPage />} />
+          <Route path={routes.service} element={<ServicePage />} />
+          <Route path={routes.requests} element={<RequestsPage />} />
+          <Route path={`${routes.requests}/:requestId`} element={<ServiceStatusPage />} />
+          <Route path={routes.support} element={<SupportPage />} />
+          <Route path={routes.profile} element={<ProfilePage />} />
+        </Routes>
+      </TelegramMiniAppGate>
     </ClientLayout>
   );
 }

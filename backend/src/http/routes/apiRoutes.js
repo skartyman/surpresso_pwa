@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { telegramAuth } from '../middleware/telegramAuth.js';
+import { createTelegramAuthController, telegramAuth } from '../middleware/telegramAuth.js';
 import { createAuthController } from '../controllers/authController.js';
 import { createEquipmentController } from '../controllers/equipmentController.js';
 import { createServiceController } from '../controllers/serviceController.js';
@@ -23,6 +23,8 @@ export function createApiRouter(deps) {
   });
 
   const authMiddleware = telegramAuth(deps.clientRepository);
+  const authMeMiddleware = telegramAuth(deps.clientRepository, { allowInitDataFallback: false });
+  const telegramAuthController = createTelegramAuthController(deps.clientRepository);
   const authController = createAuthController();
   const equipmentController = createEquipmentController(deps.equipmentRepository);
   const serviceController = createServiceController(deps.serviceRepository, deps.equipmentRepository, deps.serviceRequestNotifier);
@@ -39,6 +41,9 @@ export function createApiRouter(deps) {
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
   router.post('/auth/login', asyncHandler(adminAuthController.login));
+
+  router.post('/v1/auth/login', asyncHandler(telegramAuthController.login));
+  router.post('/v1/auth/logout', telegramAuthController.logout);
   router.post('/auth/logout', adminAuthController.logout);
   router.get('/auth/me', asyncHandler(adminAuth), adminAuthController.me);
 
@@ -117,8 +122,7 @@ export function createApiRouter(deps) {
   router.post('/admin/employees', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager']), asyncHandler(adminEmployeeController.create));
   router.patch('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.update));
 
-  router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
-  router.get('/auth/me', asyncHandler(authMiddleware), authController.me);
+  router.get('/v1/auth/me', asyncHandler(authMeMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/v1/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);

@@ -13,6 +13,7 @@ import { createAdminSessionManager } from '../http/middleware/adminAuth.js';
 
 export async function createApp() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json());
   const uploadsRoot = path.resolve(process.cwd(), 'miniapp-telegram', 'uploads');
   app.use('/media', express.static(config.mediaUploadPath));

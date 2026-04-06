@@ -22,6 +22,12 @@ const supportsMethod = (tg, methodName) => typeof tg?.[methodName] === 'function
 export function useTelegramWebApp() {
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
+
+    console.info('[tg-auth] webapp:detect', {
+      available: Boolean(tg),
+      initDataPresent: Boolean(tg?.initData),
+    });
+
     if (!tg) return;
 
     tg.ready();
