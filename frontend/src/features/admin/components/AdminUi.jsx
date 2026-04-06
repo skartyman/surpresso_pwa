@@ -11,6 +11,7 @@ const ICONS = {
   settings: 'm19.14 12.94.04-.94-.04-.94 2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42L9.1 5.32c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.56 8.84a.5.5 0 0 0 .12.64l2.03 1.58-.04.94.04.94-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z',
   search: 'm15.5 14 5 5-1.5 1.5-5-5V14l-.5-.5a6 6 0 1 1 1.5-1.5l.5.5V14ZM10 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
   bell: 'M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a2.5 2.5 0 1 0-5 0v.68C6.64 5.36 5 7.92 5 11v5l-2 2v1h18v-1l-2-2Z',
+  reports: 'M4 4h16v14H4V4Zm2 2v10h12V6H6Zm2 2h8v2H8V8Zm0 4h8v2H8v-2Zm-2 8h12v2H6v-2Z',
   moon: 'M14.5 2.5A8.5 8.5 0 1 0 21 15a7 7 0 1 1-6.5-12.5Z',
   sun: 'M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm0-4h1v3h-2V2h1Zm0 17h1v3h-2v-3h1ZM2 11h3v2H2v-2Zm17 0h3v2h-3v-2ZM5.64 4.22l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42Zm12.72 12.72 2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42ZM4.22 18.36l2.12-2.12 1.42 1.42-2.12 2.12-1.42-1.42Zm12.72-12.72 2.12-2.12 1.42 1.42-2.12 2.12-1.42-1.42Z',
 };
@@ -24,11 +25,13 @@ export function Icon({ name, className }) {
   );
 }
 
-export function ThemeToggle({ theme, onToggle }) {
+export function ThemeToggle({ mode, resolvedTheme, onToggle }) {
+  const icon = resolvedTheme === 'dark' ? 'sun' : 'moon';
+  const label = mode === 'system' ? `System (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` : (mode === 'dark' ? 'Dark' : 'Light');
   return (
     <button type="button" className="theme-toggle" onClick={onToggle} aria-label="Переключить тему">
-      <Icon name={theme === 'light' ? 'moon' : 'sun'} />
-      <span>{theme === 'light' ? 'Тёмная' : 'Светлая'}</span>
+      <Icon name={icon} />
+      <span>{label}</span>
     </button>
   );
 }

@@ -1506,3 +1506,72 @@ textarea {
 :root[data-admin-theme='dark'] .equipment-ops-card__scan-chips em,
 :root[data-admin-theme='dark'] .equipment-ops-card__actions button { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
 :root[data-admin-theme='dark'] .equipment-active-case-highlight { border-color: #1d4ed8; background: rgba(29, 78, 216, .15); }
+
+/* Admin shell refresh */
+.admin-sidebar-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-nav-group h4 {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--sa-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: rgba(17, 24, 39, 0.42);
+}
+
+.theme-toggle {
+  justify-content: center;
+}
+
+.admin-action-link {
+  border: 1px solid var(--sa-line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--sa-surface-2);
+  text-decoration: none;
+  color: var(--sa-text);
+  font-size: 13px;
+}
+
+@media (min-width: 1081px) {
+  .admin-sidebar .theme-toggle {
+    display: inline-flex;
+  }
+
+  .admin-topbar .theme-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .admin-sidebar {
+    z-index: 60;
+  }
+
+  .admin-sidebar .theme-toggle {
+    display: none;
+  }
+}

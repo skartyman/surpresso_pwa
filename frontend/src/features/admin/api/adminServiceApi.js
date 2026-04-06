@@ -24,6 +24,10 @@ export const adminServiceApi = {
   notificationsPreview: async () => apiFetch('/api/telegram/admin/executive/notifications/preview'),
   triggerNotifications: async (roles = []) => apiFetch('/api/telegram/admin/executive/notifications/trigger', { method: 'POST', body: JSON.stringify({ roles }) }),
   weeklyExecutiveReport: async () => apiFetch('/api/telegram/admin/reports/executive-weekly'),
+  notificationCenter: async () => apiFetch('/api/telegram/admin/executive/notification-center'),
+  digestPlan: async () => apiFetch('/api/telegram/admin/executive/digests/plan'),
+  reportsHistory: async () => apiFetch('/api/telegram/admin/reports/history'),
+  reportPresets: async () => apiFetch('/api/telegram/admin/reports/presets'),
   serviceCases: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {

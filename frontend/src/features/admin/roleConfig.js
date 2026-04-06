@@ -20,37 +20,64 @@ export const ROLE_LABELS = {
 
 const ALL_ROLES = Object.values(ROLES);
 
-export const ADMIN_MENU = [
-  { key: 'dashboard', to: 'dashboard', icon: 'dashboard', label: 'Executive', roles: [ROLES.owner, ROLES.director] },
-  { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
-  { key: 'director', to: 'director', icon: 'dashboard', label: 'Director Queue', roles: [ROLES.director, ROLES.owner] },
-  { key: 'employees', to: 'employees', icon: 'employees', label: 'Сотрудники', roles: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
-  { key: 'clients', to: 'clients', icon: 'clients', label: 'Клиенты', roles: [ROLES.manager, ROLES.owner] },
-  { key: 'equipment', to: 'equipment', icon: 'equipment', label: 'Оборудование', roles: [ROLES.manager, ROLES.serviceHead, ROLES.owner] },
-  { key: 'sales', to: 'sales', icon: 'sales', label: 'Продажи', roles: [ROLES.salesManager, ROLES.owner] },
-  { key: 'content', to: 'content', icon: 'content', label: 'Контент и SEO', roles: [ROLES.manager, ROLES.owner, ROLES.seo] },
-  { key: 'settings', to: 'settings', icon: 'settings', label: 'Настройки', roles: [ROLES.owner, ROLES.director, ROLES.manager] },
+export const ADMIN_SECTIONS = [
+  {
+    key: 'operations',
+    label: 'Operations',
+    items: [
+      { key: 'service', to: 'service', icon: 'service', label: 'Service', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner] },
+      { key: 'director', to: 'director', icon: 'dashboard', label: 'Director', roles: [ROLES.director, ROLES.owner] },
+      { key: 'sales', to: 'sales', icon: 'sales', label: 'Sales', roles: [ROLES.salesManager, ROLES.owner] },
+      { key: 'equipment', to: 'equipment', icon: 'equipment', label: 'Equipment', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
+    ],
+  },
+  {
+    key: 'management',
+    label: 'Management',
+    items: [
+      { key: 'executive', to: 'executive', icon: 'dashboard', label: 'Executive', roles: [ROLES.director, ROLES.owner] },
+      { key: 'reports', to: 'reports', icon: 'reports', label: 'Reports', roles: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
+      { key: 'notifications', to: 'notifications', icon: 'bell', label: 'Notification Center', roles: [ROLES.serviceHead, ROLES.director, ROLES.owner] },
+    ],
+  },
+  {
+    key: 'content',
+    label: 'Content',
+    items: [
+      { key: 'content', to: 'content', icon: 'content', label: 'Content / SEO', roles: [ROLES.seo, ROLES.owner] },
+    ],
+  },
+  {
+    key: 'system',
+    label: 'System',
+    items: [
+      { key: 'settings', to: 'settings', icon: 'settings', label: 'Settings', roles: ALL_ROLES },
+    ],
+  },
 ];
 
+export const ADMIN_MENU = ADMIN_SECTIONS.flatMap((section) => section.items);
+
 export const PAGE_PERMISSIONS = {
-  dashboard: [ROLES.owner, ROLES.director],
+  executive: [ROLES.owner, ROLES.director],
   service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
   director: [ROLES.director, ROLES.owner],
   sales: [ROLES.salesManager, ROLES.owner],
-  employees: [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner],
-  clients: [ROLES.manager, ROLES.owner],
-  equipment: [ROLES.manager, ROLES.serviceHead, ROLES.owner],
-  content: [ROLES.manager, ROLES.owner, ROLES.seo],
+  equipment: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner],
+  reports: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner],
+  notifications: [ROLES.serviceHead, ROLES.director, ROLES.owner],
+  content: [ROLES.owner, ROLES.seo],
   settings: ALL_ROLES,
 };
 
 export function getDefaultAdminSection(role) {
-  if (role === ROLES.serviceEngineer || role === ROLES.serviceHead) return 'service';
+  if (role === ROLES.serviceEngineer) return 'service';
+  if (role === ROLES.serviceHead) return 'service';
   if (role === ROLES.salesManager) return 'sales';
-  if (role === ROLES.director) return 'director';
+  if (role === ROLES.director) return 'executive';
   if (role === ROLES.seo) return 'content';
-  if (role === ROLES.owner) return 'dashboard';
-  return 'dashboard';
+  if (role === ROLES.owner) return 'executive';
+  return 'executive';
 }
 
 export const LEGACY_COMPATIBLE_ADMIN_ROLES = ALL_ROLES;
