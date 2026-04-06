@@ -29,6 +29,23 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU') : '—';
 }
 
+function isUrlLike(value) {
+  if (!value || typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized.startsWith('http://')
+    || normalized.startsWith('https://')
+    || normalized.startsWith('www.')
+    || normalized.includes('drive.google.com/');
+}
+
+function getMediaLabel(media) {
+  const caption = (media?.caption || '').trim();
+  if (caption && !isUrlLike(caption)) return caption;
+  const originalName = (media?.originalName || '').trim();
+  if (originalName && !isUrlLike(originalName)) return originalName;
+  return media?.mediaType === 'video' ? 'Видео' : 'Фото';
+}
+
 function EquipmentListCard({ item, active, onClick }) {
   return (
     <button type="button" className={`equipment-ops-card ${active ? 'active' : ''}`} onClick={onClick}>
@@ -78,7 +95,7 @@ function MediaGallery({ rows = [], onOpen }) {
               ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
               : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
             <div>
-              <strong>{media.caption || media.originalName || media.mediaType || 'media'}</strong>
+              <strong>{getMediaLabel(media)}</strong>
               <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
               {media.serviceCaseId ? <span>Кейс: {media.serviceCaseId}</span> : null}
             </div>
@@ -99,7 +116,7 @@ function Lightbox({ media, index, onClose }) {
         {media.mediaType === 'video'
           ? <video src={media.fullUrl || media.fileUrl} controls autoPlay />
           : <img src={media.fullUrl || media.fileUrl} alt={media.caption || media.originalName || `media-${index + 1}`} />}
-        <p>{media.caption || media.originalName || '—'}</p>
+        <p>{getMediaLabel(media)}</p>
         <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
         {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
       </div>
