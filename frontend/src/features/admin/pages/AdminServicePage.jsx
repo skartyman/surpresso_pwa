@@ -139,7 +139,7 @@ export function AdminServicePage() {
           ...next,
           serviceStatus: next.status === 'all' ? '' : next.status,
           assignedToUserId: next.engineer === 'all' ? '' : next.engineer,
-          search: next.client || next.id || '',
+          search: next.client || next.id || searchParams.get('equipmentId') || '',
         }),
         adminServiceApi.serviceKpi(),
         canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
@@ -147,7 +147,13 @@ export function AdminServicePage() {
       setRequests(list.items || []);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
-      setSelectedId((prev) => prev || list.items?.[0]?.id || null);
+      const requestedCaseId = searchParams.get('caseId');
+      const requestedEquipmentId = searchParams.get('equipmentId');
+      setSelectedId((prev) => prev
+        || requestedCaseId
+        || list.items?.find((item) => item.equipmentId === requestedEquipmentId)?.id
+        || list.items?.[0]?.id
+        || null);
       setError('');
     } catch {
       setError('Не удалось загрузить сервисный дашборд.');
@@ -216,7 +222,7 @@ export function AdminServicePage() {
     setActionLoading('');
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [searchParams]); // eslint-disable-line
   useEffect(() => {
     if (!selectedId) return setSelectedRequest(null);
     loadDetails(selectedId).catch(() => {
@@ -226,6 +232,8 @@ export function AdminServicePage() {
   }, [selectedId]);
 
   const filteredRequests = useMemo(() => requests.filter((item) => {
+    const requestedEquipmentId = searchParams.get('equipmentId');
+    if (requestedEquipmentId && item.equipmentId !== requestedEquipmentId) return false;
     if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
     if (filters.quickFilter === 'mine') return item.assignedToUserId === user?.id;
     if (filters.quickFilter === 'overdue') {
@@ -238,7 +246,7 @@ export function AdminServicePage() {
     if (filters.quickFilter === 'stale_ready') return item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000;
     if (filters.quickFilter?.startsWith('engineer:')) return item.assignedToUserId === filters.quickFilter.replace('engineer:', '');
     return true;
-  }), [filters.quickFilter, requests, user?.id]);
+  }), [filters.quickFilter, requests, searchParams, user?.id]);
 
   const boardColumns = useMemo(() => BOARD_COLUMNS.map((status) => ({
     status,

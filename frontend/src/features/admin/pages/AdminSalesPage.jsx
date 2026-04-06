@@ -57,8 +57,9 @@ export function AdminSalesPage() {
     try {
       const payload = await adminServiceApi.salesEquipment();
       const rows = payload.items || [];
+      const requestedEquipmentId = searchParams.get('equipmentId');
       setItems(rows);
-      setSelectedId((prev) => prev || rows[0]?.id || null);
+      setSelectedId((prev) => prev || requestedEquipmentId || rows[0]?.id || null);
       setError('');
     } catch {
       setError('Не удалось загрузить sales board.');
@@ -85,14 +86,16 @@ export function AdminSalesPage() {
 
   const columns = useMemo(() => {
     const requested = searchParams.get('commercialStatus');
+    const requestedEquipmentId = searchParams.get('equipmentId');
     const source = items.filter((row) => {
       const status = row.commercialStatus || 'none';
       if (!requested) return true;
       if (requested === 'rent_backlog') return ['ready_for_rent', 'reserved_for_rent'].includes(status);
       if (requested === 'sale_backlog') return ['ready_for_sale', 'reserved_for_sale'].includes(status);
       if (requested === 'reserved_aging') return ['reserved_for_rent', 'reserved_for_sale'].includes(status) && (Date.now() - new Date(row.updatedAt).getTime()) > 48 * 3600000;
-      return status === requested;
-    });
+      if (status !== requested) return false;
+      return true;
+    }).filter((row) => !requestedEquipmentId || row.id === requestedEquipmentId);
 
     return SALES_COLUMNS.map((status) => ({
       status,

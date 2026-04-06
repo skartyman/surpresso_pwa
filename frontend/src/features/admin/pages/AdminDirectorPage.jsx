@@ -80,12 +80,17 @@ export function AdminDirectorPage() {
   async function load() {
     try {
       const requestedStatus = searchParams.get('serviceStatus');
+      const requestedEquipmentId = searchParams.get('equipmentId');
       const payload = await adminServiceApi.directorQueue(requestedStatus ? { serviceStatus: requestedStatus } : {});
       const nextCases = payload.serviceCases || [];
       const nextCommercial = payload.commercialQueue || [];
       setServiceCases(nextCases);
       setCommercialQueue(nextCommercial);
-      setSelectedCaseId((prev) => prev || nextCases[0]?.id || null);
+      setSelectedCaseId((prev) => prev
+        || nextCases.find((item) => item.equipmentId === requestedEquipmentId)?.id
+        || nextCommercial.find((item) => item.id === requestedEquipmentId)?.id
+        || nextCases[0]?.id
+        || null);
       setError('');
     } catch {
       setError('Не удалось загрузить director queue.');
@@ -106,11 +111,18 @@ export function AdminDirectorPage() {
     loadCaseDetails(selectedCaseId).catch(() => setSelectedCase(null));
   }, [selectedCaseId]);
 
-  const serviceColumns = useMemo(() => CASE_COLUMNS.map((status) => ({
-    status,
-    label: SERVICE_LABELS[status] || status,
-    items: serviceCases.filter((item) => item.serviceStatus === status),
-  })), [serviceCases]);
+  const serviceColumns = useMemo(() => {
+    const requestedEquipmentId = searchParams.get('equipmentId');
+    const source = requestedEquipmentId
+      ? serviceCases.filter((item) => item.equipmentId === requestedEquipmentId)
+      : serviceCases;
+
+    return CASE_COLUMNS.map((status) => ({
+      status,
+      label: SERVICE_LABELS[status] || status,
+      items: source.filter((item) => item.serviceStatus === status),
+    }));
+  }, [searchParams, serviceCases]);
 
   const commercialColumns = useMemo(() => {
     const filterStatus = searchParams.get('commercialStatus');
@@ -120,10 +132,15 @@ export function AdminDirectorPage() {
       return item.commercialStatus === filterStatus;
     });
 
+    const requestedEquipmentId = searchParams.get('equipmentId');
+    const filteredByEquipment = requestedEquipmentId
+      ? source.filter((item) => item.id === requestedEquipmentId)
+      : source;
+
     return COMMERCIAL_COLUMNS.map((status) => ({
       status,
       label: COMMERCIAL_LABELS[status],
-      items: source.filter((item) => item.commercialStatus === status),
+      items: filteredByEquipment.filter((item) => item.commercialStatus === status),
     }));
   }, [commercialQueue, searchParams]);
 
