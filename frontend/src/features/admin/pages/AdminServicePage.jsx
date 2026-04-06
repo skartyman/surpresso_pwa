@@ -9,7 +9,6 @@ import {
   FilterRow,
   Icon,
   KPIChipCard,
-  OpsBoardCard,
   StatusBadge,
 } from '../components/AdminUi';
 
@@ -40,6 +39,12 @@ const KPI_ICON = {
   slaReady: 'equipment',
   slaBacklog: 'sales',
 };
+const COLUMN_THEME = {
+  accepted: { eyebrow: 'Новые', accent: 'blue' },
+  in_progress: { eyebrow: 'Ремонт', accent: 'orange' },
+  testing: { eyebrow: 'Контроль', accent: 'violet' },
+  ready: { eyebrow: 'Выдача', accent: 'green' },
+};
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes', 'equipment', 'commercial'];
 const TAB_LABELS = {
   overview: 'Обзор', history: 'История', media: 'Медиа', notes: 'Заметки', equipment: 'Оборудование', commercial: 'Коммерция',
@@ -53,32 +58,107 @@ function formatPersonAudit(item) {
   return item.actorLabel || '—';
 }
 
-function ServiceTicketCard({ request, active, onSelect }) {
+function ServiceQuickActions({ loadingKey, serviceActions, commercialActions, onServiceAction, onCommercialAction }) {
+  const actionItems = [serviceActions[0], commercialActions[0]].filter(Boolean);
+  if (!actionItems.length) return null;
+
+  return (
+    <div className="service-board-card__actions">
+      {actionItems.map((action) => {
+        const isCommercial = action.type === 'commercial';
+        const busyKey = `${isCommercial ? 'commercial' : 'service'}:${action.targetStatus}`;
+        return (
+          <button
+            key={`${action.type}:${action.key}:${action.targetStatus}`}
+            type="button"
+            className={`service-board-card__action ${isCommercial ? 'secondary' : ''}`}
+            disabled={Boolean(loadingKey)}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isCommercial) onCommercialAction?.(action.targetStatus);
+              else onServiceAction?.(action.targetStatus);
+            }}
+          >
+            {loadingKey === busyKey ? '...' : action.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ServiceTicketCard({
+  request,
+  active,
+  onSelect,
+  actionLoading,
+  canUseServiceBoardActions,
+  onServiceAction,
+  onCommercialAction,
+}) {
   const status = request.serviceStatus || request.status;
   const warnings = [];
+  const media = (request.media || request.equipment?.media || [])[0];
+  const mediaUrl = media?.previewUrl || media?.fileUrl || null;
+  const workflowActions = request.nextActions?.all || [];
+  const serviceActions = workflowActions.filter((action) => action.type === 'service');
+  const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
   if (!request.assignedToUserId) warnings.push('Без назначения');
   if (!request.equipmentId) warnings.push('Нет оборудования');
   if (status === 'in_progress' && (Date.now() - new Date(request.updatedAt).getTime()) > 48 * 3600000) warnings.push('Застрял в работе');
   if (status === 'ready' && (Date.now() - new Date(request.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в готово');
 
   return (
-    <OpsBoardCard
-      item={request}
-      id={request.id}
-      status={status}
-      statusLabel={STATUS_LABELS[status] || status}
-      title={request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}
-      subtitle={`${request.equipment?.brand || '—'} ${request.equipment?.model || ''} · ${request.equipment?.internalNumber || request.internalNumberSnapshot || '—'} / ${request.equipment?.serial || request.serialNumberSnapshot || '—'}`}
-      ownerType={`владелец: ${request.equipment?.ownerType || '—'}`}
-      intakeType={`приём: ${request.intakeType || '—'}`}
-      assignedMaster={request.assignedToUser?.fullName || 'Мастер: не назначен'}
-      serviceStatus={STATUS_LABELS[status] || status}
-      commercialStatus={COMMERCIAL_STATUS_LABELS[request.equipment?.commercialStatus || 'none'] || 'none'}
-      updatedAt={formatDate(request.updatedAt)}
-      warnings={warnings}
-      active={active}
-      onSelect={onSelect}
-    />
+    <article className={`service-board-card ${active ? 'active' : ''}`} data-status={status}>
+      <button type="button" className="service-board-card__body" onClick={() => onSelect(request.id)}>
+        <div className="service-board-card__topbar">
+          <StatusBadge status={status}>{STATUS_LABELS[status] || status}</StatusBadge>
+          <small>#{request.id}</small>
+        </div>
+
+        <div className="service-board-card__preview">
+          {mediaUrl ? <img src={mediaUrl} alt={request.equipment?.model || 'preview'} loading="lazy" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+        </div>
+
+        <div className="service-board-card__content">
+          <strong>{request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}</strong>
+          <p>{request.equipment?.brand || '—'} {request.equipment?.model || ''}</p>
+          <p>{request.equipment?.internalNumber || request.internalNumberSnapshot || '—'} · {request.equipment?.serial || request.serialNumberSnapshot || '—'}</p>
+        </div>
+
+        {warnings.length ? (
+          <div className="warning-badges service-board-card__warnings">
+            {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+          </div>
+        ) : null}
+
+        <div className="service-board-card__meta">
+          <span><Icon name="employees" /> {request.assignedToUser?.fullName || 'Не назначен'}</span>
+          <span><Icon name="clients" /> {request.equipment?.ownerType || '—'}</span>
+          <span><Icon name="service" /> {request.intakeType || '—'}</span>
+          <span><Icon name="sales" /> {COMMERCIAL_STATUS_LABELS[request.equipment?.commercialStatus || 'none'] || 'none'}</span>
+        </div>
+
+        <div className="service-board-card__footer">
+          <div className="service-board-card__facts">
+            <span><Icon name="equipment" /> {(request.media || []).length || 0}</span>
+            <span><Icon name="content" /> {(request.notes || []).length || 0}</span>
+            <span><Icon name="dashboard" /> {request.historyCount || request.statusHistoryCount || 0}</span>
+          </div>
+          <small>{formatDate(request.updatedAt)}</small>
+        </div>
+      </button>
+
+      {canUseServiceBoardActions ? (
+        <ServiceQuickActions
+          loadingKey={actionLoading}
+          serviceActions={serviceActions}
+          commercialActions={commercialActions}
+          onServiceAction={onServiceAction}
+          onCommercialAction={onCommercialAction}
+        />
+      ) : null}
+    </article>
   );
 }
 
@@ -196,23 +276,23 @@ export function AdminServicePage() {
     setActionLoading('');
   }
 
-  async function applyServiceStatus(toStatus) {
-    if (!selectedId || !toStatus) return;
+  async function applyServiceStatus(toStatus, targetId = selectedId) {
+    if (!targetId || !toStatus) return;
     setActionLoading(`service:${toStatus}`);
-    await adminServiceApi.updateServiceCaseStatus(selectedId, { serviceStatus: toStatus });
+    await adminServiceApi.updateServiceCaseStatus(targetId, { serviceStatus: toStatus });
     await load();
-    await loadDetails(selectedId);
+    await loadDetails(targetId);
     setFeedback(`Сервисный статус обновлен: ${STATUS_LABELS[toStatus] || toStatus}.`);
     setActionLoading('');
   }
 
-  async function applyCommercialStatus(toStatus) {
-    const equipmentId = selectedRequest?.equipmentId;
+  async function applyCommercialStatus(toStatus, targetRequest = selectedRequest) {
+    const equipmentId = targetRequest?.equipmentId;
     if (!equipmentId || !toStatus) return;
     setActionLoading(`commercial:${toStatus}`);
-    await adminServiceApi.updateCommercialStatus(equipmentId, toStatus, '', selectedId);
+    await adminServiceApi.updateCommercialStatus(equipmentId, toStatus, '', targetRequest?.id);
     await load();
-    await loadDetails(selectedId);
+    await loadDetails(targetRequest?.id);
     setFeedback(`Коммерческий статус обновлен: ${COMMERCIAL_STATUS_LABELS[toStatus] || toStatus}.`);
     setActionLoading('');
   }
@@ -332,13 +412,33 @@ export function AdminServicePage() {
         <div className="kanban-board">
           {loading ? <p>Загрузка...</p> : null}
           {boardColumns.map((column) => (
-            <section key={column.status} className="kanban-column">
-              <header>
-                <h4>{column.label}</h4>
+            <section key={column.status} className="service-board-column-trello" data-accent={COLUMN_THEME[column.status]?.accent || 'blue'}>
+              <header className="service-board-column-trello__header">
+                <div>
+                  <small>{COLUMN_THEME[column.status]?.eyebrow || 'Колонка'}</small>
+                  <h4>{column.label}</h4>
+                </div>
                 <strong>{column.items.length}</strong>
               </header>
-              <div className="kanban-cards">
-                {column.items.map((request) => <ServiceTicketCard key={request.id} request={request} active={selectedId === request.id} onSelect={setSelectedId} />)}
+              <div className="service-board-column-trello__list">
+                {column.items.map((request) => (
+                  <ServiceTicketCard
+                    key={request.id}
+                    request={request}
+                    active={selectedId === request.id}
+                    onSelect={setSelectedId}
+                    actionLoading={actionLoading}
+                    canUseServiceBoardActions={canUseServiceBoardActions}
+                    onServiceAction={(toStatus) => {
+                      setSelectedId(request.id);
+                      return applyServiceStatus(toStatus, request.id).catch(() => setError('Не удалось обновить сервисный статус.'));
+                    }}
+                    onCommercialAction={(toStatus) => {
+                      setSelectedId(request.id);
+                      return applyCommercialStatus(toStatus, request).catch(() => setError('Не удалось обновить коммерческий статус.'));
+                    }}
+                  />
+                ))}
                 {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
               </div>
             </section>
