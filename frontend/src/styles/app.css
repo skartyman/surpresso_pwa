@@ -50,13 +50,28 @@ body { margin: 0; font-family: inherit; background: var(--bg); color: var(--text
 .cards-grid, .list, .service-page { display: grid; gap: 12px; margin-top: 14px; }
 .section-card, .list-item, .status-card, .service-panel { padding: 14px; text-decoration: none; }
 .section-card p, .list-item p, .hero p { color: var(--muted); margin: 8px 0 0; }
+.section-card { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; }
+.section-card__media {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  background: color-mix(in oklab, var(--accent), transparent 82%);
+  border: 1px solid color-mix(in oklab, var(--accent), var(--border) 65%);
+}
 
 button {
-  width: 100%; min-height: 42px; border-radius: 12px; border: 1px solid transparent;
+  width: auto; min-height: 42px; border-radius: 12px; border: 1px solid transparent;
   background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
 }
 button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
 .menu-btn, .theme-inline-btn { width: 42px; min-width: 42px; }
+.service-form > button[type='submit'],
+.client-sidebar__actions button {
+  width: 100%;
+}
 
 input, select, textarea {
   width: 100%; min-height: 42px; border-radius: 12px; border: 1px solid var(--border);
@@ -890,6 +905,8 @@ textarea { min-height: 110px; resize: vertical; }
 .service-headline p { margin: 2px 0 0; color: var(--sa-muted); font-size: 13px; }
 .quick-tags { display: flex; gap: 6px; }
 .quick-tags span { padding: 4px 8px; border-radius: 999px; background: var(--sa-surface-2); font-size: 12px; }
+.quick-filter-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.quick-filter-row > button { min-height: 34px; }
 .kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .kpi-chip { border: 1px solid var(--sa-line); border-radius: 12px; padding: 8px 10px; background: var(--sa-surface); display: grid; gap: 4px; }
 .kpi-chip span { display: flex; align-items: center; gap: 6px; color: var(--sa-muted); font-size: 12px; }
