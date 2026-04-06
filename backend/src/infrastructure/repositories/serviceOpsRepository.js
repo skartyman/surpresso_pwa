@@ -129,6 +129,26 @@ function mapMedia(item) {
   };
 }
 
+function evaluateEquipmentWarnings({ equipment, activeCase, mediaCount = 0, nowTs = Date.now() }) {
+  const warnings = [];
+  const ownerType = String(equipment?.ownerType || '').trim();
+
+  if (ownerType === 'client' && !equipment?.serial) warnings.push('missing_serial_for_client');
+  if (ownerType === 'company' && !equipment?.internalNumber) warnings.push('missing_internal_for_company');
+  if (mediaCount === 0) warnings.push('missing_media');
+  if (!activeCase) warnings.push('missing_active_service_case');
+  if (activeCase?.serviceStatus === 'ready' && (nowTs - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000) warnings.push('stale_ready');
+
+  const serviceStatus = String(equipment?.serviceStatus || '').trim();
+  const hasLiveServiceStatus = ['accepted', 'in_progress', 'testing', 'ready'].includes(serviceStatus);
+  const statusesConflict = (activeCase && serviceStatus && activeCase.serviceStatus !== serviceStatus)
+    || (!activeCase && hasLiveServiceStatus)
+    || (activeCase && ['processed', 'closed'].includes(serviceStatus));
+  if (statusesConflict) warnings.push('inconsistent_status_data');
+
+  return warnings;
+}
+
 export class NeonServiceOpsRepository {
   constructor(prisma) {
     this.prisma = prisma;
@@ -633,6 +653,7 @@ export class NeonServiceOpsRepository {
       this.prisma.equipment.findMany({
         select: {
           id: true,
+          ownerType: true,
           serviceStatus: true,
           commercialStatus: true,
           serial: true,
@@ -664,9 +685,9 @@ export class NeonServiceOpsRepository {
 
     const nowTs = Date.now();
     const alertCounters = {
-      missing_serial: 0,
-      missing_internal_number: 0,
-      missing_photo: 0,
+      missing_serial_for_client: 0,
+      missing_internal_for_company: 0,
+      missing_media: 0,
       missing_active_service_case: 0,
       stale_ready: 0,
       inconsistent_status_data: 0,
@@ -675,19 +696,12 @@ export class NeonServiceOpsRepository {
     for (const equipment of equipmentRows) {
       const activeCase = activeByEquipmentId.get(equipment.id) || null;
       const mediaCount = mediaCountByEquipmentId.get(equipment.id) || 0;
-
-      if (!equipment.serial) alertCounters.missing_serial += 1;
-      if (!equipment.internalNumber) alertCounters.missing_internal_number += 1;
-      if (mediaCount === 0) alertCounters.missing_photo += 1;
-      if (!activeCase) alertCounters.missing_active_service_case += 1;
-      if (activeCase?.serviceStatus === 'ready' && (nowTs - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000) alertCounters.stale_ready += 1;
-
-      const serviceStatus = String(equipment.serviceStatus || '').trim();
-      const hasLiveServiceStatus = ['accepted', 'in_progress', 'testing', 'ready'].includes(serviceStatus);
-      const statusesConflict = (activeCase && serviceStatus && activeCase.serviceStatus !== serviceStatus)
-        || (!activeCase && hasLiveServiceStatus)
-        || (activeCase && ['processed', 'closed'].includes(serviceStatus));
-      if (statusesConflict) alertCounters.inconsistent_status_data += 1;
+      const warnings = evaluateEquipmentWarnings({ equipment, activeCase, mediaCount, nowTs });
+      warnings.forEach((warningKey) => {
+        if (Object.prototype.hasOwnProperty.call(alertCounters, warningKey)) {
+          alertCounters[warningKey] += 1;
+        }
+      });
     }
 
     const kpi = {
@@ -746,18 +760,20 @@ export class NeonServiceOpsRepository {
     return rows.map((item) => {
       const mapped = mapEquipment(item);
       const activeCase = activeByEquipmentId.get(item.id) || null;
-      const warnings = [];
-      if (!item.serial) warnings.push('missing_serial');
-      if (!item.internalNumber) warnings.push('missing_internal_number');
-      if ((mediaCountByEquipmentId.get(item.id) || 0) === 0) warnings.push('missing_photo');
-      if (!activeCase) warnings.push('missing_active_service_case');
-      return {
+      const warnings = evaluateEquipmentWarnings({
+        equipment: item,
+        activeCase,
+        mediaCount: mediaCountByEquipmentId.get(item.id) || 0,
+      });
+      const listItem = {
         ...mapped,
         activeServiceCaseId: activeCase?.id || null,
         activeServiceCaseStatus: activeCase?.serviceStatus || null,
         warnings,
       };
-    });
+      if (!filters.warning) return listItem;
+      return warnings.includes(String(filters.warning || '')) ? listItem : null;
+    }).filter(Boolean);
   }
 
   async getEquipmentById(id) {
@@ -942,9 +958,9 @@ export class InMemoryServiceOpsRepository {
         onReplacementOrRent: 0,
       },
       alerts: [
-        { key: 'missing_serial', count: 0 },
-        { key: 'missing_internal_number', count: 0 },
-        { key: 'missing_photo', count: 0 },
+        { key: 'missing_serial_for_client', count: 0 },
+        { key: 'missing_internal_for_company', count: 0 },
+        { key: 'missing_media', count: 0 },
         { key: 'missing_active_service_case', count: 0 },
         { key: 'stale_ready', count: 0 },
         { key: 'inconsistent_status_data', count: 0 },

@@ -36,18 +36,18 @@ const EVENT_META = {
 };
 
 const ALERT_LABELS = {
-  missing_serial: 'Без серийного номера',
-  missing_internal_number: 'Без внутреннего номера',
-  missing_photo: 'Без фото',
+  missing_serial_for_client: 'Клиентская техника без серийного номера',
+  missing_internal_for_company: 'Техника компании без внутреннего номера',
+  missing_media: 'Нет медиафайлов',
   missing_active_service_case: 'Без активного service case',
-  stale_ready: 'Stale ready',
+  stale_ready: 'Кейс в статусе ready более 24ч',
   inconsistent_status_data: 'Несогласованные статусные данные',
 };
 
 const ALERT_TONES = {
-  missing_serial: 'warning',
-  missing_internal_number: 'warning',
-  missing_photo: 'warning',
+  missing_serial_for_client: 'warning',
+  missing_internal_for_company: 'warning',
+  missing_media: 'warning',
   missing_active_service_case: 'warning',
   stale_ready: 'critical',
   inconsistent_status_data: 'critical',
@@ -78,20 +78,21 @@ function getBaseAdminPath(pathname = '') {
 function getEquipmentWarnings(detail) {
   const warnings = [];
   const equipment = detail?.equipment || {};
+  const ownerType = String(equipment.ownerType || '').trim();
   const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const staleReady = activeCase?.serviceStatus === 'ready' && activeCase.updatedAt
     ? (Date.now() - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000
     : false;
-  if (!activeCase) warnings.push('Нет активного сервисного кейса');
-  if (!equipment.serial) warnings.push('Серийный номер не заполнен');
-  if (!equipment.internalNumber) warnings.push('Внутренний номер не заполнен');
-  if (staleReady) warnings.push('Кейс в статусе ready более 24ч');
-  if ((detail?.media || []).length === 0) warnings.push('Нет медиафайлов');
-  if (activeCase && equipment.serviceStatus && activeCase.serviceStatus !== equipment.serviceStatus) warnings.push('Сервисный статус в карточке и кейсе расходится');
-  return warnings;
+  if (!activeCase) warnings.push('missing_active_service_case');
+  if (ownerType === 'client' && !equipment.serial) warnings.push('missing_serial_for_client');
+  if (ownerType === 'company' && !equipment.internalNumber) warnings.push('missing_internal_for_company');
+  if (staleReady) warnings.push('stale_ready');
+  if ((detail?.media || []).length === 0) warnings.push('missing_media');
+  if (activeCase && equipment.serviceStatus && activeCase.serviceStatus !== equipment.serviceStatus) warnings.push('inconsistent_status_data');
+  return warnings.map((key) => ALERT_LABELS[key] || key);
 }
 
-function DashboardHeader({ dashboard }) {
+function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
   const kpi = dashboard?.kpi || {};
   const alertRows = dashboard?.alerts || [];
 
@@ -114,11 +115,17 @@ function DashboardHeader({ dashboard }) {
         <div className="equipment-hub-alerts__grid">
           {Object.keys(ALERT_LABELS).map((key) => {
             const row = alertRows.find((item) => item.key === key) || { count: 0 };
+            const isActive = activeWarning === key;
             return (
-              <article key={key} className={`equipment-hub-alert equipment-hub-alert--${ALERT_TONES[key] || 'warning'}`}>
+              <button
+                key={key}
+                type="button"
+                className={`equipment-hub-alert equipment-hub-alert--${ALERT_TONES[key] || 'warning'} ${isActive ? 'active' : ''}`}
+                onClick={() => onAlertClick?.(key)}
+              >
                 <span>{ALERT_LABELS[key]}</span>
                 <strong>{row.count || 0}</strong>
-              </article>
+              </button>
             );
           })}
         </div>
@@ -153,7 +160,7 @@ function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSal
 
       {warnings.length ? (
         <div className="warning-badges">
-          {warnings.slice(0, 3).map((warning) => <span key={warning}>{warning}</span>)}
+          {warnings.slice(0, 3).map((warning) => <span key={warning}>{ALERT_LABELS[warning] || warning}</span>)}
           {warnings.length > 3 ? <span>+{warnings.length - 3}</span> : null}
         </div>
       ) : null}
@@ -588,6 +595,7 @@ export function AdminEquipmentPage() {
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
 
   const basePath = getBaseAdminPath(location.pathname);
+  const warningFilter = String(searchParams.get('warning') || '').trim();
 
   useEffect(() => {
     const query = typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)') : null;
@@ -603,7 +611,9 @@ export function AdminEquipmentPage() {
   }
 
   async function loadList() {
-    const payload = await adminServiceApi.equipmentList();
+    const payload = await adminServiceApi.equipmentList({
+      warning: warningFilter || undefined,
+    });
     const rows = payload.items || [];
     setItems(rows);
     if (equipmentId) {
@@ -640,7 +650,7 @@ export function AdminEquipmentPage() {
   }
 
   function closeMobileDetail() {
-    navigate(`${basePath}/equipment`);
+    navigate(`${basePath}/equipment${warningFilter ? `?warning=${encodeURIComponent(warningFilter)}` : ''}`);
   }
 
   function navigateToBoard(target, id) {
@@ -662,6 +672,21 @@ export function AdminEquipmentPage() {
     }
   }
 
+  function onAlertClick(warningKey) {
+    const next = new URLSearchParams(searchParams);
+    if (warningFilter === warningKey) next.delete('warning');
+    else next.set('warning', warningKey);
+    const query = next.toString();
+    navigate(`${basePath}/equipment${query ? `?${query}` : ''}`);
+  }
+
+  function resetWarningFilter() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('warning');
+    const query = next.toString();
+    navigate(`${basePath}/equipment${query ? `?${query}` : ''}`);
+  }
+
   const mobileDetailMode = isMobile && Boolean(equipmentId);
 
   return (
@@ -673,11 +698,17 @@ export function AdminEquipmentPage() {
         </div>
       </header>
 
-      <DashboardHeader dashboard={dashboard} />
+      <DashboardHeader dashboard={dashboard} onAlertClick={onAlertClick} activeWarning={warningFilter} />
 
       <div className={`equipment-ops-layout ${mobileDetailMode ? 'mobile-detail' : ''}`}>
         {!mobileDetailMode ? (
           <aside className="equipment-ops-list">
+            {warningFilter ? (
+              <div className="equipment-warning-filter-chip">
+                <span>Фильтр: {ALERT_LABELS[warningFilter] || warningFilter}</span>
+                <button type="button" onClick={resetWarningFilter}>Сбросить</button>
+              </div>
+            ) : null}
             {items.map((item) => (
               <EquipmentListCard
                 key={item.id}
