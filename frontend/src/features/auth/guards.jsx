@@ -9,7 +9,7 @@ export function RequireAuth() {
     return <div className="auth-loading">Загрузка...</div>;
   }
 
-  if (status !== 'authenticated') {
+  if (status === 'unauthenticated') {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
@@ -17,8 +17,16 @@ export function RequireAuth() {
 }
 
 export function RequireRole({ allowedRoles = [] }) {
-  const { user } = useAuth();
+  const { status, user } = useAuth();
   const location = useLocation();
+
+  if (status === 'loading') {
+    return <div className="auth-loading">Загрузка...</div>;
+  }
+
+  if (status === 'unauthenticated') {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
 
   if (!user || !allowedRoles.includes(user.role)) {
     return <Navigate to="/403" replace state={{ from: location.pathname }} />;
