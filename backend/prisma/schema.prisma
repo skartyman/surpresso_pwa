@@ -52,6 +52,33 @@ enum EquipmentCommercialStatus {
   sold
 }
 
+enum EquipmentPlacement {
+  workshop
+  at_location
+  on_rent
+  on_replacement
+  sold
+}
+
+enum WorkshopStage {
+  arrived_waiting
+  in_progress
+  testing
+  ready
+}
+
+enum ServiceRequestStatus {
+  new
+  assigned
+  taken_in_work
+  ready_for_qc
+  on_service_head_control
+  to_director
+  invoiced
+  closed
+  cancelled
+}
+
 enum ServiceIntakeType {
   client_repair
   after_rent
@@ -108,6 +135,7 @@ model User {
   processedServiceCases ServiceCase[]          @relation("ServiceCaseProcessedBy")
   uploadedServiceMedia  ServiceCaseMedia[]
   changedServiceHistory ServiceStatusHistory[]
+  changedCommercialHistory CommercialStatusHistory[]
   serviceCaseNotes      ServiceCaseNote[]
   equipmentComments     EquipmentComment[]
   equipmentNotes        EquipmentNote[]
@@ -168,11 +196,69 @@ model Client {
 
   equipment       Equipment[]
   serviceRequests ServiceRequest[]
+  pointUsers      PointUser[]
+}
+
+model Network {
+  id          String   @id
+  name        String
+  legalName   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  locations   Location[]
+  equipment   Equipment[]
+  pointUsers  PointUser[]
+}
+
+model Location {
+  id           String   @id
+  networkId    String
+  code         String?
+  name         String
+  city         String?
+  address      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  network      Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  equipment    Equipment[]
+  pointUsers   PointUser[]
+  serviceRequests ServiceRequest[]
+
+  @@index([networkId])
+}
+
+model PointUser {
+  id             String   @id
+  telegramUserId String   @unique
+  clientId       String?
+  networkId      String?
+  locationId     String?
+  role           String
+  fullName       String?
+  phone          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  network        Network?  @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  serviceRequests ServiceRequest[]
+
+  @@index([clientId])
+  @@index([networkId])
+  @@index([locationId])
 }
 
 model Equipment {
   id             String   @id
   clientId       String?
+  networkId      String?
+  locationId     String?
   type           String
   brand          String
   name           String?
@@ -186,6 +272,8 @@ model Equipment {
   currentStatusRaw   String?
   serviceStatus      EquipmentServiceStatus?
   commercialStatus   EquipmentCommercialStatus?
+  currentPlacement   EquipmentPlacement?
+  workshopStage      WorkshopStage?
   clientName         String?
   clientPhone        String?
   clientLocation     String?
@@ -201,15 +289,20 @@ model Equipment {
   updatedAt      DateTime @updatedAt
 
   client          Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  network         Network?          @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  location        Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
   serviceRequests ServiceRequest[]
   serviceCases    ServiceCase[]
   serviceMedia    ServiceCaseMedia[]
   serviceHistory  ServiceStatusHistory[]
+  commercialHistory CommercialStatusHistory[]
   comments        EquipmentComment[]
   notes           EquipmentNote[]
   tasks           ServiceTask[]
 
   @@index([clientId])
+  @@index([networkId])
+  @@index([locationId])
   @@index([ownerType])
   @@index([clientServiceType])
   @@index([equipmentType])
@@ -222,6 +315,7 @@ model Equipment {
 model ServiceCase {
   id                         String   @id
   equipmentId                String
+  serviceRequestId           String?
   intakeType                 ServiceIntakeType
   serviceStatus              EquipmentServiceStatus
   commercialStatusAfter      EquipmentCommercialStatus?
@@ -255,6 +349,7 @@ model ServiceCase {
   updatedAt                  DateTime  @updatedAt
 
   equipment       Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  serviceRequest  ServiceRequest?     @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
   assignedToUser  User?               @relation("ServiceCaseAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
   assignedByUser  User?               @relation("ServiceCaseAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   processedByUser User?               @relation("ServiceCaseProcessedBy", fields: [processedByUserId], references: [id], onDelete: SetNull)
@@ -262,8 +357,10 @@ model ServiceCase {
   history         ServiceStatusHistory[]
   notes           ServiceCaseNote[]
   tasks           ServiceTask[]
+  commercialHistory CommercialStatusHistory[]
 
   @@index([equipmentId])
+  @@index([serviceRequestId])
   @@index([serviceStatus])
   @@index([assignedToUserId])
   @@index([acceptedAt])
@@ -290,6 +387,7 @@ model ServiceCaseMedia {
   @@index([equipmentId])
   @@index([serviceCaseId])
   @@index([uploadedByUserId])
+  @@map("EquipmentMedia")
 }
 
 model ServiceStatusHistory {
@@ -304,6 +402,26 @@ model ServiceStatusHistory {
   actorLabel         String?
   changedByUserId    String?
   changedAt          DateTime @default(now())
+
+  equipment     Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  serviceCase   ServiceCase? @relation(fields: [serviceCaseId], references: [id], onDelete: SetNull)
+  changedByUser User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([serviceCaseId])
+  @@index([changedByUserId])
+}
+
+model CommercialStatusHistory {
+  id                       String   @id
+  equipmentId              String
+  serviceCaseId            String?
+  fromCommercialStatus     EquipmentCommercialStatus?
+  toCommercialStatus       EquipmentCommercialStatus
+  comment                  String?
+  actorLabel               String?
+  changedByUserId          String?
+  changedAt                DateTime @default(now())
 
   equipment     Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   serviceCase   ServiceCase? @relation(fields: [serviceCaseId], references: [id], onDelete: SetNull)
@@ -444,13 +562,15 @@ model ServiceRequest {
   id                 String   @id
   type               String   @default("service_repair")
   clientId           String
+  pointUserId        String?
+  locationId         String?
   equipmentId        String?
   title              String   @default("")
   category           String
   description        String
   urgency            String
   canOperateNow      Boolean
-  status             String
+  status             ServiceRequestStatus
   assignedDepartment String   @default("service")
   source             String
   assignedToUserId   String?
@@ -460,6 +580,8 @@ model ServiceRequest {
   updatedAt          DateTime @updatedAt
 
   client         Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pointUser      PointUser?            @relation(fields: [pointUserId], references: [id], onDelete: SetNull)
+  location       Location?             @relation(fields: [locationId], references: [id], onDelete: SetNull)
   equipment      Equipment?            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   assignedToUser User?                 @relation("AssignedUserRequests", fields: [assignedToUserId], references: [id])
   assignedByUser User?                 @relation("AssignmentByUserRequests", fields: [assignedByUserId], references: [id], onDelete: SetNull)
@@ -467,8 +589,11 @@ model ServiceRequest {
   history        ServiceRequestStatusHistory[]
   notes          ServiceRequestInternalNote[]
   assignmentHistory ServiceRequestAssignmentHistory[]
+  serviceCases   ServiceCase[]
 
   @@index([clientId])
+  @@index([pointUserId])
+  @@index([locationId])
   @@index([equipmentId])
   @@index([assignedToUserId])
   @@index([assignedByUserId])

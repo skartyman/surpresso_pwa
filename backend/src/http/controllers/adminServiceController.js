@@ -1,12 +1,10 @@
 import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 import { normalizeRequestType, REQUEST_DEPARTMENTS, REQUEST_TYPES } from '../../domain/entities/requestTypes.js';
-const ALLOWED_STATUSES = ['new', 'in_progress', 'resolved', 'closed'];
+import { normalizeServiceRequestStatus } from '../../domain/workflow/serviceRequestStatuses.js';
 const ALLOWED_SORT = ['urgency', 'createdAt', 'updatedAt'];
 
 function normalizeStatus(value) {
-  if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
-  return ALLOWED_STATUSES.includes(normalized) ? normalized : null;
+  return normalizeServiceRequestStatus(value);
 }
 
 function normalizeSort(value) {

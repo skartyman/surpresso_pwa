@@ -1,3 +1,5 @@
+import { isServiceRequestClosed } from '../../domain/workflow/serviceRequestStatuses.js';
+
 function mapClient(client) {
   if (!client) return null;
   return {
@@ -389,7 +391,7 @@ export class NeonServiceRequestRepository {
   }
 
   isOverdue(item, now = new Date()) {
-    if (!item || item.status === 'closed' || item.status === 'resolved') return false;
+    if (!item || isServiceRequestClosed(item.status)) return false;
     const slaHours = { critical: 4, high: 8, medium: 24, low: 48 };
     const hours = slaHours[item.urgency] || 24;
     const createdAt = new Date(item.createdAt).getTime();
@@ -425,25 +427,25 @@ export class NeonServiceRequestRepository {
       critical: requests.filter((item) => item.urgency === 'critical').length,
       withoutEquipment: requests.filter((item) => !item.equipmentId).length,
       withoutResponse: requests.filter((item) => !history.some((h) => h.serviceRequestId === item.id)).length,
-      stuckInProgress: requests.filter((item) => item.status === 'in_progress' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 60 * 60 * 1000).length,
+      stuckInProgress: requests.filter((item) => item.status === 'taken_in_work' && (now.getTime() - new Date(item.updatedAt).getTime()) > 48 * 60 * 60 * 1000).length,
       overdue: requests.filter((item) => this.isOverdue(item, now)).length,
     };
 
-    const closedToday = requests.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length;
+    const closedToday = requests.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length;
     const waitingParts = requests.filter((item) => (notesByRequest[item.id] || []).some((n) => String(n.text || '').toLowerCase().includes('waiting_parts') || String(n.text || '').toLowerCase().includes('запчаст'))).length;
 
     const engineerLoad = engineers.map((eng) => {
       const own = requests.filter((item) => item.assignedToUserId === eng.id);
-      const closed = own.filter((item) => item.status === 'closed');
+      const closed = own.filter((item) => isServiceRequestClosed(item.status));
       const avgCloseHours = closed.length
         ? closed.reduce((sum, item) => sum + ((new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000), 0) / closed.length
         : null;
       return {
         userId: eng.id,
         name: eng.fullName,
-        active: own.filter((item) => item.status !== 'closed').length,
+        active: own.filter((item) => !isServiceRequestClosed(item.status)).length,
         overdue: own.filter((item) => this.isOverdue(item, now)).length,
-        closedToday: own.filter((item) => item.status === 'closed' && String(item.updatedAt).slice(0, 10) === today).length,
+        closedToday: own.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
         avgCloseHours,
       };
     });
@@ -465,7 +467,7 @@ export class NeonServiceRequestRepository {
     return {
       kpis: [
         { key: 'new', label: 'Новые заявки', value: statusCounts.new || 0 },
-        { key: 'in_progress', label: 'В работе', value: statusCounts.in_progress || 0 },
+        { key: 'taken_in_work', label: 'В работе', value: statusCounts.taken_in_work || 0 },
         { key: 'overdue', label: 'Просроченные', value: attention.overdue },
         { key: 'unassigned', label: 'Без назначения', value: attention.unassigned },
         { key: 'waiting_parts', label: 'Ждут запчасти', value: waitingParts },
@@ -592,6 +594,7 @@ export class NeonServiceRequestRepository {
       where: { id },
       data: {
         assignedToUserId: assignedToUserId || null,
+        status: assignedToUserId ? 'assigned' : undefined,
         assignedAt: assignedToUserId ? new Date() : null,
         assignedByUserId: assignedToUserId ? (meta.assignedByUserId || null) : null,
       },
@@ -638,10 +641,10 @@ export class NeonServiceRequestRepository {
         role: eng.role,
         isActive: eng.isActive,
         workload: {
-          activeCount: own.filter((item) => !['closed', 'resolved'].includes(item.status)).length,
+          activeCount: own.filter((item) => !isServiceRequestClosed(item.status)).length,
           overdueCount: own.filter((item) => this.isOverdue(item, now)).length,
-          criticalCount: own.filter((item) => !['closed', 'resolved'].includes(item.status) && item.urgency === 'critical').length,
-          resolvedTodayCount: own.filter((item) => ['closed', 'resolved'].includes(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
+          criticalCount: own.filter((item) => !isServiceRequestClosed(item.status) && item.urgency === 'critical').length,
+          resolvedTodayCount: own.filter((item) => isServiceRequestClosed(item.status) && String(item.updatedAt).slice(0, 10) === today).length,
         },
       };
     });
