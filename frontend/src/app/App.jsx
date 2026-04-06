@@ -17,11 +17,12 @@ import { AdminLayout } from '../features/admin/components/AdminLayout';
 import { PAGE_PERMISSIONS, getDefaultAdminSection } from '../features/admin/roleConfig';
 import { AdminPlaceholderPage } from '../features/admin/pages/AdminPlaceholderPage';
 import { AdminServicePage } from '../features/admin/pages/AdminServicePage';
-import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
 import { AdminDirectorPage } from '../features/admin/pages/AdminDirectorPage';
 import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
+import { AdminReportsPage } from '../features/admin/pages/AdminReportsPage';
+import { AdminNotificationCenterPage } from '../features/admin/pages/AdminNotificationCenterPage';
 import { useI18n } from '../i18n';
 
 function ClientRoutes() {
@@ -55,8 +56,9 @@ function AdminRoutes({ basePath }) {
     <Route path={basePath} element={<AdminLayout />}>
       <Route index element={<RoleHomeRedirect />} />
 
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.dashboard} />}>
-        <Route path="dashboard" element={<AdminDashboardPage />} />
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.executive} />}>
+        <Route path="executive" element={<AdminDashboardPage />} />
+        <Route path="dashboard" element={<Navigate to="../executive" replace />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.service} />}>
@@ -71,25 +73,25 @@ function AdminRoutes({ basePath }) {
         <Route path="sales" element={<AdminSalesPage />} />
       </Route>
 
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.employees} />}>
-        <Route path="employees" element={<AdminEmployeesPage />} />
-      </Route>
-
-      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.clients} />}>
-        <Route path="clients" element={<AdminPlaceholderPage title="Клиенты" items={['Сегменты', 'Карточки клиентов', 'LTV и риски']} />} />
-      </Route>
-
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.equipment} />}>
         <Route path="equipment" element={<AdminEquipmentPage />} />
         <Route path="equipment/:equipmentId" element={<AdminEquipmentPage />} />
       </Route>
 
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.reports} />}>
+        <Route path="reports" element={<AdminReportsPage />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.notifications} />}>
+        <Route path="notifications" element={<AdminNotificationCenterPage />} />
+      </Route>
+
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.content} />}>
-        <Route path="content" element={<AdminPlaceholderPage title="Контент и SEO" items={['Лендинги', 'Статьи', 'Поисковые запросы']} />} />
+        <Route path="content" element={<AdminPlaceholderPage title="Content / SEO" items={['Лендинги', 'Статьи', 'Поисковые запросы', 'Мета-шаблоны']} />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.settings} />}>
-        <Route path="settings" element={<AdminPlaceholderPage title="Настройки" items={['Роли', 'Интеграции', 'Шаблоны уведомлений']} />} />
+        <Route path="settings" element={<AdminPlaceholderPage title="Settings" items={['Роли', 'Интеграции', 'Шаблоны уведомлений']} />} />
       </Route>
     </Route>
   );
