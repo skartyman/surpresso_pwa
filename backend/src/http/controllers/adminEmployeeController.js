@@ -8,8 +8,8 @@ import {
 } from '../../domain/entities/serviceTeamCatalog.js';
 import { isServiceRequestClosed } from '../../domain/workflow/serviceRequestStatuses.js';
 
-const ALLOWED_ROLES = ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director'];
-const SERVICE_TEAM_VIEW_ROLES = ['owner', 'director', 'service_head', 'manager', 'service_engineer'];
+const ALLOWED_ROLES = ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director', 'seo'];
+const SERVICE_TEAM_VIEW_ROLES = ['owner', 'director', 'service_head', 'manager', 'service_engineer', 'sales_manager', 'seo'];
 const SERVICE_TEAM_EDIT_ROLES = ['owner', 'director', 'service_head', 'manager'];
 
 function canManageRole(adminRole, targetRole) {

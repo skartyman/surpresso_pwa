@@ -66,15 +66,16 @@ export function AdminLayout() {
       const found = section.items.find((item) => location.pathname.includes(`/${item.to}`));
       if (found) return found.label;
     }
-    return 'Admin panel';
+    return 'Панель управления';
   }, [sections, location.pathname]);
 
   return (
     <div className="admin-app-shell">
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">
+          <img src="/icons/logo-service.png" alt="Логотип Surpresso" className="admin-brand__logo" />
           <strong>Surpresso</strong>
-          <span>Role-driven Admin Panel</span>
+          <span>Панель управления</span>
         </div>
 
         <nav className="admin-sidebar-sections">
@@ -101,11 +102,11 @@ export function AdminLayout() {
             <strong>{user.fullName || user.name}</strong>
             <span className="role-badge">{ROLE_LABELS[user.role]}</span>
           </div>
-          <button className="secondary" onClick={logout}>Выйти</button>
+          <button type="button" className="secondary" onClick={logout}>Выйти</button>
         </div>
       </aside>
 
-      {sidebarOpen ? <button type="button" className="admin-drawer-overlay" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
+      {sidebarOpen ? <button type="button" className="admin-drawer-overlay" onClick={() => setSidebarOpen(false)} aria-label="Закрыть меню" /> : null}
 
       <main className="admin-main">
         <header className="admin-topbar">

@@ -24,6 +24,7 @@ import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
 import { AdminIntakeWizardPage } from '../features/admin/pages/AdminIntakeWizardPage';
 import { AdminReportsPage } from '../features/admin/pages/AdminReportsPage';
 import { AdminNotificationCenterPage } from '../features/admin/pages/AdminNotificationCenterPage';
+import { AdminEmployeesPage } from '../features/admin/pages/AdminEmployeesPage';
 import { useI18n } from '../i18n';
 import { RequestsPage } from '../pages/RequestsPage';
 import { ProfilePage } from '../pages/ProfilePage';
@@ -67,6 +68,10 @@ function AdminRoutes({ basePath }) {
         <Route path="service" element={<AdminServicePage />} />
       </Route>
 
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.employees} />}>
+        <Route path="employees" element={<AdminEmployeesPage />} />
+      </Route>
+
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.director} />}>
         <Route path="director" element={<AdminDirectorPage />} />
       </Route>
@@ -90,11 +95,11 @@ function AdminRoutes({ basePath }) {
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.content} />}>
-        <Route path="content" element={<AdminPlaceholderPage title="Content / SEO" items={['Лендинги', 'Статьи', 'Поисковые запросы', 'Мета-шаблоны']} />} />
+        <Route path="content" element={<AdminPlaceholderPage title="Контент и SEO" items={['Лендинги', 'Статьи', 'Поисковые запросы', 'Мета-шаблоны']} />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.settings} />}>
-        <Route path="settings" element={<AdminPlaceholderPage title="Settings" items={['Роли', 'Интеграции', 'Шаблоны уведомлений']} />} />
+        <Route path="settings" element={<AdminPlaceholderPage title="Настройки" items={['Роли', 'Интеграции', 'Шаблоны уведомлений']} />} />
       </Route>
     </Route>
   );

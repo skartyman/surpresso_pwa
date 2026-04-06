@@ -27,7 +27,7 @@ export function Icon({ name, className }) {
 
 export function ThemeToggle({ mode, resolvedTheme, onToggle }) {
   const icon = resolvedTheme === 'dark' ? 'sun' : 'moon';
-  const label = mode === 'system' ? `System (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` : (mode === 'dark' ? 'Dark' : 'Light');
+  const label = mode === 'system' ? `Система (${resolvedTheme === 'dark' ? 'Тёмная' : 'Светлая'})` : (mode === 'dark' ? 'Тёмная' : 'Светлая');
   return (
     <button type="button" className="theme-toggle" onClick={onToggle} aria-label="Переключить тему">
       <Icon name={icon} />
