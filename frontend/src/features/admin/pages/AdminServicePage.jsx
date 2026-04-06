@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
-import { getEquipmentCardCover } from '../utils/equipmentCardCover';
 import {
   AlertPanel,
   DetailPanel,
@@ -13,129 +11,129 @@ import {
   StatusBadge,
 } from '../components/AdminUi';
 
-const BOARD_COLUMNS = ['accepted', 'in_progress', 'testing', 'ready'];
-const BOARD_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тестирование', ready: 'Готово' };
-const STATUS_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тест', ready: 'Готово', processed: 'Проведено', closed: 'Закрыто' };
-const COMMERCIAL_STATUS_LABELS = {
-  none: 'Нет',
-  ready_for_issue: 'Готово к выдаче',
-  ready_for_rent: 'Готово к аренде',
-  ready_for_sale: 'Готово к продаже',
-  issued_to_client: 'Выдано клиенту',
-  reserved_for_rent: 'Бронь аренды',
-  out_on_rent: 'В аренде',
-  out_on_replacement: 'На подмене',
-  reserved_for_sale: 'Бронь продажи',
-  sold: 'Продано',
-};
-const KPI_ICON = {
-  newCount: 'dashboard',
-  inProgressCount: 'service',
-  testingCount: 'service',
-  readyCount: 'equipment',
-  overdueCount: 'bell',
-  unassignedCount: 'clients',
-  assignAvg: 'employees',
-  repairAvg: 'service',
-  slaReady: 'equipment',
-  slaBacklog: 'sales',
+const BOARD_COLUMNS = ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced'];
+const BOARD_LABELS = {
+  new: 'Новая заявка',
+  assigned: 'Назначена',
+  taken_in_work: 'В работе',
+  ready_for_qc: 'Готово к QC',
+  on_service_head_control: 'Контроль начсервиса',
+  to_director: 'Директор / счет',
+  invoiced: 'Счет выставлен',
+  closed: 'Закрыта',
+  cancelled: 'Отменена',
 };
 const COLUMN_THEME = {
-  accepted: { eyebrow: 'Новые', accent: 'blue' },
-  in_progress: { eyebrow: 'Ремонт', accent: 'orange' },
-  testing: { eyebrow: 'Контроль', accent: 'violet' },
-  ready: { eyebrow: 'Выдача', accent: 'green' },
+  new: { eyebrow: 'Входящий поток', accent: 'blue' },
+  assigned: { eyebrow: 'Назначение', accent: 'violet' },
+  taken_in_work: { eyebrow: 'Инженер', accent: 'orange' },
+  ready_for_qc: { eyebrow: 'Проверка', accent: 'teal' },
+  on_service_head_control: { eyebrow: 'Начсервиса', accent: 'green' },
+  to_director: { eyebrow: 'Финализация', accent: 'yellow' },
+  invoiced: { eyebrow: 'Документы', accent: 'rose' },
 };
-const DETAIL_TABS = ['overview', 'history', 'media', 'notes', 'equipment', 'commercial'];
-const TAB_LABELS = {
-  overview: 'Обзор', history: 'История', media: 'Медиа', notes: 'Заметки', equipment: 'Оборудование', commercial: 'Коммерция',
-};
+const DETAIL_TABS = ['overview', 'history', 'media', 'notes'];
+const TAB_LABELS = { overview: 'Обзор', history: 'История', media: 'Фото / видео', notes: 'Заметки' };
 
-function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
-function formatDuration(value) { return Number.isFinite(value) ? `${value} мин` : '—'; }
-function formatPersonAudit(item) {
-  if (!item) return '—';
-  if (item.user?.fullName) return item.user.fullName;
-  return item.actorLabel || '—';
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString('ru-RU') : '—';
 }
 
-function ServiceQuickActions({ loadingKey, serviceActions, commercialActions, onServiceAction, onCommercialAction }) {
-  const actionItems = [serviceActions[0], commercialActions[0]].filter(Boolean);
-  if (!actionItems.length) return null;
+function getRequestPreview(request) {
+  return (request?.media || []).find((item) => item.previewUrl || item.fileUrl) || null;
+}
 
+function splitMediaByStage(rows = []) {
+  const grouped = { before: [], after: [], client: [] };
+  rows.forEach((item) => {
+    const stage = item.stage || 'client';
+    if (!grouped[stage]) grouped[stage] = [];
+    grouped[stage].push(item);
+  });
+  return grouped;
+}
+
+function getRoleActions(request, user) {
+  const status = request?.status;
+  const isEngineer = user?.role === ROLES.serviceEngineer;
+  const isHead = [ROLES.serviceHead, ROLES.manager, ROLES.owner].includes(user?.role);
+  const isDirector = [ROLES.director, ROLES.owner].includes(user?.role);
+  const isBilling = [ROLES.salesManager, ROLES.director, ROLES.owner].includes(user?.role);
+  const actions = [];
+
+  if (isEngineer && !request?.assignedToUserId && ['new', 'assigned'].includes(status)) {
+    actions.push({ kind: 'claim', label: 'Взять в работу' });
+  }
+  if (isEngineer && request?.assignedToUserId === user?.id && status === 'assigned') {
+    actions.push({ kind: 'status', status: 'taken_in_work', label: 'Начать работу' });
+  }
+  if (isEngineer && request?.assignedToUserId === user?.id && status === 'taken_in_work') {
+    actions.push({ kind: 'status', status: 'ready_for_qc', label: 'Передать на QC' });
+  }
+  if (isHead && status === 'ready_for_qc') {
+    actions.push({ kind: 'status', status: 'on_service_head_control', label: 'Взять на контроль' });
+  }
+  if (isHead && status === 'on_service_head_control') {
+    actions.push({ kind: 'status', status: 'to_director', label: 'Передать директору' });
+  }
+  if (isDirector && status === 'to_director') {
+    actions.push({ kind: 'status', status: 'invoiced', label: 'На выставление счета' });
+  }
+  if (isBilling && status === 'invoiced') {
+    actions.push({ kind: 'status', status: 'closed', label: 'Закрыть заявку' });
+  }
+  return actions;
+}
+
+function ServiceQuickActions({ actions, loadingKey, onAction }) {
+  if (!actions.length) return null;
   return (
     <div className="service-board-card__actions">
-      {actionItems.map((action) => {
-        const isCommercial = action.type === 'commercial';
-        const busyKey = `${isCommercial ? 'commercial' : 'service'}:${action.targetStatus}`;
-        return (
-          <button
-            key={`${action.type}:${action.key}:${action.targetStatus}`}
-            type="button"
-            className={`service-board-card__action ${isCommercial ? 'secondary' : ''}`}
-            disabled={Boolean(loadingKey)}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (isCommercial) onCommercialAction?.(action.targetStatus);
-              else onServiceAction?.(action.targetStatus);
-            }}
-          >
-            {loadingKey === busyKey ? '...' : action.label}
-          </button>
-        );
-      })}
+      {actions.map((action) => (
+        <button
+          key={`${action.kind}:${action.status || action.label}`}
+          type="button"
+          className={`service-board-card__action ${action.kind === 'claim' ? '' : 'secondary'}`}
+          disabled={Boolean(loadingKey)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAction(action);
+          }}
+        >
+          {loadingKey === `${action.kind}:${action.status || 'claim'}` ? '...' : action.label}
+        </button>
+      ))}
     </div>
   );
 }
 
-function resolveServiceCardPreview(request) {
-  const savedCover = getEquipmentCardCover(request?.equipmentId);
-  if (savedCover) return savedCover;
-  const requestMedia = (request?.media || [])[0];
-  if (requestMedia?.previewUrl || requestMedia?.fileUrl) return requestMedia.previewUrl || requestMedia.fileUrl;
-  const equipmentMedia = (request?.equipment?.media || [])[0];
-  if (equipmentMedia?.previewUrl || equipmentMedia?.fullUrl || equipmentMedia?.fileUrl) {
-    return equipmentMedia.previewUrl || equipmentMedia.fullUrl || equipmentMedia.fileUrl;
-  }
-  return request?.equipment?.previewUrl || request?.equipment?.photoUrl || request?.equipment?.imageUrl || '';
-}
-
-function ServiceTicketCard({
-  request,
-  active,
-  onSelect,
-  actionLoading,
-  canUseServiceBoardActions,
-  onServiceAction,
-  onCommercialAction,
-}) {
-  const status = request.serviceStatus || request.status;
+function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onAction }) {
+  const preview = getRequestPreview(request);
+  const actions = getRoleActions(request, user);
   const warnings = [];
-  const mediaUrl = resolveServiceCardPreview(request);
-  const workflowActions = request.nextActions?.all || [];
-  const serviceActions = workflowActions.filter((action) => action.type === 'service');
-  const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
-  if (!request.assignedToUserId) warnings.push('Без назначения');
-  if (!request.equipmentId) warnings.push('Нет оборудования');
-  if (status === 'in_progress' && (Date.now() - new Date(request.updatedAt).getTime()) > 48 * 3600000) warnings.push('Застрял в работе');
-  if (status === 'ready' && (Date.now() - new Date(request.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в готово');
+  if (!request.assignedToUserId) warnings.push('Без инженера');
+  if (!request.equipmentId) warnings.push('Без оборудования');
+  if (request.status === 'taken_in_work' && (request.media || []).filter((item) => item.stage === 'after').length === 0) warnings.push('Нет фото после');
 
   return (
-    <article className={`service-board-card ${active ? 'active' : ''}`} data-status={status}>
+    <article className={`service-board-card ${active ? 'active' : ''}`} data-status={request.status}>
       <button type="button" className="service-board-card__body" onClick={() => onSelect(request.id)}>
         <div className="service-board-card__topbar">
-          <StatusBadge status={status}>{STATUS_LABELS[status] || status}</StatusBadge>
+          <StatusBadge status={request.status}>{BOARD_LABELS[request.status] || request.status}</StatusBadge>
           <small>#{request.id}</small>
         </div>
 
         <div className="service-board-card__preview">
-          {mediaUrl ? <img src={mediaUrl} alt={request.equipment?.model || 'preview'} loading="lazy" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+          {preview?.previewUrl || preview?.fileUrl
+            ? <img src={preview.previewUrl || preview.fileUrl} alt={request.equipment?.model || 'preview'} loading="lazy" />
+            : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
         </div>
 
         <div className="service-board-card__content">
-          <strong>{request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}</strong>
+          <strong>{request.pointUser?.fullName || request.client?.contactName || request.client?.companyName || 'Клиент'}</strong>
           <p>{request.equipment?.brand || '—'} {request.equipment?.model || ''}</p>
-          <p>{request.equipment?.internalNumber || request.internalNumberSnapshot || '—'} · {request.equipment?.serial || request.serialNumberSnapshot || '—'}</p>
+          <p>{request.location?.name || request.equipment?.locationName || 'Точка не выбрана'}</p>
+          <p>{request.description || 'Без описания'}</p>
         </div>
 
         {warnings.length ? (
@@ -146,67 +144,32 @@ function ServiceTicketCard({
 
         <div className="service-board-card__meta">
           <span><Icon name="employees" /> {request.assignedToUser?.fullName || 'Не назначен'}</span>
-          <span><Icon name="clients" /> {request.equipment?.ownerType || '—'}</span>
-          <span><Icon name="service" /> {request.intakeType || '—'}</span>
-          <span><Icon name="sales" /> {COMMERCIAL_STATUS_LABELS[request.equipment?.commercialStatus || 'none'] || 'none'}</span>
+          <span><Icon name="clients" /> {request.client?.companyName || '—'}</span>
+          <span><Icon name="service" /> {request.urgency || 'normal'}</span>
+          <span><Icon name="equipment" /> {(request.media || []).length}</span>
         </div>
 
         <div className="service-board-card__footer">
           <div className="service-board-card__facts">
-            <span><Icon name="equipment" /> {(request.media || []).length || 0}</span>
-            <span><Icon name="content" /> {(request.notes || []).length || 0}</span>
-            <span><Icon name="dashboard" /> {request.historyCount || request.statusHistoryCount || 0}</span>
+            <span><Icon name="dashboard" /> {(request.history || []).length}</span>
+            <span><Icon name="content" /> {(request.notes || []).length}</span>
+            <span><Icon name="service" /> {request.category || 'service'}</span>
           </div>
           <small>{formatDate(request.updatedAt)}</small>
         </div>
       </button>
 
-      {canUseServiceBoardActions ? (
-        <ServiceQuickActions
-          loadingKey={actionLoading}
-          serviceActions={serviceActions}
-          commercialActions={commercialActions}
-          onServiceAction={onServiceAction}
-          onCommercialAction={onCommercialAction}
-        />
-      ) : null}
+      <ServiceQuickActions actions={actions} loadingKey={actionLoading} onAction={onAction} />
     </article>
-  );
-}
-
-function Timeline({ history }) {
-  const rows = [...(history || [])].sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
-  if (!rows.length) return <p className="empty-copy">История пока пустая.</p>;
-  return (
-    <div className="timeline-list">
-      {rows.map((item) => (
-        <article key={item.id} className="timeline-item">
-          <i />
-          <div>
-            <strong>{item.fromServiceStatus || item.fromStatusRaw || '—'} → {item.toServiceStatus || item.toStatusRaw || '—'}</strong>
-            <p>{item.comment || 'Без комментария'}</p>
-            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'система'}</small>
-          </div>
-        </article>
-      ))}
-    </div>
   );
 }
 
 export function AdminServicePage() {
   const { user } = useAuth();
   const canAssign = [ROLES.serviceHead, ROLES.manager, ROLES.owner].includes(user?.role);
-  const canUseServiceBoardActions = ![ROLES.salesManager].includes(user?.role);
   const canSeeInternalNotes = [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.manager, ROLES.director, ROLES.owner].includes(user?.role);
 
-  const [searchParams] = useSearchParams();
-  const [filters, setFilters] = useState({
-    quickFilter: searchParams.get('quickFilter') || 'all',
-    engineer: 'all',
-    id: '',
-    client: '',
-    status: searchParams.get('status') || 'all',
-  });
+  const [filters, setFilters] = useState({ engineer: 'all', quickFilter: 'all', status: 'all', id: '', client: '' });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
@@ -217,207 +180,172 @@ export function AdminServicePage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [noteBody, setNoteBody] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]);
-  const [mediaCaption, setMediaCaption] = useState('');
+  const [mediaStage, setMediaStage] = useState('before');
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
-  const [engineersLoadError, setEngineersLoadError] = useState('');
 
   async function load(next = filters) {
     setLoading(true);
     try {
-      const [listResult, dashResult, engineerResult] = await Promise.allSettled([
-        adminServiceApi.serviceCases({
-          ...next,
-          serviceStatus: next.status === 'all' ? '' : next.status,
-          assignedToUserId: next.engineer === 'all' ? '' : next.engineer,
-          search: next.client || next.id || searchParams.get('equipmentId') || '',
+      const [list, dash, engineerPayload] = await Promise.all([
+        adminServiceApi.list({
+          status: next.status === 'all' ? '' : next.status,
+          client: next.client,
+          id: next.id,
+          engineer: next.engineer === 'all' ? '' : next.engineer,
+          sort: 'updatedAt',
         }),
-        adminServiceApi.serviceKpi(),
-        canAssign ? adminServiceApi.serviceEngineers() : Promise.resolve({ engineers: [] }),
+        adminServiceApi.dashboard({
+          status: next.status === 'all' ? '' : next.status,
+          engineer: next.engineer === 'all' ? '' : next.engineer,
+        }),
+        adminServiceApi.serviceEngineers().catch(() => ({ engineers: [] })),
       ]);
 
-      if (listResult.status === 'rejected' || dashResult.status === 'rejected') {
-        throw new Error('service_board_data_failed');
-      }
-
-      const list = listResult.value;
-      const dash = dashResult.value;
-      const engineerPayload = engineerResult.status === 'fulfilled' ? engineerResult.value : { engineers: [] };
-
-      setRequests(list.items || []);
+      const rows = list.requests || [];
+      setRequests(rows);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
-      const engineersFailed = engineerResult.status === 'rejected';
-      const nextFilters = engineersFailed && next.engineer !== 'all' ? { ...next, engineer: 'all' } : next;
-      if (engineersFailed && next.engineer !== 'all') {
-        setFilters(nextFilters);
-      }
-      setEngineersLoadError(engineersFailed ? 'Список инженеров недоступен. Назначение временно скрыто.' : '');
-      const requestedCaseId = searchParams.get('caseId');
-      const requestedEquipmentId = searchParams.get('equipmentId');
-      setSelectedId((prev) => prev
-        || requestedCaseId
-        || list.items?.find((item) => item.equipmentId === requestedEquipmentId)?.id
-        || list.items?.[0]?.id
-        || null);
+      setSelectedId((prev) => prev || rows[0]?.id || null);
       setError('');
     } catch {
-      setError('Не удалось загрузить сервисный дашборд.');
-    } finally { setLoading(false); }
+      setError('Не удалось загрузить сервисные заявки.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function loadDetails(id) {
-    const [payload, assignment] = await Promise.all([
-      adminServiceApi.serviceCaseById(id),
-      adminServiceApi.serviceCaseHistory(id).catch(() => ({ history: [] })),
+    const [payload, history] = await Promise.all([
+      adminServiceApi.byId(id),
+      adminServiceApi.assignmentHistory(id).catch(() => ({ history: [] })),
     ]);
-    setSelectedRequest(payload.item || null);
-    setAssignmentHistory(assignment.history || []);
+    setSelectedRequest(payload.request || null);
+    setAssignmentHistory(history.history || []);
+    setAssignForm({ assignedToUserId: payload.request?.assignedToUserId || '' });
   }
 
-  async function submitAssignment() {
-    if (!assignForm.assignedToUserId) return;
-    setActionLoading('assign');
-    await adminServiceApi.assignServiceCase(selectedId, assignForm.assignedToUserId);
-    setAssignForm({ assignedToUserId: '' });
-    await load();
-    await loadDetails(selectedId);
-    setFeedback('Назначение обновлено.');
-    setActionLoading('');
-  }
-
-  async function applyServiceStatus(toStatus, targetId = selectedId) {
-    if (!targetId || !toStatus) return;
-    setActionLoading(`service:${toStatus}`);
-    await adminServiceApi.updateServiceCaseStatus(targetId, { serviceStatus: toStatus });
-    await load();
-    await loadDetails(targetId);
-    setFeedback(`Сервисный статус обновлен: ${STATUS_LABELS[toStatus] || toStatus}.`);
-    setActionLoading('');
-  }
-
-  async function applyCommercialStatus(toStatus, targetRequest = selectedRequest) {
-    const equipmentId = targetRequest?.equipmentId;
-    if (!equipmentId || !toStatus) return;
-    setActionLoading(`commercial:${toStatus}`);
-    await adminServiceApi.updateCommercialStatus(equipmentId, toStatus, '', targetRequest?.id);
-    await load();
-    await loadDetails(targetRequest?.id);
-    setFeedback(`Коммерческий статус обновлен: ${COMMERCIAL_STATUS_LABELS[toStatus] || toStatus}.`);
-    setActionLoading('');
-  }
-
-  async function submitNote() {
-    if (!selectedId || !noteBody.trim()) return;
-    setActionLoading('note');
-    await adminServiceApi.addServiceCaseNote(selectedId, noteBody.trim(), true);
-    setNoteBody('');
-    await loadDetails(selectedId);
-    setFeedback('Заметка добавлена.');
-    setActionLoading('');
-  }
-
-  async function submitMedia() {
-    if (!selectedId || !mediaFiles.length) return;
-    setActionLoading('media');
-    await adminServiceApi.uploadServiceCaseMedia(selectedId, mediaFiles, mediaCaption.trim());
-    setMediaFiles([]);
-    setMediaCaption('');
-    await loadDetails(selectedId);
-    setFeedback('Медиа загружено.');
-    setActionLoading('');
-  }
-
-  useEffect(() => { load(); }, [searchParams]); // eslint-disable-line
+  useEffect(() => { load(); }, []); // eslint-disable-line
   useEffect(() => {
-    if (!selectedId) return setSelectedRequest(null);
+    if (!selectedId) return;
     loadDetails(selectedId).catch(() => {
       setSelectedRequest(null);
       setAssignmentHistory([]);
     });
   }, [selectedId]);
 
+  async function runAction(action, request = selectedRequest) {
+    if (!request) return;
+    const busyKey = `${action.kind}:${action.status || 'claim'}`;
+    setActionLoading(busyKey);
+    setError('');
+    try {
+      if (action.kind === 'claim') {
+        await adminServiceApi.assignManager(request.id, user.id, 'Engineer self-claimed request');
+        await adminServiceApi.updateStatus(request.id, 'taken_in_work', 'Engineer started work');
+      } else {
+        await adminServiceApi.updateStatus(request.id, action.status, action.label);
+      }
+      await load();
+      await loadDetails(request.id);
+      setFeedback(action.label);
+    } catch (actionError) {
+      setError(actionError?.message || 'Не удалось выполнить действие.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function submitAssignment() {
+    if (!selectedId || !assignForm.assignedToUserId) return;
+    setActionLoading('assign');
+    setError('');
+    try {
+      await adminServiceApi.assignManager(selectedId, assignForm.assignedToUserId, 'Assigned from service board');
+      await load();
+      await loadDetails(selectedId);
+      setFeedback('Инженер назначен.');
+    } catch (assignError) {
+      setError(assignError?.message || 'Не удалось назначить инженера.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function submitNote() {
+    if (!selectedId || !noteBody.trim()) return;
+    setActionLoading('note');
+    setError('');
+    try {
+      await adminServiceApi.addNote(selectedId, noteBody.trim());
+      setNoteBody('');
+      await loadDetails(selectedId);
+      setFeedback('Заметка добавлена.');
+    } catch (noteError) {
+      setError(noteError?.message || 'Не удалось сохранить заметку.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function submitMedia() {
+    if (!selectedId || !mediaFiles.length) return;
+    setActionLoading('media');
+    setError('');
+    try {
+      await adminServiceApi.uploadRequestMedia(selectedId, mediaFiles, mediaStage);
+      setMediaFiles([]);
+      await load();
+      await loadDetails(selectedId);
+      setFeedback(mediaStage === 'after' ? 'Фото после загружены.' : 'Фото до загружены.');
+    } catch (mediaError) {
+      setError(mediaError?.message || 'Не удалось загрузить медиа.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   const filteredRequests = useMemo(() => requests.filter((item) => {
-    const requestedEquipmentId = searchParams.get('equipmentId');
-    if (requestedEquipmentId && item.equipmentId !== requestedEquipmentId) return false;
     if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
     if (filters.quickFilter === 'mine') return item.assignedToUserId === user?.id;
-    if (filters.quickFilter === 'overdue') {
-      const ageHours = (Date.now() - new Date(item.updatedAt).getTime()) / 3600000;
-      return (item.serviceStatus === 'accepted' && ageHours > 12)
-        || (item.serviceStatus === 'in_progress' && ageHours > 48)
-        || (item.serviceStatus === 'testing' && ageHours > 24)
-        || (item.serviceStatus === 'ready' && ageHours > 24);
-    }
-    if (filters.quickFilter === 'stale_ready') return item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000;
-    if (filters.quickFilter?.startsWith('engineer:')) return item.assignedToUserId === filters.quickFilter.replace('engineer:', '');
+    if (filters.quickFilter === 'critical') return item.urgency === 'critical';
+    if (filters.quickFilter === 'with_qc') return ['ready_for_qc', 'on_service_head_control'].includes(item.status);
     return true;
-  }), [filters.quickFilter, requests, searchParams, user?.id]);
+  }), [filters.quickFilter, requests, user?.id]);
 
   const boardColumns = useMemo(() => BOARD_COLUMNS.map((status) => ({
     status,
     label: BOARD_LABELS[status],
-    items: filteredRequests.filter((item) => (item.serviceStatus || item.status) === status),
+    items: filteredRequests.filter((item) => item.status === status),
   })), [filteredRequests]);
 
-  const selectedServiceStatus = selectedRequest?.serviceStatus || selectedRequest?.status;
-  const selectedCommercialStatus = selectedRequest?.equipment?.commercialStatus || 'none';
-  const workflowActions = selectedRequest?.nextActions?.all || [];
-  const serviceActions = workflowActions.filter((action) => action.type === 'service');
-  const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
-  const canAssignWithLoadedEngineers = canAssign && engineers.length > 0 && !engineersLoadError;
-
-  const requiresAttention = {
-    unassigned: requests.filter((i) => !i.assignedToUserId).length,
-    withoutEquipment: requests.filter((i) => !i.equipmentId).length,
-    stuckInProgress: requests.filter((i) => i.serviceStatus === 'in_progress' && (Date.now() - new Date(i.updatedAt).getTime()) > 48 * 3600000).length,
-    readyTooLong: requests.filter((i) => i.serviceStatus === 'ready' && (Date.now() - new Date(i.updatedAt).getTime()) > 24 * 3600000).length,
-    rentSaleBacklog: requests.filter((i) => ['ready_for_rent', 'ready_for_sale'].includes(i.equipment?.commercialStatus)).length,
-  };
-
-  const kpis = [
-    { key: 'newCount', label: 'Принято', value: dashboard?.newCount || 0 },
-    { key: 'inProgressCount', label: 'В работе', value: dashboard?.inProgressCount || 0 },
-    { key: 'testingCount', label: 'Тестирование', value: dashboard?.testingCount || 0 },
-    { key: 'readyCount', label: 'Готово', value: dashboard?.readyCount || 0 },
-    { key: 'unassignedCount', label: 'Без назначения', value: dashboard?.unassignedCount || 0 },
-    { key: 'overdueCount', label: 'Просрочено', value: dashboard?.overdueCount || 0 },
-    { key: 'assignAvg', label: 'Ср. назначение', value: formatDuration(dashboard?.roleAnalytics?.service?.avgAssignTimeMinutes) },
-    { key: 'repairAvg', label: 'Ср. ремонт', value: formatDuration(dashboard?.roleAnalytics?.service?.avgRepairTimeMinutes) },
-    { key: 'slaReady', label: 'Залежалось в готово', value: dashboard?.slaAging?.staleReadyCount || 0 },
-    { key: 'slaBacklog', label: 'Залежалось аренда/продажа', value: dashboard?.slaAging?.staleRentSaleBacklogCount || 0 },
-  ];
+  const kpis = dashboard?.kpis || [];
+  const attention = dashboard?.attention || [];
+  const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
 
   return (
     <section className="service-dashboard">
       <header className="service-headline">
-        <div><h2>Сервисная доска</h2><p>Операционная доска: workflow по действиям + UX по ролям.</p></div>
+        <div><h2>Сервисные заявки</h2><p>Новый request workflow: от входящей заявки до контроля и счета.</p></div>
       </header>
 
       <div className="kpi-row">
-        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint="Сервис" />)}
+        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon="service" tone={item.key} hint="Requests" />)}
       </div>
 
-      <AlertPanel items={[
-        <li key="unassigned"><span>Без назначения</span><strong>{requiresAttention.unassigned}</strong></li>,
-        <li key="without_equipment"><span>Нет данных по оборудованию</span><strong>{requiresAttention.withoutEquipment}</strong></li>,
-        <li key="stuck"><span>Застряли в работе</span><strong>{requiresAttention.stuckInProgress}</strong></li>,
-        <li key="ready"><span>Слишком долго в готово</span><strong>{requiresAttention.readyTooLong}</strong></li>,
-        <li key="backlog"><span>Бэклог аренда/продажа</span><strong>{requiresAttention.rentSaleBacklog}</strong></li>,
-      ]} />
+      <AlertPanel items={attention.map((item) => <li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>)} />
 
       <FilterRow>
-        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }} disabled={Boolean(engineersLoadError)}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Просрочено</option><option value="stale_ready">Залежалось в готово</option>{engineersLoadError ? null : engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
-        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="accepted">Принято</option><option value="in_progress">В работе</option><option value="testing">Тестирование</option><option value="ready">Готово</option></select></label>
-        <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="sc-1001" /></label>
-        <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
+        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const next = { ...filters, engineer: e.target.value }; setFilters(next); load(next); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="critical">Критические</option><option value="with_qc">QC / контроль</option></select></label>
+        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const next = { ...filters, status: e.target.value }; setFilters(next); load(next); }}><option value="all">Все</option>{[...BOARD_COLUMNS, 'closed', 'cancelled'].map((status) => <option key={status} value={status}>{BOARD_LABELS[status]}</option>)}</select></label>
+        <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-..." /></label>
+        <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
       </FilterRow>
 
       {error ? <p className="error-text">{error}</p> : null}
-      {engineersLoadError ? <p className="error-text">{engineersLoadError}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
 
       <div className="service-workspace kanban-layout">
@@ -438,17 +366,10 @@ export function AdminServicePage() {
                     key={request.id}
                     request={request}
                     active={selectedId === request.id}
-                    onSelect={setSelectedId}
+                    user={user}
                     actionLoading={actionLoading}
-                    canUseServiceBoardActions={canUseServiceBoardActions}
-                    onServiceAction={(toStatus) => {
-                      setSelectedId(request.id);
-                      return applyServiceStatus(toStatus, request.id).catch(() => setError('Не удалось обновить сервисный статус.'));
-                    }}
-                    onCommercialAction={(toStatus) => {
-                      setSelectedId(request.id);
-                      return applyCommercialStatus(toStatus, request).catch(() => setError('Не удалось обновить коммерческий статус.'));
-                    }}
+                    onSelect={setSelectedId}
+                    onAction={(action) => runAction(action, request)}
                   />
                 ))}
                 {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
@@ -458,120 +379,119 @@ export function AdminServicePage() {
         </div>
 
         <DetailPanel>
-          {!selectedRequest ? <p>Выберите карточку на доске.</p> : (
+          {!selectedRequest ? <p>Выберите заявку на доске.</p> : (
             <>
-              <header className="detail-header"><h3>Кейс #{selectedRequest.id}</h3><StatusBadge status={selectedServiceStatus}>{STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</StatusBadge></header>
+              <header className="detail-header"><h3>Заявка #{selectedRequest.id}</h3><StatusBadge status={selectedRequest.status}>{BOARD_LABELS[selectedRequest.status] || selectedRequest.status}</StatusBadge></header>
               <nav className="detail-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{TAB_LABELS[tab]}</button>)}
               </nav>
 
               {activeTab === 'overview' ? (
                 <>
-                  <div className="detail-split">
-                    <div className="detail-grid">
-                      <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
-                      <p><Icon name="equipment" /> Внутренний номер/Серийный номер: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'} / {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
-                      <p><Icon name="service" /> Тип приёма: {selectedRequest.intakeType || '—'}</p>
-                      <p><Icon name="clients" /> Тип владельца: {selectedRequest.equipment?.ownerType || '—'}</p>
-                      <p><Icon name="dashboard" /> Сервисный статус: {STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</p>
-                      <p><Icon name="sales" /> Коммерческий статус: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
-                      <p><Icon name="employees" /> Назначен: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
-                      <p><Icon name="clients" /> Последнее обновление: {formatDate(selectedRequest.updatedAt)}</p>
-                    </div>
-                    <div className="detail-stack">
-                      {(selectedRequest.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedRequest.media || [])[0].fileUrl} alt="превью" /> : null}
-                    </div>
+                  <div className="detail-grid">
+                    <p><Icon name="clients" /> Клиент: {selectedRequest.client?.companyName || '—'}</p>
+                    <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
+                    <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
+                    <p><Icon name="equipment" /> Точка: {selectedRequest.location?.name || selectedRequest.equipment?.locationName || '—'}</p>
+                    <p><Icon name="service" /> Срочность: {selectedRequest.urgency || 'normal'}</p>
+                    <p><Icon name="dashboard" /> Назначен: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
+                    <p><Icon name="content" /> Может работать: {selectedRequest.canOperateNow ? 'Да' : 'Нет'}</p>
+                    <p><Icon name="clients" /> Обновлено: {formatDate(selectedRequest.updatedAt)}</p>
                   </div>
 
-                  {canUseServiceBoardActions && serviceActions.length ? (
-                    <div className="assignment-box">
-                      <h4>Доступные сервисные действия</h4>
-                      <div className="quick-filter-row">{serviceActions.map((action) => <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => applyServiceStatus(action.targetStatus).catch(() => setError('Не удалось обновить сервисный статус.'))}>{actionLoading === `service:${action.targetStatus}` ? 'Сохраняем...' : action.label}</button>)}</div>
-                    </div>
-                  ) : null}
+                  <div className="assignment-box">
+                    <h4>Описание проблемы</h4>
+                    <p>{selectedRequest.description || 'Без описания'}</p>
+                  </div>
 
-                  {canUseServiceBoardActions && commercialActions.length ? (
-                    <div className="assignment-box">
-                      <h4>Доступные коммерческие действия</h4>
-                      <div className="quick-filter-row">{commercialActions.map((action) => <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => applyCommercialStatus(action.targetStatus).catch(() => setError('Не удалось обновить коммерческий статус.'))}>{actionLoading === `commercial:${action.targetStatus}` ? 'Сохраняем...' : action.label}</button>)}</div>
-                    </div>
-                  ) : null}
-
-                  {canAssignWithLoadedEngineers ? (
+                  {canAssign ? (
                     <div className="assignment-box">
                       <h4>{selectedRequest.assignedToUserId ? 'Переназначить инженера' : 'Назначить инженера'}</h4>
-                      <select value={assignForm.assignedToUserId} onChange={(e) => setAssignForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))}>
+                      <select value={assignForm.assignedToUserId} onChange={(e) => setAssignForm({ assignedToUserId: e.target.value })}>
                         <option value="">Выберите инженера</option>
                         {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}
                       </select>
-                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitAssignment().catch(() => setError('Не удалось назначить инженера.'))}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</button>
+                      <button type="button" disabled={Boolean(actionLoading)} onClick={submitAssignment}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</button>
                     </div>
                   ) : null}
 
                   <div className="assignment-box">
-                    <h4>Журнал действий</h4>
-                    <div className="detail-grid">
-                      <p><Icon name="employees" /> Назначил: {formatPersonAudit(selectedRequest.auditTrail?.assigned)} · {formatDate(selectedRequest.auditTrail?.assigned?.at)}</p>
-                      <p><Icon name="service" /> Взял в работу: {formatPersonAudit(selectedRequest.auditTrail?.takenInWork)} · {formatDate(selectedRequest.auditTrail?.takenInWork?.at)}</p>
-                      <p><Icon name="service" /> Перевёл в тестирование: {formatPersonAudit(selectedRequest.auditTrail?.movedToTesting)} · {formatDate(selectedRequest.auditTrail?.movedToTesting?.at)}</p>
-                      <p><Icon name="equipment" /> Перевёл в готово: {formatPersonAudit(selectedRequest.auditTrail?.movedToReady)} · {formatDate(selectedRequest.auditTrail?.movedToReady?.at)}</p>
-                      <p><Icon name="dashboard" /> Провёл: {formatPersonAudit(selectedRequest.auditTrail?.processed)} · {formatDate(selectedRequest.auditTrail?.processed?.at)}</p>
-                    </div>
-                    <div className="timeline-list compact">
-                      {(selectedRequest.auditTrail?.commercialChanges || []).map((item) => (
-                        <article key={item.id} className="timeline-item">
-                          <i />
-                          <div>
-                            <strong>Коммерция: {item.fromStatus || '—'} → {item.toStatus || '—'}</strong>
-                            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'система'}</small>
-                          </div>
-                        </article>
+                    <h4>Быстрые действия</h4>
+                    <div className="quick-filter-row">
+                      {getRoleActions(selectedRequest, user).map((action) => (
+                        <button key={`${action.kind}-${action.status || action.label}`} type="button" disabled={Boolean(actionLoading)} onClick={() => runAction(action)}>
+                          {action.label}
+                        </button>
                       ))}
-                      {!(selectedRequest.auditTrail?.commercialChanges || []).length ? <p className="empty-copy">Изменений коммерческого статуса пока нет.</p> : null}
+                      {!getRoleActions(selectedRequest, user).length ? <p className="empty-copy">Для вашей роли быстрых действий нет.</p> : null}
                     </div>
                   </div>
                 </>
               ) : null}
 
-              {activeTab === 'history' ? <Timeline history={assignmentHistory} /> : null}
+              {activeTab === 'history' ? (
+                <div className="timeline-list">
+                  {[...(selectedRequest.history || [])].map((item) => (
+                    <article key={item.id} className="timeline-item">
+                      <i />
+                      <div>
+                        <strong>{BOARD_LABELS[item.previousStatus] || item.previousStatus} → {BOARD_LABELS[item.nextStatus] || item.nextStatus}</strong>
+                        <p>{item.comment || 'Без комментария'}</p>
+                        <small>{formatDate(item.createdAt)}</small>
+                      </div>
+                    </article>
+                  ))}
+                  {assignmentHistory.map((item) => (
+                    <article key={item.id} className="timeline-item">
+                      <i />
+                      <div>
+                        <strong>Назначение: {item.toUser?.fullName || item.toUserId}</strong>
+                        <p>{item.comment || 'Без комментария'}</p>
+                        <small>{formatDate(item.createdAt)} · {item.assignedByUser?.fullName || 'система'}</small>
+                      </div>
+                    </article>
+                  ))}
+                  {!selectedRequest.history?.length && !assignmentHistory.length ? <p className="empty-copy">История пока пустая.</p> : null}
+                </div>
+              ) : null}
 
               {activeTab === 'media' ? (
                 <div className="media-tab">
-                  <div className="timeline-list compact">
-                    {[...(selectedRequest.media || [])]
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                      .map((item) => (
-                        <article key={`timeline-${item.id}`} className="timeline-item">
-                          <i />
-                          <div>
-                            <strong>{item.kind === 'video' ? 'Видео' : 'Фото'} · {item.caption || item.originalName || 'Без подписи'}</strong>
-                            <small>{formatDate(item.createdAt)} · {item.uploadedByUser?.fullName || 'система'}</small>
-                          </div>
-                        </article>
+                  <div className="assignment-box">
+                    <h4>Фото до</h4>
+                    <div className="media-grid">
+                      {mediaGroups.before.map((item) => (
+                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
+                          {String(item.mimeType || '').startsWith('video/') ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={item.previewUrl || item.fileUrl} alt={item.originalName || 'before'} />}
+                          <small>{item.originalName || 'Фото до'}</small>
+                        </a>
                       ))}
-                    {!(selectedRequest.media || []).length ? <p className="empty-copy">Хронология медиа пока пустая.</p> : null}
-                  </div>
-                  <div className="media-grid">
-                    {[...(selectedRequest.media || [])]
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                      .map((item) => (
-                      <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                        {item.kind === 'photo' ? <img src={item.fileUrl} alt={item.caption || item.originalName || 'photo'} /> : <video src={item.fileUrl} controls preload="metadata" />}
-                        <small>{item.caption || item.originalName || item.kind}</small>
-                      </a>
-                    ))}
-                    {!(selectedRequest.media || []).length ? <p className="empty-copy media-empty">Пока нет файлов. Загрузите фото/видео для кейса.</p> : null}
-                  </div>
-                  {canUseServiceBoardActions ? (
-                    <div className="assignment-box">
-                      <h4>Загрузка медиа</h4>
-                      <p className="empty-copy">Поддерживаются фото и видео. Файлы сохраняются в локальное хранилище.</p>
-                      <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
-                      <input value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Подпись (опц.)" maxLength={200} />
-                      {mediaFiles.length ? <small>К загрузке: {mediaFiles.length} файл(ов).</small> : <small>Файлы не выбраны.</small>}
-                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitMedia().catch(() => setError('Не удалось загрузить медиа.'))}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</button>
+                      {!mediaGroups.before.length ? <p className="empty-copy media-empty">Фото до еще не загружены.</p> : null}
                     </div>
-                  ) : null}
+                  </div>
+
+                  <div className="assignment-box">
+                    <h4>Фото после</h4>
+                    <div className="media-grid">
+                      {mediaGroups.after.map((item) => (
+                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
+                          {String(item.mimeType || '').startsWith('video/') ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={item.previewUrl || item.fileUrl} alt={item.originalName || 'after'} />}
+                          <small>{item.originalName || 'Фото после'}</small>
+                        </a>
+                      ))}
+                      {!mediaGroups.after.length ? <p className="empty-copy media-empty">Фото после еще не загружены.</p> : null}
+                    </div>
+                  </div>
+
+                  <div className="assignment-box">
+                    <h4>Загрузить медиа</h4>
+                    <select value={mediaStage} onChange={(e) => setMediaStage(e.target.value)}>
+                      <option value="before">Фото до</option>
+                      <option value="after">Фото после</option>
+                    </select>
+                    <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
+                    <button type="button" disabled={Boolean(actionLoading) || !mediaFiles.length} onClick={submitMedia}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</button>
+                  </div>
                 </div>
               ) : null}
 
@@ -580,8 +500,8 @@ export function AdminServicePage() {
                   <div className="assignment-history">
                     {(selectedRequest.notes || []).map((note) => (
                       <article key={note.id} className="note-item">
-                        <strong>{note.authorUser?.fullName || '—'} · {note.isInternal ? 'Внутренняя' : 'Публичная'}</strong>
-                        <p>{note.body}</p>
+                        <strong>{note.authorRole || 'system'}</strong>
+                        <p>{note.text}</p>
                         <small>{formatDate(note.createdAt)}</small>
                       </article>
                     ))}
@@ -590,27 +510,10 @@ export function AdminServicePage() {
                   {canSeeInternalNotes ? (
                     <div className="assignment-box note-composer">
                       <h4>Добавить внутреннюю заметку</h4>
-                      <textarea value={noteBody} onChange={(e) => setNoteBody(e.target.value)} rows={3} placeholder="Комментарий для service/manager/director" />
-                      <button disabled={Boolean(actionLoading)} type="button" onClick={() => submitNote().catch(() => setError('Не удалось сохранить заметку.'))}>{actionLoading === 'note' ? 'Сохраняем...' : 'Сохранить заметку'}</button>
+                      <textarea value={noteBody} onChange={(e) => setNoteBody(e.target.value)} rows={3} placeholder="Комментарий для сервисной команды" />
+                      <button type="button" disabled={Boolean(actionLoading)} onClick={submitNote}>{actionLoading === 'note' ? 'Сохраняем...' : 'Сохранить заметку'}</button>
                     </div>
                   ) : null}
-                </div>
-              ) : null}
-
-              {activeTab === 'equipment' ? (
-                <div className="detail-grid">
-                  <p><Icon name="equipment" /> ID: {selectedRequest.equipment?.id || selectedRequest.equipmentId || '—'}</p>
-                  <p><Icon name="equipment" /> Серийный №: {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
-                  <p><Icon name="equipment" /> Внутренний №: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'}</p>
-                  <p><Icon name="clients" /> Клиент: {selectedRequest.equipment?.clientName || selectedRequest.clientNameSnapshot || '—'}</p>
-                </div>
-              ) : null}
-
-              {activeTab === 'commercial' ? (
-                <div className="detail-grid">
-                  <p><Icon name="sales" /> Текущий коммерческий статус: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
-                  <p><Icon name="sales" /> Счёт: {selectedRequest.invoiceNumber || '—'}</p>
-                  <p><Icon name="sales" /> Статус счёта: {selectedRequest.invoiceStatus || '—'}</p>
                 </div>
               ) : null}
             </>

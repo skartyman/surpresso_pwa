@@ -668,4 +668,16 @@ export class InMemoryServiceRequestRepository {
     this.notes.unshift(note);
     return note;
   }
+
+  async addMedia(serviceRequestId, rows = []) {
+    const index = this.requests.findIndex((item) => item.id === serviceRequestId);
+    if (index === -1) return null;
+    const current = Array.isArray(this.requests[index].media) ? this.requests[index].media : [];
+    this.requests[index] = {
+      ...this.requests[index],
+      media: [...rows, ...current],
+      updatedAt: new Date().toISOString(),
+    };
+    return this.hydrate(this.requests[index]);
+  }
 }

@@ -133,4 +133,13 @@ export const adminServiceApi = {
     method: 'POST',
     body: JSON.stringify({ text }),
   }),
+  uploadRequestMedia: async (id, files, mediaStage = 'before') => {
+    const form = new FormData();
+    (files || []).forEach((file) => form.append('media', file));
+    form.append('mediaStage', mediaStage);
+    return apiFetch(`/api/telegram/admin/service-requests/${id}/media`, {
+      method: 'POST',
+      body: form,
+    });
+  },
 };

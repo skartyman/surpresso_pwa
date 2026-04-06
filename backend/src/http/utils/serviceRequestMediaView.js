@@ -1,5 +1,12 @@
 import { buildProxyDriveUrl } from '../../infrastructure/drive/driveUtils.js';
 
+function parseMediaStage(type) {
+  const normalized = String(type || '').trim().toLowerCase();
+  if (normalized.startsWith('before_')) return 'before';
+  if (normalized.startsWith('after_')) return 'after';
+  return 'client';
+}
+
 export function enrichServiceRequestMedia(req, request) {
   if (!request) return request;
 
@@ -12,6 +19,7 @@ export function enrichServiceRequestMedia(req, request) {
 
       return {
         ...item,
+        stage: parseMediaStage(item.type),
         url: fileUrl,
         fileUrl,
         previewUrl,

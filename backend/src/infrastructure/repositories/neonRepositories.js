@@ -895,4 +895,26 @@ export class NeonServiceRequestRepository {
       createdAt: note.createdAt.toISOString(),
     };
   }
+
+  async addMedia(serviceRequestId, rows = []) {
+    if (!rows.length) {
+      return this.findForAdminById(serviceRequestId);
+    }
+
+    await this.prisma.serviceRequestMedia.createMany({
+      data: rows.map((row) => ({
+        id: row.id || `srm-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        serviceRequestId,
+        type: row.type || 'image',
+        fileId: row.fileId || null,
+        fileUrl: row.fileUrl || row.url || '',
+        previewUrl: row.previewUrl || row.imgUrl || null,
+        mimeType: row.mimeType || null,
+        originalName: row.originalName || null,
+        size: Number(row.size || 0),
+      })),
+    });
+
+    return this.findForAdminById(serviceRequestId);
+  }
 }
