@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import 'dotenv/config';
+import { createMiniAppRepositories } from '../src/infrastructure/repositories/createMiniAppRepositories.js';
 
 const ACTIVE_STATUSES = ['accepted', 'in_progress', 'testing', 'ready'];
 
@@ -28,7 +27,17 @@ function buildStatusSideEffects(status, updatedAt) {
 }
 
 async function main() {
-  const equipments = await prisma.equipment.findMany({
+  const { storage, repositories } = await createMiniAppRepositories(process.env.DATABASE_URL);
+  if (storage !== 'neon-postgres') {
+    throw new Error('DATABASE_URL is required for backfill_service_cases.js');
+  }
+
+  prismaClient = repositories?.serviceOpsRepository?.prisma;
+  if (!prismaClient) {
+    throw new Error('Failed to resolve prisma client from mini app repositories');
+  }
+
+  const equipments = await prismaClient.equipment.findMany({
     where: {
       serviceStatus: {
         in: ACTIVE_STATUSES,
@@ -52,13 +61,8 @@ async function main() {
   let historyCreated = 0;
 
   for (const equipment of equipments) {
-    const existing = await prisma.serviceCase.findFirst({
-      where: {
-        equipmentId: equipment.id,
-        serviceStatus: {
-          in: ACTIVE_STATUSES,
-        },
-      },
+    const existing = await prismaClient.serviceCase.findFirst({
+      where: { equipmentId: equipment.id, serviceStatus: { in: ACTIVE_STATUSES } },
       select: {
         id: true,
       },
@@ -72,7 +76,7 @@ async function main() {
     const initialStatus = equipment.serviceStatus;
     const baseDate = equipment.updatedAt || equipment.createdAt || new Date();
 
-    const serviceCase = await prisma.serviceCase.create({
+    const serviceCase = await prismaClient.serviceCase.create({
       data: {
         equipmentId: equipment.id,
         intakeType: inferIntakeType(equipment),
@@ -88,16 +92,18 @@ async function main() {
 
     created += 1;
 
-    await prisma.serviceStatusHistory.create({
+    await prismaClient.serviceStatusHistory.create({
       data: {
+        id: `ssh-backfill-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         equipmentId: equipment.id,
         serviceCaseId: serviceCase.id,
-        fromStatus: null,
-        toStatus: initialStatus,
-        rawFromStatus: null,
-        rawToStatus: initialStatus,
+        fromStatusRaw: null,
+        toStatusRaw: initialStatus,
+        fromServiceStatus: null,
+        toServiceStatus: initialStatus,
         comment: 'Backfilled from Equipment.serviceStatus',
-        createdAt: baseDate,
+        actorLabel: 'backfill_service_cases.js',
+        changedAt: baseDate,
       },
     });
 
@@ -118,6 +124,8 @@ async function main() {
   );
 }
 
+let prismaClient = null;
+
 main()
   .catch((err) => {
     console.error('BACKFILL FAILED');
@@ -125,5 +133,7 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    if (prismaClient) {
+      await prismaClient.$disconnect();
+    }
   });
