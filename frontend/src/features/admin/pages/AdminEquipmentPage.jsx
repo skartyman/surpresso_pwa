@@ -56,6 +56,19 @@ const ALERT_TONES = {
   inconsistent_status_data: 'critical',
 };
 
+const EQUIPMENT_LIST_FILTERS = [
+  { key: 'all', label: 'Все' },
+  { key: 'in_service', label: 'В сервисе' },
+  { key: 'ready', label: 'Готово' },
+  { key: 'rent', label: 'Аренда' },
+  { key: 'sale', label: 'Продажа' },
+  { key: 'client', label: 'У клиента' },
+  { key: 'attention', label: 'Требует внимания' },
+];
+
+const RENT_STATUSES = new Set(['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'out_on_replacement']);
+const SALE_STATUSES = new Set(['ready_for_sale', 'reserved_for_sale', 'sold']);
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU') : '—';
 }
@@ -137,10 +150,24 @@ function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
   );
 }
 
-function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSalesBoard, onOpenDirectorBoard }) {
+function EquipmentListCard({
+  item,
+  active,
+  viewMode = 'grid',
+  onClick,
+  onOpenServiceCase,
+  onOpenPhotos,
+  onOpenCard,
+  onOptionalAction,
+}) {
   const hasActiveCase = Boolean(item.activeServiceCaseId);
   const warnings = item.warnings || [];
-  const quickActionLabel = hasActiveCase ? 'Открыть активный кейс' : 'Открыть в доске сервиса';
+  const previewUrl = item.previewUrl || item.photoUrl || item.imageUrl || item.mediaPreviewUrl || '';
+  const quickActionLabel = hasActiveCase ? 'Кейс' : 'Открыть';
+  const modelTitle = `${item.brand || 'Без бренда'} ${item.model || ''}`.trim();
+  const ownerMeta = item.clientName || (item.ownerType === 'company' ? 'Техника компании' : 'Клиент не указан');
+  const assignedMaster = item.assignedToUser?.fullName || item.assignedMaster || item.assignedToUserId || '—';
+  const shortWarnings = warnings.slice(0, 2);
   const handleCardKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -150,42 +177,114 @@ function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSal
 
   return (
     <article
-      className={`equipment-ops-card equipment-ops-card--rich ${active ? 'active' : ''}`}
+      className={`equipment-ops-card equipment-ops-card--rich equipment-ops-card--${viewMode} ${active ? 'active' : ''}`}
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={handleCardKeyDown}
     >
-      <div className="equipment-ops-card__top">
-        <strong>{item.id}</strong>
-        <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
+      <div className="equipment-ops-card__preview">
+        {previewUrl ? (
+          <img src={previewUrl} alt={modelTitle} loading="lazy" />
+        ) : (
+          <div className="equipment-ops-card__preview-placeholder">
+            <Icon name="equipment" />
+            <span>Нет фото</span>
+          </div>
+        )}
+        <div className="equipment-ops-card__top">
+          <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
+          <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || 'equipment'}</span>
+        </div>
       </div>
 
-      <p>{item.brand || '—'} {item.model || ''}</p>
+      <p className="equipment-ops-card__title">{modelTitle}</p>
       <div className="equipment-ops-card__meta">
-        <span><Icon name="clients" /> {item.clientName || 'Клиент не указан'}</span>
         <span><Icon name="equipment" /> {item.internalNumber || '—'} / {item.serial || '—'}</span>
+        <span><Icon name="clients" /> {ownerMeta}</span>
+        <span><Icon name="employees" /> Мастер: {assignedMaster}</span>
+        <span><Icon name="dashboard" /> Обновлено: {formatDate(item.updatedAt)}</span>
       </div>
 
       <div className="equipment-ops-card__scan-chips">
         <em>{item.serviceStatus || '—'}</em>
-        <em>{item.ownerType || '—'}</em>
-        {hasActiveCase ? <em>active case: {item.activeServiceCaseId}</em> : <em>no active case</em>}
+        {hasActiveCase ? <em>кейc: {item.activeServiceCaseId}</em> : <em>без активного кейса</em>}
       </div>
 
-      {warnings.length ? (
+      {shortWarnings.length ? (
         <div className="warning-badges">
-          {warnings.slice(0, 3).map((warning) => <span key={warning}>{ALERT_LABELS[warning] || warning}</span>)}
-          {warnings.length > 3 ? <span>+{warnings.length - 3}</span> : null}
+          {shortWarnings.map((warning) => <span key={warning}>{ALERT_LABELS[warning] || warning}</span>)}
+          {warnings.length > shortWarnings.length ? <span>+{warnings.length - shortWarnings.length}</span> : null}
         </div>
       ) : null}
 
       <div className="equipment-ops-card__actions" onClick={(event) => event.stopPropagation()}>
+        <button type="button" onClick={() => onOpenCard?.()}>Открыть</button>
         <button type="button" onClick={() => onOpenServiceCase()}>{quickActionLabel}</button>
-        <button type="button" onClick={() => onOpenSalesBoard()}>Sales</button>
-        <button type="button" onClick={() => onOpenDirectorBoard()}>Director</button>
+        <button type="button" onClick={() => onOpenPhotos?.()}>Фото</button>
+        {onOptionalAction ? <button type="button" onClick={() => onOptionalAction?.()}>Продажи</button> : null}
       </div>
     </article>
+  );
+}
+
+function passesQuickFilter(item, quickFilter) {
+  const serviceStatus = String(item.serviceStatus || item.activeServiceCaseStatus || '').trim();
+  const commercialStatus = String(item.commercialStatus || '').trim();
+  const warnings = item.warnings || [];
+
+  if (quickFilter === 'in_service') return ['accepted', 'in_progress', 'testing', 'ready'].includes(serviceStatus);
+  if (quickFilter === 'ready') return serviceStatus === 'ready';
+  if (quickFilter === 'rent') return RENT_STATUSES.has(commercialStatus);
+  if (quickFilter === 'sale') return SALE_STATUSES.has(commercialStatus);
+  if (quickFilter === 'client') return commercialStatus === 'issued_to_client';
+  if (quickFilter === 'attention') return warnings.length > 0;
+  return true;
+}
+
+function matchesSearch(item, value) {
+  if (!value) return true;
+  const haystack = [
+    item.id,
+    item.brand,
+    item.model,
+    item.internalNumber,
+    item.serial,
+    item.clientName,
+    item.assignedToUser?.fullName,
+    item.equipmentType,
+  ].join(' ').toLowerCase();
+  return haystack.includes(value.toLowerCase());
+}
+
+function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewModeChange, searchTerm, onSearchTermChange }) {
+  return (
+    <div className="equipment-list-toolbar">
+      <div className="equipment-list-toolbar__row">
+        <div className="equipment-list-toolbar__chips">
+          {EQUIPMENT_LIST_FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              className={quickFilter === filter.key ? 'active' : ''}
+              onClick={() => onFilterChange(filter.key)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <div className="equipment-list-toolbar__toggle" role="group" aria-label="Вид списка">
+          <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => onViewModeChange('grid')}>Сетка</button>
+          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => onViewModeChange('list')}>Список</button>
+        </div>
+      </div>
+      <input
+        type="search"
+        value={searchTerm}
+        onChange={(event) => onSearchTermChange(event.target.value)}
+        placeholder="Поиск: бренд, модель, serial, клиент…"
+      />
+    </div>
   );
 }
 
@@ -766,6 +865,9 @@ export function AdminEquipmentPage() {
   const [detail, setDetail] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
+  const [quickFilter, setQuickFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('grid');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
 
   const basePath = getBaseAdminPath(location.pathname);
@@ -814,6 +916,12 @@ export function AdminEquipmentPage() {
   }, [equipmentId, selectedId]);
 
   const mediaRows = useMemo(() => (detail?.media || []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [detail]);
+  const filteredItems = useMemo(
+    () => items
+      .filter((item) => passesQuickFilter(item, quickFilter))
+      .filter((item) => matchesSearch(item, searchTerm)),
+    [items, quickFilter, searchTerm],
+  );
 
   function selectEquipment(id) {
     if (isMobile) {
@@ -885,24 +993,36 @@ export function AdminEquipmentPage() {
       <div className={`equipment-ops-layout ${mobileDetailMode ? 'mobile-detail' : ''}`}>
         {!mobileDetailMode ? (
           <aside className="equipment-ops-list">
+            <EquipmentListToolbar
+              quickFilter={quickFilter}
+              onFilterChange={setQuickFilter}
+              viewMode={isMobile ? 'list' : viewMode}
+              onViewModeChange={setViewMode}
+              searchTerm={searchTerm}
+              onSearchTermChange={setSearchTerm}
+            />
             {warningFilter ? (
               <div className="equipment-warning-filter-chip">
                 <span>Фильтр: {ALERT_LABELS[warningFilter] || warningFilter}</span>
                 <button type="button" onClick={resetWarningFilter}>Сбросить</button>
               </div>
             ) : null}
-            {items.map((item) => (
-              <EquipmentListCard
-                key={item.id}
-                item={item}
-                active={(equipmentId || selectedId) === item.id}
-                onClick={() => selectEquipment(item.id)}
-                onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
-                onOpenSalesBoard={() => navigateToBoard('sales_board', item.id)}
-                onOpenDirectorBoard={() => navigateToBoard('director_board', item.id)}
-              />
-            ))}
-            {!items.length ? <p className="empty-copy">Нет оборудования.</p> : null}
+            <div className={`equipment-ops-list__cards equipment-ops-list__cards--${isMobile ? 'list' : viewMode}`}>
+              {filteredItems.map((item) => (
+                <EquipmentListCard
+                  key={item.id}
+                  item={item}
+                  viewMode={isMobile ? 'list' : viewMode}
+                  active={(equipmentId || selectedId) === item.id}
+                  onClick={() => selectEquipment(item.id)}
+                  onOpenCard={() => selectEquipment(item.id)}
+                  onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
+                  onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                  onOptionalAction={() => navigateToBoard('sales_board', item.id)}
+                />
+              ))}
+            </div>
+            {!filteredItems.length ? <p className="empty-copy">Нет оборудования по выбранному фильтру.</p> : null}
           </aside>
         ) : null}
 
