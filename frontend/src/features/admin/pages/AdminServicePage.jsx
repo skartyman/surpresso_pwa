@@ -14,7 +14,7 @@ import {
 } from '../components/AdminUi';
 
 const BOARD_COLUMNS = ['accepted', 'in_progress', 'testing', 'ready'];
-const BOARD_LABELS = { accepted: 'Accepted', in_progress: 'In Progress', testing: 'Testing', ready: 'Ready' };
+const BOARD_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тестирование', ready: 'Готово' };
 const STATUS_LABELS = { accepted: 'Принято', in_progress: 'В работе', testing: 'Тест', ready: 'Готово', processed: 'Проведено', closed: 'Закрыто' };
 const COMMERCIAL_STATUS_LABELS = {
   none: 'Нет',
@@ -56,10 +56,10 @@ function formatPersonAudit(item) {
 function ServiceTicketCard({ request, active, onSelect }) {
   const status = request.serviceStatus || request.status;
   const warnings = [];
-  if (!request.assignedToUserId) warnings.push('Unassigned');
-  if (!request.equipmentId) warnings.push('No equipment');
-  if (status === 'in_progress' && (Date.now() - new Date(request.updatedAt).getTime()) > 48 * 3600000) warnings.push('Stale');
-  if (status === 'ready' && (Date.now() - new Date(request.updatedAt).getTime()) > 24 * 3600000) warnings.push('Ready too long');
+  if (!request.assignedToUserId) warnings.push('Без назначения');
+  if (!request.equipmentId) warnings.push('Нет оборудования');
+  if (status === 'in_progress' && (Date.now() - new Date(request.updatedAt).getTime()) > 48 * 3600000) warnings.push('Застрял в работе');
+  if (status === 'ready' && (Date.now() - new Date(request.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в готово');
 
   return (
     <OpsBoardCard
@@ -69,8 +69,8 @@ function ServiceTicketCard({ request, active, onSelect }) {
       statusLabel={STATUS_LABELS[status] || status}
       title={request.equipment?.clientName || request.client?.companyName || 'Клиент без названия'}
       subtitle={`${request.equipment?.brand || '—'} ${request.equipment?.model || ''} · ${request.equipment?.internalNumber || request.internalNumberSnapshot || '—'} / ${request.equipment?.serial || request.serialNumberSnapshot || '—'}`}
-      ownerType={`owner: ${request.equipment?.ownerType || '—'}`}
-      intakeType={`intake: ${request.intakeType || '—'}`}
+      ownerType={`владелец: ${request.equipment?.ownerType || '—'}`}
+      intakeType={`приём: ${request.intakeType || '—'}`}
       assignedMaster={request.assignedToUser?.fullName || 'Мастер: не назначен'}
       serviceStatus={STATUS_LABELS[status] || status}
       commercialStatus={COMMERCIAL_STATUS_LABELS[request.equipment?.commercialStatus || 'none'] || 'none'}
@@ -93,7 +93,7 @@ function Timeline({ history }) {
           <div>
             <strong>{item.fromServiceStatus || item.fromStatusRaw || '—'} → {item.toServiceStatus || item.toStatusRaw || '—'}</strong>
             <p>{item.comment || 'Без комментария'}</p>
-            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'system'}</small>
+            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'система'}</small>
           </div>
         </article>
       ))}
@@ -269,40 +269,40 @@ export function AdminServicePage() {
   };
 
   const kpis = [
-    { key: 'newCount', label: 'Accepted', value: dashboard?.newCount || 0 },
-    { key: 'inProgressCount', label: 'In progress', value: dashboard?.inProgressCount || 0 },
-    { key: 'testingCount', label: 'Testing', value: dashboard?.testingCount || 0 },
-    { key: 'readyCount', label: 'Ready', value: dashboard?.readyCount || 0 },
-    { key: 'unassignedCount', label: 'Unassigned', value: dashboard?.unassignedCount || 0 },
-    { key: 'overdueCount', label: 'Overdue', value: dashboard?.overdueCount || 0 },
-    { key: 'assignAvg', label: 'Avg assign', value: formatDuration(dashboard?.roleAnalytics?.service?.avgAssignTimeMinutes) },
-    { key: 'repairAvg', label: 'Avg repair', value: formatDuration(dashboard?.roleAnalytics?.service?.avgRepairTimeMinutes) },
-    { key: 'slaReady', label: 'Stale ready', value: dashboard?.slaAging?.staleReadyCount || 0 },
-    { key: 'slaBacklog', label: 'Stale rent/sale', value: dashboard?.slaAging?.staleRentSaleBacklogCount || 0 },
+    { key: 'newCount', label: 'Принято', value: dashboard?.newCount || 0 },
+    { key: 'inProgressCount', label: 'В работе', value: dashboard?.inProgressCount || 0 },
+    { key: 'testingCount', label: 'Тестирование', value: dashboard?.testingCount || 0 },
+    { key: 'readyCount', label: 'Готово', value: dashboard?.readyCount || 0 },
+    { key: 'unassignedCount', label: 'Без назначения', value: dashboard?.unassignedCount || 0 },
+    { key: 'overdueCount', label: 'Просрочено', value: dashboard?.overdueCount || 0 },
+    { key: 'assignAvg', label: 'Ср. назначение', value: formatDuration(dashboard?.roleAnalytics?.service?.avgAssignTimeMinutes) },
+    { key: 'repairAvg', label: 'Ср. ремонт', value: formatDuration(dashboard?.roleAnalytics?.service?.avgRepairTimeMinutes) },
+    { key: 'slaReady', label: 'Залежалось в готово', value: dashboard?.slaAging?.staleReadyCount || 0 },
+    { key: 'slaBacklog', label: 'Залежалось аренда/продажа', value: dashboard?.slaAging?.staleRentSaleBacklogCount || 0 },
   ];
 
   return (
     <section className="service-dashboard">
       <header className="service-headline">
-        <div><h2>Service Board</h2><p>Polished ops board: action-based workflow + role-driven UX.</p></div>
+        <div><h2>Сервисная доска</h2><p>Операционная доска: workflow по действиям + UX по ролям.</p></div>
       </header>
 
       <div className="kpi-row">
-        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint="Service" />)}
+        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon={KPI_ICON[item.key]} tone={item.key} hint="Сервис" />)}
       </div>
 
       <AlertPanel items={[
-        <li key="unassigned"><span>Unassigned</span><strong>{requiresAttention.unassigned}</strong></li>,
-        <li key="without_equipment"><span>No equipment data</span><strong>{requiresAttention.withoutEquipment}</strong></li>,
-        <li key="stuck"><span>Stale in progress</span><strong>{requiresAttention.stuckInProgress}</strong></li>,
-        <li key="ready"><span>Ready too long</span><strong>{requiresAttention.readyTooLong}</strong></li>,
-        <li key="backlog"><span>Rent/sale backlog</span><strong>{requiresAttention.rentSaleBacklog}</strong></li>,
+        <li key="unassigned"><span>Без назначения</span><strong>{requiresAttention.unassigned}</strong></li>,
+        <li key="without_equipment"><span>Нет данных по оборудованию</span><strong>{requiresAttention.withoutEquipment}</strong></li>,
+        <li key="stuck"><span>Застряли в работе</span><strong>{requiresAttention.stuckInProgress}</strong></li>,
+        <li key="ready"><span>Слишком долго в готово</span><strong>{requiresAttention.readyTooLong}</strong></li>,
+        <li key="backlog"><span>Бэклог аренда/продажа</span><strong>{requiresAttention.rentSaleBacklog}</strong></li>,
       ]} />
 
       <FilterRow>
         <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const n = { ...filters, engineer: e.target.value }; setFilters(n); load(n); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Overdue</option><option value="stale_ready">Stale ready</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
-        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="accepted">Accepted</option><option value="in_progress">In Progress</option><option value="testing">Testing</option><option value="ready">Ready</option></select></label>
+        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="overdue">Просрочено</option><option value="stale_ready">Залежалось в готово</option>{engineers.map((eng) => <option key={eng.id} value={`engineer:${eng.id}`}>Инженер: {eng.fullName}</option>)}</select></label>
+        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const n = { ...filters, status: e.target.value }; setFilters(n); load(n); }}><option value="all">Все</option><option value="accepted">Принято</option><option value="in_progress">В работе</option><option value="testing">Тестирование</option><option value="ready">Готово</option></select></label>
         <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))} onBlur={() => load(filters)} placeholder="sc-1001" /></label>
         <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((p) => ({ ...p, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
       </FilterRow>
@@ -330,7 +330,7 @@ export function AdminServicePage() {
         <DetailPanel>
           {!selectedRequest ? <p>Выберите карточку на доске.</p> : (
             <>
-              <header className="detail-header"><h3>Case #{selectedRequest.id}</h3><StatusBadge status={selectedServiceStatus}>{STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</StatusBadge></header>
+              <header className="detail-header"><h3>Кейс #{selectedRequest.id}</h3><StatusBadge status={selectedServiceStatus}>{STATUS_LABELS[selectedServiceStatus] || selectedServiceStatus}</StatusBadge></header>
               <nav className="detail-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{TAB_LABELS[tab]}</button>)}
               </nav>
@@ -349,7 +349,7 @@ export function AdminServicePage() {
                       <p><Icon name="clients" /> Последнее обновление: {formatDate(selectedRequest.updatedAt)}</p>
                     </div>
                     <div className="detail-stack">
-                      {(selectedRequest.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedRequest.media || [])[0].fileUrl} alt="preview" /> : null}
+                      {(selectedRequest.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedRequest.media || [])[0].fileUrl} alt="превью" /> : null}
                     </div>
                   </div>
 
@@ -379,25 +379,25 @@ export function AdminServicePage() {
                   ) : null}
 
                   <div className="assignment-box">
-                    <h4>Audit trail</h4>
+                    <h4>Журнал действий</h4>
                     <div className="detail-grid">
                       <p><Icon name="employees" /> Назначил: {formatPersonAudit(selectedRequest.auditTrail?.assigned)} · {formatDate(selectedRequest.auditTrail?.assigned?.at)}</p>
                       <p><Icon name="service" /> Взял в работу: {formatPersonAudit(selectedRequest.auditTrail?.takenInWork)} · {formatDate(selectedRequest.auditTrail?.takenInWork?.at)}</p>
-                      <p><Icon name="service" /> Перевёл в testing: {formatPersonAudit(selectedRequest.auditTrail?.movedToTesting)} · {formatDate(selectedRequest.auditTrail?.movedToTesting?.at)}</p>
-                      <p><Icon name="equipment" /> Перевёл в ready: {formatPersonAudit(selectedRequest.auditTrail?.movedToReady)} · {formatDate(selectedRequest.auditTrail?.movedToReady?.at)}</p>
-                      <p><Icon name="dashboard" /> Processed: {formatPersonAudit(selectedRequest.auditTrail?.processed)} · {formatDate(selectedRequest.auditTrail?.processed?.at)}</p>
+                      <p><Icon name="service" /> Перевёл в тестирование: {formatPersonAudit(selectedRequest.auditTrail?.movedToTesting)} · {formatDate(selectedRequest.auditTrail?.movedToTesting?.at)}</p>
+                      <p><Icon name="equipment" /> Перевёл в готово: {formatPersonAudit(selectedRequest.auditTrail?.movedToReady)} · {formatDate(selectedRequest.auditTrail?.movedToReady?.at)}</p>
+                      <p><Icon name="dashboard" /> Провёл: {formatPersonAudit(selectedRequest.auditTrail?.processed)} · {formatDate(selectedRequest.auditTrail?.processed?.at)}</p>
                     </div>
                     <div className="timeline-list compact">
                       {(selectedRequest.auditTrail?.commercialChanges || []).map((item) => (
                         <article key={item.id} className="timeline-item">
                           <i />
                           <div>
-                            <strong>Commercial: {item.fromStatus || '—'} → {item.toStatus || '—'}</strong>
-                            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'system'}</small>
+                            <strong>Коммерция: {item.fromStatus || '—'} → {item.toStatus || '—'}</strong>
+                            <small>{formatDate(item.changedAt)} · {item.changedByUser?.fullName || item.actorLabel || 'система'}</small>
                           </div>
                         </article>
                       ))}
-                      {!(selectedRequest.auditTrail?.commercialChanges || []).length ? <p className="empty-copy">Изменений commercial status пока нет.</p> : null}
+                      {!(selectedRequest.auditTrail?.commercialChanges || []).length ? <p className="empty-copy">Изменений коммерческого статуса пока нет.</p> : null}
                     </div>
                   </div>
                 </>
@@ -415,7 +415,7 @@ export function AdminServicePage() {
                           <i />
                           <div>
                             <strong>{item.kind === 'video' ? 'Видео' : 'Фото'} · {item.caption || item.originalName || 'Без подписи'}</strong>
-                            <small>{formatDate(item.createdAt)} · {item.uploadedByUser?.fullName || 'system'}</small>
+                            <small>{formatDate(item.createdAt)} · {item.uploadedByUser?.fullName || 'система'}</small>
                           </div>
                         </article>
                       ))}
@@ -434,8 +434,8 @@ export function AdminServicePage() {
                   </div>
                   {canUseServiceBoardActions ? (
                     <div className="assignment-box">
-                      <h4>Upload media</h4>
-                      <p className="empty-copy">Поддерживаются фото и видео. Файлы сохраняются в disk storage.</p>
+                      <h4>Загрузка медиа</h4>
+                      <p className="empty-copy">Поддерживаются фото и видео. Файлы сохраняются в локальное хранилище.</p>
                       <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
                       <input value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Подпись (опц.)" maxLength={200} />
                       {mediaFiles.length ? <small>К загрузке: {mediaFiles.length} файл(ов).</small> : <small>Файлы не выбраны.</small>}
@@ -471,7 +471,7 @@ export function AdminServicePage() {
                 <div className="detail-grid">
                   <p><Icon name="equipment" /> ID: {selectedRequest.equipment?.id || selectedRequest.equipmentId || '—'}</p>
                   <p><Icon name="equipment" /> Серийный №: {selectedRequest.equipment?.serial || selectedRequest.serialNumberSnapshot || '—'}</p>
-                  <p><Icon name="equipment" /> Internal №: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'}</p>
+                  <p><Icon name="equipment" /> Внутренний №: {selectedRequest.equipment?.internalNumber || selectedRequest.internalNumberSnapshot || '—'}</p>
                   <p><Icon name="clients" /> Клиент: {selectedRequest.equipment?.clientName || selectedRequest.clientNameSnapshot || '—'}</p>
                 </div>
               ) : null}
@@ -479,8 +479,8 @@ export function AdminServicePage() {
               {activeTab === 'commercial' ? (
                 <div className="detail-grid">
                   <p><Icon name="sales" /> Текущий коммерческий статус: {COMMERCIAL_STATUS_LABELS[selectedCommercialStatus] || selectedCommercialStatus}</p>
-                  <p><Icon name="sales" /> Invoice: {selectedRequest.invoiceNumber || '—'}</p>
-                  <p><Icon name="sales" /> Invoice status: {selectedRequest.invoiceStatus || '—'}</p>
+                  <p><Icon name="sales" /> Счёт: {selectedRequest.invoiceNumber || '—'}</p>
+                  <p><Icon name="sales" /> Статус счёта: {selectedRequest.invoiceStatus || '—'}</p>
                 </div>
               ) : null}
             </>
