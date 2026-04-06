@@ -43,6 +43,16 @@ function formatDay(value) {
   return value ? new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Без даты';
 }
 
+function isUrlLike(value = '') {
+  return /^https?:\/\//i.test(String(value).trim());
+}
+
+function getMediaDisplayTitle(media, fallback = 'Медиафайл') {
+  if (media?.caption?.trim()) return media.caption.trim();
+  if (media?.originalName?.trim() && !isUrlLike(media.originalName)) return media.originalName.trim();
+  return media?.mediaType === 'video' ? 'Видео' : (media?.mediaType === 'photo' ? 'Фото' : fallback);
+}
+
 function getBaseAdminPath(pathname = '') {
   return pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
 }
@@ -151,7 +161,7 @@ function MediaGallery({ rows = [], onOpen }) {
                     ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
                     : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
                   <div>
-                    <strong>{media.caption || media.originalName || media.mediaType || 'media'}</strong>
+                    <strong>{getMediaDisplayTitle(media)}</strong>
                     <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
                     <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
                   </div>
@@ -184,7 +194,7 @@ function Lightbox({ rows = [], index, onClose, onNavigate }) {
           ? <video src={media.fullUrl || media.fileUrl} controls autoPlay />
           : <img src={media.fullUrl || media.fileUrl} alt={media.caption || media.originalName || `media-${index + 1}`} />}
         <div className="equipment-lightbox__meta">
-          <p>{media.caption || media.originalName || '—'}</p>
+          <p>{getMediaDisplayTitle(media, '—')}</p>
           <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
           {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
           <a href={media.fullUrl || media.fileUrl} target="_blank" rel="noreferrer">Открыть оригинал в новой вкладке</a>
