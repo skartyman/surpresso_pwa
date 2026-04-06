@@ -37,11 +37,7 @@ export function ClientLayout({ children }) {
     <div className="client-shell">
       <aside className={`client-sidebar ${drawerOpen ? 'is-open' : ''}`}>
         <div className="client-sidebar__brand">
-          <div className="client-logo client-logo--rich">
-            <span className="client-logo__bean" />
-            <span className="client-logo__steam" />
-            <span className="client-logo__letter">S</span>
-          </div>
+          <img src="/icons/logo-service.png" alt="Surpresso Service" className="client-logo-image" />
           <div>
             <strong>Surpresso</strong>
             <p>{t('client_cabinet')}</p>
