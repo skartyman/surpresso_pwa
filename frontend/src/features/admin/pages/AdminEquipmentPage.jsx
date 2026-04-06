@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { Icon, StatusBadge } from '../components/AdminUi';
+import { Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
 
 const TABS = [
   { key: 'overview', label: 'Обзор' },
@@ -15,7 +15,7 @@ const TABS = [
 const COMMERCIAL_LABELS = {
   none: 'Без статуса',
   ready_for_issue: 'Готово к выдаче',
-  issued_to_client: 'Выдано клиенту',
+  issued_to_client: 'У клиента',
   ready_for_rent: 'Готово к аренде',
   reserved_for_rent: 'Зарезервировано под аренду',
   out_on_rent: 'В аренде',
@@ -33,6 +33,24 @@ const EVENT_META = {
   media_uploaded: { label: 'Медиа загружено', tone: 'media', icon: 'content' },
   note_added: { label: 'Добавлена заметка', tone: 'note', icon: 'content' },
   legacy_event: { label: 'Событие из legacy-системы', tone: 'legacy', icon: 'bell' },
+};
+
+const ALERT_LABELS = {
+  missing_serial: 'Без серийного номера',
+  missing_internal_number: 'Без внутреннего номера',
+  missing_photo: 'Без фото',
+  missing_active_service_case: 'Без активного service case',
+  stale_ready: 'Stale ready',
+  inconsistent_status_data: 'Несогласованные статусные данные',
+};
+
+const ALERT_TONES = {
+  missing_serial: 'warning',
+  missing_internal_number: 'warning',
+  missing_photo: 'warning',
+  missing_active_service_case: 'warning',
+  stale_ready: 'critical',
+  inconsistent_status_data: 'critical',
 };
 
 function formatDate(value) {
@@ -59,28 +77,91 @@ function getBaseAdminPath(pathname = '') {
 
 function getEquipmentWarnings(detail) {
   const warnings = [];
+  const equipment = detail?.equipment || {};
   const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const staleReady = activeCase?.serviceStatus === 'ready' && activeCase.updatedAt
     ? (Date.now() - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000
     : false;
   if (!activeCase) warnings.push('Нет активного сервисного кейса');
-  if (!detail?.equipment?.serial) warnings.push('Серийный номер не заполнен');
+  if (!equipment.serial) warnings.push('Серийный номер не заполнен');
+  if (!equipment.internalNumber) warnings.push('Внутренний номер не заполнен');
   if (staleReady) warnings.push('Кейс в статусе ready более 24ч');
   if ((detail?.media || []).length === 0) warnings.push('Нет медиафайлов');
+  if (activeCase && equipment.serviceStatus && activeCase.serviceStatus !== equipment.serviceStatus) warnings.push('Сервисный статус в карточке и кейсе расходится');
   return warnings;
 }
 
-function EquipmentListCard({ item, active, onClick }) {
+function DashboardHeader({ dashboard }) {
+  const kpi = dashboard?.kpi || {};
+  const alertRows = dashboard?.alerts || [];
+
   return (
-    <button type="button" className={`equipment-ops-card ${active ? 'active' : ''}`} onClick={onClick}>
+    <div className="equipment-hub-header">
+      <div className="equipment-hub-kpi-grid">
+        <KPIChipCard label="Всего техники" value={kpi.totalEquipment || 0} icon="equipment" hint="Парк в реестре" tone="info" />
+        <KPIChipCard label="В сервисе" value={kpi.inService || 0} icon="service" hint="Активный сервисный цикл" tone="warning" />
+        <KPIChipCard label="Готово к аренде" value={kpi.readyForRent || 0} icon="sales" hint="Можно выводить в rental" tone="positive" />
+        <KPIChipCard label="Готово к продаже" value={kpi.readyForSale || 0} icon="sales" hint="Доступно для sales" tone="positive" />
+        <KPIChipCard label="У клиента" value={kpi.issuedToClient || 0} icon="clients" hint="Выдано клиентам" tone="info" />
+        <KPIChipCard label="На подмене / в аренде" value={kpi.onReplacementOrRent || 0} icon="dashboard" hint="Активно в полях" tone="warning" />
+      </div>
+
+      <article className="equipment-hub-alerts">
+        <header>
+          <h3>Alerts / Warnings</h3>
+          <small>{alertRows.reduce((sum, row) => sum + (row.count || 0), 0)} проблем в парке</small>
+        </header>
+        <div className="equipment-hub-alerts__grid">
+          {Object.keys(ALERT_LABELS).map((key) => {
+            const row = alertRows.find((item) => item.key === key) || { count: 0 };
+            return (
+              <article key={key} className={`equipment-hub-alert equipment-hub-alert--${ALERT_TONES[key] || 'warning'}`}>
+                <span>{ALERT_LABELS[key]}</span>
+                <strong>{row.count || 0}</strong>
+              </article>
+            );
+          })}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSalesBoard, onOpenDirectorBoard }) {
+  const hasActiveCase = Boolean(item.activeServiceCaseId);
+  const warnings = item.warnings || [];
+  const quickActionLabel = hasActiveCase ? 'Открыть активный кейс' : 'Открыть в доске сервиса';
+
+  return (
+    <button type="button" className={`equipment-ops-card equipment-ops-card--rich ${active ? 'active' : ''}`} onClick={onClick}>
       <div className="equipment-ops-card__top">
         <strong>{item.id}</strong>
         <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
       </div>
+
       <p>{item.brand || '—'} {item.model || ''}</p>
       <div className="equipment-ops-card__meta">
         <span><Icon name="clients" /> {item.clientName || 'Клиент не указан'}</span>
         <span><Icon name="equipment" /> {item.internalNumber || '—'} / {item.serial || '—'}</span>
+      </div>
+
+      <div className="equipment-ops-card__scan-chips">
+        <em>{item.serviceStatus || '—'}</em>
+        <em>{item.ownerType || '—'}</em>
+        {hasActiveCase ? <em>active case: {item.activeServiceCaseId}</em> : <em>no active case</em>}
+      </div>
+
+      {warnings.length ? (
+        <div className="warning-badges">
+          {warnings.slice(0, 3).map((warning) => <span key={warning}>{warning}</span>)}
+          {warnings.length > 3 ? <span>+{warnings.length - 3}</span> : null}
+        </div>
+      ) : null}
+
+      <div className="equipment-ops-card__actions" onClick={(event) => event.stopPropagation()}>
+        <button type="button" onClick={() => onOpenServiceCase()}>{quickActionLabel}</button>
+        <button type="button" onClick={() => onOpenSalesBoard()}>Sales</button>
+        <button type="button" onClick={() => onOpenDirectorBoard()}>Director</button>
       </div>
     </button>
   );
@@ -386,6 +467,18 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">Нет превью</div>}
         </article>
 
+        {activeCase ? (
+          <article className="equipment-active-case-highlight">
+            <header>
+              <h4>Активный service case</h4>
+              <StatusBadge status={activeCase.serviceStatus || 'none'}>{activeCase.serviceStatus || '—'}</StatusBadge>
+            </header>
+            <p><strong>{activeCase.id}</strong> · назначен: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || 'не назначен'}.</p>
+            <p>Обновлён: {formatDate(activeCase.updatedAt)}.</p>
+            <button type="button" onClick={() => navigateToBoard('service_case', activeCase.id)}>Открыть кейс</button>
+          </article>
+        ) : null}
+
         {warnings.length ? (
           <div className="warning-badges">
             {warnings.map((warning) => <span key={warning}>{warning}</span>)}
@@ -416,21 +509,41 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
   if (tab === 'service_cases') {
     const rows = detail.serviceCases || [];
     if (!rows.length) return <p className="empty-copy">Кейсов не найдено.</p>;
+    const activeCase = rows.find((row) => row.isActive) || null;
+    const pastCases = rows.filter((row) => !row.isActive);
     return (
       <div className="equipment-cases-list">
-        {detail.activeServiceCaseId ? <p>Активный кейс: <strong>{detail.activeServiceCaseId}</strong></p> : <p>Активный кейс отсутствует.</p>}
-        {rows.map((row) => (
-          <article key={row.id} className="equipment-case-card">
-            <header>
-              <strong>{row.id}</strong>
-              {row.isActive ? <span className="signal-chip signal-chip--critical">активный кейс</span> : null}
-            </header>
-            <p>Статус: {row.serviceStatus || '—'}</p>
-            <p>Назначен: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
-            <p>Создан: {formatDate(row.createdAt)} · Обновлён: {formatDate(row.updatedAt)}</p>
-            <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>Открыть детальный просмотр кейса: {row.id}</a>
-          </article>
-        ))}
+        <section className="equipment-case-focus">
+          <h4>Активный кейс</h4>
+          {activeCase ? (
+            <article className="equipment-case-card equipment-case-card--active">
+              <header>
+                <strong>{activeCase.id}</strong>
+                <span className="signal-chip signal-chip--critical">active</span>
+              </header>
+              <p>Статус: {activeCase.serviceStatus || '—'}</p>
+              <p>Назначен: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || '—'}</p>
+              <p>Создан: {formatDate(activeCase.createdAt)} · Обновлён: {formatDate(activeCase.updatedAt)}</p>
+              <a href={`${basePath}/service?caseId=${encodeURIComponent(activeCase.id)}`}>Открыть детальный просмотр кейса: {activeCase.id}</a>
+            </article>
+          ) : <p className="empty-copy">Активный кейс отсутствует.</p>}
+        </section>
+
+        <section className="equipment-case-history-block">
+          <h4>Прошлые сервисные кейсы ({pastCases.length})</h4>
+          {!pastCases.length ? <p className="empty-copy">Истории прошлых кейсов нет.</p> : null}
+          {pastCases.map((row) => (
+            <article key={row.id} className="equipment-case-card">
+              <header>
+                <strong>{row.id}</strong>
+                <StatusBadge status={row.serviceStatus || 'none'}>{row.serviceStatus || '—'}</StatusBadge>
+              </header>
+              <p>Назначен: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
+              <p>Создан: {formatDate(row.createdAt)} · Обновлён: {formatDate(row.updatedAt)}</p>
+              <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>Открыть кейс {row.id}</a>
+            </article>
+          ))}
+        </section>
       </div>
     );
   }
@@ -467,6 +580,7 @@ export function AdminEquipmentPage() {
   const [searchParams] = useSearchParams();
   const { equipmentId } = useParams();
 
+  const [dashboard, setDashboard] = useState({ kpi: {}, alerts: [] });
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -483,6 +597,11 @@ export function AdminEquipmentPage() {
     query.addEventListener('change', listener);
     return () => query.removeEventListener('change', listener);
   }, []);
+
+  async function loadDashboard() {
+    const payload = await adminServiceApi.equipmentDashboard();
+    setDashboard(payload || { kpi: {}, alerts: [] });
+  }
 
   async function loadList() {
     const payload = await adminServiceApi.equipmentList();
@@ -501,7 +620,11 @@ export function AdminEquipmentPage() {
     setDetail(payload.item || null);
   }
 
-  useEffect(() => { loadList().catch(() => setItems([])); }, [searchParams, equipmentId, isMobile]); // eslint-disable-line
+  useEffect(() => {
+    loadDashboard().catch(() => setDashboard({ kpi: {}, alerts: [] }));
+    loadList().catch(() => setItems([]));
+  }, [searchParams, equipmentId, isMobile]); // eslint-disable-line
+
   useEffect(() => {
     const targetId = equipmentId || selectedId;
     loadDetail(targetId).catch(() => setDetail(null));
@@ -546,10 +669,12 @@ export function AdminEquipmentPage() {
     <section className="equipment-ops-page">
       <header className="service-headline">
         <div>
-          <h2>Операционный реестр оборудования</h2>
-          <p>Краткий список оборудования + полноценная детализация в формате операционного паспорта.</p>
+          <h2>Equipment Hub Dashboard</h2>
+          <p>Центр управления парком техники: KPI, предупреждения, быстрые действия и операционный паспорт.</p>
         </div>
       </header>
+
+      <DashboardHeader dashboard={dashboard} />
 
       <div className={`equipment-ops-layout ${mobileDetailMode ? 'mobile-detail' : ''}`}>
         {!mobileDetailMode ? (
@@ -560,6 +685,9 @@ export function AdminEquipmentPage() {
                 item={item}
                 active={(equipmentId || selectedId) === item.id}
                 onClick={() => selectEquipment(item.id)}
+                onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                onOpenSalesBoard={() => navigateToBoard('sales_board', item.id)}
+                onOpenDirectorBoard={() => navigateToBoard('director_board', item.id)}
               />
             ))}
             {!items.length ? <p className="empty-copy">Нет оборудования.</p> : null}

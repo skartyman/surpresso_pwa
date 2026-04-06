@@ -628,6 +628,84 @@ export class NeonServiceOpsRepository {
     return mapMedia(row);
   }
 
+  async equipmentDashboard() {
+    const [equipmentRows, activeServiceCases, mediaBuckets] = await Promise.all([
+      this.prisma.equipment.findMany({
+        select: {
+          id: true,
+          serviceStatus: true,
+          commercialStatus: true,
+          serial: true,
+          internalNumber: true,
+        },
+      }),
+      this.prisma.serviceCase.findMany({
+        where: { serviceStatus: { in: ['accepted', 'in_progress', 'testing', 'ready'] } },
+        select: { id: true, equipmentId: true, serviceStatus: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.serviceCaseMedia.groupBy({
+        by: ['equipmentId'],
+        _count: { _all: true },
+      }),
+    ]);
+
+    const activeByEquipmentId = new Map();
+    for (const row of activeServiceCases) {
+      if (!row.equipmentId || activeByEquipmentId.has(row.equipmentId)) continue;
+      activeByEquipmentId.set(row.equipmentId, row);
+    }
+
+    const mediaCountByEquipmentId = new Map();
+    for (const bucket of mediaBuckets) {
+      if (!bucket.equipmentId) continue;
+      mediaCountByEquipmentId.set(bucket.equipmentId, Number(bucket._count?._all || 0));
+    }
+
+    const nowTs = Date.now();
+    const alertCounters = {
+      missing_serial: 0,
+      missing_internal_number: 0,
+      missing_photo: 0,
+      missing_active_service_case: 0,
+      stale_ready: 0,
+      inconsistent_status_data: 0,
+    };
+
+    for (const equipment of equipmentRows) {
+      const activeCase = activeByEquipmentId.get(equipment.id) || null;
+      const mediaCount = mediaCountByEquipmentId.get(equipment.id) || 0;
+
+      if (!equipment.serial) alertCounters.missing_serial += 1;
+      if (!equipment.internalNumber) alertCounters.missing_internal_number += 1;
+      if (mediaCount === 0) alertCounters.missing_photo += 1;
+      if (!activeCase) alertCounters.missing_active_service_case += 1;
+      if (activeCase?.serviceStatus === 'ready' && (nowTs - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000) alertCounters.stale_ready += 1;
+
+      const serviceStatus = String(equipment.serviceStatus || '').trim();
+      const hasLiveServiceStatus = ['accepted', 'in_progress', 'testing', 'ready'].includes(serviceStatus);
+      const statusesConflict = (activeCase && serviceStatus && activeCase.serviceStatus !== serviceStatus)
+        || (!activeCase && hasLiveServiceStatus)
+        || (activeCase && ['processed', 'closed'].includes(serviceStatus));
+      if (statusesConflict) alertCounters.inconsistent_status_data += 1;
+    }
+
+    const kpi = {
+      totalEquipment: equipmentRows.length,
+      inService: equipmentRows.filter((item) => ['accepted', 'in_progress', 'testing', 'ready'].includes(String(item.serviceStatus || '').trim())).length,
+      readyForRent: equipmentRows.filter((item) => item.commercialStatus === 'ready_for_rent').length,
+      readyForSale: equipmentRows.filter((item) => item.commercialStatus === 'ready_for_sale').length,
+      issuedToClient: equipmentRows.filter((item) => item.commercialStatus === 'issued_to_client').length,
+      onReplacementOrRent: equipmentRows.filter((item) => ['out_on_replacement', 'out_on_rent'].includes(item.commercialStatus)).length,
+    };
+
+    return {
+      generatedAt: new Date().toISOString(),
+      kpi,
+      alerts: Object.entries(alertCounters).map(([key, count]) => ({ key, count })),
+    };
+  }
+
   async listEquipment(filters = {}) {
     const rows = await this.prisma.equipment.findMany({
       where: {
@@ -639,7 +717,47 @@ export class NeonServiceOpsRepository {
       },
       orderBy: { updatedAt: 'desc' },
     });
-    return rows.map(mapEquipment);
+
+    const ids = rows.map((item) => item.id);
+    const [activeCases, mediaBuckets] = ids.length ? await Promise.all([
+      this.prisma.serviceCase.findMany({
+        where: { equipmentId: { in: ids }, serviceStatus: { in: ['accepted', 'in_progress', 'testing', 'ready'] } },
+        select: { id: true, equipmentId: true, serviceStatus: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.serviceCaseMedia.groupBy({
+        by: ['equipmentId'],
+        where: { equipmentId: { in: ids } },
+        _count: { _all: true },
+      }),
+    ]) : [[], []];
+
+    const activeByEquipmentId = new Map();
+    for (const row of activeCases) {
+      if (!row.equipmentId || activeByEquipmentId.has(row.equipmentId)) continue;
+      activeByEquipmentId.set(row.equipmentId, row);
+    }
+    const mediaCountByEquipmentId = new Map();
+    for (const bucket of mediaBuckets) {
+      if (!bucket.equipmentId) continue;
+      mediaCountByEquipmentId.set(bucket.equipmentId, Number(bucket._count?._all || 0));
+    }
+
+    return rows.map((item) => {
+      const mapped = mapEquipment(item);
+      const activeCase = activeByEquipmentId.get(item.id) || null;
+      const warnings = [];
+      if (!item.serial) warnings.push('missing_serial');
+      if (!item.internalNumber) warnings.push('missing_internal_number');
+      if ((mediaCountByEquipmentId.get(item.id) || 0) === 0) warnings.push('missing_photo');
+      if (!activeCase) warnings.push('missing_active_service_case');
+      return {
+        ...mapped,
+        activeServiceCaseId: activeCase?.id || null,
+        activeServiceCaseStatus: activeCase?.serviceStatus || null,
+        warnings,
+      };
+    });
   }
 
   async getEquipmentById(id) {
@@ -812,6 +930,27 @@ export class InMemoryServiceOpsRepository {
   async addServiceCaseNote() { return null; }
   async listServiceCaseHistory() { return []; }
   async createMedia() { return null; }
+  async equipmentDashboard() {
+    return {
+      generatedAt: new Date().toISOString(),
+      kpi: {
+        totalEquipment: 0,
+        inService: 0,
+        readyForRent: 0,
+        readyForSale: 0,
+        issuedToClient: 0,
+        onReplacementOrRent: 0,
+      },
+      alerts: [
+        { key: 'missing_serial', count: 0 },
+        { key: 'missing_internal_number', count: 0 },
+        { key: 'missing_photo', count: 0 },
+        { key: 'missing_active_service_case', count: 0 },
+        { key: 'stale_ready', count: 0 },
+        { key: 'inconsistent_status_data', count: 0 },
+      ],
+    };
+  }
   async listEquipment() { return []; }
   async getEquipmentById() { return null; }
   async getEquipmentDetail() { return null; }

@@ -53,6 +53,7 @@ export const adminServiceApi = {
     return apiFetch(`/api/telegram/admin/service-cases/${id}/media`, { method: 'POST', body: form });
   },
   serviceCaseHistory: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}/history`),
+  equipmentDashboard: async () => apiFetch('/api/telegram/admin/equipment/dashboard'),
   equipmentList: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {

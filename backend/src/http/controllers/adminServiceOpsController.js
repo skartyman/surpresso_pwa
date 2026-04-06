@@ -498,6 +498,12 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.json({ history });
     },
 
+    async equipmentDashboard(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const dashboard = await serviceOpsRepository.equipmentDashboard(req.query || {});
+      return res.json(dashboard || { kpi: {}, alerts: [] });
+    },
+
     async listEquipment(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listEquipment(req.query || {});
