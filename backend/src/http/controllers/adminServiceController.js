@@ -15,9 +15,14 @@ function normalizeSort(value) {
 
 export function createAdminServiceController(serviceRepository) {
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
+  const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
 
   function canAssign(role) {
     return ASSIGNMENT_ALLOWED_ROLES.includes(role);
+  }
+
+  function canViewServiceEngineers(role) {
+    return SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES.includes(role);
   }
 
   function scopeFiltersByRole(role, userId, filters = {}) {
@@ -115,7 +120,7 @@ export function createAdminServiceController(serviceRepository) {
     },
 
     async listServiceEngineers(req, res) {
-      if (!canAssign(req.adminUser?.role)) {
+      if (!canViewServiceEngineers(req.adminUser?.role)) {
         return res.status(403).json({ error: 'forbidden' });
       }
       const engineers = await serviceRepository.listServiceEngineersWithWorkload();
