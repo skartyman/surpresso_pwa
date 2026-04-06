@@ -141,9 +141,21 @@ function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSal
   const hasActiveCase = Boolean(item.activeServiceCaseId);
   const warnings = item.warnings || [];
   const quickActionLabel = hasActiveCase ? 'Открыть активный кейс' : 'Открыть в доске сервиса';
+  const handleCardKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick?.();
+    }
+  };
 
   return (
-    <button type="button" className={`equipment-ops-card equipment-ops-card--rich ${active ? 'active' : ''}`} onClick={onClick}>
+    <article
+      className={`equipment-ops-card equipment-ops-card--rich ${active ? 'active' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={handleCardKeyDown}
+    >
       <div className="equipment-ops-card__top">
         <strong>{item.id}</strong>
         <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
@@ -173,7 +185,7 @@ function EquipmentListCard({ item, active, onClick, onOpenServiceCase, onOpenSal
         <button type="button" onClick={() => onOpenSalesBoard()}>Sales</button>
         <button type="button" onClick={() => onOpenDirectorBoard()}>Director</button>
       </div>
-    </button>
+    </article>
   );
 }
 

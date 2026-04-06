@@ -1100,8 +1100,10 @@ textarea { min-height: 110px; resize: vertical; }
   text-align: left;
   display: grid;
   gap: 8px;
+  cursor: pointer;
 }
 .equipment-ops-card.active { border-color: #60a5fa; box-shadow: 0 0 0 1px #60a5fa; }
+.equipment-ops-card:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
 .equipment-ops-card__top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .equipment-ops-card__meta { display: grid; gap: 4px; color: var(--sa-muted); font-size: 12px; }
 .equipment-ops-card__meta span { display: inline-flex; gap: 6px; align-items: center; }
