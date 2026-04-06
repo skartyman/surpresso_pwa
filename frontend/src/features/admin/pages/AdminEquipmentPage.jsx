@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
+import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
 const TABS = [
   { key: 'overview', label: 'Обзор' },
@@ -162,7 +163,7 @@ function EquipmentListCard({
 }) {
   const hasActiveCase = Boolean(item.activeServiceCaseId);
   const warnings = item.warnings || [];
-  const previewUrl = item.previewUrl || item.photoUrl || item.imageUrl || item.mediaPreviewUrl || '';
+  const previewUrl = getEquipmentCardCover(item.id) || item.previewUrl || item.photoUrl || item.imageUrl || item.mediaPreviewUrl || '';
   const quickActionLabel = hasActiveCase ? 'Кейс' : 'Открыть';
   const modelTitle = `${item.brand || 'Без бренда'} ${item.model || ''}`.trim();
   const ownerMeta = item.clientName || (item.ownerType === 'company' ? 'Техника компании' : 'Клиент не указан');
@@ -288,9 +289,10 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
   );
 }
 
-function MediaGallery({ rows = [], onOpen }) {
+function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [caseFilter, setCaseFilter] = useState('all');
+  const selectedCover = getEquipmentCardCover(equipmentId);
 
   useEffect(() => {
     setCaseFilter('all');
@@ -358,16 +360,30 @@ function MediaGallery({ rows = [], onOpen }) {
             {dayItems.map((media) => {
               const originalIndex = rows.findIndex((item) => item.id === media.id);
               return (
-                <button type="button" key={media.id || `${media.fullUrl || media.fileUrl}-${day}`} className="equipment-media-thumb" onClick={() => onOpen(originalIndex)}>
-                  {media.mediaType === 'video'
-                    ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
-                    : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
-                  <div>
-                    <strong>{getMediaDisplayTitle(media)}</strong>
-                    <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
-                    <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
-                  </div>
-                </button>
+                <div key={media.id || `${media.fullUrl || media.fileUrl}-${day}`} className="equipment-media-thumb">
+                  <button type="button" className="equipment-media-thumb__open" onClick={() => onOpen(originalIndex)}>
+                    {media.mediaType === 'video'
+                      ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
+                      : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
+                    <div>
+                      <strong>{getMediaDisplayTitle(media)}</strong>
+                      <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
+                      <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
+                    </div>
+                  </button>
+                  {media.mediaType === 'photo' ? (
+                    <button
+                      type="button"
+                      className={`equipment-media-thumb__cover ${selectedCover && selectedCover === (media.previewUrl || media.fullUrl || media.fileUrl) ? 'active' : ''}`}
+                      onClick={() => {
+                        setEquipmentCardCover(equipmentId, media);
+                        onCoverSelect?.();
+                      }}
+                    >
+                      {selectedCover && selectedCover === (media.previewUrl || media.fullUrl || media.fileUrl) ? 'На карточке' : 'Сделать фото карточки'}
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
           </div>
@@ -678,7 +694,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             }}
           >Загрузить</button>
         </div>
-        <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} />
+        <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} equipmentId={detail.equipment?.id} onCoverSelect={onRefreshDetail} />
         <div className="equipment-notes-list">
           {(detail.media || []).map((row) => (
             <div key={`media-delete-${row.id}`} className="quick-filter-row">

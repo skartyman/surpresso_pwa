@@ -548,7 +548,33 @@ export class NeonServiceOpsRepository {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map(mapCase);
+    const equipmentIds = Array.from(new Set(rows.map((item) => item.equipmentId).filter(Boolean)));
+    const latestEquipmentMediaRows = equipmentIds.length
+      ? await this.prisma.serviceCaseMedia.findMany({
+        where: { equipmentId: { in: equipmentIds } },
+        include: { uploadedByUser: true },
+        orderBy: { createdAt: 'desc' },
+      })
+      : [];
+    const latestEquipmentMediaByEquipmentId = new Map();
+    for (const row of latestEquipmentMediaRows) {
+      if (!row.equipmentId || latestEquipmentMediaByEquipmentId.has(row.equipmentId)) continue;
+      latestEquipmentMediaByEquipmentId.set(row.equipmentId, mapMedia(row));
+    }
+
+    return rows.map((item) => {
+      const mapped = mapCase(item);
+      const equipmentCover = latestEquipmentMediaByEquipmentId.get(item.equipmentId) || null;
+      if (!mapped?.equipment || !equipmentCover) return mapped;
+      return {
+        ...mapped,
+        equipment: {
+          ...mapped.equipment,
+          previewUrl: equipmentCover.previewUrl || equipmentCover.fileUrl || '',
+          media: [equipmentCover],
+        },
+      };
+    });
   }
 
   async getServiceCaseById(id) {
@@ -566,9 +592,22 @@ export class NeonServiceOpsRepository {
     });
     const mapped = mapCase(row);
     if (!mapped) return null;
+    const equipmentCoverRow = row?.equipmentId
+      ? await this.prisma.serviceCaseMedia.findFirst({
+        where: { equipmentId: row.equipmentId },
+        include: { uploadedByUser: true },
+        orderBy: { createdAt: 'desc' },
+      })
+      : null;
+    const equipmentCover = mapMedia(equipmentCoverRow);
     const auditTrail = buildAuditTrail(row);
     return {
       ...mapped,
+      equipment: mapped.equipment ? {
+        ...mapped.equipment,
+        previewUrl: equipmentCover?.previewUrl || equipmentCover?.fileUrl || mapped.equipment.previewUrl || '',
+        media: equipmentCover ? [equipmentCover] : (mapped.equipment.media || []),
+      } : mapped.equipment,
       notes: (row?.notes || []).map(mapNote),
       media: (row?.media || []).map(mapMedia),
       auditTrail,

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
+import { getEquipmentCardCover } from '../utils/equipmentCardCover';
 import {
   AlertPanel,
   DetailPanel,
@@ -87,6 +88,18 @@ function ServiceQuickActions({ loadingKey, serviceActions, commercialActions, on
   );
 }
 
+function resolveServiceCardPreview(request) {
+  const savedCover = getEquipmentCardCover(request?.equipmentId);
+  if (savedCover) return savedCover;
+  const requestMedia = (request?.media || [])[0];
+  if (requestMedia?.previewUrl || requestMedia?.fileUrl) return requestMedia.previewUrl || requestMedia.fileUrl;
+  const equipmentMedia = (request?.equipment?.media || [])[0];
+  if (equipmentMedia?.previewUrl || equipmentMedia?.fullUrl || equipmentMedia?.fileUrl) {
+    return equipmentMedia.previewUrl || equipmentMedia.fullUrl || equipmentMedia.fileUrl;
+  }
+  return request?.equipment?.previewUrl || request?.equipment?.photoUrl || request?.equipment?.imageUrl || '';
+}
+
 function ServiceTicketCard({
   request,
   active,
@@ -98,8 +111,7 @@ function ServiceTicketCard({
 }) {
   const status = request.serviceStatus || request.status;
   const warnings = [];
-  const media = (request.media || request.equipment?.media || [])[0];
-  const mediaUrl = media?.previewUrl || media?.fileUrl || null;
+  const mediaUrl = resolveServiceCardPreview(request);
   const workflowActions = request.nextActions?.all || [];
   const serviceActions = workflowActions.filter((action) => action.type === 'service');
   const commercialActions = workflowActions.filter((action) => action.type === 'commercial');
