@@ -25,8 +25,39 @@ const COMMERCIAL_LABELS = {
   sold: 'Sold',
 };
 
+const EVENT_META = {
+  service_status_changed: { label: 'Service status changed', tone: 'service', icon: 'service' },
+  commercial_status_changed: { label: 'Commercial status changed', tone: 'commercial', icon: 'sales' },
+  assignment: { label: 'Assignment', tone: 'assignment', icon: 'employees' },
+  processed: { label: 'Processed', tone: 'processed', icon: 'dashboard' },
+  media_uploaded: { label: 'Media uploaded', tone: 'media', icon: 'content' },
+  note_added: { label: 'Note added', tone: 'note', icon: 'content' },
+  legacy_event: { label: 'Legacy event', tone: 'legacy', icon: 'bell' },
+};
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU') : '—';
+}
+
+function formatDay(value) {
+  return value ? new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Без даты';
+}
+
+function getBaseAdminPath(pathname = '') {
+  return pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
+}
+
+function getEquipmentWarnings(detail) {
+  const warnings = [];
+  const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
+  const staleReady = activeCase?.serviceStatus === 'ready' && activeCase.updatedAt
+    ? (Date.now() - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000
+    : false;
+  if (!activeCase) warnings.push('Нет активного сервисного кейса');
+  if (!detail?.equipment?.serial) warnings.push('Серийный номер не заполнен');
+  if (staleReady) warnings.push('Кейс в статусе ready более 24ч');
+  if ((detail?.media || []).length === 0) warnings.push('Нет медиафайлов');
+  return warnings;
 }
 
 function EquipmentListCard({ item, active, onClick }) {
@@ -46,105 +77,327 @@ function EquipmentListCard({ item, active, onClick }) {
 }
 
 function MediaGallery({ rows = [], onOpen }) {
-  const [filter, setFilter] = useState('all');
-  const filtered = useMemo(
-    () => rows.filter((item) => filter === 'all' || item.mediaType === filter),
-    [rows, filter],
-  );
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [caseFilter, setCaseFilter] = useState('all');
+
+  useEffect(() => {
+    setCaseFilter('all');
+    setTypeFilter('all');
+  }, [rows]);
+
+  const caseOptions = useMemo(() => {
+    const values = Array.from(new Set(rows.map((item) => item.serviceCaseId).filter(Boolean)));
+    return values.sort((a, b) => String(b).localeCompare(String(a), 'ru-RU'));
+  }, [rows]);
+
+  const filtered = useMemo(() => rows.filter((item) => {
+    if (typeFilter !== 'all' && item.mediaType !== typeFilter) return false;
+    if (caseFilter !== 'all' && (item.serviceCaseId || 'no_case') !== caseFilter) return false;
+    return true;
+  }), [rows, typeFilter, caseFilter]);
+
+  const grouped = useMemo(() => {
+    const map = new Map();
+    filtered.forEach((item) => {
+      const day = formatDay(item.createdAt);
+      if (!map.has(day)) map.set(day, []);
+      map.get(day).push(item);
+    });
+    return Array.from(map.entries());
+  }, [filtered]);
 
   if (!rows.length) return <p className="empty-copy">Нет медиа по этому оборудованию.</p>;
+
   return (
     <div className="equipment-detail-section">
-      <div className="quick-filter-row">
-        {[
-          { key: 'all', label: 'Все' },
-          { key: 'photo', label: 'Фото' },
-          { key: 'video', label: 'Видео' },
-        ].map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={filter === item.key ? 'active' : ''}
-            onClick={() => setFilter(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="equipment-media-filters">
+        <div className="quick-filter-row">
+          {[
+            { key: 'all', label: 'Все' },
+            { key: 'photo', label: 'Фото' },
+            { key: 'video', label: 'Видео' },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={typeFilter === item.key ? 'active' : ''}
+              onClick={() => setTypeFilter(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="quick-filter-row">
+          <button type="button" className={caseFilter === 'all' ? 'active' : ''} onClick={() => setCaseFilter('all')}>Все кейсы</button>
+          <button type="button" className={caseFilter === 'no_case' ? 'active' : ''} onClick={() => setCaseFilter('no_case')}>Без кейса</button>
+          {caseOptions.map((serviceCaseId) => (
+            <button key={serviceCaseId} type="button" className={caseFilter === serviceCaseId ? 'active' : ''} onClick={() => setCaseFilter(serviceCaseId)}>
+              Кейс {serviceCaseId}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="equipment-media-grid">
-        {filtered.map((media, index) => (
-          <button type="button" key={media.id || `${media.fullUrl || media.fileUrl}-${index}`} className="equipment-media-thumb" onClick={() => onOpen(rows.findIndex((item) => item.id === media.id))}>
-            {media.mediaType === 'video'
-              ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
-              : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
-            <div>
-              <strong>{media.caption || media.originalName || media.mediaType || 'media'}</strong>
-              <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
-              {media.serviceCaseId ? <span>Кейс: {media.serviceCaseId}</span> : null}
-            </div>
-          </button>
-        ))}
-        {!filtered.length ? <p className="empty-copy media-empty">По выбранному фильтру файлов нет.</p> : null}
-      </div>
+
+      {grouped.map(([day, dayItems]) => (
+        <section key={day} className="equipment-media-group">
+          <h4>{day}</h4>
+          <div className="equipment-media-grid">
+            {dayItems.map((media) => {
+              const originalIndex = rows.findIndex((item) => item.id === media.id);
+              return (
+                <button type="button" key={media.id || `${media.fullUrl || media.fileUrl}-${day}`} className="equipment-media-thumb" onClick={() => onOpen(originalIndex)}>
+                  {media.mediaType === 'video'
+                    ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
+                    : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
+                  <div>
+                    <strong>{media.caption || media.originalName || media.mediaType || 'media'}</strong>
+                    <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
+                    <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+
+      {!grouped.length ? <p className="empty-copy media-empty">По выбранному фильтру файлов нет.</p> : null}
     </div>
   );
 }
 
-function Lightbox({ media, index, onClose }) {
+function Lightbox({ rows = [], index, onClose, onNavigate }) {
+  const media = rows[index];
   if (!media) return null;
+
   return (
     <div className="equipment-lightbox" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="equipment-lightbox__content" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="equipment-lightbox__close" onClick={onClose}>×</button>
+        <div className="equipment-lightbox__controls">
+          <button type="button" onClick={() => onNavigate(-1)} disabled={index <= 0}>←</button>
+          <small>{index + 1} / {rows.length}</small>
+          <button type="button" onClick={() => onNavigate(1)} disabled={index >= rows.length - 1}>→</button>
+        </div>
         {media.mediaType === 'video'
           ? <video src={media.fullUrl || media.fileUrl} controls autoPlay />
           : <img src={media.fullUrl || media.fileUrl} alt={media.caption || media.originalName || `media-${index + 1}`} />}
-        <p>{media.caption || media.originalName || '—'}</p>
-        <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
-        {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
+        <div className="equipment-lightbox__meta">
+          <p>{media.caption || media.originalName || '—'}</p>
+          <small>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</small>
+          {media.serviceCaseId ? <small>Кейс: {media.serviceCaseId}</small> : null}
+          <a href={media.fullUrl || media.fileUrl} target="_blank" rel="noreferrer">Открыть оригинал в новой вкладке</a>
+        </div>
+        <div className="equipment-lightbox__carousel">
+          {rows.map((item, thumbIndex) => (
+            <button type="button" key={item.id || `${item.fullUrl || item.fileUrl}-${thumbIndex}`} className={thumbIndex === index ? 'active' : ''} onClick={() => onNavigate(thumbIndex - index)}>
+              {item.mediaType === 'video'
+                ? <video src={item.previewUrl || item.fullUrl} muted playsInline preload="metadata" />
+                : <img src={item.previewUrl || item.fullUrl} alt={item.caption || item.originalName || `thumb-${thumbIndex + 1}`} loading="lazy" />}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function TabPanel({ tab, detail, onOpenMedia }) {
+function TimelineView({ rows = [] }) {
+  if (!rows.length) return <p className="empty-copy">История отсутствует.</p>;
+  const normalized = [...rows].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+
+  return (
+    <ul className="equipment-history-list equipment-history-list--typed">
+      {normalized.map((row) => {
+        const meta = EVENT_META[row.type] || EVENT_META.legacy_event;
+        return (
+          <li key={row.id} className={`event-item event-item--${meta.tone}`}>
+            <header>
+              <span className="event-item__badge">
+                <Icon name={meta.icon} /> {meta.label}
+              </span>
+              <small>{formatDate(row.timestamp)}</small>
+            </header>
+            <p><strong>{row.payload?.fromStatus || '—'} → {row.payload?.toStatus || '—'}</strong></p>
+            <p>{row.comment || 'Без комментария'}</p>
+            <small>Actor: {row.actor || 'system'}{row.payload?.serviceCaseId ? ` · case ${row.payload.serviceCaseId}` : ''}</small>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }) {
+  const [actionLoading, setActionLoading] = useState('');
+  const [quickMediaFiles, setQuickMediaFiles] = useState([]);
+  const [quickMediaCaption, setQuickMediaCaption] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
+
+  const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
+  const commercialActions = detail?.currentActions?.all?.filter((item) => item.type === 'commercial') || [];
+
+  async function applyCommercialAction(action) {
+    if (!detail?.equipment?.id || !action) return;
+    setActionLoading(`commercial:${action.key}:${action.targetStatus || ''}`);
+    setError('');
+    try {
+      if (action.key === 'reserve-rent') {
+        await adminServiceApi.reserveRent(detail.equipment.id, activeCase?.id || null);
+      } else if (action.key === 'reserve-sale') {
+        await adminServiceApi.reserveSale(detail.equipment.id, activeCase?.id || null);
+      } else {
+        await adminServiceApi.updateCommercialStatus(detail.equipment.id, action.targetStatus, '', activeCase?.id || null);
+      }
+      setFeedback('Коммерческое действие выполнено. Обновите карточку оборудования из списка для актуальных данных.');
+    } catch {
+      setError('Не удалось выполнить коммерческое действие.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function submitQuickMedia() {
+    if (!activeCase?.id || !quickMediaFiles.length) return;
+    setActionLoading('media');
+    setError('');
+    try {
+      await adminServiceApi.uploadServiceCaseMedia(activeCase.id, quickMediaFiles, quickMediaCaption.trim());
+      setQuickMediaFiles([]);
+      setQuickMediaCaption('');
+      setFeedback('Медиа добавлено в активный кейс.');
+      await onQuickMediaUploaded?.();
+    } catch {
+      setError('Не удалось загрузить медиа.');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  return (
+    <section className="equipment-detail-section equipment-action-panel">
+      <header>
+        <h4>Action panel</h4>
+        <p>Операционные действия по оборудованию без перехода между экранами.</p>
+      </header>
+
+      <div className="quick-filter-row">
+        <button type="button" disabled={!activeCase?.id} onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}>
+          Open active service case
+        </button>
+        <button type="button" onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>
+          Create/Open service flow
+        </button>
+        <button type="button" onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>
+          Service board
+        </button>
+        <button type="button" onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>
+          Director board
+        </button>
+        <button type="button" onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>
+          Sales board
+        </button>
+      </div>
+
+      <div className="equipment-action-panel__media">
+        <h5>Quick add media</h5>
+        {!activeCase?.id ? <p className="empty-copy">Активный кейс не найден — быстрый upload недоступен.</p> : null}
+        <input type="file" multiple accept="image/*,video/*" onChange={(event) => setQuickMediaFiles(Array.from(event.target.files || []))} />
+        <input
+          type="text"
+          value={quickMediaCaption}
+          onChange={(event) => setQuickMediaCaption(event.target.value)}
+          placeholder="Комментарий к медиа"
+        />
+        <button type="button" disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)} onClick={() => submitQuickMedia()}>
+          {actionLoading === 'media' ? 'Загрузка...' : 'Upload media to active case'}
+        </button>
+      </div>
+
+      <div className="equipment-action-panel__commercial">
+        <h5>Quick commercial actions</h5>
+        <div className="quick-filter-row">
+          {commercialActions.map((action) => (
+            <button
+              disabled={Boolean(actionLoading)}
+              key={action.key + action.targetStatus}
+              type="button"
+              onClick={() => applyCommercialAction(action)}
+            >
+              {actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
+            </button>
+          ))}
+          {!commercialActions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
+        </div>
+      </div>
+
+      <p className="equipment-action-panel__links">
+        Быстрые ссылки: <a href={`${basePath}/service`}>Service board</a> · <a href={`${basePath}/director`}>Director board</a> · <a href={`${basePath}/sales`}>Sales board</a>
+      </p>
+      {feedback ? <p>{feedback}</p> : null}
+      {error ? <p className="error-text">{error}</p> : null}
+    </section>
+  );
+}
+
+function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, basePath }) {
   if (!detail) return <p className="empty-copy">Выберите единицу оборудования.</p>;
   if (tab === 'overview') {
     const equipment = detail.equipment || {};
     const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
+    const latestMedia = (detail.media || [])[0] || null;
+    const warnings = getEquipmentWarnings(detail);
     return (
       <section className="equipment-detail-section">
+        <article className="equipment-summary-hero">
+          <div>
+            <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
+            <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
+            <div className="equipment-summary-hero__statuses">
+              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>Service: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
+              <StatusBadge status={equipment.commercialStatus || 'none'}>Commercial: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</StatusBadge>
+            </div>
+          </div>
+          {latestMedia
+            ? (
+              <button type="button" className="equipment-summary-hero__preview" onClick={() => onOpenMedia(0)}>
+                {latestMedia.mediaType === 'video'
+                  ? <video src={latestMedia.previewUrl || latestMedia.fullUrl} muted playsInline preload="metadata" />
+                  : <img src={latestMedia.previewUrl || latestMedia.fullUrl} alt={latestMedia.caption || latestMedia.originalName || 'latest media'} loading="lazy" />}
+              </button>
+            )
+            : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">Нет превью</div>}
+        </article>
+
+        {warnings.length ? (
+          <div className="warning-badges">
+            {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+          </div>
+        ) : null}
+
         <div className="equipment-detail-grid">
-          <p><Icon name="equipment" /> ID: {equipment.id || '—'}</p>
           <p><Icon name="clients" /> Клиент: {equipment.clientName || '—'}</p>
-          <p><Icon name="equipment" /> Модель: {equipment.brand || '—'} {equipment.model || ''}</p>
-          <p><Icon name="equipment" /> Internal/Serial: {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
-          <p><Icon name="service" /> Service: {equipment.serviceStatus || '—'}</p>
-          <p><Icon name="sales" /> Commercial: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</p>
+          <p><Icon name="equipment" /> Owner type: {equipment.ownerType || '—'}</p>
           <p><Icon name="dashboard" /> Active case: {activeCase?.id || '—'}</p>
+          <p><Icon name="employees" /> Assigned master: {activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</p>
+          <p><Icon name="service" /> Current service status: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</p>
+          <p><Icon name="sales" /> Current commercial status: {COMMERCIAL_LABELS[equipment.commercialStatus || 'none'] || (equipment.commercialStatus || 'none')}</p>
           <p><Icon name="dashboard" /> Обновлено: {formatDate(equipment.updatedAt)}</p>
         </div>
+
+        <ActionPanel
+          detail={detail}
+          onQuickMediaUploaded={onRefreshDetail}
+          navigateToBoard={navigateToBoard}
+          basePath={basePath}
+        />
       </section>
     );
   }
   if (tab === 'media') return <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} />;
-  if (tab === 'history') {
-    const rows = detail.timeline || [];
-    if (!rows.length) return <p className="empty-copy">История отсутствует.</p>;
-    return (
-      <ul className="equipment-history-list">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <p><strong>{row.type}:</strong> {row.payload?.fromStatus || '—'} → {row.payload?.toStatus || '—'}</p>
-            <p>Actor: {row.actor || 'system'} · {formatDate(row.timestamp)}</p>
-            <p>Comment: {row.comment || '—'}</p>
-            {row.payload?.serviceCaseId ? <p>Case: {row.payload?.serviceCaseId}</p> : null}
-            {row.payload?.raw ? <p>Legacy raw: {row.payload.raw?.fromStatusRaw || '—'} → {row.payload.raw?.toStatusRaw || '—'}</p> : null}
-          </li>
-        ))}
-      </ul>
-    );
-  }
+  if (tab === 'history') return <TimelineView rows={detail.timeline || []} />;
   if (tab === 'service_cases') {
     const rows = detail.serviceCases || [];
     if (!rows.length) return <p className="empty-copy">Кейсов не найдено.</p>;
@@ -158,8 +411,9 @@ function TabPanel({ tab, detail, onOpenMedia }) {
               {row.isActive ? <span className="signal-chip signal-chip--critical">active case</span> : null}
             </header>
             <p>Status: {row.serviceStatus || '—'}</p>
+            <p>Assigned: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
             <p>Created: {formatDate(row.createdAt)} · Updated: {formatDate(row.updatedAt)}</p>
-            <a href={`/admin/service?caseId=${encodeURIComponent(row.id)}`}>Открыть detail case view: {row.id}</a>
+            <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>Открыть detail case view: {row.id}</a>
           </article>
         ))}
       </div>
@@ -205,6 +459,8 @@ export function AdminEquipmentPage() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
 
+  const basePath = getBaseAdminPath(location.pathname);
+
   useEffect(() => {
     const query = typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)') : null;
     if (!query) return undefined;
@@ -240,7 +496,6 @@ export function AdminEquipmentPage() {
 
   function selectEquipment(id) {
     if (isMobile) {
-      const basePath = location.pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
       navigate(`${basePath}/equipment/${id}`);
       return;
     }
@@ -248,8 +503,26 @@ export function AdminEquipmentPage() {
   }
 
   function closeMobileDetail() {
-    const basePath = location.pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
     navigate(`${basePath}/equipment`);
+  }
+
+  function navigateToBoard(target, id) {
+    const equipmentKey = id || detail?.equipment?.id || '';
+    if (target === 'service_case' && id) {
+      navigate(`${basePath}/service?caseId=${encodeURIComponent(id)}`);
+      return;
+    }
+    if (target === 'service_flow' || target === 'service_board') {
+      navigate(`${basePath}/service${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
+      return;
+    }
+    if (target === 'director_board') {
+      navigate(`${basePath}/director${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}&commercialStatus=route_backlog` : ''}`);
+      return;
+    }
+    if (target === 'sales_board') {
+      navigate(`${basePath}/sales${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
+    }
   }
 
   const mobileDetailMode = isMobile && Boolean(equipmentId);
@@ -259,7 +532,7 @@ export function AdminEquipmentPage() {
       <header className="service-headline">
         <div>
           <h2>Operations Asset View</h2>
-          <p>Краткий список оборудования + полноценная деталка с timeline, медиа и коммерческим контекстом.</p>
+          <p>Краткий список оборудования + полноценная деталка как operational passport.</p>
         </div>
       </header>
 
@@ -291,11 +564,23 @@ export function AdminEquipmentPage() {
             ))}
           </div>
 
-          <TabPanel tab={activeTab} detail={{ ...detail, media: mediaRows }} onOpenMedia={setLightboxIndex} />
+          <TabPanel
+            tab={activeTab}
+            detail={{ ...detail, media: mediaRows }}
+            onOpenMedia={setLightboxIndex}
+            onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId || selectedId)}
+            navigateToBoard={navigateToBoard}
+            basePath={basePath}
+          />
         </article>
       </div>
 
-      <Lightbox media={mediaRows[lightboxIndex]} index={lightboxIndex} onClose={() => setLightboxIndex(-1)} />
+      <Lightbox
+        rows={mediaRows}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(-1)}
+        onNavigate={(delta) => setLightboxIndex((prev) => Math.min(Math.max(prev + delta, 0), mediaRows.length - 1))}
+      />
     </section>
   );
 }

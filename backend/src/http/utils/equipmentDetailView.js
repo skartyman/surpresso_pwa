@@ -33,7 +33,7 @@ export function buildEquipmentTimeline(detail = {}) {
   (detail.history || []).forEach((row) => {
     timeline.push({
       id: `history-${row.id}`,
-      type: row.eventType === 'commercial' ? 'commercial_status' : 'service_status',
+      type: row.eventType === 'commercial' ? 'commercial_status_changed' : (row.raw ? 'legacy_event' : 'service_status_changed'),
       timestamp: row.timestamp || null,
       actor: row.actor?.fullName || row.actorLabel || 'system',
       comment: row.comment || null,
@@ -60,7 +60,7 @@ export function buildEquipmentTimeline(detail = {}) {
     if (item.processedAt) {
       timeline.push({
         id: `processing-${item.id}-${item.processedAt}`,
-        type: 'processing',
+        type: 'processed',
         timestamp: item.processedAt,
         actor: item.processedByUser?.fullName || 'system',
         comment: item.closingComment || 'Кейс обработан',
@@ -72,7 +72,7 @@ export function buildEquipmentTimeline(detail = {}) {
   (detail.media || []).forEach((item) => {
     timeline.push({
       id: `media-${item.id}`,
-      type: 'media_upload',
+      type: 'media_uploaded',
       timestamp: item.createdAt || null,
       actor: item.uploadedByUser?.fullName || item.uploadedBy || 'system',
       comment: item.caption || item.originalName || 'Загрузка медиа',
@@ -83,7 +83,7 @@ export function buildEquipmentTimeline(detail = {}) {
   (detail.notes || []).forEach((item) => {
     timeline.push({
       id: `note-${item.id}`,
-      type: 'note',
+      type: 'note_added',
       timestamp: item.createdAt || null,
       actor: item.authorUser?.fullName || 'system',
       comment: item.body || null,
