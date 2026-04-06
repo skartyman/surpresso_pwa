@@ -8,15 +8,21 @@ export function AuthProvider({ children }) {
   const [status, setStatus] = useState('loading');
 
   const refreshMe = useCallback(async () => {
+    setStatus('loading');
+
     try {
       const data = await authApi.me();
       setUser(data.user);
       sessionStorage.setItem('surpresso-user', JSON.stringify(data.user));
       setStatus('authenticated');
-    } catch {
+    } catch (error) {
       setUser(null);
       sessionStorage.removeItem('surpresso-user');
-      setStatus('anonymous');
+      if (error?.status === 401) {
+        setStatus('unauthenticated');
+        return;
+      }
+      setStatus('unauthenticated');
     }
   }, []);
 
@@ -31,7 +37,7 @@ export function AuthProvider({ children }) {
 
     setUser(null);
     sessionStorage.removeItem('surpresso-user');
-    setStatus('anonymous');
+    setStatus('unauthenticated');
   }, [refreshMe]);
 
   const login = useCallback(async (email, password) => {
@@ -44,7 +50,7 @@ export function AuthProvider({ children }) {
     await authApi.logout();
     setUser(null);
     sessionStorage.removeItem('surpresso-user');
-    setStatus('anonymous');
+    setStatus('unauthenticated');
   }, []);
 
   const value = useMemo(
