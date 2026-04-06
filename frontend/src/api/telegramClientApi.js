@@ -35,11 +35,18 @@ async function apiFetch(path, options = {}) {
 }
 
 export const telegramClientApi = {
-  listEquipment: async () => apiFetch('/api/telegram/v1/equipment'),
+  me: async () => apiFetch('/api/telegram/auth/me'),
+  listEquipment: async () => apiFetch('/api/telegram/equipment'),
+  equipmentById: async (id) => apiFetch(`/api/telegram/equipment/${id}`),
   listServiceRequests: async () => apiFetch('/api/telegram/service-requests'),
   createServiceRequest: async (payload) => apiFetch('/api/telegram/service-requests', {
     method: 'POST',
     body: payload,
   }),
   serviceRequestStatus: async (id) => apiFetch(`/api/telegram/service-requests/${id}/status`),
+  notifySupport: async (payload) => apiFetch('/api/telegram/support/notify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
 };

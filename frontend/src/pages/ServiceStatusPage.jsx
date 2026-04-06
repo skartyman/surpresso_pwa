@@ -1,16 +1,25 @@
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { telegramClientApi } from '../api/telegramClientApi';
 import { useI18n } from '../i18n';
 
 export function ServiceStatusPage() {
   const { requestId } = useParams();
-  const { t } = useI18n();
+  const { t, dateLocale } = useI18n();
+  const [statusData, setStatusData] = useState(null);
+
+  useEffect(() => {
+    telegramClientApi.serviceRequestStatus(requestId).then(setStatusData);
+  }, [requestId]);
+
+  if (!statusData) return <p>{t('loading')}</p>;
 
   return (
     <section>
-      <h1>{t('request_status')} {requestId}</h1>
+      <h2>{t('request_status')} {requestId}</h2>
       <div className="status-card">
-        <p>{t('current_status')}: {t('in_progress')}</p>
-        <p>{t('engineer_assigned')}</p>
+        <p>{t('current_status')}: {statusData.status}</p>
+        <p>{new Date(statusData.updatedAt).toLocaleString(dateLocale)}</p>
       </div>
     </section>
   );
