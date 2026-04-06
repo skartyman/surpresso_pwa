@@ -69,6 +69,7 @@ export async function createApp() {
   app.use('/api', createApiRouter({ ...deps, serviceRequestNotifier, executiveNotifier, notificationCenterService, sessionManager, uploadsRoot }));
   app.use('/webhooks', createWebhookRouter(botGateway));
   app.post('/api/v1/support/notify', supportController.notify);
+  app.post('/api/telegram/support/notify', supportController.notify);
 
   return app;
 }

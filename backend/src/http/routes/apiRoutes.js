@@ -108,8 +108,11 @@ export function createApiRouter(deps) {
   router.patch('/admin/employees/:id', asyncHandler(adminAuth), requireRole(['owner', 'director', 'service_head', 'manager', 'service_engineer']), asyncHandler(adminEmployeeController.update));
 
   router.get('/v1/auth/me', asyncHandler(authMiddleware), authController.me);
+  router.get('/auth/me', asyncHandler(authMiddleware), authController.me);
   router.get('/v1/equipment', asyncHandler(authMiddleware), equipmentController.list);
+  router.get('/equipment', asyncHandler(authMiddleware), equipmentController.list);
   router.get('/v1/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);
+  router.get('/equipment/:id', asyncHandler(authMiddleware), equipmentController.byId);
 
   router.get('/service-requests', asyncHandler(authMiddleware), serviceController.list);
   router.post('/service-requests', asyncHandler(authMiddleware), upload.array('media', 6), serviceController.create);

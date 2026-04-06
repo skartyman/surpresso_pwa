@@ -1,13 +1,12 @@
 import { useTelegramWebApp } from '../features/auth/useTelegramWebApp';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { AppShell } from '../layouts/AppShell';
+import { ClientLayout } from '../layouts/ClientLayout';
 import { HomePage } from '../pages/HomePage';
 import { EquipmentPage } from '../pages/EquipmentPage';
-import { EquipmentCardPage } from '../pages/EquipmentCardPage';
+import { EquipmentDetailPage } from '../pages/EquipmentDetailPage';
 import { ServicePage } from '../pages/ServicePage';
 import { ServiceStatusPage } from '../pages/ServiceStatusPage';
 import { SupportPage } from '../pages/SupportPage';
-import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { LoginPage } from '../pages/LoginPage';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { routes } from './routes';
@@ -24,25 +23,24 @@ import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
 import { AdminReportsPage } from '../features/admin/pages/AdminReportsPage';
 import { AdminNotificationCenterPage } from '../features/admin/pages/AdminNotificationCenterPage';
 import { useI18n } from '../i18n';
+import { RequestsPage } from '../pages/RequestsPage';
+import { ProfilePage } from '../pages/ProfilePage';
 
 function ClientRoutes() {
-  const { t } = useI18n();
+  useI18n();
   return (
-    <AppShell>
+    <ClientLayout>
       <Routes>
         <Route path={routes.home} element={<HomePage />} />
         <Route path={routes.equipment} element={<EquipmentPage />} />
-        <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentCardPage />} />
+        <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentDetailPage />} />
         <Route path={routes.service} element={<ServicePage />} />
-        <Route path={`${routes.requestForm}/:requestType`} element={<ServicePage />} />
-        <Route path={`${routes.service}/:requestId`} element={<ServiceStatusPage />} />
+        <Route path={routes.requests} element={<RequestsPage />} />
+        <Route path={`${routes.requests}/:requestId`} element={<ServiceStatusPage />} />
         <Route path={routes.support} element={<SupportPage />} />
-        <Route path={routes.rentals} element={<PlaceholderPage title={t('rentals')} />} />
-        <Route path={routes.coffee} element={<PlaceholderPage title={t('coffee')} />} />
-        <Route path={routes.supplies} element={<PlaceholderPage title={t('supplies')} />} />
-        <Route path={routes.guides} element={<PlaceholderPage title={t('guides')} />} />
+        <Route path={routes.profile} element={<ProfilePage />} />
       </Routes>
-    </AppShell>
+    </ClientLayout>
   );
 }
 
