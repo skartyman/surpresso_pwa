@@ -1095,6 +1095,43 @@ textarea { min-height: 110px; resize: vertical; }
   padding: 12px;
 }
 .equipment-ops-list { display: grid; gap: 10px; align-content: start; max-height: calc(100vh - 180px); overflow: auto; }
+.equipment-list-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  margin: -6px -6px 0;
+  border: 1px solid var(--sa-line);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--sa-surface), transparent 5%);
+  backdrop-filter: blur(8px);
+}
+.equipment-list-toolbar__row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.equipment-list-toolbar__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.equipment-list-toolbar__chips button,
+.equipment-list-toolbar__toggle button {
+  border: 1px solid var(--sa-line);
+  background: var(--sa-surface-2);
+  color: var(--sa-text);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.equipment-list-toolbar__chips button.active,
+.equipment-list-toolbar__toggle button.active { background: var(--sa-brand); border-color: var(--sa-brand); color: #1f1300; }
+.equipment-list-toolbar__toggle { display: inline-flex; gap: 6px; }
+.equipment-list-toolbar input {
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  background: var(--sa-surface);
+  color: var(--sa-text);
+  padding: 8px 10px;
+}
+.equipment-ops-list__cards { display: grid; gap: 10px; align-content: start; }
+.equipment-ops-list__cards--grid { grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); }
+.equipment-ops-list__cards--list { grid-template-columns: 1fr; }
 .equipment-warning-filter-chip { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--sa-line); border-radius: 999px; padding: 6px 10px; background: var(--sa-surface-2); font-size: 12px; }
 .equipment-warning-filter-chip button { border: 1px solid var(--sa-line); border-radius: 999px; background: var(--sa-surface); color: var(--sa-text); padding: 4px 8px; }
 .equipment-ops-card {
@@ -1111,8 +1148,50 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-ops-card.active { border-color: #60a5fa; box-shadow: 0 0 0 1px #60a5fa; }
 .equipment-ops-card:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
 .equipment-ops-card__top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.equipment-ops-card__preview {
+  position: relative;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--sa-surface);
+  min-height: 112px;
+  height: 112px;
+}
+.equipment-ops-card__preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.equipment-ops-card__preview-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  color: var(--sa-muted);
+  font-size: 12px;
+}
+.equipment-ops-card__top {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+}
+.equipment-ops-card__type-chip {
+  border: 1px solid var(--sa-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: rgba(2, 6, 23, 0.65);
+  color: #fff;
+}
+.equipment-ops-card__title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 700;
+}
 .equipment-ops-card__meta { display: grid; gap: 4px; color: var(--sa-muted); font-size: 12px; }
 .equipment-ops-card__meta span { display: inline-flex; gap: 6px; align-items: center; }
+.equipment-ops-card--list { grid-template-columns: 160px 1fr; align-items: start; }
+.equipment-ops-card--list .equipment-ops-card__preview { grid-row: span 4; height: 100%; min-height: 132px; }
+.equipment-ops-card--list .equipment-ops-card__actions { margin-top: 4px; }
 .equipment-ops-detail { display: grid; gap: 12px; align-content: start; }
 .equipment-ops-detail__header { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .equipment-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1152,6 +1231,11 @@ textarea { min-height: 110px; resize: vertical; }
   .equipment-ops-layout { grid-template-columns: 1fr; }
   .equipment-ops-detail { min-height: calc(100vh - 170px); }
   .equipment-detail-grid { grid-template-columns: 1fr; }
+  .equipment-list-toolbar__row { flex-direction: column; align-items: stretch; }
+  .equipment-list-toolbar__toggle { width: 100%; }
+  .equipment-list-toolbar__toggle button { flex: 1; }
+  .equipment-ops-card--list { grid-template-columns: 1fr; }
+  .equipment-ops-card--list .equipment-ops-card__preview { grid-row: auto; min-height: 104px; height: 104px; }
 }
 
 .equipment-summary-hero {
@@ -1279,6 +1363,15 @@ textarea { min-height: 110px; resize: vertical; }
   background: linear-gradient(160deg, #0d1528, #080d1a);
 }
 :root[data-admin-theme='dark'] .equipment-ops-card { border-color: #263247; background: #0c1528; }
+:root[data-admin-theme='dark'] .equipment-list-toolbar { border-color: #27344d; background: rgba(10, 18, 34, .92); }
+:root[data-admin-theme='dark'] .equipment-list-toolbar__chips button,
+:root[data-admin-theme='dark'] .equipment-list-toolbar__toggle button,
+:root[data-admin-theme='dark'] .equipment-list-toolbar input { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
+:root[data-admin-theme='dark'] .equipment-list-toolbar__chips button.active,
+:root[data-admin-theme='dark'] .equipment-list-toolbar__toggle button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }
+:root[data-admin-theme='dark'] .equipment-ops-card__preview { border-color: #2a3a54; background: #020617; }
+:root[data-admin-theme='dark'] .equipment-ops-card__preview-placeholder { color: #8aa0bf; }
+:root[data-admin-theme='dark'] .equipment-ops-card__type-chip { border-color: #334155; background: rgba(2, 6, 23, .8); }
 :root[data-admin-theme='dark'] .equipment-tabs button { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
 :root[data-admin-theme='dark'] .equipment-tabs button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }
 :root[data-admin-theme='dark'] .equipment-detail-grid p { color: #d8e1ef; }
