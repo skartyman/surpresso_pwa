@@ -1910,6 +1910,99 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-media-filters { display: grid; gap: 8px; }
 .equipment-media-group { display: grid; gap: 8px; }
 .equipment-media-group h4 { margin: 0; color: var(--sa-text); }
+.equipment-gallery-shell {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--sa-line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sa-surface), white 3%), var(--sa-surface-2));
+}
+.equipment-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.equipment-gallery-card {
+  border: 1px solid var(--sa-line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--sa-surface);
+  display: grid;
+}
+.equipment-gallery-card__media {
+  position: relative;
+  min-height: 168px;
+  background: #0f172a;
+}
+.equipment-gallery-card__open {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.equipment-gallery-card__media img,
+.equipment-gallery-card__media video {
+  width: 100%;
+  height: 168px;
+  object-fit: cover;
+  display: block;
+}
+.equipment-gallery-card__broken {
+  width: 100%;
+  height: 168px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  text-align: center;
+  padding: 16px;
+}
+.equipment-gallery-card__actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 6px;
+  max-width: calc(100% - 16px);
+}
+.equipment-gallery-card__action {
+  min-height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+}
+.equipment-gallery-card__action.active {
+  background: rgba(245, 158, 11, 0.92);
+  border-color: rgba(245, 158, 11, 0.92);
+  color: #1f1300;
+}
+.equipment-gallery-card__action.danger {
+  background: rgba(127, 29, 29, 0.76);
+  border-color: rgba(252, 165, 165, 0.34);
+}
+.equipment-gallery-card__meta {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+.equipment-gallery-card__meta strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.equipment-gallery-card__meta span {
+  color: var(--sa-muted);
+  font-size: 12px;
+}
+.equipment-gallery-card.is-broken { border-style: dashed; }
 
 .equipment-history-list--typed .event-item { display: grid; gap: 6px; }
 .equipment-history-list--typed .event-item header {
@@ -2005,6 +2098,30 @@ textarea { min-height: 110px; resize: vertical; }
 :root[data-admin-theme='dark'] .equipment-action-panel__links a,
 :root[data-admin-theme='dark'] .equipment-lightbox__meta a { color: #93c5fd; }
 :root[data-admin-theme='dark'] .equipment-media-group h4 { color: #c4d2e7; }
+:root[data-admin-theme='dark'] .equipment-gallery-shell {
+  border-color: #2a3a54;
+  background: linear-gradient(180deg, #0d1728, #0a1222);
+}
+:root[data-admin-theme='dark'] .equipment-gallery-card {
+  border-color: #2a3a54;
+  background: #0a1222;
+}
+:root[data-admin-theme='dark'] .equipment-gallery-card__action {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+}
+:root[data-admin-theme='dark'] .equipment-gallery-card__action.active {
+  background: rgba(245, 158, 11, 0.94);
+  border-color: rgba(245, 158, 11, 0.94);
+  color: #1f1300;
+}
+:root[data-admin-theme='dark'] .equipment-gallery-card__action.danger {
+  background: rgba(127, 29, 29, 0.82);
+  border-color: rgba(252, 165, 165, 0.4);
+}
+:root[data-admin-theme='dark'] .equipment-gallery-card__broken { color: #9fb0ca; }
+:root[data-admin-theme='dark'] .equipment-gallery-card__meta span { color: #9fb0ca; }
 :root[data-admin-theme='dark'] .equipment-lightbox__close { background: #111827; color: #f8fafc; border-color: #334155; }
 :root[data-admin-theme='dark'] .equipment-back-button { border-color: #334155; background: #0d1628; color: #cbd5e1; }
 :root[data-admin-theme='dark'] .equipment-lightbox__controls button,

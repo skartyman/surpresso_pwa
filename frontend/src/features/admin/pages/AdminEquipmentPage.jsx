@@ -294,7 +294,7 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
   );
 }
 
-function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect }) {
+function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [caseFilter, setCaseFilter] = useState('all');
   const selectedCover = getEquipmentCardCover(equipmentId);
@@ -315,20 +315,10 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect }) {
     return true;
   }), [rows, typeFilter, caseFilter]);
 
-  const grouped = useMemo(() => {
-    const map = new Map();
-    filtered.forEach((item) => {
-      const day = formatDay(item.createdAt);
-      if (!map.has(day)) map.set(day, []);
-      map.get(day).push(item);
-    });
-    return Array.from(map.entries());
-  }, [filtered]);
-
   if (!rows.length) return <p className="empty-copy">Нет медиа по этому оборудованию.</p>;
 
   return (
-    <div className="equipment-detail-section">
+    <div className="equipment-detail-section equipment-gallery-shell">
       <div className="equipment-media-filters">
         <div className="quick-filter-row">
           {[
@@ -358,44 +348,64 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect }) {
         </div>
       </div>
 
-      {grouped.map(([day, dayItems]) => (
-        <section key={day} className="equipment-media-group">
-          <h4>{day}</h4>
-          <div className="equipment-media-grid">
-            {dayItems.map((media) => {
-              const originalIndex = rows.findIndex((item) => item.id === media.id);
-              return (
-                <div key={media.id || `${media.fullUrl || media.fileUrl}-${day}`} className="equipment-media-thumb">
-                  <button type="button" className="equipment-media-thumb__open" onClick={() => onOpen(originalIndex)}>
+      <div className="equipment-gallery-grid">
+        {filtered.map((media, index) => {
+          const originalIndex = rows.findIndex((item) => item.id === media.id);
+          const isRenderable = hasRenderableMedia(media);
+          const mediaUrl = media.previewUrl || media.fullUrl || media.fileUrl || '';
+          const isCover = selectedCover && selectedCover === mediaUrl;
+
+          return (
+            <article key={media.id || `${media.fullUrl || media.fileUrl}-${index}`} className={`equipment-gallery-card ${!isRenderable ? 'is-broken' : ''}`}>
+              <div className="equipment-gallery-card__media">
+                {isRenderable ? (
+                  <button type="button" className="equipment-gallery-card__open" onClick={() => onOpen(originalIndex)}>
                     {media.mediaType === 'video'
-                      ? <video src={media.previewUrl || media.fullUrl} muted playsInline preload="metadata" />
-                      : <img src={media.previewUrl || media.fullUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
-                    <div>
-                      <strong>{getMediaDisplayTitle(media)}</strong>
-                      <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
-                      <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
-                    </div>
+                      ? <video src={mediaUrl} muted playsInline preload="metadata" />
+                      : <img src={mediaUrl} alt={media.caption || media.originalName || 'media'} loading="lazy" />}
                   </button>
-                  {media.mediaType === 'photo' ? (
+                ) : (
+                  <div className="equipment-gallery-card__broken">
+                    <Icon name="content" />
+                    <span>Файл недоступен</span>
+                  </div>
+                )}
+
+                <div className="equipment-gallery-card__actions">
+                  {isRenderable ? (
+                    <button type="button" className="equipment-gallery-card__action" onClick={() => onOpen(originalIndex)}>
+                      Открыть
+                    </button>
+                  ) : null}
+                  {media.mediaType === 'photo' && isRenderable ? (
                     <button
                       type="button"
-                      className={`equipment-media-thumb__cover ${selectedCover && selectedCover === (media.previewUrl || media.fullUrl || media.fileUrl) ? 'active' : ''}`}
+                      className={`equipment-gallery-card__action ${isCover ? 'active' : ''}`}
                       onClick={() => {
                         setEquipmentCardCover(equipmentId, media);
                         onCoverSelect?.();
                       }}
                     >
-                      {selectedCover && selectedCover === (media.previewUrl || media.fullUrl || media.fileUrl) ? 'На карточке' : 'Сделать фото карточки'}
+                      {isCover ? 'На карточке' : 'На карточку'}
                     </button>
                   ) : null}
+                  <button type="button" className="equipment-gallery-card__action danger" onClick={() => onDelete?.(media)}>
+                    Удалить
+                  </button>
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+              </div>
 
-      {!grouped.length ? <p className="empty-copy media-empty">По выбранному фильтру файлов нет.</p> : null}
+              <div className="equipment-gallery-card__meta">
+                <strong>{getMediaDisplayTitle(media, 'Битый файл')}</strong>
+                <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
+                <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {!filtered.length ? <p className="empty-copy media-empty">По выбранному фильтру файлов нет.</p> : null}
     </div>
   );
 }
@@ -681,7 +691,6 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
   }
   if (tab === 'media') {
     const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
-    const brokenMediaRows = (detail.media || []).filter((row) => !hasRenderableMedia(row));
     return (
       <section className="equipment-detail-section">
         <p>Загрузка медиа: можно сохранить в паспорт техники или в активный сервисный кейс.</p>
@@ -700,20 +709,13 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             }}
           >Загрузить</button>
         </div>
-        <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} equipmentId={detail.equipment?.id} onCoverSelect={onRefreshDetail} />
-        {brokenMediaRows.length ? (
-          <div className="equipment-notes-list">
-            <h4>Проблемные медиа-записи</h4>
-            {brokenMediaRows.map((row) => (
-              <div key={`media-delete-${row.id}`} className="quick-filter-row">
-                <small>
-                  {getMediaDisplayTitle(row, 'Битый файл')} · {row.serviceCaseId ? `Кейс: ${row.serviceCaseId}` : 'Без кейса'}
-                </small>
-                <button type="button" onClick={() => adminServiceApi.deleteMedia(row.id).then(() => onRefreshDetail?.())}>Удалить</button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <MediaGallery
+          rows={detail.media || []}
+          onOpen={onOpenMedia}
+          equipmentId={detail.equipment?.id}
+          onCoverSelect={onRefreshDetail}
+          onDelete={(media) => adminServiceApi.deleteMedia(media.id).then(() => onRefreshDetail?.())}
+        />
       </section>
     );
   }
