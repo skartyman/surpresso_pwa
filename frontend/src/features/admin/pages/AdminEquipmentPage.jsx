@@ -1122,6 +1122,7 @@ export function AdminEquipmentPage() {
                   onAlertClick={onAlertClick}
                   activeWarning={warningFilter}
                   onResetWarning={resetWarningFilter}
+                  t={t}
                 />
               </div>
               {boardColumns.map((column) => (
