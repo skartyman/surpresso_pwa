@@ -227,20 +227,31 @@ export function AdminSalesPage() {
           {!selectedEquipment ? <p>{t('select_equipment')}</p> : (
             <>
               <header className="detail-header"><h3>{selectedEquipment.id}</h3><StatusBadge status={selectedEquipment.commercialStatus || 'none'}>{LABELS[selectedEquipment.commercialStatus || 'none'] || (selectedEquipment.commercialStatus || 'none')}</StatusBadge></header>
-              <div className="detail-split">
-                <div className="detail-grid">
-                  <p><Icon name="clients" /> Клиент: {selectedEquipment.clientName || '—'}</p>
-                  <p><Icon name="equipment" /> Оборудование: {selectedEquipment.brand || '—'} {selectedEquipment.model || ''}</p>
-                  <p><Icon name="equipment" /> {t('internal_serial')}: {selectedEquipment.internalNumber || '—'} / {selectedEquipment.serial || '—'}</p>
-                  <p><Icon name="service" /> Статус сервиса: {selectedEquipment.serviceStatus || '—'}</p>
-                  <p><Icon name="sales" /> Обновлено: {formatDate(selectedEquipment.updatedAt)}</p>
+              <ActionRail className="detail-toolbar">
+                <ActionRailButton tone="brand">Commercial flow</ActionRailButton>
+                <ActionRailButton>{selectedEquipment.serviceStatus || '—'}</ActionRailButton>
+                <ActionRailButton>{formatDate(selectedEquipment.updatedAt)}</ActionRailButton>
+              </ActionRail>
+              <section className="detail-hero">
+                <div className="detail-hero__copy">
+                  <div className="detail-hero__eyebrow">
+                    <small>Sales item</small>
+                    <strong>{selectedEquipment.clientName || 'Клиент'}</strong>
+                  </div>
+                  <div className="detail-grid">
+                    <p><Icon name="clients" /> Клиент: {selectedEquipment.clientName || '—'}</p>
+                    <p><Icon name="equipment" /> Оборудование: {selectedEquipment.brand || '—'} {selectedEquipment.model || ''}</p>
+                    <p><Icon name="equipment" /> {t('internal_serial')}: {selectedEquipment.internalNumber || '—'} / {selectedEquipment.serial || '—'}</p>
+                    <p><Icon name="service" /> Статус сервиса: {selectedEquipment.serviceStatus || '—'}</p>
+                    <p><Icon name="sales" /> Обновлено: {formatDate(selectedEquipment.updatedAt)}</p>
+                  </div>
                 </div>
-                <div className="detail-stack">
-                  {getPreviewUrl(selectedEquipment) ? <img className="ticket-preview" src={getPreviewUrl(selectedEquipment)} alt="preview" /> : null}
+                <div className="detail-hero__preview">
+                  {getPreviewUrl(selectedEquipment) ? <img className="ticket-preview" src={getPreviewUrl(selectedEquipment)} alt="preview" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
                 </div>
-              </div>
+              </section>
 
-              <div className="assignment-box">
+              <div className="detail-section-card">
                 <h4>Коммерческие действия</h4>
                 <ActionRail>
                   {actions.map((action) => (

@@ -290,21 +290,32 @@ export function AdminDirectorPage() {
           {!selectedCase ? <p>{t('select_case')}</p> : (
             <>
               <header className="detail-header"><h3>Кейс #{selectedCase.id}</h3><StatusBadge status={selectedCase.serviceStatus}>{selectedCase.serviceStatus}</StatusBadge></header>
-              <div className="detail-split">
-                <div className="detail-grid">
-                  <p><Icon name="clients" /> Клиент: {selectedCase.equipment?.clientName || '—'}</p>
-                  <p><Icon name="equipment" /> Оборудование: {selectedCase.equipment?.brand || '—'} {selectedCase.equipment?.model || ''}</p>
-                  <p><Icon name="equipment" /> {t('internal_serial')}: {selectedCase.equipment?.internalNumber || '—'} / {selectedCase.equipment?.serial || '—'}</p>
-                  <p><Icon name="employees" /> Исполнитель: {selectedCase.assignedToUser?.fullName || '—'}</p>
-                  <p><Icon name="sales" /> Коммерция: {selectedCase.equipment?.commercialStatus || 'none'}</p>
-                  <p><Icon name="service" /> Обновлено: {formatDate(selectedCase.updatedAt)}</p>
+              <ActionRail className="detail-toolbar">
+                <ActionRailButton tone="brand">Маршрут директора</ActionRailButton>
+                <ActionRailButton>{selectedCase.equipment?.commercialStatus || 'none'}</ActionRailButton>
+                <ActionRailButton>{formatDate(selectedCase.updatedAt)}</ActionRailButton>
+              </ActionRail>
+              <section className="detail-hero">
+                <div className="detail-hero__copy">
+                  <div className="detail-hero__eyebrow">
+                    <small>Director flow</small>
+                    <strong>{selectedCase.equipment?.clientName || 'Клиент'}</strong>
+                  </div>
+                  <div className="detail-grid">
+                    <p><Icon name="clients" /> Клиент: {selectedCase.equipment?.clientName || '—'}</p>
+                    <p><Icon name="equipment" /> Оборудование: {selectedCase.equipment?.brand || '—'} {selectedCase.equipment?.model || ''}</p>
+                    <p><Icon name="equipment" /> {t('internal_serial')}: {selectedCase.equipment?.internalNumber || '—'} / {selectedCase.equipment?.serial || '—'}</p>
+                    <p><Icon name="employees" /> Исполнитель: {selectedCase.assignedToUser?.fullName || '—'}</p>
+                    <p><Icon name="sales" /> Коммерция: {selectedCase.equipment?.commercialStatus || 'none'}</p>
+                    <p><Icon name="service" /> Обновлено: {formatDate(selectedCase.updatedAt)}</p>
+                  </div>
                 </div>
-                <div className="detail-stack">
-                  {getPreviewUrl(selectedCase) ? <img className="ticket-preview" src={getPreviewUrl(selectedCase)} alt="preview" /> : null}
+                <div className="detail-hero__preview">
+                  {getPreviewUrl(selectedCase) ? <img className="ticket-preview" src={getPreviewUrl(selectedCase)} alt="preview" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
                 </div>
-              </div>
+              </section>
 
-              <div className="assignment-box">
+              <div className="detail-section-card">
                 <h4>{t('process')}</h4>
                 <label><span>{t('invoice_number')}</span><input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-2026-001" /></label>
                 <label className="checkbox"><input type="checkbox" checked={invoiceIssued} onChange={(e) => setInvoiceIssued(e.target.checked)} /> {t('invoice_issued')}</label>
@@ -318,7 +329,7 @@ export function AdminDirectorPage() {
                 </ActionRail>
               </div>
 
-              <div className="assignment-box">
+              <div className="detail-section-card">
                 <h4>{t('route')}</h4>
                 <ActionRail>
                   {routeActions.map((action) => (

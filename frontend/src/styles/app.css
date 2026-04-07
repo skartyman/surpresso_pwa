@@ -1851,6 +1851,9 @@ textarea { min-height: 110px; resize: vertical; }
   background: linear-gradient(160deg, color-mix(in oklab, var(--sa-surface), white 4%), var(--sa-surface-2));
 }
 .detail-hero__copy { display: grid; gap: 10px; align-content: start; }
+.detail-hero__eyebrow { display: grid; gap: 4px; }
+.detail-hero__eyebrow small { color: var(--sa-muted); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
+.detail-hero__eyebrow strong { font-size: 20px; letter-spacing: -.03em; }
 .detail-hero__preview {
   min-height: 148px;
   border-radius: 14px;
@@ -1870,6 +1873,16 @@ textarea { min-height: 110px; resize: vertical; }
 .detail-section-card h4,
 .detail-section-card p { margin: 0; }
 .detail-section-card p { color: var(--sa-muted); }
+.detail-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 3;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.74);
+  border: 1px solid rgba(214, 201, 184, 0.72);
+  backdrop-filter: blur(10px);
+}
 .detail-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2872,6 +2885,10 @@ textarea { min-height: 110px; resize: vertical; }
 :root[data-admin-theme='dark'] .detail-composer {
   background: linear-gradient(180deg, rgba(35, 29, 24, .96), rgba(19, 17, 15, .94));
   border-color: rgba(118, 93, 63, 0.26);
+}
+:root[data-admin-theme='dark'] .detail-toolbar {
+  background: rgba(16, 14, 13, .82);
+  border-color: rgba(118, 93, 63, 0.28);
 }
 :root[data-admin-theme='dark'] .detail-section-card p { color: #cbbda8; }
 :root[data-admin-theme='dark'] .equipment-list-toolbar { border-color: rgba(118, 93, 63, 0.22); background: linear-gradient(180deg, rgba(31, 27, 23, .94), rgba(20, 17, 15, .92)); }

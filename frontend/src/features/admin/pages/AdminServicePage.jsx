@@ -411,6 +411,12 @@ export function AdminServicePage() {
           {!selectedRequest ? <p>Выберите заявку на доске.</p> : (
             <>
               <header className="detail-header"><h3>Заявка #{selectedRequest.id}</h3><StatusBadge status={selectedRequest.status}>{BOARD_LABELS[selectedRequest.status] || selectedRequest.status}</StatusBadge></header>
+              <ActionRail className="detail-toolbar">
+                <ActionRailButton tone="brand" onClick={() => setActiveTab('overview')}>Обзор</ActionRailButton>
+                <ActionRailButton onClick={() => setActiveTab('media')}>Фото / видео</ActionRailButton>
+                <ActionRailButton onClick={() => setActiveTab('history')}>История</ActionRailButton>
+                <ActionRailButton onClick={() => setActiveTab('notes')}>Заметки</ActionRailButton>
+              </ActionRail>
               <nav className="detail-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{TAB_LABELS[tab]}</button>)}
               </nav>
@@ -419,6 +425,10 @@ export function AdminServicePage() {
                 <>
                   <section className="detail-hero">
                     <div className="detail-hero__copy">
+                      <div className="detail-hero__eyebrow">
+                        <small>Service request</small>
+                        <strong>{selectedRequest.client?.companyName || selectedRequest.pointUser?.fullName || 'Клиент'}</strong>
+                      </div>
                       <div className="detail-grid">
                         <p><Icon name="clients" /> Клиент: {selectedRequest.client?.companyName || '—'}</p>
                         <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
@@ -437,23 +447,25 @@ export function AdminServicePage() {
                     </div>
                   </section>
 
-                  <div className="assignment-box">
+                  <div className="detail-section-card">
                     <h4>Описание проблемы</h4>
                     <p>{selectedRequest.description || 'Без описания'}</p>
                   </div>
 
                   {canAssign ? (
-                    <div className="assignment-box">
+                    <div className="detail-section-card">
                       <h4>{selectedRequest.assignedToUserId ? 'Переназначить инженера' : 'Назначить инженера'}</h4>
                       <select value={assignForm.assignedToUserId} onChange={(e) => setAssignForm({ assignedToUserId: e.target.value })}>
                         <option value="">Выберите инженера</option>
                         {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}
                       </select>
-                      <button type="button" disabled={Boolean(actionLoading)} onClick={submitAssignment}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</button>
+                      <ActionRail compact>
+                        <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} onClick={submitAssignment}>{actionLoading === 'assign' ? 'Сохраняем...' : 'Сохранить назначение'}</ActionRailButton>
+                      </ActionRail>
                     </div>
                   ) : null}
 
-                  <div className="assignment-box">
+                  <div className="detail-section-card">
                     <h4>Быстрые действия</h4>
                     <ActionRail>
                       {getRoleActions(selectedRequest, user).map((action) => (
@@ -495,7 +507,7 @@ export function AdminServicePage() {
 
               {activeTab === 'media' ? (
                 <div className="media-tab">
-                  <div className="assignment-box">
+                  <div className="detail-section-card">
                     <h4>Фото до</h4>
                     <div className="media-grid">
                       {mediaGroups.before.map((item) => (
@@ -508,7 +520,7 @@ export function AdminServicePage() {
                     </div>
                   </div>
 
-                  <div className="assignment-box">
+                  <div className="detail-section-card">
                     <h4>Фото после</h4>
                     <div className="media-grid">
                       {mediaGroups.after.map((item) => (
@@ -521,14 +533,16 @@ export function AdminServicePage() {
                     </div>
                   </div>
 
-                  <div className="assignment-box">
+                  <div className="detail-section-card">
                     <h4>Загрузить медиа</h4>
                     <select value={mediaStage} onChange={(e) => setMediaStage(e.target.value)}>
                       <option value="before">Фото до</option>
                       <option value="after">Фото после</option>
                     </select>
                     <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
-                    <button type="button" disabled={Boolean(actionLoading) || !mediaFiles.length} onClick={submitMedia}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</button>
+                    <ActionRail compact>
+                      <ActionRailButton tone="brand" disabled={Boolean(actionLoading) || !mediaFiles.length} onClick={submitMedia}>{actionLoading === 'media' ? 'Загрузка...' : 'Загрузить'}</ActionRailButton>
+                    </ActionRail>
                   </div>
                 </div>
               ) : null}
@@ -546,10 +560,12 @@ export function AdminServicePage() {
                     {!(selectedRequest.notes || []).length ? <p className="empty-copy">Заметок пока нет.</p> : null}
                   </div>
                   {canSeeInternalNotes ? (
-                    <div className="assignment-box note-composer">
+                    <div className="detail-section-card note-composer">
                       <h4>Добавить внутреннюю заметку</h4>
                       <textarea value={noteBody} onChange={(e) => setNoteBody(e.target.value)} rows={3} placeholder="Комментарий для сервисной команды" />
-                      <button type="button" disabled={Boolean(actionLoading)} onClick={submitNote}>{actionLoading === 'note' ? 'Сохраняем...' : 'Сохранить заметку'}</button>
+                      <ActionRail compact>
+                        <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} onClick={submitNote}>{actionLoading === 'note' ? 'Сохраняем...' : 'Сохранить заметку'}</ActionRailButton>
+                      </ActionRail>
                     </div>
                   ) : null}
                 </div>
