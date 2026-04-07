@@ -185,11 +185,12 @@ export function createAdminEmployeeController(userRepository, serviceRepository)
       }
 
       if (next.password !== undefined) {
-        if (!next.password) {
-          return res.status(400).json({ error: 'invalid_password' });
-        }
+        if (!String(next.password || '').trim()) {
+          delete next.password;
+        } else {
         next.passwordHash = hashPassword(next.password);
         delete next.password;
+        }
       }
 
       const updated = await userRepository.updateUser(existing.id, next);

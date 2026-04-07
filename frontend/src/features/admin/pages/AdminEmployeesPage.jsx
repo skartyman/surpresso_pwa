@@ -129,7 +129,11 @@ export function AdminEmployeesPage() {
     if (!selected) return;
     setSaving(true);
     try {
-      const { user: next } = await adminEmployeesApi.update(selected.id, selected);
+      const payload = { ...selected };
+      if (!String(payload.password || '').trim()) {
+        delete payload.password;
+      }
+      const { user: next } = await adminEmployeesApi.update(selected.id, payload);
       setSelected(cloneForEdit(next));
       await load();
     } finally {
