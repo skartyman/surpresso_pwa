@@ -88,6 +88,11 @@ function getMediaDisplayTitle(media, fallback = 'Медиафайл') {
   return media?.mediaType === 'video' ? 'Видео' : (media?.mediaType === 'photo' ? 'Фото' : fallback);
 }
 
+function hasRenderableMedia(media) {
+  const preview = String(media?.previewUrl || media?.fullUrl || media?.fileUrl || '').trim();
+  return Boolean(preview);
+}
+
 function getBaseAdminPath(pathname = '') {
   return pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
 }
@@ -676,6 +681,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
   }
   if (tab === 'media') {
     const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
+    const brokenMediaRows = (detail.media || []).filter((row) => !hasRenderableMedia(row));
     return (
       <section className="equipment-detail-section">
         <p>Загрузка медиа: можно сохранить в паспорт техники или в активный сервисный кейс.</p>
@@ -695,14 +701,19 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
           >Загрузить</button>
         </div>
         <MediaGallery rows={detail.media || []} onOpen={onOpenMedia} equipmentId={detail.equipment?.id} onCoverSelect={onRefreshDetail} />
-        <div className="equipment-notes-list">
-          {(detail.media || []).map((row) => (
-            <div key={`media-delete-${row.id}`} className="quick-filter-row">
-              <small>{row.originalName || row.id}</small>
-              <button type="button" onClick={() => adminServiceApi.deleteMedia(row.id).then(() => onRefreshDetail?.())}>Удалить</button>
-            </div>
-          ))}
-        </div>
+        {brokenMediaRows.length ? (
+          <div className="equipment-notes-list">
+            <h4>Проблемные медиа-записи</h4>
+            {brokenMediaRows.map((row) => (
+              <div key={`media-delete-${row.id}`} className="quick-filter-row">
+                <small>
+                  {getMediaDisplayTitle(row, 'Битый файл')} · {row.serviceCaseId ? `Кейс: ${row.serviceCaseId}` : 'Без кейса'}
+                </small>
+                <button type="button" onClick={() => adminServiceApi.deleteMedia(row.id).then(() => onRefreshDetail?.())}>Удалить</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
     );
   }
