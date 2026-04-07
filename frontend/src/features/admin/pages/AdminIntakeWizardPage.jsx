@@ -156,7 +156,7 @@ export function AdminIntakeWizardPage() {
             <>
               <h4>Финал</h4>
               <p>Будут созданы: Equipment + ServiceCase + History {mediaFiles.length ? '+ Media' : ''}.</p>
-              <p><strong>{form.brand || '—'} {form.model || ''}</strong> · owner: {form.ownerType} · type: {form.equipmentType}</p>
+              <p><strong>{form.brand || '—'} {form.model || ''}</strong> · владелец: {form.ownerType} · тип: {form.equipmentType}</p>
             </>
           ) : null}
 

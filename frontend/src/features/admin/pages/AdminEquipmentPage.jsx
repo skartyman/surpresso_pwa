@@ -43,8 +43,8 @@ const ALERT_LABELS = {
   missing_serial_for_client: 'Клиентская техника без серийного номера',
   missing_internal_for_company: 'Техника компании без внутреннего номера',
   missing_media: 'Нет медиафайлов',
-  missing_active_service_case: 'Без активного service case',
-  stale_ready: 'Кейс в статусе ready более 24ч',
+  missing_active_service_case: 'Без активного сервисного кейса',
+  stale_ready: 'Кейс в статусе «Готово» более 24 ч',
   inconsistent_status_data: 'Несогласованные статусные данные',
 };
 
@@ -126,7 +126,7 @@ function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
 
       <article className="equipment-hub-alerts">
         <header>
-          <h3>Alerts / Warnings</h3>
+          <h3>Предупреждения</h3>
           <small>{alertRows.reduce((sum, row) => sum + (row.count || 0), 0)} проблем в парке</small>
         </header>
         <div className="equipment-hub-alerts__grid">
@@ -195,7 +195,7 @@ function EquipmentListCard({
         )}
         <div className="equipment-ops-card__top">
           <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
-          <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || 'equipment'}</span>
+          <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || 'оборудование'}</span>
         </div>
       </div>
 
@@ -209,7 +209,7 @@ function EquipmentListCard({
 
       <div className="equipment-ops-card__scan-chips">
         <em>{item.serviceStatus || '—'}</em>
-        {hasActiveCase ? <em>кейc: {item.activeServiceCaseId}</em> : <em>без активного кейса</em>}
+        {hasActiveCase ? <em>кейс: {item.activeServiceCaseId}</em> : <em>без активного кейса</em>}
       </div>
 
       {shortWarnings.length ? (
@@ -283,7 +283,7 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
         type="search"
         value={searchTerm}
         onChange={(event) => onSearchTermChange(event.target.value)}
-        placeholder="Поиск: бренд, модель, serial, клиент…"
+        placeholder="Поиск: бренд, модель, серийный номер, клиент…"
       />
     </div>
   );
@@ -616,7 +616,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
         {activeCase ? (
           <article className="equipment-active-case-highlight">
             <header>
-              <h4>Активный service case</h4>
+              <h4>Активный сервисный кейс</h4>
               <StatusBadge status={activeCase.serviceStatus || 'none'}>{activeCase.serviceStatus || '—'}</StatusBadge>
             </header>
             <p><strong>{activeCase.id}</strong> · назначен: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || 'не назначен'}.</p>
@@ -687,7 +687,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
               const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
               const files = Array.from(fileInput?.files || []);
               if (!files.length) return;
-              const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите \"Отмена\" чтобы сохранить в Equipment паспорт.`);
+              const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите "Отмена", чтобы сохранить в паспорт оборудования.`);
               await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
               if (fileInput) fileInput.value = '';
               await onRefreshDetail?.();
@@ -720,7 +720,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
             <article className="equipment-case-card equipment-case-card--active">
               <header>
                 <strong>{activeCase.id}</strong>
-                <span className="signal-chip signal-chip--critical">active</span>
+                <span className="signal-chip signal-chip--critical">активный</span>
               </header>
               <p>Статус: {activeCase.serviceStatus || '—'}</p>
               <p>Назначен: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || '—'}</p>
@@ -851,8 +851,8 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
   if (tab === 'documents') {
     return (
       <section className="equipment-detail-section">
-        <p>Документы оборудования: паспорт PDF, акты и файлы intake (legacy-compatible зона).</p>
-        <p>Passport URL: {detail.equipment?.passportPdfUrl || '—'}</p>
+        <p>Документы оборудования: PDF-паспорт, акты и файлы приёмки.</p>
+        <p>Ссылка на паспорт: {detail.equipment?.passportPdfUrl || '—'}</p>
       </section>
     );
   }
@@ -999,7 +999,7 @@ export function AdminEquipmentPage() {
     <section className="equipment-ops-page">
       <header className="service-headline">
         <div>
-          <h2>Equipment Hub Dashboard</h2>
+          <h2>Центр оборудования</h2>
           <p>Центр управления парком техники: KPI, предупреждения, быстрые действия и операционный паспорт.</p>
         </div>
       </header>
