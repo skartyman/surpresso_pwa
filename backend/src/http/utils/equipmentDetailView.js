@@ -1,4 +1,4 @@
-import { buildProxyDriveUrl } from '../../infrastructure/drive/driveUtils.js';
+import { buildProxyDriveUrl, normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
 
 function normalizeMediaType(kind = '', mimeType = '') {
   const value = String(kind || mimeType || '').toLowerCase();
@@ -8,9 +8,9 @@ function normalizeMediaType(kind = '', mimeType = '') {
 
 export function normalizeEquipmentMedia(req, media = []) {
   return (media || []).map((item) => {
-    const sourceUrl = String(item.fileUrl || item.url || '');
+    const sourceUrl = normalizeRequestUrl(req, item.fileUrl || item.url || '');
     const mediaType = normalizeMediaType(item.kind, item.mimeType);
-    const previewUrl = String(item.previewUrl || '')
+    const previewUrl = normalizeRequestUrl(req, item.previewUrl || '')
       || buildProxyDriveUrl(req, sourceUrl)
       || sourceUrl;
     const fullUrl = buildProxyDriveUrl(req, sourceUrl) || sourceUrl;

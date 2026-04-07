@@ -1,4 +1,4 @@
-import { buildProxyDriveUrl } from '../../infrastructure/drive/driveUtils.js';
+import { buildProxyDriveUrl, normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
 
 function parseMediaStage(type) {
   const normalized = String(type || '').trim().toLowerCase();
@@ -13,8 +13,8 @@ export function enrichServiceRequestMedia(req, request) {
   return {
     ...request,
     media: (request.media || []).map((item) => {
-      const fileUrl = String(item.fileUrl || item.url || '');
-      const explicitPreview = String(item.previewUrl || item.imgUrl || '');
+      const fileUrl = normalizeRequestUrl(req, item.fileUrl || item.url || '');
+      const explicitPreview = normalizeRequestUrl(req, item.previewUrl || item.imgUrl || '');
       const previewUrl = explicitPreview || (item.type === 'image' ? buildProxyDriveUrl(req, fileUrl) : '');
 
       return {

@@ -10,6 +10,7 @@ import {
 import { getAllowedServiceTransitions } from '../../domain/workflow/serviceTransitions.js';
 import { getAllowedCommercialTransitions } from '../../domain/workflow/commercialTransitions.js';
 import { buildEquipmentTimeline, normalizeEquipmentMedia } from '../utils/equipmentDetailView.js';
+import { normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
@@ -546,8 +547,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         return {
           ...item,
           media,
-          previewUrl: item.previewUrl || firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || '',
-          mediaPreviewUrl: item.mediaPreviewUrl || firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || '',
+          previewUrl: firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || normalizeRequestUrl(req, item.previewUrl) || '',
+          mediaPreviewUrl: firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || normalizeRequestUrl(req, item.mediaPreviewUrl) || '',
         };
       });
       return res.json({ items: normalized });
