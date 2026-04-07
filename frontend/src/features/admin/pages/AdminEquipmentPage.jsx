@@ -210,6 +210,7 @@ function EquipmentListCard({
   onOpenPhotos,
   onOpenCard,
   onOptionalAction,
+  canSeeCommercial = false,
   t,
   locale,
 }) {
@@ -246,7 +247,9 @@ function EquipmentListCard({
           </div>
         )}
         <div className="equipment-ops-card__top">
-          <StatusBadge status={item.commercialStatus || 'none'}>{getCommercialLabel(item.commercialStatus || 'none', t)}</StatusBadge>
+          <StatusBadge status={(canSeeCommercial ? item.commercialStatus : item.serviceStatus) || 'none'}>
+            {canSeeCommercial ? getCommercialLabel(item.commercialStatus || 'none', t) : getServiceLabel(item.serviceStatus, t)}
+          </StatusBadge>
           <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || t('equipment_type_default')}</span>
         </div>
         <ActionRail compact className="equipment-ops-card__overlay-actions" onClick={(event) => event.stopPropagation()}>
@@ -517,6 +520,7 @@ function ActionPanel({
   basePath,
   canUploadCaseMedia = false,
   canCommercialOperate = false,
+  canSeeCommercial = false,
   t,
 }) {
   const [actionLoading, setActionLoading] = useState('');
@@ -578,8 +582,8 @@ function ActionPanel({
         </ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>{t('service_flow')}</ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>{t('service_board')}</ActionRailButton>
-        <ActionRailButton onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>{t('nav_director')}</ActionRailButton>
-        <ActionRailButton onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>{t('sales')}</ActionRailButton>
+        {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>{t('nav_director')}</ActionRailButton> : null}
+        {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>{t('sales')}</ActionRailButton> : null}
       </ActionRail>
 
       {canUploadCaseMedia ? (
@@ -624,7 +628,7 @@ function ActionPanel({
       ) : null}
 
       <p className="equipment-action-panel__links">
-        {t('quick_links')}: <a href={`${basePath}/service`}>{t('service_board')}</a> · <a href={`${basePath}/director`}>{t('director_board')}</a> · <a href={`${basePath}/sales`}>{t('sales_board')}</a>
+        {t('quick_links')}: <a href={`${basePath}/service`}>{t('service_board')}</a>{canSeeCommercial ? <> · <a href={`${basePath}/director`}>{t('director_board')}</a> · <a href={`${basePath}/sales`}>{t('sales_board')}</a></> : null}
       </p>
       {feedback ? <p>{feedback}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
@@ -645,6 +649,7 @@ function TabPanel({
   canDeleteEquipmentMedia = false,
   canCommercialOperate = false,
   canUploadCaseMedia = false,
+  canSeeCommercial = false,
   t,
   locale,
 }) {
@@ -663,10 +668,12 @@ function TabPanel({
   if (tab === 'overview') {
     const passportStats = [
       { key: 'service', label: t('service_label'), value: getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t), meta: activeCase?.id || t('no_active_case') },
-      { key: 'commerce', label: t('commerce'), value: getCommercialLabel(equipment.commercialStatus || 'none', t), meta: equipment.ownerType || '—' },
       { key: 'updated', label: t('updated'), value: formatDay(equipment.updatedAt, locale, '—'), meta: formatDate(equipment.updatedAt, locale) },
       { key: 'case', label: t('active_service_case'), value: activeCase?.id || '—', meta: activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || t('not_assigned') },
     ];
+    if (canSeeCommercial) {
+      passportStats.splice(1, 0, { key: 'commerce', label: t('commerce'), value: getCommercialLabel(equipment.commercialStatus || 'none', t), meta: equipment.ownerType || '—' });
+    }
     const passportFields = [
       { key: 'client', icon: 'clients', label: t('client'), value: equipment.clientName || '—' },
       { key: 'owner', icon: 'equipment', label: t('owner_type'), value: equipment.ownerType || '—' },
@@ -692,7 +699,7 @@ function TabPanel({
               <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
               <div className="equipment-summary-hero__statuses">
                 <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</StatusBadge>
-                <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge>
+                {canSeeCommercial ? <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge> : null}
               </div>
               <div className="equipment-passport-stats">
                 {passportStats.map((item) => (
@@ -748,7 +755,7 @@ function TabPanel({
               </article>
               <article>
                 <span>{t('status')}</span>
-                <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+                <strong>{canSeeCommercial ? getCommercialLabel(equipment.commercialStatus || 'none', t) : getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
               </article>
               <article>
                 <span>{t('history')}</span>
@@ -792,10 +799,12 @@ function TabPanel({
               <span><Icon name="service" /> {t('current_service_status')}</span>
               <strong>{getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
             </article>
-            <article className="equipment-passport-data__item">
-              <span><Icon name="sales" /> {t('current_commercial_status')}</span>
-              <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
-            </article>
+            {canSeeCommercial ? (
+              <article className="equipment-passport-data__item">
+                <span><Icon name="sales" /> {t('current_commercial_status')}</span>
+                <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+              </article>
+            ) : null}
           </div>
         </section>
 
@@ -841,6 +850,7 @@ function TabPanel({
             basePath={basePath}
             canUploadCaseMedia={canUploadCaseMedia}
             canCommercialOperate={canCommercialOperate}
+            canSeeCommercial={canSeeCommercial}
             t={t}
           />
         </div>
@@ -1045,6 +1055,10 @@ function TabPanel({
     );
   }
 
+  if (!canSeeCommercial) {
+    return <p className="empty-copy">{t('read_only')}</p>;
+  }
+
   const actions = detail.currentActions?.all || [];
   return (
     <section className="equipment-detail-section">
@@ -1079,6 +1093,7 @@ export function AdminEquipmentPage() {
   const canDeleteEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canCommercialOperate = [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
   const canUploadCaseMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canSeeCommercial = [ROLES.manager, ROLES.serviceHead, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
 
   const basePath = getBaseAdminPath(location.pathname);
   const warningFilter = String(searchParams.get('warning') || '').trim();
@@ -1126,7 +1141,16 @@ export function AdminEquipmentPage() {
     { key: 'summary', label: t('summary'), count: dashboard?.kpi?.totalEquipment || 0 },
     ...boardColumns.map((column) => ({ key: column.key, label: column.label, count: column.items.length })),
   ], [boardColumns, dashboard, t]);
-  const tabs = useMemo(() => TABS.map((tab) => ({ ...tab, label: t(tab.labelKey) })), [t]);
+  const tabs = useMemo(
+    () => TABS
+      .filter((tab) => (tab.key === 'commercial' ? canSeeCommercial : true))
+      .map((tab) => ({ ...tab, label: t(tab.labelKey) })),
+    [canSeeCommercial, t],
+  );
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.key === activeTab)) setActiveTab('overview');
+  }, [activeTab, tabs]);
 
   function selectEquipment(id) {
     navigate(`${basePath}/equipment/${id}`);
@@ -1254,7 +1278,8 @@ export function AdminEquipmentPage() {
                         onOpenCard={() => selectEquipment(item.id)}
                         onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
                         onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
-                        onOptionalAction={() => navigateToBoard('sales_board', item.id)}
+                        onOptionalAction={canSeeCommercial ? (() => navigateToBoard('sales_board', item.id)) : null}
+                        canSeeCommercial={canSeeCommercial}
                         t={t}
                         locale={locale}
                       />
@@ -1284,9 +1309,11 @@ export function AdminEquipmentPage() {
                     <StatusBadge status={detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || 'none'}>
                       {t('service_label')}: {getServiceLabel(detailActiveCase?.serviceStatus || detailEquipment.serviceStatus, t)}
                     </StatusBadge>
-                    <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
-                      {getCommercialLabel(detailEquipment.commercialStatus || 'none', t)}
-                    </StatusBadge>
+                    {canSeeCommercial ? (
+                      <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
+                        {getCommercialLabel(detailEquipment.commercialStatus || 'none', t)}
+                      </StatusBadge>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1328,8 +1355,8 @@ export function AdminEquipmentPage() {
               <ActionRailButton onClick={() => setActiveTab('media')}>{t('photos_video')}</ActionRailButton>
               <ActionRailButton disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)}>{t('active_service_case')}</ActionRailButton>
               <ActionRailButton onClick={() => navigateToBoard('service_board', detailEquipment.id)}>{t('service_board')}</ActionRailButton>
-              <ActionRailButton onClick={() => navigateToBoard('director_board', detailEquipment.id)}>{t('director_board')}</ActionRailButton>
-              <ActionRailButton onClick={() => navigateToBoard('sales_board', detailEquipment.id)}>{t('sales_board')}</ActionRailButton>
+              {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detailEquipment.id)}>{t('director_board')}</ActionRailButton> : null}
+              {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detailEquipment.id)}>{t('sales_board')}</ActionRailButton> : null}
             </ActionRail>
           ) : null}
 
@@ -1352,6 +1379,7 @@ export function AdminEquipmentPage() {
             canDeleteEquipmentMedia={canDeleteEquipmentMedia}
             canCommercialOperate={canCommercialOperate}
             canUploadCaseMedia={canUploadCaseMedia}
+            canSeeCommercial={canSeeCommercial}
             t={t}
             locale={locale}
           />

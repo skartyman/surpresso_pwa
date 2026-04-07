@@ -39,7 +39,7 @@ export function getAdminSections(t) {
     label: t('nav_operations'),
     items: [
       { key: 'service', to: 'service', icon: 'service', label: t('nav_service'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
-      { key: 'employees', to: 'employees', icon: 'employees', label: t('nav_employees'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo] },
+      { key: 'employees', to: 'employees', icon: 'employees', label: t('nav_employees'), roles: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo] },
       { key: 'director', to: 'director', icon: 'dashboard', label: t('nav_director'), roles: [ROLES.director, ROLES.owner] },
       { key: 'sales', to: 'sales', icon: 'sales', label: t('nav_sales'), roles: [ROLES.salesManager, ROLES.owner, ROLES.director] },
       { key: 'equipment', to: 'equipment', icon: 'equipment', label: t('nav_equipment'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
@@ -76,7 +76,7 @@ export const ADMIN_MENU = [];
 export const PAGE_PERMISSIONS = {
   executive: [ROLES.owner, ROLES.director],
   service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
-  employees: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo],
+  employees: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo],
   director: [ROLES.director, ROLES.owner],
   sales: [ROLES.salesManager, ROLES.owner, ROLES.director],
   equipment: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner],
