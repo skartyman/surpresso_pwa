@@ -417,16 +417,25 @@ export function AdminServicePage() {
 
               {activeTab === 'overview' ? (
                 <>
-                  <div className="detail-grid">
-                    <p><Icon name="clients" /> Клиент: {selectedRequest.client?.companyName || '—'}</p>
-                    <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
-                    <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
-                    <p><Icon name="equipment" /> Точка: {selectedRequest.location?.name || selectedRequest.equipment?.locationName || '—'}</p>
-                    <p><Icon name="service" /> Срочность: {selectedRequest.urgency || 'normal'}</p>
-                    <p><Icon name="dashboard" /> Назначен: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
-                    <p><Icon name="content" /> Может работать: {selectedRequest.canOperateNow ? 'Да' : 'Нет'}</p>
-                    <p><Icon name="clients" /> Обновлено: {formatDate(selectedRequest.updatedAt)}</p>
-                  </div>
+                  <section className="detail-hero">
+                    <div className="detail-hero__copy">
+                      <div className="detail-grid">
+                        <p><Icon name="clients" /> Клиент: {selectedRequest.client?.companyName || '—'}</p>
+                        <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
+                        <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
+                        <p><Icon name="equipment" /> Точка: {selectedRequest.location?.name || selectedRequest.equipment?.locationName || '—'}</p>
+                        <p><Icon name="service" /> Срочность: {selectedRequest.urgency || 'normal'}</p>
+                        <p><Icon name="dashboard" /> Назначен: {selectedRequest.assignedToUser?.fullName || 'Не назначен'}</p>
+                        <p><Icon name="content" /> Может работать: {selectedRequest.canOperateNow ? 'Да' : 'Нет'}</p>
+                        <p><Icon name="clients" /> Обновлено: {formatDate(selectedRequest.updatedAt)}</p>
+                      </div>
+                    </div>
+                    <div className="detail-hero__preview">
+                      {getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl
+                        ? <img className="ticket-preview" src={getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl} alt={selectedRequest.equipment?.model || 'preview'} loading="lazy" />
+                        : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+                    </div>
+                  </section>
 
                   <div className="assignment-box">
                     <h4>Описание проблемы</h4>

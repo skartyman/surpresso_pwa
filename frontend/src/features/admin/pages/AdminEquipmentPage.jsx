@@ -542,23 +542,15 @@ function ActionPanel({
         <p>Операционные действия по оборудованию без перехода между экранами.</p>
       </header>
 
-      <div className="quick-filter-row">
-        <button type="button" disabled={!activeCase?.id} onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}>
-          Открыть активный сервисный кейс
-        </button>
-        <button type="button" onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>
-          Создать/открыть сервисный поток
-        </button>
-        <button type="button" onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>
-          Сервисная доска
-        </button>
-        <button type="button" onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>
-          Доска директора
-        </button>
-        <button type="button" onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>
-          Доска продаж
-        </button>
-      </div>
+      <ActionRail>
+        <ActionRailButton tone="brand" disabled={!activeCase?.id} onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}>
+          Открыть активный кейс
+        </ActionRailButton>
+        <ActionRailButton onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>Сервисный поток</ActionRailButton>
+        <ActionRailButton onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>Сервисная доска</ActionRailButton>
+        <ActionRailButton onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>Директор</ActionRailButton>
+        <ActionRailButton onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>Продажи</ActionRailButton>
+      </ActionRail>
 
       {canUploadCaseMedia ? (
         <div className="equipment-action-panel__media">
@@ -585,19 +577,19 @@ function ActionPanel({
       {canCommercialOperate ? (
         <div className="equipment-action-panel__commercial">
           <h5>Быстрые коммерческие действия</h5>
-          <div className="quick-filter-row">
+          <ActionRail>
             {commercialActions.map((action) => (
-              <button
+              <ActionRailButton
                 disabled={Boolean(actionLoading)}
                 key={action.key + action.targetStatus}
-                type="button"
+                tone={action.key.startsWith('reserve') ? 'brand' : 'default'}
                 onClick={() => applyCommercialAction(action)}
               >
                 {actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
-              </button>
+              </ActionRailButton>
             ))}
             {!commercialActions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
-          </div>
+          </ActionRail>
         </div>
       ) : null}
 
@@ -639,10 +631,10 @@ function TabPanel({
     return (
       <section className="equipment-detail-section">
         {canCreateEquipment ? (
-          <div className="quick-filter-row">
-            <button type="button" onClick={() => navigateToBoard('equipment_create')}>Добавить оборудование</button>
-            <button type="button" onClick={() => navigateToBoard('equipment_intake')}>Принять оборудование (intake)</button>
-          </div>
+          <ActionRail compact>
+            <ActionRailButton tone="brand" onClick={() => navigateToBoard('equipment_create')}>Добавить оборудование</ActionRailButton>
+            <ActionRailButton onClick={() => navigateToBoard('equipment_intake')}>Принять в intake</ActionRailButton>
+          </ActionRail>
         ) : null}
         <article className="equipment-summary-hero">
           <div>
@@ -693,7 +685,7 @@ function TabPanel({
         </div>
 
         {canEditEquipment ? (
-          <article className="equipment-detail-section">
+          <article className="detail-section-card">
             <h4>Редактирование Equipment card</h4>
             <div className="equipment-detail-grid">
               <input placeholder={equipment.brand || 'Бренд'} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
@@ -701,20 +693,22 @@ function TabPanel({
               <input placeholder={equipment.serial || 'Серийный'} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
               <input placeholder={equipment.internalNumber || 'Инв. №'} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
             </div>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={async () => {
-                setBusy('edit');
-                try {
-                  await adminServiceApi.updateEquipment(equipment.id, editForm);
-                  setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
-                  await onRefreshDetail?.();
-                } finally { setBusy(''); }
-              }}
-            >
-              {busy === 'edit' ? 'Сохраняем...' : 'Сохранить карточку'}
-            </button>
+            <ActionRail compact>
+              <ActionRailButton
+                tone="brand"
+                disabled={Boolean(busy)}
+                onClick={async () => {
+                  setBusy('edit');
+                  try {
+                    await adminServiceApi.updateEquipment(equipment.id, editForm);
+                    setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                    await onRefreshDetail?.();
+                  } finally { setBusy(''); }
+                }}
+              >
+                {busy === 'edit' ? 'Сохраняем...' : 'Сохранить карточку'}
+              </ActionRailButton>
+            </ActionRail>
           </article>
         ) : null}
 
@@ -733,22 +727,27 @@ function TabPanel({
     const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
     return (
       <section className="equipment-detail-section">
-        <p>Загрузка медиа: можно сохранить в паспорт техники или в активный сервисный кейс.</p>
+        <article className="detail-section-card">
+          <h4>Загрузка медиа</h4>
+          <p>Можно сохранить в паспорт техники или в активный сервисный кейс.</p>
+        </article>
         {canUploadEquipmentMedia ? (
-          <div className="quick-filter-row">
+          <div className="detail-composer detail-composer--stack">
             <input type="file" multiple accept="image/*,video/*" />
-            <button
-              type="button"
-              onClick={async () => {
-                const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
-                const files = Array.from(fileInput?.files || []);
-                if (!files.length) return;
-                const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите "Отмена", чтобы сохранить в паспорт оборудования.`);
-                await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
-                if (fileInput) fileInput.value = '';
-                await onRefreshDetail?.();
-              }}
-            >Загрузить</button>
+            <ActionRail compact>
+              <ActionRailButton
+                tone="brand"
+                onClick={async () => {
+                  const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
+                  const files = Array.from(fileInput?.files || []);
+                  if (!files.length) return;
+                  const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите "Отмена", чтобы сохранить в паспорт оборудования.`);
+                  await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
+                  if (fileInput) fileInput.value = '';
+                  await onRefreshDetail?.();
+                }}
+              >Загрузить</ActionRailButton>
+            </ActionRail>
           </div>
         ) : null}
         <MediaGallery
@@ -769,7 +768,7 @@ function TabPanel({
     const pastCases = rows.filter((row) => !row.isActive);
     return (
       <div className="equipment-cases-list">
-        <section className="equipment-case-focus">
+        <section className="detail-section-card equipment-case-focus">
           <h4>Активный кейс</h4>
           {activeCase ? (
             <article className="equipment-case-card equipment-case-card--active">
@@ -785,7 +784,7 @@ function TabPanel({
           ) : <p className="empty-copy">Активный кейс отсутствует.</p>}
         </section>
 
-        <section className="equipment-case-history-block">
+        <section className="detail-section-card equipment-case-history-block">
           <h4>Прошлые сервисные кейсы ({pastCases.length})</h4>
           {!pastCases.length ? <p className="empty-copy">Истории прошлых кейсов нет.</p> : null}
           {pastCases.map((row) => (
@@ -808,24 +807,26 @@ function TabPanel({
     if (!rows.length) return <p className="empty-copy">Заметок пока нет.</p>;
     return (
       <section className="equipment-detail-section">
-        <div className="quick-filter-row">
+        <div className="detail-composer">
           <input value={noteBody} onChange={(e) => setNoteBody(e.target.value)} placeholder="Новая заметка по оборудованию" />
-          <button
-            type="button"
-            disabled={!noteBody.trim() || Boolean(busy)}
-            onClick={async () => {
-              setBusy('note');
-              try {
-                await adminServiceApi.addEquipmentNote(detail.equipment.id, noteBody.trim());
-                setNoteBody('');
-                await onRefreshDetail?.();
-              } finally { setBusy(''); }
-            }}
-          >{busy === 'note' ? 'Сохраняем...' : 'Добавить заметку'}</button>
+          <ActionRail compact>
+            <ActionRailButton
+              tone="brand"
+              disabled={!noteBody.trim() || Boolean(busy)}
+              onClick={async () => {
+                setBusy('note');
+                try {
+                  await adminServiceApi.addEquipmentNote(detail.equipment.id, noteBody.trim());
+                  setNoteBody('');
+                  await onRefreshDetail?.();
+                } finally { setBusy(''); }
+              }}
+            >{busy === 'note' ? 'Сохраняем...' : 'Добавить заметку'}</ActionRailButton>
+          </ActionRail>
         </div>
-        <ul className="equipment-notes-list">
+        <ul className="equipment-notes-list detail-list">
           {rows.map((row) => (
-            <li key={row.id}>
+            <li key={row.id} className="detail-list__item">
               <p>{row.body}</p>
               <small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)} · кейс {row.serviceCaseId || '—'}</small>
             </li>
@@ -839,24 +840,26 @@ function TabPanel({
     const rows = detail.comments || [];
     return (
       <section className="equipment-detail-section">
-        <div className="quick-filter-row">
+        <div className="detail-composer">
           <input value={commentBody} onChange={(e) => setCommentBody(e.target.value)} placeholder="Комментарий по карточке" />
-          <button
-            type="button"
-            disabled={!commentBody.trim() || Boolean(busy)}
-            onClick={async () => {
-              setBusy('comment');
-              try {
-                await adminServiceApi.addEquipmentComment(detail.equipment.id, commentBody.trim());
-                setCommentBody('');
-                await onRefreshDetail?.();
-              } finally { setBusy(''); }
-            }}
-          >{busy === 'comment' ? 'Сохраняем...' : 'Добавить комментарий'}</button>
+          <ActionRail compact>
+            <ActionRailButton
+              tone="brand"
+              disabled={!commentBody.trim() || Boolean(busy)}
+              onClick={async () => {
+                setBusy('comment');
+                try {
+                  await adminServiceApi.addEquipmentComment(detail.equipment.id, commentBody.trim());
+                  setCommentBody('');
+                  await onRefreshDetail?.();
+                } finally { setBusy(''); }
+              }}
+            >{busy === 'comment' ? 'Сохраняем...' : 'Добавить комментарий'}</ActionRailButton>
+          </ActionRail>
         </div>
         {!rows.length ? <p className="empty-copy">Комментариев пока нет.</p> : (
-          <ul className="equipment-notes-list">
-            {rows.map((row) => <li key={row.id}><p>{row.body}</p><small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)}</small></li>)}
+          <ul className="equipment-notes-list detail-list">
+            {rows.map((row) => <li key={row.id} className="detail-list__item"><p>{row.body}</p><small>{row.authorUser?.fullName || '—'} · {formatDate(row.createdAt)}</small></li>)}
           </ul>
         )}
       </section>
@@ -867,34 +870,38 @@ function TabPanel({
     const rows = detail.tasks || [];
     return (
       <section className="equipment-detail-section">
-        <div className="equipment-detail-grid">
-          <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Название задачи" />
-          <input value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Описание" />
-          <button
-            type="button"
-            disabled={!taskTitle.trim() || Boolean(busy)}
-            onClick={async () => {
-              setBusy('task');
-              try {
-                await adminServiceApi.createEquipmentTask(detail.equipment.id, { title: taskTitle.trim(), description: taskDescription.trim() || null });
-                setTaskTitle('');
-                setTaskDescription('');
-                await onRefreshDetail?.();
-              } finally { setBusy(''); }
-            }}
-          >{busy === 'task' ? 'Создаём...' : 'Создать задачу'}</button>
+        <div className="detail-composer detail-composer--stack">
+          <div className="equipment-detail-grid">
+            <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Название задачи" />
+            <input value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Описание" />
+          </div>
+          <ActionRail compact>
+            <ActionRailButton
+              tone="brand"
+              disabled={!taskTitle.trim() || Boolean(busy)}
+              onClick={async () => {
+                setBusy('task');
+                try {
+                  await adminServiceApi.createEquipmentTask(detail.equipment.id, { title: taskTitle.trim(), description: taskDescription.trim() || null });
+                  setTaskTitle('');
+                  setTaskDescription('');
+                  await onRefreshDetail?.();
+                } finally { setBusy(''); }
+              }}
+            >{busy === 'task' ? 'Создаём...' : 'Создать задачу'}</ActionRailButton>
+          </ActionRail>
         </div>
         {!rows.length ? <p className="empty-copy">Задач пока нет.</p> : (
-          <ul className="equipment-notes-list">
+          <ul className="equipment-notes-list detail-list">
             {rows.map((row) => (
-              <li key={row.id}>
+              <li key={row.id} className="detail-list__item">
                 <p><strong>{row.title}</strong> — {row.description || 'без описания'}</p>
                 <small>{row.status} · {row.assignedToUser?.fullName || 'не назначено'} · до {formatDate(row.dueAt)}</small>
-                <div className="quick-filter-row">
+                <ActionRail compact>
                   {['todo', 'in_progress', 'done'].map((status) => (
-                    <button key={status} type="button" onClick={() => adminServiceApi.updateTaskStatus(row.id, status).then(() => onRefreshDetail?.())}>{status}</button>
+                    <ActionRailButton key={status} active={row.status === status} tone={row.status === status ? 'brand' : 'default'} onClick={() => adminServiceApi.updateTaskStatus(row.id, status).then(() => onRefreshDetail?.())}>{status}</ActionRailButton>
                   ))}
-                </div>
+                </ActionRail>
               </li>
             ))}
           </ul>
@@ -916,10 +923,10 @@ function TabPanel({
   return (
     <section className="equipment-detail-section">
       <p>Текущий коммерческий статус: {COMMERCIAL_LABELS[detail.equipment?.commercialStatus || 'none'] || (detail.equipment?.commercialStatus || 'none')}</p>
-      <div className="quick-filter-row">
-        {actions.map((action) => <span key={action.key + action.targetStatus} className="signal-chip signal-chip--warning">{action.label}</span>)}
+      <ActionRail>
+        {actions.map((action) => <ActionRailButton key={action.key + action.targetStatus}>{action.label}</ActionRailButton>)}
         {!actions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
-      </div>
+      </ActionRail>
     </section>
   );
 }
