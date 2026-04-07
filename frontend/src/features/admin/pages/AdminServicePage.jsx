@@ -265,6 +265,7 @@ export function AdminServicePage() {
     media: t('photos_video'),
     notes: t('notes'),
   }), [t]);
+  const canReadServiceEngineers = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
 
   async function load() {
     setLoading(true);
@@ -272,7 +273,9 @@ export function AdminServicePage() {
       const [list, dash, engineerPayload] = await Promise.all([
         adminServiceApi.list({ sort: 'updatedAt' }),
         adminServiceApi.dashboard({}),
-        adminServiceApi.serviceEngineers().catch(() => ({ engineers: [] })),
+        canReadServiceEngineers
+          ? adminServiceApi.serviceEngineers().catch(() => ({ engineers: [] }))
+          : Promise.resolve({ engineers: [] }),
       ]);
 
       const rows = list.requests || [];
@@ -297,7 +300,7 @@ export function AdminServicePage() {
     setAssignForm({ assignedToUserId: payload.request?.assignedToUserId || '' });
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [canReadServiceEngineers]); // eslint-disable-line
   useEffect(() => {
     if (!requestId) {
       setSelectedRequest(null);
