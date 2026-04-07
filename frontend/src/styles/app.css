@@ -2015,6 +2015,11 @@ textarea { min-height: 110px; resize: vertical; }
 }
 .equipment-gallery-card.is-broken { border-style: dashed; }
 .equipment-media-filters--compact { gap: 10px; }
+.equipment-media-filters--compact .quick-filter-row--compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
 .quick-filter-row--compact {
   display: flex;
   flex-wrap: wrap;
@@ -2186,6 +2191,7 @@ textarea { min-height: 110px; resize: vertical; }
     min-height: 188px;
   }
   .quick-filter-row--compact {
+    flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 2px;
