@@ -4,6 +4,8 @@ import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLE_LABELS, ROLES } from '../roleConfig';
 import { useAuth } from '../../auth/AuthContext';
 
+const DEFAULT_EMPLOYEE_PASSWORD = 'Surpresso123!';
+
 const WORK_MODE_OPTIONS = [
   { key: 'field', label: 'Выездной' },
   { key: 'inhouse', label: 'В мастерской' },
@@ -238,8 +240,8 @@ export function AdminEmployeesPage() {
                   <label><span>Статус</span><select value={current.isActive ? 'true' : 'false'} disabled={!canEdit} onChange={(e) => (createMode ? setForm((p) => ({ ...p, isActive: e.target.value === 'true' })) : setSelected((p) => ({ ...p, isActive: e.target.value === 'true' })))}><option value="true">Активен</option><option value="false">Неактивен</option></select></label>
                   <label><span>Телефон</span><input value={current.phone || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, phone: e.target.value })) : setSelected((p) => ({ ...p, phone: e.target.value })))} /></label>
                   <label><span>Примечания</span><input value={current.notes || ''} onChange={(e) => (createMode ? setForm((p) => ({ ...p, notes: e.target.value })) : setSelected((p) => ({ ...p, notes: e.target.value })))} /></label>
-                  {createMode ? <label><span>Пароль</span><input type="password" value={current.password || ''} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} /></label> : null}
                 </div>
+                {createMode ? <p className="employees-help">Новый сотрудник создаётся со стандартным паролем: <strong>{DEFAULT_EMPLOYEE_PASSWORD}</strong>. После входа он сможет сменить его в своём кабинете.</p> : null}
               </section>
 
               <section className="employees-form-section">

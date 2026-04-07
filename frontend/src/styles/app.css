@@ -1253,6 +1253,21 @@ textarea { min-height: 110px; resize: vertical; }
 .admin-link.active { color: var(--sa-text); background: color-mix(in oklab, var(--sa-brand), var(--sa-surface) 85%); border-color: var(--sa-brand); box-shadow: 0 0 0 1px color-mix(in oklab, var(--sa-brand), transparent 65%); }
 .ui-icon { width: 16px; height: 16px; }
 .admin-sidebar__bottom { margin-top: auto; display: grid; gap: 8px; background: var(--sa-surface-2); padding: 10px; border-radius: 12px; }
+.admin-password-form { display: grid; gap: 8px; }
+.admin-password-form input {
+  min-height: 38px;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  background: var(--sa-surface);
+  color: var(--sa-text);
+  padding: 0 10px;
+}
+.admin-password-form__status {
+  margin: 0;
+  font-size: 12px;
+}
+.admin-password-form__status.error { color: #b91c1c; }
+.admin-password-form__status.success { color: #166534; }
 .role-badge { margin: 0; display: inline-block; background: rgba(232,166,33,0.2); color: var(--sa-text); }
 .admin-main { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
 .admin-topbar { border-bottom: 1px solid var(--sa-line); padding: 10px 16px; display: flex; gap: 10px; align-items: center; background: color-mix(in oklab, var(--sa-bg), white 20%); }
@@ -2093,6 +2108,9 @@ textarea { min-height: 110px; resize: vertical; }
 :root[data-admin-theme='dark'] .equipment-ops-detail {
   background: linear-gradient(160deg, #0d1528, #080d1a);
 }
+:root[data-admin-theme='dark'] .admin-password-form input { border-color: #2a3a54; background: #0a1222; color: #d8e1ef; }
+:root[data-admin-theme='dark'] .admin-password-form__status.error { color: #fca5a5; }
+:root[data-admin-theme='dark'] .admin-password-form__status.success { color: #86efac; }
 :root[data-admin-theme='dark'] .equipment-ops-card { border-color: #263247; background: #0c1528; }
 :root[data-admin-theme='dark'] .equipment-list-toolbar { border-color: #27344d; background: rgba(10, 18, 34, .92); }
 :root[data-admin-theme='dark'] .equipment-list-toolbar__chips button,

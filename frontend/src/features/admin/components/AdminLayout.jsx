@@ -44,12 +44,15 @@ function useAdminTheme() {
 }
 
 export function AdminLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, changePassword } = useAuth();
   const location = useLocation();
   const { locale, toggleLocale, t } = useAdminI18n();
   const basePath = location.pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
   const { mode, resolvedTheme, cycleMode } = useAdminTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordStatus, setPasswordStatus] = useState({ type: '', message: '' });
   const sectionsSource = useMemo(() => getAdminSections(t), [t]);
   const roleLabels = useMemo(() => getRoleLabels(t), [t]);
 
@@ -72,6 +75,36 @@ export function AdminLayout() {
     }
     return t('admin_panel');
   }, [sections, location.pathname, t]);
+
+  async function handlePasswordSubmit(event) {
+    event.preventDefault();
+    setPasswordStatus({ type: '', message: '' });
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      setPasswordStatus({ type: 'error', message: 'Заполни текущий и новый пароль.' });
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordStatus({ type: 'error', message: 'Новый пароль должен быть не короче 8 символов.' });
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordStatus({ type: 'error', message: 'Подтверждение пароля не совпадает.' });
+      return;
+    }
+
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordStatus({ type: 'success', message: 'Пароль обновлён.' });
+      setPasswordOpen(false);
+    } catch (error) {
+      const message = error?.message === 'invalid_current_password'
+        ? 'Текущий пароль введён неверно.'
+        : (error?.message === 'password_too_short' ? 'Новый пароль слишком короткий.' : 'Не удалось сменить пароль.');
+      setPasswordStatus({ type: 'error', message });
+    }
+  }
 
   return (
     <div className="admin-app-shell">
@@ -109,6 +142,36 @@ export function AdminLayout() {
             <strong>{user.fullName || user.name}</strong>
             <span className="role-badge">{roleLabels[user.role]}</span>
           </div>
+          <button type="button" className="secondary" onClick={() => setPasswordOpen((prev) => !prev)}>
+            Сменить пароль
+          </button>
+          {passwordOpen ? (
+            <form className="admin-password-form" onSubmit={handlePasswordSubmit}>
+              <input
+                type="password"
+                placeholder="Текущий пароль"
+                value={passwordForm.currentPassword}
+                onChange={(event) => setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+                autoComplete="current-password"
+              />
+              <input
+                type="password"
+                placeholder="Новый пароль"
+                value={passwordForm.newPassword}
+                onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+                autoComplete="new-password"
+              />
+              <input
+                type="password"
+                placeholder="Повтори новый пароль"
+                value={passwordForm.confirmPassword}
+                onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                autoComplete="new-password"
+              />
+              {passwordStatus.message ? <p className={`admin-password-form__status ${passwordStatus.type}`}>{passwordStatus.message}</p> : null}
+              <button type="submit">Обновить пароль</button>
+            </form>
+          ) : null}
           <button type="button" className="secondary" onClick={logout}>{t('admin_logout')}</button>
         </div>
       </aside>

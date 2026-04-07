@@ -11,6 +11,7 @@ import { isServiceRequestClosed } from '../../domain/workflow/serviceRequestStat
 const ALLOWED_ROLES = ['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director', 'seo'];
 const SERVICE_TEAM_VIEW_ROLES = ['owner', 'director', 'service_head', 'manager', 'service_engineer', 'sales_manager', 'seo'];
 const SERVICE_TEAM_EDIT_ROLES = ['owner', 'director', 'service_head', 'manager'];
+const DEFAULT_EMPLOYEE_PASSWORD = 'Surpresso123!';
 
 function canManageRole(adminRole, targetRole) {
   if (!targetRole) return false;
@@ -140,7 +141,7 @@ export function createAdminEmployeeController(userRepository, serviceRepository)
       }
 
       const payload = normalizePayload(req.body);
-      if (!payload.fullName || !payload.email || !payload.role || !payload.password) {
+      if (!payload.fullName || !payload.email || !payload.role) {
         return res.status(400).json({ error: 'invalid_payload' });
       }
       if (!canManageRole(req.adminUser?.role, payload.role)) {
@@ -154,7 +155,7 @@ export function createAdminEmployeeController(userRepository, serviceRepository)
 
       const created = await userRepository.create({
         ...payload,
-        passwordHash: hashPassword(payload.password),
+        passwordHash: hashPassword(payload.password || DEFAULT_EMPLOYEE_PASSWORD),
       });
 
       const enriched = await enrichWithWorkload(created);

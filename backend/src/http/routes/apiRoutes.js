@@ -46,6 +46,7 @@ export function createApiRouter(deps) {
   router.post('/v1/auth/logout', telegramAuthController.logout);
   router.post('/auth/logout', adminAuthController.logout);
   router.get('/auth/me', asyncHandler(adminAuth), adminAuthController.me);
+  router.post('/auth/change-password', asyncHandler(adminAuth), asyncHandler(adminAuthController.changePassword));
 
   router.get('/admin/manager', asyncHandler(adminAuth), requireRole(['manager']), adminController.managerScope);
   router.get('/admin/service', asyncHandler(adminAuth), requireRole(['manager', 'service']), adminController.serviceScope);

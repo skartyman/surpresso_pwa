@@ -23,4 +23,8 @@ export const authApi = {
   me: async () => apiFetch('/api/telegram/auth/me'),
   login: async (email, password) => apiFetch('/api/telegram/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: async () => apiFetch('/api/telegram/auth/logout', { method: 'POST' }),
+  changePassword: async (currentPassword, newPassword) => apiFetch('/api/telegram/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }),
 };

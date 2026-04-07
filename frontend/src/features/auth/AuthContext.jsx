@@ -53,9 +53,18 @@ export function AuthProvider({ children }) {
     setStatus('unauthenticated');
   }, []);
 
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    const data = await authApi.changePassword(currentPassword, newPassword);
+    if (data?.user) {
+      setUser(data.user);
+      sessionStorage.setItem('surpresso-user', JSON.stringify(data.user));
+    }
+    return data;
+  }, []);
+
   const value = useMemo(
-    () => ({ user, status, login, logout, refreshMe }),
-    [user, status, login, logout, refreshMe],
+    () => ({ user, status, login, logout, refreshMe, changePassword }),
+    [user, status, login, logout, refreshMe, changePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

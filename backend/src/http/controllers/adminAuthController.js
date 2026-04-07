@@ -1,4 +1,4 @@
-import { verifyPassword } from '../../domain/security/passwordHasher.js';
+import { hashPassword, verifyPassword } from '../../domain/security/passwordHasher.js';
 
 function sanitizeUser(user) {
   const { passwordHash, ...safeUser } = user;
@@ -39,6 +39,29 @@ export function createAdminAuthController(userRepository, sessionManager) {
 
     me(req, res) {
       return res.json({ user: sanitizeUser(req.adminUser) });
+    },
+
+    async changePassword(req, res) {
+      const currentPassword = String(req.body?.currentPassword || '');
+      const newPassword = String(req.body?.newPassword || '');
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'password_fields_required' });
+      }
+
+      if (!verifyPassword(currentPassword, req.adminUser?.passwordHash)) {
+        return res.status(400).json({ error: 'invalid_current_password' });
+      }
+
+      if (newPassword.trim().length < 8) {
+        return res.status(400).json({ error: 'password_too_short' });
+      }
+
+      const updated = await userRepository.updateUser(req.adminUser.id, {
+        passwordHash: hashPassword(newPassword),
+      });
+
+      return res.json({ user: sanitizeUser(updated), ok: true });
     },
   };
 }
