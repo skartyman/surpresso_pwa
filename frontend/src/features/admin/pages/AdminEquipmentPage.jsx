@@ -646,46 +646,105 @@ function TabPanel({
   const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
   const latestMedia = (detail.media || [])[0] || null;
   const warnings = getEquipmentWarnings(detail, t);
+  const latestTimelineEvent = (detail.timeline || [])[0] || null;
   if (tab === 'overview') {
+    const passportStats = [
+      { key: 'service', label: t('service_label'), value: activeCase?.serviceStatus || equipment.serviceStatus || '—', meta: activeCase?.id || t('no_active_case') },
+      { key: 'commerce', label: t('commerce'), value: getCommercialLabel(equipment.commercialStatus || 'none', t), meta: equipment.ownerType || '—' },
+      { key: 'updated', label: t('updated'), value: formatDay(equipment.updatedAt, locale, '—'), meta: formatDate(equipment.updatedAt, locale) },
+      { key: 'case', label: t('active_service_case'), value: activeCase?.id || '—', meta: activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || t('not_assigned') },
+    ];
+    const passportFields = [
+      { key: 'client', icon: 'clients', label: t('client'), value: equipment.clientName || '—' },
+      { key: 'owner', icon: 'equipment', label: t('owner_type'), value: equipment.ownerType || '—' },
+      { key: 'brand', icon: 'dashboard', label: t('brand'), value: equipment.brand || '—' },
+      { key: 'model', icon: 'equipment', label: t('model'), value: equipment.model || '—' },
+      { key: 'inventory', icon: 'sales', label: t('inventory_number'), value: equipment.internalNumber || '—' },
+      { key: 'serial', icon: 'service', label: t('serial_number'), value: equipment.serial || '—' },
+    ];
+
     return (
-      <section className="equipment-detail-section">
+      <section className="equipment-detail-section equipment-passport-overview">
         {canCreateEquipment ? (
           <ActionRail compact>
             <ActionRailButton tone="brand" onClick={() => navigateToBoard('equipment_create')}>{t('add_equipment')}</ActionRailButton>
             <ActionRailButton onClick={() => navigateToBoard('equipment_intake')}>{t('intake_equipment')}</ActionRailButton>
           </ActionRail>
         ) : null}
-        <article className="equipment-summary-hero">
-          <div>
-            <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
-            <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
-            <div className="equipment-summary-hero__statuses">
-              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
-              <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge>
+        <div className="equipment-passport-layout">
+          <article className="equipment-summary-hero equipment-summary-hero--passport">
+            <div className="equipment-summary-hero__copy">
+              <small>{t('equipment_passport')}</small>
+              <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
+              <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
+              <div className="equipment-summary-hero__statuses">
+                <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
+                <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge>
+              </div>
+              <div className="equipment-passport-stats">
+                {passportStats.map((item) => (
+                  <article key={item.key} className="equipment-passport-stat">
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.meta}</small>
+                  </article>
+                ))}
+              </div>
             </div>
-          </div>
-          {latestMedia
-            ? (
-              <button type="button" className="equipment-summary-hero__preview" onClick={() => onOpenMedia(0)}>
-                {latestMedia.mediaType === 'video'
-                  ? <video src={latestMedia.previewUrl || latestMedia.fullUrl} muted playsInline preload="metadata" />
-                  : <img src={latestMedia.previewUrl || latestMedia.fullUrl} alt={latestMedia.caption || latestMedia.originalName || t('latest_media')} loading="lazy" />}
-              </button>
-            )
-            : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">{t('no_preview')}</div>}
-        </article>
-
-        {activeCase ? (
-          <article className="equipment-active-case-highlight">
-            <header>
-              <h4>{t('active_service_case')}</h4>
-              <StatusBadge status={activeCase.serviceStatus || 'none'}>{activeCase.serviceStatus || '—'}</StatusBadge>
-            </header>
-            <p><strong>{activeCase.id}</strong> · {t('assigned_lower')}: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || t('not_assigned')}.</p>
-            <p>{t('updated_lower')}: {formatDate(activeCase.updatedAt, locale)}.</p>
-            <button type="button" onClick={() => navigateToBoard('service_case', activeCase.id)}>{t('open_case')}</button>
+            {latestMedia
+              ? (
+                <button type="button" className="equipment-summary-hero__preview" onClick={() => onOpenMedia(0)}>
+                  {latestMedia.mediaType === 'video'
+                    ? <video src={latestMedia.previewUrl || latestMedia.fullUrl} muted playsInline preload="metadata" />
+                    : <img src={latestMedia.previewUrl || latestMedia.fullUrl} alt={latestMedia.caption || latestMedia.originalName || t('latest_media')} loading="lazy" />}
+                </button>
+              )
+              : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">{t('no_preview')}</div>}
           </article>
-        ) : null}
+
+          <article className="equipment-passport-workflow">
+            <header className="equipment-passport-workflow__header">
+              <div>
+                <small>{t('workflow')}</small>
+                <h4>{t('action_panel')}</h4>
+              </div>
+              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>
+                {activeCase?.serviceStatus || equipment.serviceStatus || '—'}
+              </StatusBadge>
+            </header>
+            {activeCase ? (
+              <div className="equipment-active-case-highlight equipment-active-case-highlight--passport">
+                <header>
+                  <h4>{t('active_service_case')}</h4>
+                  <StatusBadge status={activeCase.serviceStatus || 'none'}>{activeCase.serviceStatus || '—'}</StatusBadge>
+                </header>
+                <p><strong>{activeCase.id}</strong> · {t('assigned_lower')}: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || t('not_assigned')}.</p>
+                <p>{t('updated_lower')}: {formatDate(activeCase.updatedAt, locale)}.</p>
+                <button type="button" onClick={() => navigateToBoard('service_case', activeCase.id)}>{t('open_case')}</button>
+              </div>
+            ) : (
+              <div className="equipment-passport-workflow__empty">
+                <strong>{t('no_active_case')}</strong>
+                <p>{t('missing_active_service_case')}</p>
+              </div>
+            )}
+            <div className="equipment-passport-workflow__meta">
+              <article>
+                <span>{t('assignee')}</span>
+                <strong>{activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || t('not_assigned')}</strong>
+              </article>
+              <article>
+                <span>{t('status')}</span>
+                <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+              </article>
+              <article>
+                <span>{t('history')}</span>
+                <strong>{latestTimelineEvent?.actor || t('system_user')}</strong>
+                <small>{latestTimelineEvent?.comment || t('history_empty')}</small>
+              </article>
+            </div>
+          </article>
+        </div>
 
         {warnings.length ? (
           <div className="warning-badges">
@@ -693,53 +752,85 @@ function TabPanel({
           </div>
         ) : null}
 
-        <div className="equipment-detail-grid">
-          <p><Icon name="clients" /> {t('client')}: {equipment.clientName || '—'}</p>
-          <p><Icon name="equipment" /> {t('owner_type')}: {equipment.ownerType || '—'}</p>
-          <p><Icon name="dashboard" /> {t('active_service_case')}: {activeCase?.id || '—'}</p>
-          <p><Icon name="employees" /> {t('assignee')}: {activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</p>
-          <p><Icon name="service" /> {t('current_service_status')}: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</p>
-          <p><Icon name="sales" /> {t('current_commercial_status')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</p>
-          <p><Icon name="dashboard" /> {t('updated')}: {formatDate(equipment.updatedAt, locale)}</p>
-        </div>
-
-        {canEditEquipment ? (
-          <article className="detail-section-card">
-            <h4>{t('edit_equipment_card')}</h4>
-            <div className="equipment-detail-grid">
-              <input placeholder={equipment.brand || t('brand')} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
-              <input placeholder={equipment.model || t('model')} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
-              <input placeholder={equipment.serial || t('serial_number')} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
-              <input placeholder={equipment.internalNumber || t('inventory_number')} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+        <section className="equipment-passport-data">
+          <header className="equipment-passport-data__header">
+            <div>
+              <small>{t('equipment_passport')}</small>
+              <h4>{t('overview')}</h4>
             </div>
-            <ActionRail compact>
-              <ActionRailButton
-                tone="brand"
-                disabled={Boolean(busy)}
-                onClick={async () => {
-                  setBusy('edit');
-                  try {
-                    await adminServiceApi.updateEquipment(equipment.id, editForm);
-                    setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
-                    await onRefreshDetail?.();
-                  } finally { setBusy(''); }
-                }}
-              >
-                {busy === 'edit' ? t('saving') : t('save_card')}
-              </ActionRailButton>
-            </ActionRail>
-          </article>
-        ) : null}
+            <p>{t('equipment_center_description')}</p>
+          </header>
+          <div className="equipment-passport-data__grid">
+            {passportFields.map((field) => (
+              <article key={field.key} className="equipment-passport-data__item">
+                <span><Icon name={field.icon} /> {field.label}</span>
+                <strong>{field.value}</strong>
+              </article>
+            ))}
+            <article className="equipment-passport-data__item">
+              <span><Icon name="dashboard" /> {t('active_service_case')}</span>
+              <strong>{activeCase?.id || '—'}</strong>
+            </article>
+            <article className="equipment-passport-data__item">
+              <span><Icon name="employees" /> {t('assignee')}</span>
+              <strong>{activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || '—'}</strong>
+            </article>
+            <article className="equipment-passport-data__item">
+              <span><Icon name="service" /> {t('current_service_status')}</span>
+              <strong>{activeCase?.serviceStatus || equipment.serviceStatus || '—'}</strong>
+            </article>
+            <article className="equipment-passport-data__item">
+              <span><Icon name="sales" /> {t('current_commercial_status')}</span>
+              <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+            </article>
+          </div>
+        </section>
 
-        <ActionPanel
-          detail={detail}
-          onQuickMediaUploaded={onRefreshDetail}
-          navigateToBoard={navigateToBoard}
-          basePath={basePath}
-          canUploadCaseMedia={canUploadCaseMedia}
-          canCommercialOperate={canCommercialOperate}
-          t={t}
-        />
+        <div className="equipment-passport-ops-grid">
+          {canEditEquipment ? (
+            <article className="detail-section-card equipment-edit-passport-card">
+              <header className="equipment-edit-passport-card__header">
+                <div>
+                  <small>{t('equipment')}</small>
+                  <h4>{t('edit_equipment_card')}</h4>
+                </div>
+                <p>{t('equipment_actions_description')}</p>
+              </header>
+              <div className="equipment-detail-grid">
+                <input placeholder={equipment.brand || t('brand')} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
+                <input placeholder={equipment.model || t('model')} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
+                <input placeholder={equipment.serial || t('serial_number')} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
+                <input placeholder={equipment.internalNumber || t('inventory_number')} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+              </div>
+              <ActionRail compact>
+                <ActionRailButton
+                  tone="brand"
+                  disabled={Boolean(busy)}
+                  onClick={async () => {
+                    setBusy('edit');
+                    try {
+                      await adminServiceApi.updateEquipment(equipment.id, editForm);
+                      setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                      await onRefreshDetail?.();
+                    } finally { setBusy(''); }
+                  }}
+                >
+                  {busy === 'edit' ? t('saving') : t('save_card')}
+                </ActionRailButton>
+              </ActionRail>
+            </article>
+          ) : null}
+
+          <ActionPanel
+            detail={detail}
+            onQuickMediaUploaded={onRefreshDetail}
+            navigateToBoard={navigateToBoard}
+            basePath={basePath}
+            canUploadCaseMedia={canUploadCaseMedia}
+            canCommercialOperate={canCommercialOperate}
+            t={t}
+          />
+        </div>
       </section>
     );
   }
@@ -1169,17 +1260,41 @@ export function AdminEquipmentPage() {
           <button type="button" className="equipment-back-button" onClick={closeDetail}>{t('back_to_board')}</button>
           <header className="equipment-ops-detail__hero">
             <div className="equipment-ops-detail__hero-copy">
-              <small>{t('equipment_passport')}</small>
-              <h3>{detailEquipment ? `${detailEquipment.brand || '—'} ${detailEquipment.model || ''}` : t('choose_equipment')}</h3>
-              <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailEquipment.internalNumber || '—'} / ${detailEquipment.serial || '—'}` : t('choose_equipment_from_board')}</p>
+              <div className="equipment-ops-detail__hero-topline">
+                <div>
+                  <small>{t('equipment_passport')}</small>
+                  <h3>{detailEquipment ? `${detailEquipment.brand || '—'} ${detailEquipment.model || ''}` : t('choose_equipment')}</h3>
+                  <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailEquipment.internalNumber || '—'} / ${detailEquipment.serial || '—'}` : t('choose_equipment_from_board')}</p>
+                </div>
+                {detailEquipment ? (
+                  <div className="equipment-ops-detail__hero-statuses">
+                    <StatusBadge status={detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || 'none'}>
+                      {t('service_label')}: {detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || '—'}
+                    </StatusBadge>
+                    <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
+                      {getCommercialLabel(detailEquipment.commercialStatus || 'none', t)}
+                    </StatusBadge>
+                  </div>
+                ) : null}
+              </div>
               {detailEquipment ? (
-                <div className="equipment-ops-detail__hero-statuses">
-                  <StatusBadge status={detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || 'none'}>
-                    {t('service_label')}: {detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || '—'}
-                  </StatusBadge>
-                  <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
-                    {getCommercialLabel(detailEquipment.commercialStatus || 'none', t)}
-                  </StatusBadge>
+                <div className="equipment-ops-detail__hero-stats">
+                  <article>
+                    <span>{t('client')}</span>
+                    <strong>{detailEquipment.clientName || '—'}</strong>
+                  </article>
+                  <article>
+                    <span>{t('owner_type')}</span>
+                    <strong>{detailEquipment.ownerType || '—'}</strong>
+                  </article>
+                  <article>
+                    <span>{t('active_service_case')}</span>
+                    <strong>{detailActiveCase?.id || '—'}</strong>
+                  </article>
+                  <article>
+                    <span>{t('updated')}</span>
+                    <strong>{formatDay(detailEquipment.updatedAt, locale, '—')}</strong>
+                  </article>
                 </div>
               ) : null}
             </div>
@@ -1200,6 +1315,8 @@ export function AdminEquipmentPage() {
               <ActionRailButton onClick={() => setActiveTab('media')}>{t('photos_video')}</ActionRailButton>
               <ActionRailButton disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)}>{t('active_service_case')}</ActionRailButton>
               <ActionRailButton onClick={() => navigateToBoard('service_board', detailEquipment.id)}>{t('service_board')}</ActionRailButton>
+              <ActionRailButton onClick={() => navigateToBoard('director_board', detailEquipment.id)}>{t('director_board')}</ActionRailButton>
+              <ActionRailButton onClick={() => navigateToBoard('sales_board', detailEquipment.id)}>{t('sales_board')}</ActionRailButton>
             </ActionRail>
           ) : null}
 
