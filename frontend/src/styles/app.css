@@ -2376,20 +2376,33 @@ textarea { min-height: 110px; resize: vertical; }
 }
 :root[data-admin-theme='dark'] .admin-app-shell {
   background:
-    radial-gradient(circle at top left, rgba(244, 185, 58, 0.10), transparent 24%),
-    radial-gradient(circle at top right, rgba(93, 135, 255, 0.10), transparent 18%),
-    linear-gradient(180deg, color-mix(in oklab, var(--sa-bg), black 8%), var(--sa-bg));
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.16), transparent 24%),
+    radial-gradient(circle at top right, rgba(112, 92, 255, 0.10), transparent 18%),
+    radial-gradient(circle at 50% 120%, rgba(139, 92, 246, 0.08), transparent 24%),
+    linear-gradient(180deg, #13100d, #0d0b09 62%, #090806);
 }
 :root[data-admin-theme='dark'] .admin-sidebar {
-  background: linear-gradient(180deg, rgba(24, 22, 20, .94), rgba(19, 17, 16, .90));
-  border-right-color: rgba(86, 74, 61, 0.72);
+  background:
+    linear-gradient(180deg, rgba(28, 24, 20, .98), rgba(17, 15, 13, .96)),
+    linear-gradient(135deg, rgba(246, 190, 72, 0.04), rgba(120, 87, 255, 0.03));
+  border-right-color: rgba(116, 93, 63, 0.46);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,.03);
 }
 :root[data-admin-theme='dark'] .admin-sidebar__bottom {
-  background: linear-gradient(180deg, rgba(51, 45, 39, .92), rgba(30, 26, 23, .98));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  background:
+    linear-gradient(180deg, rgba(53, 45, 36, .94), rgba(29, 25, 20, .98)),
+    radial-gradient(circle at top right, rgba(246, 190, 72, 0.10), transparent 36%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 22px 44px rgba(0, 0, 0, 0.32);
 }
 :root[data-admin-theme='dark'] .admin-brand__logo {
-  background: linear-gradient(160deg, rgba(35, 32, 29, .96), rgba(45, 41, 37, .8));
+  background:
+    linear-gradient(160deg, rgba(40, 34, 28, .98), rgba(27, 23, 19, .92)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.12), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 18px 34px rgba(0, 0, 0, 0.24);
 }
 :root[data-admin-theme='dark'] .admin-brand strong,
 :root[data-admin-theme='dark'] .admin-topbar h1,
@@ -2416,65 +2429,109 @@ textarea { min-height: 110px; resize: vertical; }
   color: #d7c9b8;
 }
 :root[data-admin-theme='dark'] .admin-link:hover {
-  background: rgba(255,255,255,.06);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
   color: #fff5e8;
 }
 :root[data-admin-theme='dark'] .admin-topbar {
-  background: linear-gradient(180deg, rgba(19, 17, 16, .96), rgba(19, 17, 16, .72));
-  border-bottom: 1px solid rgba(86, 74, 61, 0.42);
+  background:
+    linear-gradient(180deg, rgba(17, 15, 13, .98), rgba(17, 15, 13, .78)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.06), transparent 24%);
+  border-bottom: 1px solid rgba(116, 93, 63, 0.34);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
 }
 :root[data-admin-theme='dark'] .theme-toggle,
 :root[data-admin-theme='dark'] .notification-bell,
 :root[data-admin-theme='dark'] .menu-toggle,
 :root[data-admin-theme='dark'] .admin-mobile-nav__item {
-  background: rgba(47, 42, 38, .96);
+  background:
+    linear-gradient(180deg, rgba(49, 42, 35, .98), rgba(34, 29, 24, .96)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.08), transparent 50%);
   color: #f4eee5;
-  border: 1px solid rgba(97, 84, 71, .78);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(122, 98, 68, .72);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 14px 28px rgba(0, 0, 0, 0.24);
 }
 :root[data-admin-theme='dark'] .admin-mobile-nav__item.active,
 :root[data-admin-theme='dark'] .admin-link.active {
   color: #1d1200;
+  background:
+    linear-gradient(135deg, rgba(246, 190, 72, 0.98), rgba(212, 140, 24, 0.86)),
+    linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    0 18px 34px rgba(171, 111, 16, 0.26);
 }
 :root[data-admin-theme='dark'] .owner-hero {
   background:
-    radial-gradient(circle at top right, rgba(244, 185, 58, 0.16), transparent 28%),
-    radial-gradient(circle at bottom left, rgba(79, 107, 220, 0.16), transparent 30%),
-    linear-gradient(160deg, rgba(35, 32, 29, .98), rgba(45, 41, 37, .92));
-  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
+    radial-gradient(circle at top right, rgba(246, 190, 72, 0.20), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(112, 92, 255, 0.14), transparent 30%),
+    linear-gradient(160deg, rgba(36, 30, 25, .99), rgba(23, 19, 16, .96));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 30px 70px rgba(0, 0, 0, 0.34);
 }
 :root[data-admin-theme='dark'] .owner-card,
 :root[data-admin-theme='dark'] .owner-kpi-block {
-  background: linear-gradient(180deg, rgba(38, 34, 31, .96), rgba(28, 25, 23, .92));
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+  background:
+    linear-gradient(180deg, rgba(38, 32, 27, .98), rgba(24, 21, 18, .96)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.06), transparent 40%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 20px 42px rgba(0, 0, 0, 0.30);
 }
 :root[data-admin-theme='dark'] .kpi-chip,
 :root[data-admin-theme='dark'] .chart-card,
 :root[data-admin-theme='dark'] .compact-metric {
   background:
-    linear-gradient(180deg, rgba(38, 34, 31, .98), rgba(28, 25, 23, .94)),
-    linear-gradient(135deg, rgba(244, 185, 58, 0.08), rgba(96, 132, 255, 0.06));
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.26);
+    linear-gradient(180deg, rgba(40, 33, 27, .98), rgba(24, 21, 18, .95)),
+    linear-gradient(135deg, rgba(246, 190, 72, 0.10), rgba(112, 92, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 20px 36px rgba(0, 0, 0, 0.28);
 }
 :root[data-admin-theme='dark'] .kpi-chip::after {
-  background: rgba(244, 185, 58, 0.18);
+  background: radial-gradient(circle, rgba(246, 190, 72, 0.26), rgba(246, 190, 72, 0));
+}
+:root[data-admin-theme='dark'] .chart-card,
+:root[data-admin-theme='dark'] .compact-metric,
+:root[data-admin-theme='dark'] .kpi-chip,
+:root[data-admin-theme='dark'] .owner-card,
+:root[data-admin-theme='dark'] .owner-kpi-block,
+:root[data-admin-theme='dark'] .alert-panel {
+  border: 1px solid rgba(118, 93, 63, 0.18);
+}
+:root[data-admin-theme='dark'] .bar-chart i,
+:root[data-admin-theme='dark'] .compact-metric[data-state='warning'] i,
+:root[data-admin-theme='dark'] .compact-metric[data-state='danger'] i {
+  filter: saturate(1.15) brightness(1.05);
 }
 :root[data-admin-theme='dark'] .alert-panel li {
-  background: rgba(255,255,255,.05);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.04), transparent 55%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 12px 24px rgba(0, 0, 0, 0.12);
 }
 :root[data-admin-theme='dark'] .owner-kpi-block a,
 :root[data-admin-theme='dark'] .owner-kpi-block small {
-  color: #f0bf58;
+  color: #f2c76f;
 }
 :root[data-admin-theme='dark'] .admin-sidebar__bottom .secondary {
-  background: rgba(255,255,255,.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.05), transparent 55%);
   color: #f8efe1;
-  border-color: rgba(118, 101, 84, .88);
-  box-shadow: none;
+  border-color: rgba(118, 101, 84, .78);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 10px 20px rgba(0, 0, 0, 0.18);
 }
 :root[data-admin-theme='dark'] .admin-sidebar__bottom .secondary:hover {
-  background: rgba(255,255,255,.14);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.08)),
+    radial-gradient(circle at top left, rgba(246, 190, 72, 0.08), transparent 55%);
   color: #fff7ed;
   border-color: rgba(240, 191, 88, .72);
 }
