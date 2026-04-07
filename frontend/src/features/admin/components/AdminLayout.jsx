@@ -68,13 +68,20 @@ export function AdminLayout() {
     [sectionsSource, user.role],
   );
 
-  const title = useMemo(() => {
+  const flatNavItems = useMemo(
+    () => sections.flatMap((section) => section.items.map((item) => ({ ...item, sectionLabel: section.label }))),
+    [sections],
+  );
+
+  const currentItem = useMemo(() => {
     for (const section of sections) {
       const found = section.items.find((item) => location.pathname.includes(`/${item.to}`));
-      if (found) return found.label;
+      if (found) return { ...found, sectionLabel: section.label };
     }
-    return t('admin_panel');
-  }, [sections, location.pathname, t]);
+    return null;
+  }, [sections, location.pathname]);
+
+  const title = currentItem?.label || t('admin_panel');
 
   async function handlePasswordSubmit(event) {
     event.preventDefault();
@@ -108,11 +115,15 @@ export function AdminLayout() {
 
   return (
     <div className="admin-app-shell">
+      <div className="admin-app-shell__glow admin-app-shell__glow--one" />
+      <div className="admin-app-shell__glow admin-app-shell__glow--two" />
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">
           <img src="/icons/logo-service.png" alt="Логотип Surpresso" className="admin-brand__logo" />
-          <strong>Surpresso</strong>
-          <span>{t('admin_panel')}</span>
+          <div className="admin-brand__meta">
+            <strong>Surpresso</strong>
+            <span>{t('admin_panel')}</span>
+          </div>
         </div>
 
         <nav className="admin-sidebar-sections">
@@ -181,12 +192,27 @@ export function AdminLayout() {
       <main className="admin-main">
         <header className="admin-topbar">
           <button type="button" className="menu-toggle" onClick={() => setSidebarOpen((prev) => !prev)}>☰</button>
-          <h1>{title}</h1>
+          <div className="admin-topbar__heading">
+            <small>{currentItem?.sectionLabel || t('admin_panel')}</small>
+            <h1>{title}</h1>
+          </div>
           <div className="admin-topbar-actions">
             <NotificationBell count={3} />
             <ThemeToggle mode={mode} resolvedTheme={resolvedTheme} onToggle={cycleMode} />
           </div>
         </header>
+        <div className="admin-mobile-nav" aria-label="Навигация админки">
+          {flatNavItems.map((item) => (
+            <NavLink
+              key={`mobile-${item.key}`}
+              to={`${basePath}/${item.to}`}
+              className={({ isActive }) => `admin-mobile-nav__item ${isActive ? 'active' : ''}`}
+            >
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
         <section className="admin-content"><Outlet /></section>
       </main>
     </div>
