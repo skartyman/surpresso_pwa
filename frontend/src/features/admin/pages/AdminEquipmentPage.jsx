@@ -297,7 +297,12 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
 function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [caseFilter, setCaseFilter] = useState('all');
-  const selectedCover = getEquipmentCardCover(equipmentId);
+  const storedCover = getEquipmentCardCover(equipmentId);
+  const autoCover = useMemo(() => {
+    const firstPhoto = rows.find((item) => item.mediaType === 'photo' && hasRenderableMedia(item));
+    return firstPhoto ? String(firstPhoto.previewUrl || firstPhoto.fullUrl || firstPhoto.fileUrl || '') : '';
+  }, [rows]);
+  const selectedCover = storedCover || autoCover;
 
   useEffect(() => {
     setCaseFilter('all');
@@ -319,8 +324,8 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete 
 
   return (
     <div className="equipment-detail-section equipment-gallery-shell">
-      <div className="equipment-media-filters">
-        <div className="quick-filter-row">
+      <div className="equipment-media-filters equipment-media-filters--compact">
+        <div className="quick-filter-row quick-filter-row--compact">
           {[
             { key: 'all', label: 'Все' },
             { key: 'photo', label: 'Фото' },
@@ -337,7 +342,7 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete 
           ))}
         </div>
 
-        <div className="quick-filter-row">
+        <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable">
           <button type="button" className={caseFilter === 'all' ? 'active' : ''} onClick={() => setCaseFilter('all')}>Все кейсы</button>
           <button type="button" className={caseFilter === 'no_case' ? 'active' : ''} onClick={() => setCaseFilter('no_case')}>Без кейса</button>
           {caseOptions.map((serviceCaseId) => (
@@ -393,12 +398,10 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete 
                     Удалить
                   </button>
                 </div>
-              </div>
-
-              <div className="equipment-gallery-card__meta">
-                <strong>{getMediaDisplayTitle(media, 'Битый файл')}</strong>
-                <span>{media.uploadedByUser?.fullName || media.uploadedBy || '—'} · {formatDate(media.createdAt)}</span>
-                <span>{media.mediaType === 'video' ? 'Видео' : 'Фото'} · {media.serviceCaseId ? `Кейс: ${media.serviceCaseId}` : 'Без кейса'}</span>
+                <div className="equipment-gallery-card__footer">
+                  <strong>{getMediaDisplayTitle(media, 'Битый файл')}</strong>
+                  <span>{formatDate(media.createdAt)}</span>
+                </div>
               </div>
             </article>
           );

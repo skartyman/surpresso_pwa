@@ -1922,17 +1922,18 @@ textarea { min-height: 110px; resize: vertical; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
+  align-items: start;
 }
 .equipment-gallery-card {
   border: 1px solid var(--sa-line);
   border-radius: 14px;
   overflow: hidden;
   background: var(--sa-surface);
-  display: grid;
+  display: block;
 }
 .equipment-gallery-card__media {
   position: relative;
-  min-height: 168px;
+  min-height: 196px;
   background: #0f172a;
 }
 .equipment-gallery-card__open {
@@ -1945,13 +1946,13 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-gallery-card__media img,
 .equipment-gallery-card__media video {
   width: 100%;
-  height: 168px;
+  height: 196px;
   object-fit: cover;
   display: block;
 }
 .equipment-gallery-card__broken {
   width: 100%;
-  height: 168px;
+  height: 196px;
   display: grid;
   place-items: center;
   gap: 8px;
@@ -1962,12 +1963,13 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-gallery-card__actions {
   position: absolute;
   top: 8px;
+  left: 8px;
   right: 8px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: end;
+  justify-content: space-between;
+  align-items: start;
   gap: 6px;
-  max-width: calc(100% - 16px);
 }
 .equipment-gallery-card__action {
   min-height: 28px;
@@ -1989,20 +1991,46 @@ textarea { min-height: 110px; resize: vertical; }
   background: rgba(127, 29, 29, 0.76);
   border-color: rgba(252, 165, 165, 0.34);
 }
-.equipment-gallery-card__meta {
-  display: grid;
-  gap: 4px;
+.equipment-gallery-card__footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: end;
   padding: 10px 12px 12px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.82));
 }
-.equipment-gallery-card__meta strong {
+.equipment-gallery-card__footer strong {
   font-size: 13px;
   line-height: 1.35;
+  color: #fff;
 }
-.equipment-gallery-card__meta span {
-  color: var(--sa-muted);
+.equipment-gallery-card__footer span {
+  color: rgba(255, 255, 255, 0.84);
   font-size: 12px;
+  white-space: nowrap;
 }
 .equipment-gallery-card.is-broken { border-style: dashed; }
+.equipment-media-filters--compact { gap: 10px; }
+.quick-filter-row--compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick-filter-row--compact button {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.quick-filter-row--scrollable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
 
 .equipment-history-list--typed .event-item { display: grid; gap: 6px; }
 .equipment-history-list--typed .event-item header {
@@ -2121,7 +2149,9 @@ textarea { min-height: 110px; resize: vertical; }
   border-color: rgba(252, 165, 165, 0.4);
 }
 :root[data-admin-theme='dark'] .equipment-gallery-card__broken { color: #9fb0ca; }
-:root[data-admin-theme='dark'] .equipment-gallery-card__meta span { color: #9fb0ca; }
+:root[data-admin-theme='dark'] .equipment-gallery-card__footer {
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0), rgba(2, 6, 23, 0.9));
+}
 :root[data-admin-theme='dark'] .equipment-lightbox__close { background: #111827; color: #f8fafc; border-color: #334155; }
 :root[data-admin-theme='dark'] .equipment-back-button { border-color: #334155; background: #0d1628; color: #cbd5e1; }
 :root[data-admin-theme='dark'] .equipment-lightbox__controls button,
@@ -2131,6 +2161,47 @@ textarea { min-height: 110px; resize: vertical; }
 
 @media (max-width: 980px) {
   .equipment-summary-hero { grid-template-columns: 1fr; }
+  .equipment-gallery-shell {
+    padding: 10px;
+    gap: 10px;
+  }
+  .equipment-gallery-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(228px, 78vw);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+  .equipment-gallery-card {
+    scroll-snap-align: start;
+  }
+  .equipment-gallery-card__media,
+  .equipment-gallery-card__media img,
+  .equipment-gallery-card__media video,
+  .equipment-gallery-card__broken {
+    height: 188px;
+    min-height: 188px;
+  }
+  .quick-filter-row--compact {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .quick-filter-row--compact button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .equipment-gallery-card__actions {
+    justify-content: flex-start;
+  }
+  .equipment-gallery-card__footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 }
 
 .equipment-hub-header { display: grid; gap: 12px; }
