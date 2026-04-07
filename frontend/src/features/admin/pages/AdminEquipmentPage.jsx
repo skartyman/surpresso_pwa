@@ -648,11 +648,11 @@ function TabPanel({
   const [editForm, setEditForm] = useState({ brand: '', model: '', serial: '', internalNumber: '' });
   const [busy, setBusy] = useState('');
   if (!detail) return <p className="empty-copy">Выберите единицу оборудования.</p>;
+  const equipment = detail.equipment || {};
+  const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
+  const latestMedia = (detail.media || [])[0] || null;
+  const warnings = getEquipmentWarnings(detail);
   if (tab === 'overview') {
-    const equipment = detail.equipment || {};
-    const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
-    const latestMedia = (detail.media || [])[0] || null;
-    const warnings = getEquipmentWarnings(detail);
     return (
       <section className="equipment-detail-section">
         {canCreateEquipment ? (
@@ -1092,6 +1092,9 @@ export function AdminEquipmentPage() {
   }
 
   const mobileDetailMode = isMobile && Boolean(equipmentId);
+  const detailEquipment = detail?.equipment || null;
+  const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
+  const detailPreview = (mediaRows || [])[0] || null;
 
   return (
     <section className="equipment-ops-page">
@@ -1175,10 +1178,41 @@ export function AdminEquipmentPage() {
 
         <article className="equipment-ops-detail">
           {mobileDetailMode ? <button type="button" className="equipment-back-button" onClick={closeMobileDetail}>← Назад к списку</button> : null}
-          <header className="equipment-ops-detail__header">
-            <h3>{detail?.equipment?.id || 'Выберите оборудование'}</h3>
-            {detail?.equipment ? <StatusBadge status={detail.equipment.commercialStatus || 'none'}>{COMMERCIAL_LABELS[detail.equipment.commercialStatus || 'none'] || detail.equipment.commercialStatus}</StatusBadge> : null}
+          <header className="equipment-ops-detail__hero">
+            <div className="equipment-ops-detail__hero-copy">
+              <small>Equipment passport</small>
+              <h3>{detailEquipment ? `${detailEquipment.brand || '—'} ${detailEquipment.model || ''}` : 'Выберите оборудование'}</h3>
+              <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailEquipment.internalNumber || '—'} / ${detailEquipment.serial || '—'}` : 'Выберите карточку в ленте слева, чтобы открыть операционный паспорт.'}</p>
+              {detailEquipment ? (
+                <div className="equipment-ops-detail__hero-statuses">
+                  <StatusBadge status={detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || 'none'}>
+                    Сервис: {detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || '—'}
+                  </StatusBadge>
+                  <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
+                    {COMMERCIAL_LABELS[detailEquipment.commercialStatus || 'none'] || detailEquipment.commercialStatus}
+                  </StatusBadge>
+                </div>
+              ) : null}
+            </div>
+            <div className="equipment-ops-detail__hero-preview">
+              {detailPreview
+                ? (
+                  detailPreview.mediaType === 'video'
+                    ? <video src={detailPreview.previewUrl || detailPreview.fullUrl} muted playsInline preload="metadata" />
+                    : <img src={detailPreview.previewUrl || detailPreview.fullUrl} alt={detailPreview.caption || detailPreview.originalName || 'preview'} loading="lazy" />
+                )
+                : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">Нет превью</div>}
+            </div>
           </header>
+
+          {detailEquipment ? (
+            <ActionRail className="equipment-ops-detail__hero-actions">
+              <ActionRailButton tone="brand" onClick={() => setActiveTab('overview')}>Обзор</ActionRailButton>
+              <ActionRailButton onClick={() => setActiveTab('media')}>Фото / видео</ActionRailButton>
+              <ActionRailButton disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)}>Активный кейс</ActionRailButton>
+              <ActionRailButton onClick={() => navigateToBoard('service_board', detailEquipment.id)}>Сервисная доска</ActionRailButton>
+            </ActionRail>
+          ) : null}
 
           <div className="equipment-tabs">
             {TABS.map((tab) => (
