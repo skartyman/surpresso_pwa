@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import fetch from "node-fetch";
 import bodyParser from "body-parser";
-import FormData from "form-data";
 import fs from "fs/promises";
 import crypto from "crypto";
 import {
@@ -375,12 +374,14 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
 
     photos.forEach((base64, i) => {
       const fileId = `file${i}.jpg`;
-      const buffer = Buffer.from(
-        String(base64).replace(/^data:image\/\w+;base64,/, ""),
-        "base64"
-      );
-
-      tgForm.append(fileId, buffer, { filename: fileId });
+      appendBinaryFile(tgForm, fileId, {
+        buffer: Buffer.from(
+          String(base64).replace(/^data:image\/\w+;base64,/, ""),
+          "base64"
+        ),
+        filename: fileId,
+        mime: "image/jpeg",
+      });
 
       media.push({
         type: "photo",
@@ -462,6 +463,14 @@ function parseBase64File(dataUrl, fallbackExt, fallbackMime) {
   };
 }
 
+function appendBinaryFile(form, field, payload) {
+  form.append(
+    field,
+    new Blob([payload.buffer], { type: payload.mime || "application/octet-stream" }),
+    payload.filename
+  );
+}
+
 async function tgSendVideoTo(botToken, chatId, video, caption) {
   if (!botToken || !chatId || !video) return;
 
@@ -470,7 +479,7 @@ async function tgSendVideoTo(botToken, chatId, video, caption) {
     const payload = parseBase64Data(video, "mp4");
 
     tgForm.append("chat_id", chatId);
-    tgForm.append("video", payload.buffer, { filename: payload.filename });
+    appendBinaryFile(tgForm, "video", payload);
     if (caption) tgForm.append("caption", caption);
 
     const tgResp = await fetch(tgApiUrl(botToken, "sendVideo"), {
@@ -492,10 +501,7 @@ async function tgSendDocumentTo(botToken, chatId, fileDataUrl, caption) {
     const tgForm = new FormData();
 
     tgForm.append("chat_id", chatId);
-    tgForm.append("document", payload.buffer, {
-      filename: payload.filename,
-      contentType: payload.mime,
-    });
+    appendBinaryFile(tgForm, "document", payload);
     if (caption) tgForm.append("caption", caption);
 
     const tgResp = await fetch(tgApiUrl(botToken, "sendDocument"), {
@@ -664,7 +670,7 @@ async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [
     const attachForm = new FormData();
     attachForm.append("key", TRELLO_KEY);
     attachForm.append("token", TRELLO_TOKEN);
-    attachForm.append("file", buffer, `photo${i}.jpg`);
+    attachForm.append("file", new Blob([buffer], { type: "image/jpeg" }), `photo${i}.jpg`);
 
     await fetch(
       `https://api.trello.com/1/cards/${cardData.id}/attachments`,
@@ -1330,7 +1336,7 @@ app.get("/proxy-drive/:fileId", async (req, res) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Drive error");
 
-    const buffer = await response.buffer();
+    const buffer = Buffer.from(await response.arrayBuffer());
     res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
     res.set("Cache-Control", "public, max-age=3600");
     res.send(buffer);

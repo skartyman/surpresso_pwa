@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
+import { normalizeDatabaseUrl } from './src/utils/databaseUrl.js';
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -8,6 +9,6 @@ export default defineConfig({
   },
   engine: 'classic',
   datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/postgres",
+    url: normalizeDatabaseUrl(process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/postgres"),
   },
 });

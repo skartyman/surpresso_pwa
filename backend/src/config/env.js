@@ -1,3 +1,5 @@
+import { normalizeDatabaseUrl } from '../utils/databaseUrl.js';
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
@@ -14,5 +16,5 @@ export const config = {
   gasServerKey: process.env.GAS_SECRET || process.env.SURPRESSO_SERVER_KEY || '',
   adminSessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || 'change-me-admin-secret',
   telegramSessionCookieDomain: process.env.TELEGRAM_SESSION_COOKIE_DOMAIN || '',
-  databaseUrl: process.env.DATABASE_URL || '',
+  databaseUrl: normalizeDatabaseUrl(process.env.DATABASE_URL || ''),
 };
