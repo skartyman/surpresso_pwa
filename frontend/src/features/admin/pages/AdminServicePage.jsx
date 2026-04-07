@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { ROLES } from '../roleConfig';
+import { getAdminRoleProfile, ROLES } from '../roleConfig';
 import { useAdminI18n } from '../adminI18n';
 import {
   ActionRail,
@@ -218,8 +218,9 @@ export function AdminServicePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { requestId } = useParams();
-  const canAssign = [ROLES.serviceHead, ROLES.manager, ROLES.owner].includes(user?.role);
-  const canSeeInternalNotes = [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.manager, ROLES.director, ROLES.owner].includes(user?.role);
+  const roleProfile = useMemo(() => getAdminRoleProfile(user?.role), [user?.role]);
+  const canAssign = roleProfile.service.showAssignmentPanel;
+  const canSeeInternalNotes = roleProfile.service.showInternalNotesComposer;
   const basePath = getBaseAdminPath(location.pathname);
 
   const [requests, setRequests] = useState([]);
@@ -402,15 +403,16 @@ export function AdminServicePage() {
     return haystack.includes(searchTerm.toLowerCase());
   }), [requests, searchTerm]);
 
-  const boardColumns = useMemo(() => BOARD_COLUMNS.map((status) => ({
+  const visibleBoardStatuses = roleProfile.service.visibleStatuses;
+  const boardColumns = useMemo(() => visibleBoardStatuses.map((status) => ({
     status,
     label: boardLabels[status],
     items: filteredRequests.filter((item) => item.status === status),
-  })), [filteredRequests, boardLabels]);
+  })), [filteredRequests, boardLabels, visibleBoardStatuses]);
   const boardNavItems = useMemo(() => [
-    { key: 'summary', label: t('summary'), count: (dashboard?.kpis || []).reduce((sum, item) => sum + Number(item.value || 0), 0) },
+    ...(roleProfile.service.showSummary ? [{ key: 'summary', label: t('summary'), count: (dashboard?.kpis || []).reduce((sum, item) => sum + Number(item.value || 0), 0) }] : []),
     ...boardColumns.map((column) => ({ key: column.status, label: column.label, count: column.items.length })),
-  ], [boardColumns, dashboard, t]);
+  ], [boardColumns, dashboard, roleProfile.service.showSummary, t]);
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
   const detailRouteMode = Boolean(requestId);
 
@@ -457,9 +459,11 @@ export function AdminServicePage() {
           </div>
           <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
             <div ref={boardRef} className="service-board service-board--full">
-              <div ref={(node) => { boardColumnRefs.current.summary = node; }} className="equipment-board-column-anchor">
-                <ServiceSummaryColumn dashboard={dashboard} t={t} />
-              </div>
+              {roleProfile.service.showSummary ? (
+                <div ref={(node) => { boardColumnRefs.current.summary = node; }} className="equipment-board-column-anchor">
+                  <ServiceSummaryColumn dashboard={dashboard} t={t} />
+                </div>
+              ) : null}
               {loading ? <p>{t('loading')}</p> : null}
               {boardColumns.map((column) => (
                 <section

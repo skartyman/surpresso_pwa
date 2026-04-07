@@ -97,3 +97,31 @@ export function getDefaultAdminSection(role) {
 }
 
 export const LEGACY_COMPATIBLE_ADMIN_ROLES = ALL_ROLES;
+
+export function getAdminRoleProfile(role) {
+  const isEngineer = role === ROLES.serviceEngineer;
+  const isServiceHead = role === ROLES.serviceHead;
+  const isManager = role === ROLES.manager;
+  const isSales = role === ROLES.salesManager;
+  const isDirector = role === ROLES.director;
+  const isOwner = role === ROLES.owner;
+  const isSeo = role === ROLES.seo;
+
+  return {
+    showNotifications: isServiceHead || isDirector || isOwner,
+    canSeeEmployees: isServiceHead || isSales || isDirector || isOwner || isSeo,
+    equipment: {
+      showCommercial: isManager || isServiceHead || isSales || isDirector || isOwner,
+    },
+    service: {
+      showSummary: !isEngineer,
+      showAssignmentPanel: isServiceHead || isManager || isOwner,
+      showInternalNotesComposer: isEngineer || isServiceHead || isManager || isDirector || isOwner,
+      visibleStatuses: isEngineer
+        ? ['new', 'assigned', 'taken_in_work', 'ready_for_qc']
+        : isServiceHead
+          ? ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control']
+          : ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced'],
+    },
+  };
+}

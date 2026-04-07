@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { getAdminSections, getRoleLabels } from '../roleConfig';
+import { getAdminRoleProfile, getAdminSections, getRoleLabels } from '../roleConfig';
 import { Icon, NotificationBell, ThemeToggle } from './AdminUi';
 import { useAdminI18n } from '../adminI18n';
 
@@ -55,6 +55,7 @@ export function AdminLayout() {
   const [passwordStatus, setPasswordStatus] = useState({ type: '', message: '' });
   const sectionsSource = useMemo(() => getAdminSections(t), [t]);
   const roleLabels = useMemo(() => getRoleLabels(t), [t]);
+  const roleProfile = useMemo(() => getAdminRoleProfile(user.role), [user.role]);
 
   useEffect(() => setSidebarOpen(false), [location.pathname]);
 
@@ -190,7 +191,7 @@ export function AdminLayout() {
             <h1>{title}</h1>
           </div>
           <div className="admin-topbar-actions">
-            <NotificationBell count={3} />
+            {roleProfile.showNotifications ? <NotificationBell count={3} /> : null}
             <ThemeToggle mode={mode} resolvedTheme={resolvedTheme} onToggle={cycleMode} />
           </div>
         </header>

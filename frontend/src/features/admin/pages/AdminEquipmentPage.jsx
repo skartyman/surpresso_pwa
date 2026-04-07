@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { useAdminI18n } from '../adminI18n';
 import { ActionRail, ActionRailButton, Icon, StatusBadge } from '../components/AdminUi';
-import { ROLES } from '../roleConfig';
+import { getAdminRoleProfile, ROLES } from '../roleConfig';
 import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
 const TABS = [
@@ -1093,7 +1093,8 @@ export function AdminEquipmentPage() {
   const canDeleteEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canCommercialOperate = [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
   const canUploadCaseMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
-  const canSeeCommercial = [ROLES.manager, ROLES.serviceHead, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
+  const roleProfile = useMemo(() => getAdminRoleProfile(user?.role), [user?.role]);
+  const canSeeCommercial = roleProfile.equipment.showCommercial;
 
   const basePath = getBaseAdminPath(location.pathname);
   const warningFilter = String(searchParams.get('warning') || '').trim();
