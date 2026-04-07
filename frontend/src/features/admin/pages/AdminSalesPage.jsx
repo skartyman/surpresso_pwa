@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge } from '../components/AdminUi';
+import {
+  ActionRail,
+  ActionRailButton,
+  AlertPanel,
+  DetailPanel,
+  Icon,
+  KPIChipCard,
+  OpsBoardCard,
+  StatusBadge,
+} from '../components/AdminUi';
 import { useAdminI18n } from '../adminI18n';
 
 const SALES_COLUMNS = ['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'ready_for_sale', 'reserved_for_sale', 'sold'];
@@ -15,6 +24,10 @@ const LABELS = {
 };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
+
+function getPreviewUrl(item) {
+  return item?.media?.[0]?.previewUrl || item?.media?.[0]?.fileUrl || null;
+}
 
 function SalesCard({ item, active, onSelect }) {
   const { t } = useAdminI18n();
@@ -137,18 +150,54 @@ export function AdminSalesPage() {
 
   return (
     <section className="service-dashboard">
-      <header className="service-headline"><div><h2>{t('sales_board_title')}</h2><p>{t('sales_board_subtitle')}</p></div></header>
-      <div className="kpi-row">
-        <KPIChipCard label="Готово к аренде" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Зарезервировано под аренду" value={columns.find((c) => c.status === 'reserved_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="В аренде" value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Готово к продаже" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Зарезервировано к продаже" value={columns.find((c) => c.status === 'reserved_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
-        <KPIChipCard label="Продано" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="Sales" />
-        <KPIChipCard label="Бэклог аренды" value={items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
-        <KPIChipCard label="Бэклог продажи" value={items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
-        <KPIChipCard label="Задержка в бронях" value={items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length} icon="bell" hint="Sales" />
-      </div>
+      <header className="service-command">
+        <div className="service-command__copy">
+          <small>Sales board</small>
+          <h2>{t('sales_board_title')}</h2>
+          <p>{t('sales_board_subtitle')}</p>
+        </div>
+        <div className="service-command__stats">
+          <KPIChipCard label="Готово к аренде" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label="В аренде" value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label="Готово к продаже" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label="Продано" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="sales" />
+        </div>
+      </header>
+
+      <section className="owner-spotlight-grid">
+        <article className="owner-spotlight owner-spotlight--feature">
+          <header>
+            <small>Commercial room</small>
+            <h3>Аренда, продажа и бронь в одном потоке</h3>
+          </header>
+          <div className="owner-spotlight__figures">
+            <div className="owner-spotlight__metric"><span>Всего оборудования</span><strong>{items.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>Бэклог аренды</span><strong>{items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length}</strong></div>
+            <div className="owner-spotlight__metric"><span>Бэклог продажи</span><strong>{items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length}</strong></div>
+            <div className="owner-spotlight__metric"><span>Задержка в бронях</span><strong>{items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length}</strong></div>
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Rent</small>
+            <h3>Контур аренды</h3>
+          </header>
+          <div className="owner-spotlight__timeline">
+            {columns.filter((column) => ['ready_for_rent', 'reserved_for_rent', 'out_on_rent'].includes(column.status)).map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(items.length, 1)) * 100, 8)}%` }} /></div>)}
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Sale</small>
+            <h3>Контур продажи</h3>
+          </header>
+          <div className="owner-spotlight__timeline">
+            {columns.filter((column) => ['ready_for_sale', 'reserved_for_sale', 'sold'].includes(column.status)).map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(items.length, 1)) * 100, 8)}%` }} /></div>)}
+          </div>
+        </article>
+      </section>
 
       <AlertPanel items={[
         <li key="unassigned"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></li>,
@@ -187,20 +236,20 @@ export function AdminSalesPage() {
                   <p><Icon name="sales" /> Обновлено: {formatDate(selectedEquipment.updatedAt)}</p>
                 </div>
                 <div className="detail-stack">
-                  {(selectedEquipment.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedEquipment.media || [])[0].fileUrl} alt="preview" /> : null}
+                  {getPreviewUrl(selectedEquipment) ? <img className="ticket-preview" src={getPreviewUrl(selectedEquipment)} alt="preview" /> : null}
                 </div>
               </div>
 
               <div className="assignment-box">
                 <h4>Коммерческие действия</h4>
-                <div className="quick-filter-row">
+                <ActionRail>
                   {actions.map((action) => (
-                    <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => performAction(action.key, action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
+                    <ActionRailButton tone={action.key.startsWith('reserve') ? 'brand' : 'default'} disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => performAction(action.key, action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
                       {actionLoading === `${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
-                    </button>
+                    </ActionRailButton>
                   ))}
                   {!actions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}
-                </div>
+                </ActionRail>
               </div>
             </>
           )}

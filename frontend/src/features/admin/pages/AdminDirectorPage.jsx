@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge } from '../components/AdminUi';
+import {
+  ActionRail,
+  ActionRailButton,
+  AlertPanel,
+  DetailPanel,
+  Icon,
+  KPIChipCard,
+  OpsBoardCard,
+  StatusBadge,
+} from '../components/AdminUi';
 import { useAdminI18n } from '../adminI18n';
 
 const CASE_COLUMNS = ['ready', 'processed'];
@@ -14,6 +23,14 @@ const COMMERCIAL_LABELS = {
 };
 
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
+
+function getPreviewUrl(item) {
+  return item?.media?.[0]?.previewUrl
+    || item?.media?.[0]?.fileUrl
+    || item?.equipment?.media?.[0]?.previewUrl
+    || item?.equipment?.media?.[0]?.fileUrl
+    || null;
+}
 
 function DirectorCard({ item, active, onSelect }) {
   const { t } = useAdminI18n();
@@ -186,22 +203,54 @@ export function AdminDirectorPage() {
 
   return (
     <section className="service-dashboard">
-      <header className="service-headline"><div><h2>{t('director_queue_title')}</h2><p>{t('director_queue_subtitle')}</p></div></header>
-      <div className="kpi-row">
-        <KPIChipCard label="Готово" value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="Service" />
-        <KPIChipCard label="Обработано" value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="Service" />
-        <KPIChipCard label={t('ready_for_issue')} value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint={t('commercial_total')} />
-        <KPIChipCard label={t('ready_for_rent')} value={commercialColumns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint={t('commercial_total')} />
-        <KPIChipCard label={t('ready_for_sale')} value={commercialColumns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint={t('commercial_total')} />
-        <KPIChipCard label={t('stale_ready')} value={serviceCases.filter((item) => item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000).length} icon="bell" hint={t('nav_director')} />
-        <KPIChipCard label="Обработано сегодня" value={serviceCases.filter((item) => {
-          const ts = item.processedAt ? new Date(item.processedAt).getTime() : null;
-          const start = new Date();
-          start.setHours(0, 0, 0, 0);
-          return ts && ts >= start.getTime();
-        }).length} icon="dashboard" hint="Director" />
-        <KPIChipCard label={t('route_backlog')} value={commercialQueue.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint={t('nav_director')} />
-      </div>
+      <header className="service-command">
+        <div className="service-command__copy">
+          <small>Director board</small>
+          <h2>{t('director_queue_title')}</h2>
+          <p>{t('director_queue_subtitle')}</p>
+        </div>
+        <div className="service-command__stats">
+          <KPIChipCard label="Готово" value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="service" />
+          <KPIChipCard label="Обработано" value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="service" />
+          <KPIChipCard label={t('ready_for_issue')} value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint={t('commercial_total')} />
+          <KPIChipCard label={t('route_backlog')} value={commercialQueue.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="director" />
+        </div>
+      </header>
+
+      <section className="owner-spotlight-grid">
+        <article className="owner-spotlight owner-spotlight--feature">
+          <header>
+            <small>Control room</small>
+            <h3>Очередь на выпуск и коммерческий маршрут</h3>
+          </header>
+          <div className="owner-spotlight__figures">
+            <div className="owner-spotlight__metric"><span>Кейсы к выпуску</span><strong>{serviceCases.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>Коммерческий поток</span><strong>{commercialQueue.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>Застряли в готово</span><strong>{attention.readyTooLong}</strong></div>
+            <div className="owner-spotlight__metric"><span>Без инженера</span><strong>{attention.unassigned}</strong></div>
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Service</small>
+            <h3>Переход по кейсам</h3>
+          </header>
+          <div className="owner-spotlight__timeline">
+            {serviceColumns.map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(serviceCases.length, 1)) * 100, 8)}%` }} /></div>)}
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Commercial</small>
+            <h3>Маршруты выдачи</h3>
+          </header>
+          <div className="owner-spotlight__timeline">
+            {commercialColumns.map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(commercialQueue.length, 1)) * 100, 8)}%` }} /></div>)}
+          </div>
+        </article>
+      </section>
 
       <AlertPanel items={[
         <li key="unassigned"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></li>,
@@ -251,7 +300,7 @@ export function AdminDirectorPage() {
                   <p><Icon name="service" /> Обновлено: {formatDate(selectedCase.updatedAt)}</p>
                 </div>
                 <div className="detail-stack">
-                  {(selectedCase.media || [])[0]?.fileUrl ? <img className="ticket-preview" src={(selectedCase.media || [])[0].fileUrl} alt="preview" /> : null}
+                  {getPreviewUrl(selectedCase) ? <img className="ticket-preview" src={getPreviewUrl(selectedCase)} alt="preview" /> : null}
                 </div>
               </div>
 
@@ -259,26 +308,26 @@ export function AdminDirectorPage() {
                 <h4>{t('process')}</h4>
                 <label><span>{t('invoice_number')}</span><input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-2026-001" /></label>
                 <label className="checkbox"><input type="checkbox" checked={invoiceIssued} onChange={(e) => setInvoiceIssued(e.target.checked)} /> {t('invoice_issued')}</label>
-                <div className="quick-filter-row">
+                <ActionRail>
                   {processActions.map((action) => (
-                    <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => processCase(action.targetStatus).catch(() => setError('Переход запрещен.'))}>
+                    <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => processCase(action.targetStatus).catch(() => setError('Переход запрещен.'))}>
                       {actionLoading === `process:${action.targetStatus}` ? 'Сохраняем...' : action.label}
-                    </button>
+                    </ActionRailButton>
                   ))}
                   {!processActions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}
-                </div>
+                </ActionRail>
               </div>
 
               <div className="assignment-box">
                 <h4>{t('route')}</h4>
-                <div className="quick-filter-row">
+                <ActionRail>
                   {routeActions.map((action) => (
-                    <button disabled={Boolean(actionLoading)} key={action.key} type="button" onClick={() => applyCommercialRoute(action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
+                    <ActionRailButton disabled={Boolean(actionLoading)} key={action.key} onClick={() => applyCommercialRoute(action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
                       {actionLoading === `route:${action.targetStatus}` ? 'Сохраняем...' : action.label}
-                    </button>
+                    </ActionRailButton>
                   ))}
                   {!routeActions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}
-                </div>
+                </ActionRail>
               </div>
             </>
           )}
