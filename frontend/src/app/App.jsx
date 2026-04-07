@@ -66,6 +66,7 @@ function AdminRoutes({ basePath }) {
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.service} />}>
         <Route path="service" element={<AdminServicePage />} />
+        <Route path="service/:requestId" element={<AdminServicePage />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.employees} />}>

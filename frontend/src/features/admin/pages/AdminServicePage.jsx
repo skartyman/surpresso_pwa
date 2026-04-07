@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
 import {
   ActionRail,
   ActionRailButton,
-  AlertPanel,
-  DetailPanel,
-  FilterRow,
   Icon,
-  KPIChipCard,
   StatusBadge,
 } from '../components/AdminUi';
 
@@ -36,6 +33,10 @@ const COLUMN_THEME = {
 };
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes'];
 const TAB_LABELS = { overview: 'Обзор', history: 'История', media: 'Фото / видео', notes: 'Заметки' };
+
+function getBaseAdminPath(pathname = '') {
+  return pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
+}
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU') : '—';
@@ -166,16 +167,83 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
   );
 }
 
+function ServiceBoardToolbar({ boardNavItems, onBoardNav }) {
+  return (
+    <div className="equipment-list-toolbar">
+      <div className="equipment-list-toolbar__copy">
+        <small>Service lane</small>
+        <strong>Лента сервисных заявок</strong>
+      </div>
+      <div className="equipment-board-nav" aria-label="Навигация по колонкам сервиса">
+        {boardNavItems.map((column) => (
+          <button key={column.key} type="button" className="equipment-board-nav__chip" onClick={() => onBoardNav?.(column.key)}>
+            <span>{column.label}</span>
+            <strong>{column.count}</strong>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ServiceSummaryColumn({ dashboard }) {
+  const kpis = dashboard?.kpis || [];
+  const attention = dashboard?.attention || [];
+
+  return (
+    <section className="equipment-board-column equipment-board-column--summary service-board-column-trello" data-accent="gold">
+      <header className="equipment-board-column__header equipment-board-column__header--summary service-board-column-trello__header">
+        <div>
+          <small>Service pulse</small>
+          <h4>Сводка</h4>
+        </div>
+        <strong>{kpis.reduce((sum, item) => sum + Number(item.value || 0), 0)}</strong>
+      </header>
+
+      <div className="equipment-board-summary-grid">
+        {kpis.slice(0, 6).map((item) => (
+          <article key={item.key} className="equipment-board-summary-card">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>workflow</small>
+          </article>
+        ))}
+      </div>
+
+      <article className="equipment-hub-alerts equipment-hub-alerts--column">
+        <header>
+          <div>
+            <small>Контроль</small>
+            <h3>Внимание</h3>
+          </div>
+          <small>{attention.reduce((sum, item) => sum + Number(item.value || 0), 0)} сигналов</small>
+        </header>
+        <div className="equipment-hub-alerts__grid equipment-hub-alerts__grid--column">
+          {attention.map((item) => (
+            <button key={item.key} type="button" className="equipment-hub-alert equipment-hub-alert--warning">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </button>
+          ))}
+          {!attention.length ? <p className="empty-copy">Сигналов нет.</p> : null}
+        </div>
+      </article>
+    </section>
+  );
+}
+
 export function AdminServicePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { requestId } = useParams();
   const canAssign = [ROLES.serviceHead, ROLES.manager, ROLES.owner].includes(user?.role);
   const canSeeInternalNotes = [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.manager, ROLES.director, ROLES.owner].includes(user?.role);
+  const basePath = getBaseAdminPath(location.pathname);
 
-  const [filters, setFilters] = useState({ engineer: 'all', quickFilter: 'all', status: 'all', id: '', client: '' });
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [assignmentHistory, setAssignmentHistory] = useState([]);
   const [assignForm, setAssignForm] = useState({ assignedToUserId: '' });
@@ -187,22 +255,16 @@ export function AdminServicePage() {
   const [actionLoading, setActionLoading] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const boardRef = useRef(null);
+  const boardColumnRefs = useRef({});
 
-  async function load(next = filters) {
+  async function load() {
     setLoading(true);
     try {
       const [list, dash, engineerPayload] = await Promise.all([
-        adminServiceApi.list({
-          status: next.status === 'all' ? '' : next.status,
-          client: next.client,
-          id: next.id,
-          engineer: next.engineer === 'all' ? '' : next.engineer,
-          sort: 'updatedAt',
-        }),
-        adminServiceApi.dashboard({
-          status: next.status === 'all' ? '' : next.status,
-          engineer: next.engineer === 'all' ? '' : next.engineer,
-        }),
+        adminServiceApi.list({ sort: 'updatedAt' }),
+        adminServiceApi.dashboard({}),
         adminServiceApi.serviceEngineers().catch(() => ({ engineers: [] })),
       ]);
 
@@ -210,7 +272,6 @@ export function AdminServicePage() {
       setRequests(rows);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
-      setSelectedId((prev) => prev || rows[0]?.id || null);
       setError('');
     } catch {
       setError('Не удалось загрузить сервисные заявки.');
@@ -231,12 +292,16 @@ export function AdminServicePage() {
 
   useEffect(() => { load(); }, []); // eslint-disable-line
   useEffect(() => {
-    if (!selectedId) return;
-    loadDetails(selectedId).catch(() => {
+    if (!requestId) {
+      setSelectedRequest(null);
+      setAssignmentHistory([]);
+      return;
+    }
+    loadDetails(requestId).catch(() => {
       setSelectedRequest(null);
       setAssignmentHistory([]);
     });
-  }, [selectedId]);
+  }, [requestId]);
 
   async function runAction(action, request = selectedRequest) {
     if (!request) return;
@@ -251,7 +316,9 @@ export function AdminServicePage() {
         await adminServiceApi.updateStatus(request.id, action.status, action.label);
       }
       await load();
-      await loadDetails(request.id);
+      if (requestId === request.id) {
+        await loadDetails(request.id);
+      }
       setFeedback(action.label);
     } catch (actionError) {
       setError(actionError?.message || 'Не удалось выполнить действие.');
@@ -261,13 +328,13 @@ export function AdminServicePage() {
   }
 
   async function submitAssignment() {
-    if (!selectedId || !assignForm.assignedToUserId) return;
+    if (!requestId || !assignForm.assignedToUserId) return;
     setActionLoading('assign');
     setError('');
     try {
-      await adminServiceApi.assignManager(selectedId, assignForm.assignedToUserId, 'Assigned from service board');
+      await adminServiceApi.assignManager(requestId, assignForm.assignedToUserId, 'Assigned from service board');
       await load();
-      await loadDetails(selectedId);
+      await loadDetails(requestId);
       setFeedback('Инженер назначен.');
     } catch (assignError) {
       setError(assignError?.message || 'Не удалось назначить инженера.');
@@ -277,13 +344,13 @@ export function AdminServicePage() {
   }
 
   async function submitNote() {
-    if (!selectedId || !noteBody.trim()) return;
+    if (!requestId || !noteBody.trim()) return;
     setActionLoading('note');
     setError('');
     try {
-      await adminServiceApi.addNote(selectedId, noteBody.trim());
+      await adminServiceApi.addNote(requestId, noteBody.trim());
       setNoteBody('');
-      await loadDetails(selectedId);
+      await loadDetails(requestId);
       setFeedback('Заметка добавлена.');
     } catch (noteError) {
       setError(noteError?.message || 'Не удалось сохранить заметку.');
@@ -293,14 +360,14 @@ export function AdminServicePage() {
   }
 
   async function submitMedia() {
-    if (!selectedId || !mediaFiles.length) return;
+    if (!requestId || !mediaFiles.length) return;
     setActionLoading('media');
     setError('');
     try {
-      await adminServiceApi.uploadRequestMedia(selectedId, mediaFiles, mediaStage);
+      await adminServiceApi.uploadRequestMedia(requestId, mediaFiles, mediaStage);
       setMediaFiles([]);
       await load();
-      await loadDetails(selectedId);
+      await loadDetails(requestId);
       setFeedback(mediaStage === 'after' ? 'Фото после загружены.' : 'Фото до загружены.');
     } catch (mediaError) {
       setError(mediaError?.message || 'Не удалось загрузить медиа.');
@@ -310,30 +377,47 @@ export function AdminServicePage() {
   }
 
   const filteredRequests = useMemo(() => requests.filter((item) => {
-    if (filters.quickFilter === 'unassigned') return !item.assignedToUserId;
-    if (filters.quickFilter === 'mine') return item.assignedToUserId === user?.id;
-    if (filters.quickFilter === 'critical') return item.urgency === 'critical';
-    if (filters.quickFilter === 'with_qc') return ['ready_for_qc', 'on_service_head_control'].includes(item.status);
-    return true;
-  }), [filters.quickFilter, requests, user?.id]);
+    if (!searchTerm.trim()) return true;
+    const haystack = [
+      item.id,
+      item.client?.companyName,
+      item.client?.contactName,
+      item.pointUser?.fullName,
+      item.location?.name,
+      item.equipment?.brand,
+      item.equipment?.model,
+      item.description,
+      item.assignedToUser?.fullName,
+    ].join(' ').toLowerCase();
+    return haystack.includes(searchTerm.toLowerCase());
+  }), [requests, searchTerm]);
 
   const boardColumns = useMemo(() => BOARD_COLUMNS.map((status) => ({
     status,
     label: BOARD_LABELS[status],
     items: filteredRequests.filter((item) => item.status === status),
   })), [filteredRequests]);
-
-  const kpis = dashboard?.kpis || [];
-  const attention = dashboard?.attention || [];
+  const boardNavItems = useMemo(() => [
+    { key: 'summary', label: 'Сводка', count: (dashboard?.kpis || []).reduce((sum, item) => sum + Number(item.value || 0), 0) },
+    ...boardColumns.map((column) => ({ key: column.status, label: column.label, count: column.items.length })),
+  ], [boardColumns, dashboard]);
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
-  const quickFilters = [
-    { key: 'all', label: 'Все' },
-    { key: 'unassigned', label: 'Без назначения' },
-    { key: 'mine', label: 'Мои' },
-    { key: 'critical', label: 'Критические' },
-    { key: 'with_qc', label: 'QC / контроль' },
-  ];
-  const statusOptions = [...BOARD_COLUMNS, 'closed', 'cancelled'];
+  const detailRouteMode = Boolean(requestId);
+
+  function selectRequest(id) {
+    navigate(`${basePath}/service/${id}`);
+  }
+
+  function closeDetail() {
+    navigate(`${basePath}/service`);
+  }
+
+  function scrollToBoardColumn(key) {
+    const container = boardRef.current;
+    const target = boardColumnRefs.current[key];
+    if (!container || !target) return;
+    container.scrollTo({ left: Math.max(target.offsetLeft - 12, 0), behavior: 'smooth' });
+  }
 
   return (
     <section className="service-dashboard">
@@ -343,93 +427,101 @@ export function AdminServicePage() {
           <h2>Сервисные заявки</h2>
           <p>Редакционный kanban по заявкам: входящий поток, инженерная работа, QC и финализация без перегруженных панелей.</p>
         </div>
-        <div className="service-command__stats">
-          {(kpis || []).slice(0, 4).map((item) => (
-            <KPIChipCard key={item.key} label={item.label} value={item.value} icon="service" tone={item.key} hint="workflow" />
-          ))}
-        </div>
       </header>
-
-      <AlertPanel items={attention.map((item) => <li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>)} />
-
-      <div className="service-filter-shell">
-        <ActionRail compact className="service-filter-shell__chips">
-          {quickFilters.map((item) => (
-            <ActionRailButton
-              key={item.key}
-              active={filters.quickFilter === item.key}
-              tone={filters.quickFilter === item.key ? 'brand' : 'default'}
-              onClick={() => setFilters((prev) => ({ ...prev, quickFilter: item.key }))}
-            >
-              {item.label}
-            </ActionRailButton>
-          ))}
-        </ActionRail>
-
-        <FilterRow>
-          <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const next = { ...filters, engineer: e.target.value }; setFilters(next); load(next); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-          <label><span>Статус</span><select value={filters.status} onChange={(e) => { const next = { ...filters, status: e.target.value }; setFilters(next); load(next); }}><option value="all">Все</option>{statusOptions.map((status) => <option key={status} value={status}>{BOARD_LABELS[status]}</option>)}</select></label>
-          <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-..." /></label>
-          <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
-        </FilterRow>
-      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
 
-      <div className="service-workspace kanban-layout">
-        <div className="kanban-board">
-          {loading ? <p>Загрузка...</p> : null}
-          {boardColumns.map((column) => (
-            <section key={column.status} className="service-board-column-trello" data-accent={COLUMN_THEME[column.status]?.accent || 'blue'}>
-              <header className="service-board-column-trello__header">
-                <div>
-                  <small>{COLUMN_THEME[column.status]?.eyebrow || 'Колонка'}</small>
-                  <h4>{column.label}</h4>
-                </div>
-                <strong>{column.items.length}</strong>
-              </header>
-              <div className="service-board-column-trello__list">
-                {column.items.map((request) => (
-                  <ServiceTicketCard
-                    key={request.id}
-                    request={request}
-                    active={selectedId === request.id}
-                    user={user}
-                    actionLoading={actionLoading}
-                    onSelect={setSelectedId}
-                    onAction={(action) => runAction(action, request)}
-                  />
-                ))}
-                {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+      {!detailRouteMode ? (
+        <section className="equipment-ops-board-page">
+          <div className="equipment-board-toolbar-shell">
+            <div className="equipment-list-search">
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Поиск: клиент, точка, оборудование, инженер…"
+              />
+            </div>
+            <ServiceBoardToolbar boardNavItems={boardNavItems} onBoardNav={scrollToBoardColumn} />
+          </div>
+          <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
+            <div ref={boardRef} className="service-board service-board--full">
+              <div ref={(node) => { boardColumnRefs.current.summary = node; }} className="equipment-board-column-anchor">
+                <ServiceSummaryColumn dashboard={dashboard} />
               </div>
-            </section>
-          ))}
-        </div>
-
-        <DetailPanel>
-          {!selectedRequest ? <p>Выберите заявку на доске.</p> : (
+              {loading ? <p>Загрузка...</p> : null}
+              {boardColumns.map((column) => (
+                <section
+                  key={column.status}
+                  ref={(node) => { boardColumnRefs.current[column.status] = node; }}
+                  className="service-board-column-trello"
+                  data-accent={COLUMN_THEME[column.status]?.accent || 'blue'}
+                >
+                  <header className="service-board-column-trello__header">
+                    <div>
+                      <small>{COLUMN_THEME[column.status]?.eyebrow || 'Колонка'}</small>
+                      <h4>{column.label}</h4>
+                    </div>
+                    <strong>{column.items.length}</strong>
+                  </header>
+                  <div className="service-board-column-trello__list">
+                    {column.items.map((request) => (
+                      <ServiceTicketCard
+                        key={request.id}
+                        request={request}
+                        active={requestId === request.id}
+                        user={user}
+                        actionLoading={actionLoading}
+                        onSelect={selectRequest}
+                        onAction={(action) => runAction(action, request)}
+                      />
+                    ))}
+                    {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                  </div>
+                </section>
+              ))}
+            </div>
+            {!filteredRequests.length ? <p className="empty-copy">Нет заявок по текущему поиску.</p> : null}
+          </div>
+        </section>
+      ) : (
+        <section className="equipment-ops-detail-page">
+          <article className="equipment-ops-detail equipment-ops-detail--page">
+            <button type="button" className="equipment-back-button" onClick={closeDetail}>← Назад к ленте</button>
+            {!selectedRequest ? <p>Выберите заявку на доске.</p> : (
             <>
-              <header className="detail-header"><h3>Заявка #{selectedRequest.id}</h3><StatusBadge status={selectedRequest.status}>{BOARD_LABELS[selectedRequest.status] || selectedRequest.status}</StatusBadge></header>
-              <ActionRail className="detail-toolbar">
+              <header className="equipment-ops-detail__hero">
+                <div className="equipment-ops-detail__hero-copy">
+                  <small>Service request</small>
+                  <h3>Заявка #{selectedRequest.id}</h3>
+                  <p>{selectedRequest.client?.companyName || selectedRequest.pointUser?.fullName || 'Клиент'} · {selectedRequest.location?.name || selectedRequest.equipment?.locationName || 'Точка не выбрана'}</p>
+                  <div className="equipment-ops-detail__hero-statuses">
+                    <StatusBadge status={selectedRequest.status}>{BOARD_LABELS[selectedRequest.status] || selectedRequest.status}</StatusBadge>
+                    <StatusBadge status={selectedRequest.urgency || 'normal'}>{selectedRequest.urgency || 'normal'}</StatusBadge>
+                  </div>
+                </div>
+                <div className="equipment-ops-detail__hero-preview">
+                  {getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl
+                    ? <img className="ticket-preview" src={getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl} alt={selectedRequest.equipment?.model || 'preview'} loading="lazy" />
+                    : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+                </div>
+              </header>
+
+              <ActionRail className="equipment-ops-detail__hero-actions">
                 <ActionRailButton tone="brand" onClick={() => setActiveTab('overview')}>Обзор</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('media')}>Фото / видео</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('history')}>История</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('notes')}>Заметки</ActionRailButton>
               </ActionRail>
-              <nav className="detail-tabs">
+              <nav className="equipment-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{TAB_LABELS[tab]}</button>)}
               </nav>
 
               {activeTab === 'overview' ? (
                 <>
-                  <section className="detail-hero">
-                    <div className="detail-hero__copy">
-                      <div className="detail-hero__eyebrow">
-                        <small>Service request</small>
-                        <strong>{selectedRequest.client?.companyName || selectedRequest.pointUser?.fullName || 'Клиент'}</strong>
-                      </div>
-                      <div className="detail-grid">
+                  <section className="detail-section-card">
+                      <div className="equipment-detail-grid">
                         <p><Icon name="clients" /> Клиент: {selectedRequest.client?.companyName || '—'}</p>
                         <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
                         <p><Icon name="equipment" /> Оборудование: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
@@ -439,12 +531,6 @@ export function AdminServicePage() {
                         <p><Icon name="content" /> Может работать: {selectedRequest.canOperateNow ? 'Да' : 'Нет'}</p>
                         <p><Icon name="clients" /> Обновлено: {formatDate(selectedRequest.updatedAt)}</p>
                       </div>
-                    </div>
-                    <div className="detail-hero__preview">
-                      {getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl
-                        ? <img className="ticket-preview" src={getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl} alt={selectedRequest.equipment?.model || 'preview'} loading="lazy" />
-                        : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
-                    </div>
                   </section>
 
                   <div className="detail-section-card">
@@ -572,8 +658,9 @@ export function AdminServicePage() {
               ) : null}
             </>
           )}
-        </DetailPanel>
-      </div>
+          </article>
+        </section>
+      )}
     </section>
   );
 }
