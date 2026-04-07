@@ -214,7 +214,7 @@ export function ServicePage() {
 
         <button type="submit" disabled={isSubmitting || !form.equipmentId}>{isSubmitting ? t('sending') : t('send_request')}</button>
 
-        {successId ? <p className="notice notice-success">{t('sent_ok')} ID: {successId}</p> : null}
+        {successId ? <p className="notice notice-success">{t('sent_ok')} {t('request_id_label')}: {successId}</p> : null}
         {error ? <p className="notice notice-error">{error}</p> : null}
       </form>
     </section>

@@ -83,27 +83,27 @@ export function AdminLayout() {
     setPasswordStatus({ type: '', message: '' });
 
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      setPasswordStatus({ type: 'error', message: 'Заполни текущий и новый пароль.' });
+      setPasswordStatus({ type: 'error', message: t('password_fill_required') });
       return;
     }
     if (passwordForm.newPassword.length < 8) {
-      setPasswordStatus({ type: 'error', message: 'Новый пароль должен быть не короче 8 символов.' });
+      setPasswordStatus({ type: 'error', message: t('password_min_length') });
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordStatus({ type: 'error', message: 'Подтверждение пароля не совпадает.' });
+      setPasswordStatus({ type: 'error', message: t('password_confirmation_mismatch') });
       return;
     }
 
     try {
       await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setPasswordStatus({ type: 'success', message: 'Пароль обновлён.' });
+      setPasswordStatus({ type: 'success', message: t('password_updated') });
       setPasswordOpen(false);
     } catch (error) {
       const message = error?.message === 'invalid_current_password'
-        ? 'Текущий пароль введён неверно.'
-        : (error?.message === 'password_too_short' ? 'Новый пароль слишком короткий.' : 'Не удалось сменить пароль.');
+        ? t('invalid_current_password')
+        : (error?.message === 'password_too_short' ? t('password_min_length') : t('password_change_failed'));
       setPasswordStatus({ type: 'error', message });
     }
   }
@@ -114,7 +114,7 @@ export function AdminLayout() {
       <div className="admin-app-shell__glow admin-app-shell__glow--two" />
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">
-          <img src="/icons/logo-service.png" alt="Логотип Surpresso" className="admin-brand__logo" />
+          <img src="/icons/logo-service.png" alt="Surpresso" className="admin-brand__logo" />
           <div className="admin-brand__meta">
             <strong>Surpresso</strong>
             <span>{t('admin_panel')}</span>
@@ -148,34 +148,32 @@ export function AdminLayout() {
             <strong>{user.fullName || user.name}</strong>
             <span className="role-badge">{roleLabels[user.role]}</span>
           </div>
-          <button type="button" className="secondary" onClick={() => setPasswordOpen((prev) => !prev)}>
-            Сменить пароль
-          </button>
+          <button type="button" className="secondary" onClick={() => setPasswordOpen((prev) => !prev)}>{t('change_password')}</button>
           {passwordOpen ? (
             <form className="admin-password-form" onSubmit={handlePasswordSubmit}>
               <input
                 type="password"
-                placeholder="Текущий пароль"
+                placeholder={t('current_password')}
                 value={passwordForm.currentPassword}
                 onChange={(event) => setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
                 autoComplete="current-password"
               />
               <input
                 type="password"
-                placeholder="Новый пароль"
+                placeholder={t('new_password')}
                 value={passwordForm.newPassword}
                 onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
                 autoComplete="new-password"
               />
               <input
                 type="password"
-                placeholder="Повтори новый пароль"
+                placeholder={t('repeat_new_password')}
                 value={passwordForm.confirmPassword}
                 onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
                 autoComplete="new-password"
               />
               {passwordStatus.message ? <p className={`admin-password-form__status ${passwordStatus.type}`}>{passwordStatus.message}</p> : null}
-              <button type="submit">Обновить пароль</button>
+              <button type="submit">{t('update_password')}</button>
             </form>
           ) : null}
           <button type="button" className="secondary" onClick={logout}>{t('admin_logout')}</button>

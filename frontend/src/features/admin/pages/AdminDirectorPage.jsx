@@ -15,14 +15,14 @@ import { useAdminI18n } from '../adminI18n';
 
 const CASE_COLUMNS = ['ready', 'processed'];
 const COMMERCIAL_COLUMNS = ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'];
-const SERVICE_LABELS = { ready: 'Готово', processed: 'Обработано' };
+const SERVICE_LABELS = { ready: 'ready', processed: 'processed' };
 const COMMERCIAL_LABELS = {
-  ready_for_issue: 'Готово к выдаче',
-  ready_for_rent: 'Готово к аренде',
-  ready_for_sale: 'Готово к продаже',
+  ready_for_issue: 'ready_for_issue',
+  ready_for_rent: 'ready_for_rent',
+  ready_for_sale: 'ready_for_sale',
 };
 
-function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
+function formatDate(value, locale = 'ru') { return value ? new Date(value).toLocaleString(locale === 'uk' ? 'uk-UA' : 'ru-RU') : '—'; }
 
 function getPreviewUrl(item) {
   return item?.media?.[0]?.previewUrl
@@ -33,11 +33,11 @@ function getPreviewUrl(item) {
 }
 
 function DirectorCard({ item, active, onSelect }) {
-  const { t } = useAdminI18n();
+  const { t, locale } = useAdminI18n();
   const warnings = [];
   if (!item.assignedToUserId) warnings.push(t('unassigned'));
   if (!item.equipmentId) warnings.push(t('no_equipment_data'));
-  if (item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
+  if (item.serviceStatus === 'ready' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push(t('stale_ready_alert'));
 
   return (
     <OpsBoardCard
@@ -45,14 +45,14 @@ function DirectorCard({ item, active, onSelect }) {
       id={item.id}
       status={item.serviceStatus}
       statusLabel={item.serviceStatus}
-      title={item.equipment?.clientName || 'Клиент'}
+      title={item.equipment?.clientName || t('client')}
       subtitle={`${item.equipment?.brand || '—'} ${item.equipment?.model || ''} · ${item.equipment?.internalNumber || '—'} / ${item.equipment?.serial || '—'}`}
       ownerType={`${t('owner')}: ${item.equipment?.ownerType || '—'}`}
       intakeType={`${t('intake')}: ${item.intakeType || '—'}`}
       assignedMaster={item.assignedToUser?.fullName || t('master_unassigned')}
       serviceStatus={item.serviceStatus}
       commercialStatus={item.equipment?.commercialStatus || 'none'}
-      updatedAt={formatDate(item.updatedAt)}
+      updatedAt={formatDate(item.updatedAt, locale)}
       warnings={warnings}
       active={active}
       onSelect={onSelect}
@@ -61,7 +61,7 @@ function DirectorCard({ item, active, onSelect }) {
 }
 
 function RouteCard({ item, active, onSelect }) {
-  const { t } = useAdminI18n();
+  const { t, locale } = useAdminI18n();
   const warnings = [];
   if (!item.serial) warnings.push(t('no_serial'));
   return (
@@ -70,14 +70,14 @@ function RouteCard({ item, active, onSelect }) {
       id={item.id}
       status={item.commercialStatus}
       statusLabel={item.commercialStatus}
-      title={item.clientName || 'Клиент'}
+      title={item.clientName || t('client')}
       subtitle={`${item.brand || '—'} ${item.model || ''} · ${item.internalNumber || '—'} / ${item.serial || '—'}`}
       ownerType={`${t('owner')}: ${item.ownerType || '—'}`}
       intakeType={`${t('intake')}: ${item.intakeType || '—'}`}
       assignedMaster={item.assignedToUser?.fullName || t('master_empty')}
       serviceStatus={item.serviceStatus || '—'}
       commercialStatus={item.commercialStatus || 'none'}
-      updatedAt={formatDate(item.updatedAt)}
+      updatedAt={formatDate(item.updatedAt, locale)}
       warnings={warnings}
       active={active}
       onSelect={onSelect}
@@ -86,7 +86,7 @@ function RouteCard({ item, active, onSelect }) {
 }
 
 export function AdminDirectorPage() {
-  const { t } = useAdminI18n();
+  const { t, locale } = useAdminI18n();
   const [searchParams] = useSearchParams();
   const [serviceCases, setServiceCases] = useState([]);
   const [commercialQueue, setCommercialQueue] = useState([]);
@@ -114,7 +114,7 @@ export function AdminDirectorPage() {
         || null);
       setError('');
     } catch {
-      setError('Не удалось загрузить очередь директора.');
+      setError(t('director_board_load_failed'));
     }
   }
 
@@ -140,7 +140,7 @@ export function AdminDirectorPage() {
 
     return CASE_COLUMNS.map((status) => ({
       status,
-      label: SERVICE_LABELS[status] || status,
+      label: t(SERVICE_LABELS[status] || status),
       items: source.filter((item) => item.serviceStatus === status),
     }));
   }, [searchParams, serviceCases]);
@@ -160,7 +160,7 @@ export function AdminDirectorPage() {
 
     return COMMERCIAL_COLUMNS.map((status) => ({
       status,
-      label: COMMERCIAL_LABELS[status],
+      label: t(COMMERCIAL_LABELS[status]),
       items: filteredByEquipment.filter((item) => item.commercialStatus === status),
     }));
   }, [commercialQueue, searchParams]);
@@ -179,7 +179,7 @@ export function AdminDirectorPage() {
     });
     await load();
     await loadCaseDetails(selectedCaseId);
-    setFeedback('Кейс проведен.');
+    setFeedback(t('case_processed_done'));
     setActionLoading('');
   }
 
@@ -189,7 +189,7 @@ export function AdminDirectorPage() {
     await adminServiceApi.directorCommercialRoute(selectedCaseId, nextStatus);
     await load();
     await loadCaseDetails(selectedCaseId);
-    setFeedback('Маршрут обновлен.');
+    setFeedback(t('route_updated_done'));
     setActionLoading('');
   }
 
@@ -205,13 +205,13 @@ export function AdminDirectorPage() {
     <section className="service-dashboard">
       <header className="service-command">
         <div className="service-command__copy">
-          <small>Director board</small>
+          <small>{t('nav_director')}</small>
           <h2>{t('director_queue_title')}</h2>
           <p>{t('director_queue_subtitle')}</p>
         </div>
         <div className="service-command__stats">
-          <KPIChipCard label="Готово" value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="service" />
-          <KPIChipCard label="Обработано" value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="service" />
+          <KPIChipCard label={t('ready')} value={serviceColumns.find((c) => c.status === 'ready')?.items.length || 0} icon="service" hint="service" />
+          <KPIChipCard label={t('processed')} value={serviceColumns.find((c) => c.status === 'processed')?.items.length || 0} icon="dashboard" hint="service" />
           <KPIChipCard label={t('ready_for_issue')} value={commercialColumns.find((c) => c.status === 'ready_for_issue')?.items.length || 0} icon="equipment" hint={t('commercial_total')} />
           <KPIChipCard label={t('route_backlog')} value={commercialQueue.filter((item) => ['ready_for_issue', 'ready_for_rent', 'ready_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="director" />
         </div>
@@ -220,21 +220,21 @@ export function AdminDirectorPage() {
       <section className="owner-spotlight-grid">
         <article className="owner-spotlight owner-spotlight--feature">
           <header>
-            <small>Control room</small>
-            <h3>Очередь на выпуск и коммерческий маршрут</h3>
+            <small>{t('control_room')}</small>
+            <h3>{t('release_queue_route')}</h3>
           </header>
           <div className="owner-spotlight__figures">
-            <div className="owner-spotlight__metric"><span>Кейсы к выпуску</span><strong>{serviceCases.length}</strong></div>
-            <div className="owner-spotlight__metric"><span>Коммерческий поток</span><strong>{commercialQueue.length}</strong></div>
-            <div className="owner-spotlight__metric"><span>Застряли в готово</span><strong>{attention.readyTooLong}</strong></div>
-            <div className="owner-spotlight__metric"><span>Без инженера</span><strong>{attention.unassigned}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('cases_for_release')}</span><strong>{serviceCases.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('commercial_flow_count')}</span><strong>{commercialQueue.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('stuck_ready')}</span><strong>{attention.readyTooLong}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></div>
           </div>
         </article>
 
         <article className="owner-spotlight">
           <header>
-            <small>Service</small>
-            <h3>Переход по кейсам</h3>
+            <small>{t('service_cta')}</small>
+            <h3>{t('case_transition')}</h3>
           </header>
           <div className="owner-spotlight__timeline">
             {serviceColumns.map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(serviceCases.length, 1)) * 100, 8)}%` }} /></div>)}
@@ -243,8 +243,8 @@ export function AdminDirectorPage() {
 
         <article className="owner-spotlight">
           <header>
-            <small>Commercial</small>
-            <h3>Маршруты выдачи</h3>
+            <small>{t('commercial_flow_title')}</small>
+            <h3>{t('issue_routes')}</h3>
           </header>
           <div className="owner-spotlight__timeline">
             {commercialColumns.map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(commercialQueue.length, 1)) * 100, 8)}%` }} /></div>)}
@@ -256,7 +256,7 @@ export function AdminDirectorPage() {
         <li key="unassigned"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></li>,
         <li key="equipment"><span>{t('no_equipment_data')}</span><strong>{attention.noEquipment}</strong></li>,
         <li key="stale"><span>{t('stale_in_progress')}</span><strong>{attention.staleInProgress}</strong></li>,
-        <li key="ready"><span>Слишком долго в статусе «Готово»</span><strong>{attention.readyTooLong}</strong></li>,
+        <li key="ready"><span>{t('stale_ready_alert')}</span><strong>{attention.readyTooLong}</strong></li>,
         <li key="backlog"><span>{t('rent_sale_backlog')}</span><strong>{attention.rentSaleBacklog}</strong></li>,
       ]} />
 
@@ -270,7 +270,7 @@ export function AdminDirectorPage() {
               <header><h4>{column.label}</h4><strong>{column.items.length}</strong></header>
               <div className="kanban-cards">
                 {column.items.map((item) => <DirectorCard key={item.id} item={item} active={selectedCaseId === item.id} onSelect={setSelectedCaseId} />)}
-                {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                {!column.items.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
               </div>
             </section>
           ))}
@@ -280,7 +280,7 @@ export function AdminDirectorPage() {
               <header><h4>{column.label}</h4><strong>{column.items.length}</strong></header>
               <div className="kanban-cards">
                 {column.items.map((item) => <RouteCard key={item.id} item={item} active={selectedCaseId === item.id} onSelect={setSelectedCaseId} />)}
-                {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                {!column.items.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
               </div>
             </section>
           ))}
@@ -289,29 +289,29 @@ export function AdminDirectorPage() {
         <DetailPanel>
           {!selectedCase ? <p>{t('select_case')}</p> : (
             <>
-              <header className="detail-header"><h3>Кейс #{selectedCase.id}</h3><StatusBadge status={selectedCase.serviceStatus}>{selectedCase.serviceStatus}</StatusBadge></header>
+              <header className="detail-header"><h3>{t('request_card_title')} #{selectedCase.id}</h3><StatusBadge status={selectedCase.serviceStatus}>{selectedCase.serviceStatus}</StatusBadge></header>
               <ActionRail className="detail-toolbar">
-                <ActionRailButton tone="brand">Маршрут директора</ActionRailButton>
+                <ActionRailButton tone="brand">{t('director_route')}</ActionRailButton>
                 <ActionRailButton>{selectedCase.equipment?.commercialStatus || 'none'}</ActionRailButton>
-                <ActionRailButton>{formatDate(selectedCase.updatedAt)}</ActionRailButton>
+                <ActionRailButton>{formatDate(selectedCase.updatedAt, locale)}</ActionRailButton>
               </ActionRail>
               <section className="detail-hero">
                 <div className="detail-hero__copy">
                   <div className="detail-hero__eyebrow">
-                    <small>Director flow</small>
-                    <strong>{selectedCase.equipment?.clientName || 'Клиент'}</strong>
+                    <small>{t('director_flow')}</small>
+                    <strong>{selectedCase.equipment?.clientName || t('client')}</strong>
                   </div>
                   <div className="detail-grid">
-                    <p><Icon name="clients" /> Клиент: {selectedCase.equipment?.clientName || '—'}</p>
-                    <p><Icon name="equipment" /> Оборудование: {selectedCase.equipment?.brand || '—'} {selectedCase.equipment?.model || ''}</p>
+                    <p><Icon name="clients" /> {t('client')}: {selectedCase.equipment?.clientName || '—'}</p>
+                    <p><Icon name="equipment" /> {t('equipment')}: {selectedCase.equipment?.brand || '—'} {selectedCase.equipment?.model || ''}</p>
                     <p><Icon name="equipment" /> {t('internal_serial')}: {selectedCase.equipment?.internalNumber || '—'} / {selectedCase.equipment?.serial || '—'}</p>
-                    <p><Icon name="employees" /> Исполнитель: {selectedCase.assignedToUser?.fullName || '—'}</p>
-                    <p><Icon name="sales" /> Коммерция: {selectedCase.equipment?.commercialStatus || 'none'}</p>
-                    <p><Icon name="service" /> Обновлено: {formatDate(selectedCase.updatedAt)}</p>
+                    <p><Icon name="employees" /> {t('assignee')}: {selectedCase.assignedToUser?.fullName || '—'}</p>
+                    <p><Icon name="sales" /> {t('commerce')}: {selectedCase.equipment?.commercialStatus || 'none'}</p>
+                    <p><Icon name="service" /> {t('updated')}: {formatDate(selectedCase.updatedAt, locale)}</p>
                   </div>
                 </div>
                 <div className="detail-hero__preview">
-                  {getPreviewUrl(selectedCase) ? <img className="ticket-preview" src={getPreviewUrl(selectedCase)} alt="preview" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+                  {getPreviewUrl(selectedCase) ? <img className="ticket-preview" src={getPreviewUrl(selectedCase)} alt={t('photo')} /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>{t('no_photo')}</span></div>}
                 </div>
               </section>
 
@@ -321,8 +321,8 @@ export function AdminDirectorPage() {
                 <label className="checkbox"><input type="checkbox" checked={invoiceIssued} onChange={(e) => setInvoiceIssued(e.target.checked)} /> {t('invoice_issued')}</label>
                 <ActionRail>
                   {processActions.map((action) => (
-                    <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => processCase(action.targetStatus).catch(() => setError('Переход запрещен.'))}>
-                      {actionLoading === `process:${action.targetStatus}` ? 'Сохраняем...' : action.label}
+                    <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => processCase(action.targetStatus).catch(() => setError(t('transition_forbidden')))}>
+                      {actionLoading === `process:${action.targetStatus}` ? t('saving') : action.label}
                     </ActionRailButton>
                   ))}
                   {!processActions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}
@@ -333,8 +333,8 @@ export function AdminDirectorPage() {
                 <h4>{t('route')}</h4>
                 <ActionRail>
                   {routeActions.map((action) => (
-                    <ActionRailButton disabled={Boolean(actionLoading)} key={action.key} onClick={() => applyCommercialRoute(action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
-                      {actionLoading === `route:${action.targetStatus}` ? 'Сохраняем...' : action.label}
+                    <ActionRailButton disabled={Boolean(actionLoading)} key={action.key} onClick={() => applyCommercialRoute(action.targetStatus).catch(() => setError(t('commercial_transition_forbidden')))}>
+                      {actionLoading === `route:${action.targetStatus}` ? t('saving') : action.label}
                     </ActionRailButton>
                   ))}
                   {!routeActions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}

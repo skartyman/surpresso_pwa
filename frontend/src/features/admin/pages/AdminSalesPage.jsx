@@ -15,42 +15,42 @@ import { useAdminI18n } from '../adminI18n';
 
 const SALES_COLUMNS = ['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'ready_for_sale', 'reserved_for_sale', 'sold'];
 const LABELS = {
-  ready_for_rent: 'Готово к аренде',
-  reserved_for_rent: 'Зарезервировано под аренду',
-  out_on_rent: 'В аренде',
-  ready_for_sale: 'Готово к продаже',
-  reserved_for_sale: 'Зарезервировано к продаже',
-  sold: 'Продано',
+  ready_for_rent: 'ready_for_rent',
+  reserved_for_rent: 'reserved_for_rent',
+  out_on_rent: 'out_on_rent',
+  ready_for_sale: 'ready_for_sale',
+  reserved_for_sale: 'reserved_for_sale',
+  sold: 'sold',
 };
 
-function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
+function formatDate(value, locale = 'ru') { return value ? new Date(value).toLocaleString(locale === 'uk' ? 'uk-UA' : 'ru-RU') : '—'; }
 
 function getPreviewUrl(item) {
   return item?.media?.[0]?.previewUrl || item?.media?.[0]?.fileUrl || null;
 }
 
 function SalesCard({ item, active, onSelect }) {
-  const { t } = useAdminI18n();
+  const { t, locale } = useAdminI18n();
   const status = item.commercialStatus || 'none';
   const warnings = [];
   if (!item.serial) warnings.push(t('no_serial'));
-  if (status === 'ready_for_rent' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
-  if (status === 'ready_for_sale' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
+  if (status === 'ready_for_rent' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push(t('stale_ready_alert'));
+  if (status === 'ready_for_sale' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push(t('stale_ready_alert'));
 
   return (
     <OpsBoardCard
       item={item}
       id={item.id}
       status={status}
-      statusLabel={LABELS[status] || status}
-      title={item.clientName || 'Клиент'}
+      statusLabel={t(LABELS[status] || status)}
+      title={item.clientName || t('client')}
       subtitle={`${item.brand || '—'} ${item.model || ''} · ${item.internalNumber || '—'} / ${item.serial || '—'}`}
       ownerType={`${t('owner')}: ${item.ownerType || '—'}`}
       intakeType={`${t('intake')}: ${item.intakeType || '—'}`}
       assignedMaster={item.assignedToUser?.fullName || t('master_empty')}
       serviceStatus={item.serviceStatus || '—'}
       commercialStatus={status}
-      updatedAt={formatDate(item.updatedAt)}
+      updatedAt={formatDate(item.updatedAt, locale)}
       warnings={warnings}
       active={active}
       onSelect={onSelect}
@@ -59,7 +59,7 @@ function SalesCard({ item, active, onSelect }) {
 }
 
 export function AdminSalesPage() {
-  const { t } = useAdminI18n();
+  const { t, locale } = useAdminI18n();
   const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -78,7 +78,7 @@ export function AdminSalesPage() {
       setSelectedId((prev) => prev || requestedEquipmentId || rows[0]?.id || null);
       setError('');
     } catch {
-        setError('Не удалось загрузить доску продаж.');
+        setError(t('sales_board_load_failed'));
     }
   }
 
@@ -115,7 +115,7 @@ export function AdminSalesPage() {
 
     return SALES_COLUMNS.map((status) => ({
       status,
-      label: LABELS[status],
+      label: t(LABELS[status]),
       items: source.filter((row) => (row.commercialStatus || 'none') === status),
     }));
   }, [items, searchParams]);
@@ -136,7 +136,7 @@ export function AdminSalesPage() {
     }
     await load();
     await loadDetails(selectedId);
-    setFeedback('Коммерческое действие выполнено.');
+    setFeedback(t('commercial_action_done_short'));
     setActionLoading('');
   }
 
@@ -152,36 +152,36 @@ export function AdminSalesPage() {
     <section className="service-dashboard">
       <header className="service-command">
         <div className="service-command__copy">
-          <small>Sales board</small>
+          <small>{t('nav_sales')}</small>
           <h2>{t('sales_board_title')}</h2>
           <p>{t('sales_board_subtitle')}</p>
         </div>
         <div className="service-command__stats">
-          <KPIChipCard label="Готово к аренде" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="sales" />
-          <KPIChipCard label="В аренде" value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="sales" />
-          <KPIChipCard label="Готово к продаже" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="sales" />
-          <KPIChipCard label="Продано" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="sales" />
+          <KPIChipCard label={t('ready_for_rent')} value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label={t('rent_now')} value={columns.find((c) => c.status === 'out_on_rent')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label={t('ready_for_sale')} value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="sales" />
+          <KPIChipCard label={t('sold')} value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="sales" />
         </div>
       </header>
 
       <section className="owner-spotlight-grid">
         <article className="owner-spotlight owner-spotlight--feature">
           <header>
-            <small>Commercial room</small>
-            <h3>Аренда, продажа и бронь в одном потоке</h3>
+            <small>{t('commercial_room')}</small>
+            <h3>{t('rent_sale_reserve_flow')}</h3>
           </header>
           <div className="owner-spotlight__figures">
-            <div className="owner-spotlight__metric"><span>Всего оборудования</span><strong>{items.length}</strong></div>
-            <div className="owner-spotlight__metric"><span>Бэклог аренды</span><strong>{items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length}</strong></div>
-            <div className="owner-spotlight__metric"><span>Бэклог продажи</span><strong>{items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length}</strong></div>
-            <div className="owner-spotlight__metric"><span>Задержка в бронях</span><strong>{items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('total_equipment_short')}</span><strong>{items.length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('rent_sale_backlog')}</span><strong>{items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('sale_booking')}</span><strong>{items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length}</strong></div>
+            <div className="owner-spotlight__metric"><span>{t('reserved_aging')}</span><strong>{items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length}</strong></div>
           </div>
         </article>
 
         <article className="owner-spotlight">
           <header>
-            <small>Rent</small>
-            <h3>Контур аренды</h3>
+            <small>{t('rent_column')}</small>
+            <h3>{t('rent_flow')}</h3>
           </header>
           <div className="owner-spotlight__timeline">
             {columns.filter((column) => ['ready_for_rent', 'reserved_for_rent', 'out_on_rent'].includes(column.status)).map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(items.length, 1)) * 100, 8)}%` }} /></div>)}
@@ -190,8 +190,8 @@ export function AdminSalesPage() {
 
         <article className="owner-spotlight">
           <header>
-            <small>Sale</small>
-            <h3>Контур продажи</h3>
+            <small>{t('sale_column')}</small>
+            <h3>{t('sale_flow')}</h3>
           </header>
           <div className="owner-spotlight__timeline">
             {columns.filter((column) => ['ready_for_sale', 'reserved_for_sale', 'sold'].includes(column.status)).map((column) => <div key={column.status}><span>{column.label}</span><i style={{ width: `${Math.max((column.items.length / Math.max(items.length, 1)) * 100, 8)}%` }} /></div>)}
@@ -203,7 +203,7 @@ export function AdminSalesPage() {
         <li key="unassigned"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></li>,
         <li key="equipment"><span>{t('no_equipment_data')}</span><strong>{attention.noEquipment}</strong></li>,
         <li key="stale"><span>{t('stale_in_progress')}</span><strong>{attention.staleInProgress}</strong></li>,
-        <li key="ready"><span>Слишком долго в статусе «Готово»</span><strong>{attention.readyTooLong}</strong></li>,
+        <li key="ready"><span>{t('stale_ready_alert')}</span><strong>{attention.readyTooLong}</strong></li>,
         <li key="backlog"><span>{t('rent_sale_backlog')}</span><strong>{attention.rentSaleBacklog}</strong></li>,
       ]} />
 
@@ -217,7 +217,7 @@ export function AdminSalesPage() {
               <header><h4>{column.label}</h4><strong>{column.items.length}</strong></header>
               <div className="kanban-cards">
                 {column.items.map((item) => <SalesCard key={item.id} item={item} active={selectedId === item.id} onSelect={setSelectedId} />)}
-                {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                {!column.items.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
               </div>
             </section>
           ))}
@@ -226,37 +226,37 @@ export function AdminSalesPage() {
         <DetailPanel>
           {!selectedEquipment ? <p>{t('select_equipment')}</p> : (
             <>
-              <header className="detail-header"><h3>{selectedEquipment.id}</h3><StatusBadge status={selectedEquipment.commercialStatus || 'none'}>{LABELS[selectedEquipment.commercialStatus || 'none'] || (selectedEquipment.commercialStatus || 'none')}</StatusBadge></header>
+              <header className="detail-header"><h3>{selectedEquipment.id}</h3><StatusBadge status={selectedEquipment.commercialStatus || 'none'}>{t(LABELS[selectedEquipment.commercialStatus || 'none'] || (selectedEquipment.commercialStatus || 'none'))}</StatusBadge></header>
               <ActionRail className="detail-toolbar">
-                <ActionRailButton tone="brand">Commercial flow</ActionRailButton>
+                <ActionRailButton tone="brand">{t('commercial_flow_chip')}</ActionRailButton>
                 <ActionRailButton>{selectedEquipment.serviceStatus || '—'}</ActionRailButton>
-                <ActionRailButton>{formatDate(selectedEquipment.updatedAt)}</ActionRailButton>
+                <ActionRailButton>{formatDate(selectedEquipment.updatedAt, locale)}</ActionRailButton>
               </ActionRail>
               <section className="detail-hero">
                 <div className="detail-hero__copy">
                   <div className="detail-hero__eyebrow">
-                    <small>Sales item</small>
-                    <strong>{selectedEquipment.clientName || 'Клиент'}</strong>
+                    <small>{t('sales_item')}</small>
+                    <strong>{selectedEquipment.clientName || t('client')}</strong>
                   </div>
                   <div className="detail-grid">
-                    <p><Icon name="clients" /> Клиент: {selectedEquipment.clientName || '—'}</p>
-                    <p><Icon name="equipment" /> Оборудование: {selectedEquipment.brand || '—'} {selectedEquipment.model || ''}</p>
+                    <p><Icon name="clients" /> {t('client')}: {selectedEquipment.clientName || '—'}</p>
+                    <p><Icon name="equipment" /> {t('equipment')}: {selectedEquipment.brand || '—'} {selectedEquipment.model || ''}</p>
                     <p><Icon name="equipment" /> {t('internal_serial')}: {selectedEquipment.internalNumber || '—'} / {selectedEquipment.serial || '—'}</p>
-                    <p><Icon name="service" /> Статус сервиса: {selectedEquipment.serviceStatus || '—'}</p>
-                    <p><Icon name="sales" /> Обновлено: {formatDate(selectedEquipment.updatedAt)}</p>
+                    <p><Icon name="service" /> {t('service_status_label')}: {selectedEquipment.serviceStatus || '—'}</p>
+                    <p><Icon name="sales" /> {t('updated')}: {formatDate(selectedEquipment.updatedAt, locale)}</p>
                   </div>
                 </div>
                 <div className="detail-hero__preview">
-                  {getPreviewUrl(selectedEquipment) ? <img className="ticket-preview" src={getPreviewUrl(selectedEquipment)} alt="preview" /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>Нет фото</span></div>}
+                  {getPreviewUrl(selectedEquipment) ? <img className="ticket-preview" src={getPreviewUrl(selectedEquipment)} alt={t('photo')} /> : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>{t('no_photo')}</span></div>}
                 </div>
               </section>
 
               <div className="detail-section-card">
-                <h4>Коммерческие действия</h4>
+                <h4>{t('commercial_actions')}</h4>
                 <ActionRail>
                   {actions.map((action) => (
-                    <ActionRailButton tone={action.key.startsWith('reserve') ? 'brand' : 'default'} disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => performAction(action.key, action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
-                      {actionLoading === `${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
+                    <ActionRailButton tone={action.key.startsWith('reserve') ? 'brand' : 'default'} disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} onClick={() => performAction(action.key, action.targetStatus).catch(() => setError(t('commercial_transition_forbidden')))}>
+                      {actionLoading === `${action.key}:${action.targetStatus || ''}` ? t('saving') : action.label}
                     </ActionRailButton>
                   ))}
                   {!actions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}

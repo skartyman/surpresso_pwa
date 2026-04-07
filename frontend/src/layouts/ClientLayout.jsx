@@ -37,7 +37,7 @@ export function ClientLayout({ children }) {
     <div className="client-shell">
       <aside className={`client-sidebar ${drawerOpen ? 'is-open' : ''}`}>
         <div className="client-sidebar__brand">
-          <img src="/icons/logo-service.png" alt="Surpresso Service" className="client-logo-image" />
+          <img src="/icons/logo-service.png" alt="Surpresso" className="client-logo-image" />
           <div>
             <strong>Surpresso</strong>
             <p>{t('client_cabinet')}</p>
@@ -68,7 +68,7 @@ export function ClientLayout({ children }) {
         </div>
       </aside>
 
-      {drawerOpen ? <button type="button" className="client-overlay" onClick={closeDrawer} aria-label="close sidebar" /> : null}
+      {drawerOpen ? <button type="button" className="client-overlay" onClick={closeDrawer} aria-label={t('close_sidebar')} /> : null}
 
       <div className="client-main-wrap">
         <header className="client-topbar">
@@ -77,7 +77,7 @@ export function ClientLayout({ children }) {
           </button>
           <div className="client-topbar__title">
             <small>{t('welcome_kicker')}</small>
-            <h1>Surpresso Mini App</h1>
+            <h1>{t('app_title')}</h1>
           </div>
           <button type="button" className="theme-inline-btn secondary" onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️' : '🌙'}

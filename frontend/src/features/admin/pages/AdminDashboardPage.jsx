@@ -6,15 +6,15 @@ import { ActionRail, ActionRailButton, AlertPanel, ChartCard, CompactMetricCard,
 import { ROLES } from '../roleConfig';
 import { useAdminI18n } from '../adminI18n';
 
-function formatMinutes(value) {
-  return Number.isFinite(value) ? `${value} мин` : '—';
+function formatMinutes(value, t) {
+  return Number.isFinite(value) ? `${value} ${t('minutes_short')}` : '—';
 }
 
-function pluralizeCases(value) {
+function pluralizeCases(value, t) {
   const count = Number(value || 0);
-  if (count % 10 === 1 && count % 100 !== 11) return `${count} кейс`;
-  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return `${count} кейса`;
-  return `${count} кейсов`;
+  if (count % 10 === 1 && count % 100 !== 11) return `${count} ${t('cases_one')}`;
+  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return `${count} ${t('cases_few')}`;
+  return `${count} ${t('cases_many')}`;
 }
 
 function buildBasePath(pathname) {
@@ -54,7 +54,7 @@ export function AdminDashboardPage() {
         setSalesItems(salesPayload.items || []);
         setError('');
       } catch {
-        setError('Не удалось загрузить управленческую сводку.');
+        setError(t('executive_summary_load_failed'));
       } finally {
         setLoading(false);
       }
@@ -123,29 +123,29 @@ export function AdminDashboardPage() {
 
   const sectionKpis = {
     service: [
-      { label: 'Принято', value: serviceByStatus.accepted || 0, to: `${basePath}/service?status=accepted` },
-      { label: 'В работе', value: serviceByStatus.in_progress || 0, to: `${basePath}/service?status=in_progress` },
-      { label: 'Тестирование', value: serviceByStatus.testing || 0, to: `${basePath}/service?status=testing` },
-      { label: 'Готово', value: serviceByStatus.ready || 0, to: `${basePath}/service?status=ready` },
-      { label: 'Среднее время назначения', value: formatMinutes(service.avgAssignTimeMinutes), to: `${basePath}/service?quickFilter=unassigned` },
-      { label: 'Среднее время ремонта', value: formatMinutes(service.avgRepairTimeMinutes), to: `${basePath}/service?status=in_progress` },
-      { label: 'Просрочено по этапам', value: Object.values(sla.overdueByStage || {}).reduce((sum, value) => sum + value, 0), to: `${basePath}/service?quickFilter=overdue` },
-      { label: 'Залежалось в готово', value: sla.staleReadyCount || 0, to: `${basePath}/service?status=ready&quickFilter=stale_ready` },
+      { label: t('accepted_short'), value: serviceByStatus.accepted || 0, to: `${basePath}/service?status=accepted` },
+      { label: t('in_progress'), value: serviceByStatus.in_progress || 0, to: `${basePath}/service?status=in_progress` },
+      { label: t('testing'), value: serviceByStatus.testing || 0, to: `${basePath}/service?status=testing` },
+      { label: t('ready'), value: serviceByStatus.ready || 0, to: `${basePath}/service?status=ready` },
+      { label: t('avg_assign_time'), value: formatMinutes(service.avgAssignTimeMinutes, t), to: `${basePath}/service?quickFilter=unassigned` },
+      { label: t('avg_repair_time'), value: formatMinutes(service.avgRepairTimeMinutes, t), to: `${basePath}/service?status=in_progress` },
+      { label: t('overdue_by_stage'), value: Object.values(sla.overdueByStage || {}).reduce((sum, value) => sum + value, 0), to: `${basePath}/service?quickFilter=overdue` },
+      { label: t('stale_ready_short'), value: sla.staleReadyCount || 0, to: `${basePath}/service?status=ready&quickFilter=stale_ready` },
     ],
     director: [
-      { label: 'Задержка готовых', value: director.readyAgingCount || 0, to: `${basePath}/director?serviceStatus=ready` },
-      { label: 'Обработано сегодня', value: director.processedTodayCount || 0, to: `${basePath}/director?serviceStatus=processed` },
-      { label: 'Бэклог маршрутизации', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=route_backlog` },
-      { label: 'Ждут коммерческого решения', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=ready_for_issue` },
+      { label: t('ready_delay'), value: director.readyAgingCount || 0, to: `${basePath}/director?serviceStatus=ready` },
+      { label: t('processed_today'), value: director.processedTodayCount || 0, to: `${basePath}/director?serviceStatus=processed` },
+      { label: t('route_backlog'), value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=route_backlog` },
+      { label: t('waiting_commercial_decision'), value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=ready_for_issue` },
     ],
     sales: [
-      { label: 'Готово к аренде', value: salesByStatus.ready_for_rent || 0, to: `${basePath}/sales?commercialStatus=ready_for_rent` },
-      { label: 'Готово к продаже', value: salesByStatus.ready_for_sale || 0, to: `${basePath}/sales?commercialStatus=ready_for_sale` },
-      { label: 'Бронь аренды', value: salesByStatus.reserved_for_rent || 0, to: `${basePath}/sales?commercialStatus=reserved_for_rent` },
-      { label: 'Бронь продажи', value: salesByStatus.reserved_for_sale || 0, to: `${basePath}/sales?commercialStatus=reserved_for_sale` },
-      { label: 'Бэклог аренды', value: sales.rentBacklogCount || 0, to: `${basePath}/sales?commercialStatus=rent_backlog` },
-      { label: 'Бэклог продажи', value: sales.saleBacklogCount || 0, to: `${basePath}/sales?commercialStatus=sale_backlog` },
-      { label: 'Задержка в бронях', value: sales.reservedAgingCount || 0, to: `${basePath}/sales?commercialStatus=reserved_aging` },
+      { label: t('ready_for_rent'), value: salesByStatus.ready_for_rent || 0, to: `${basePath}/sales?commercialStatus=ready_for_rent` },
+      { label: t('ready_for_sale'), value: salesByStatus.ready_for_sale || 0, to: `${basePath}/sales?commercialStatus=ready_for_sale` },
+      { label: t('rent_booking'), value: salesByStatus.reserved_for_rent || 0, to: `${basePath}/sales?commercialStatus=reserved_for_rent` },
+      { label: t('sale_booking'), value: salesByStatus.reserved_for_sale || 0, to: `${basePath}/sales?commercialStatus=reserved_for_sale` },
+      { label: t('rent_sale_backlog'), value: sales.rentBacklogCount || 0, to: `${basePath}/sales?commercialStatus=rent_backlog` },
+      { label: t('sales_backlog'), value: sales.saleBacklogCount || 0, to: `${basePath}/sales?commercialStatus=sale_backlog` },
+      { label: t('reserved_aging'), value: sales.reservedAgingCount || 0, to: `${basePath}/sales?commercialStatus=reserved_aging` },
     ],
   };
 
@@ -155,28 +155,28 @@ export function AdminDashboardPage() {
   const recentCritical = alertsState?.recentCriticalChanges || [];
   const notificationPreview = notificationState?.notificationPreview || { pendingCritical: 0, pendingWarning: 0, digestSize: 0 };
   const hotAlerts = useMemo(() => [
-    { key: 'unassigned_too_long', label: 'Без назначения', value: alertsByType.unassigned_too_long || 0 },
-    { key: 'stale_in_progress', label: 'Застряли в работе', value: alertsByType.stale_in_progress || 0 },
-    { key: 'stale_ready', label: 'Готово без выдачи', value: alertsByType.stale_ready || 0 },
-    { key: 'overdue_by_stage', label: 'Просрочено по этапам', value: alertsByType.overdue_by_stage || 0 },
+    { key: 'unassigned_too_long', label: t('unassigned'), value: alertsByType.unassigned_too_long || 0 },
+    { key: 'stale_in_progress', label: t('stale_in_progress'), value: alertsByType.stale_in_progress || 0 },
+    { key: 'stale_ready', label: t('ready_without_issue'), value: alertsByType.stale_ready || 0 },
+    { key: 'overdue_by_stage', label: t('overdue_by_stage'), value: alertsByType.overdue_by_stage || 0 },
   ].sort((a, b) => b.value - a.value), [alertsByType]);
   const serviceFlow = useMemo(() => [
-    { label: 'Принято', value: serviceByStatus.accepted || 0 },
-    { label: 'В работе', value: serviceByStatus.in_progress || 0 },
-    { label: 'Тест', value: serviceByStatus.testing || 0 },
-    { label: 'Готово', value: serviceByStatus.ready || 0 },
-  ], [serviceByStatus]);
+    { label: t('accepted_short'), value: serviceByStatus.accepted || 0 },
+    { label: t('in_progress'), value: serviceByStatus.in_progress || 0 },
+    { label: t('testing_short'), value: serviceByStatus.testing || 0 },
+    { label: t('ready'), value: serviceByStatus.ready || 0 },
+  ], [serviceByStatus, t]);
   const commercialFlow = useMemo(() => [
-    { label: 'Аренда', value: (salesByStatus.ready_for_rent || 0) + (salesByStatus.reserved_for_rent || 0) + (salesByStatus.out_on_rent || 0) },
-    { label: 'Продажа', value: (salesByStatus.ready_for_sale || 0) + (salesByStatus.reserved_for_sale || 0) + (salesByStatus.sold || 0) },
-    { label: 'Подмена', value: salesByStatus.out_on_replacement || 0 },
-    { label: 'У клиента', value: salesByStatus.issued_to_client || 0 },
-  ], [salesByStatus]);
+    { label: t('rent_column'), value: (salesByStatus.ready_for_rent || 0) + (salesByStatus.reserved_for_rent || 0) + (salesByStatus.out_on_rent || 0) },
+    { label: t('sale_column'), value: (salesByStatus.ready_for_sale || 0) + (salesByStatus.reserved_for_sale || 0) + (salesByStatus.sold || 0) },
+    { label: t('replacement'), value: salesByStatus.out_on_replacement || 0 },
+    { label: t('client_column'), value: salesByStatus.issued_to_client || 0 },
+  ], [salesByStatus, t]);
   const executiveMoments = [
-    { label: 'Среднее назначение', value: formatMinutes(service.avgAssignTimeMinutes) },
-    { label: 'Средний ремонт', value: formatMinutes(service.avgRepairTimeMinutes) },
-    { label: 'QC / контроль', value: (serviceByStatus.ready_for_qc || 0) + (serviceByStatus.on_service_head_control || 0) },
-    { label: 'Дайджест', value: notificationPreview.digestSize || 0 },
+    { label: t('avg_assign_short'), value: formatMinutes(service.avgAssignTimeMinutes, t) },
+    { label: t('avg_repair_short'), value: formatMinutes(service.avgRepairTimeMinutes, t) },
+    { label: t('qc_control'), value: (serviceByStatus.ready_for_qc || 0) + (serviceByStatus.on_service_head_control || 0) },
+    { label: t('digest_label'), value: notificationPreview.digestSize || 0 },
   ];
 
   return (
@@ -187,13 +187,13 @@ export function AdminDashboardPage() {
           <p>{t('executive_subtitle')}</p>
           <ActionRail compact className="owner-hero__actions">
             <ActionRailButton tone="brand" onClick={() => window.location.assign(`${basePath}/service`)}>
-              <Icon name="service" /> Сервис
+              <Icon name="service" /> {t('service_cta')}
             </ActionRailButton>
             <ActionRailButton onClick={() => window.location.assign(`${basePath}/equipment`)}>
-              <Icon name="equipment" /> Оборудование
+              <Icon name="equipment" /> {t('equipment_cta')}
             </ActionRailButton>
             <ActionRailButton onClick={() => window.location.assign(`${basePath}/director`)}>
-              <Icon name="dashboard" /> Директор
+              <Icon name="dashboard" /> {t('director_cta')}
             </ActionRailButton>
           </ActionRail>
         </div>
@@ -210,8 +210,8 @@ export function AdminDashboardPage() {
       <section className="owner-spotlight-grid">
         <article className="owner-spotlight owner-spotlight--feature">
           <header>
-            <small>Операционный пульс</small>
-            <h3>Где сейчас лежит нагрузка по потоку сервиса</h3>
+            <small>{t('operational_pulse')}</small>
+            <h3>{t('service_load_now')}</h3>
           </header>
           <div className="owner-spotlight__figures">
             {serviceFlow.map((item) => (
@@ -233,8 +233,8 @@ export function AdminDashboardPage() {
 
         <article className="owner-spotlight">
           <header>
-            <small>Горячие зоны</small>
-            <h3>Что требует внимания прямо сейчас</h3>
+            <small>{t('hot_zones')}</small>
+            <h3>{t('needs_attention_now')}</h3>
           </header>
           <div className="owner-hot-list">
             {hotAlerts.map((item) => (
@@ -248,8 +248,8 @@ export function AdminDashboardPage() {
 
         <article className="owner-spotlight">
           <header>
-            <small>Коммерческий поток</small>
-            <h3>Как распределён парк по продаже и аренде</h3>
+            <small>{t('commercial_flow_title')}</small>
+            <h3>{t('fleet_distribution')}</h3>
           </header>
           <div className="owner-hot-list owner-hot-list--soft">
             {commercialFlow.map((item) => (
@@ -311,7 +311,7 @@ export function AdminDashboardPage() {
               <CompactMetricCard
                 key={row.id}
                 label={row.name}
-                value={`${pluralizeCases(row.total)} · overdue ${row.overdue} · avg ${formatMinutes(row.avgRepair)}`}
+                value={`${pluralizeCases(row.total, t)} · ${t('overdue_short')} ${row.overdue} · ${t('average_short')} ${formatMinutes(row.avgRepair, t)}`}
                 progress={Math.min(100, Math.round((row.total / Math.max(engineerRows[0]?.total || 1, 1)) * 100))}
                 state={row.overdue > 2 ? 'danger' : row.overdue > 0 ? 'warning' : 'calm'}
               />
@@ -321,17 +321,17 @@ export function AdminDashboardPage() {
         </article>
 
         <AlertPanel items={[
-          <li key="unassigned"><span>Слишком долго без назначения</span><strong>{alertsByType.unassigned_too_long || 0}</strong></li>,
-          <li key="stale_in_progress"><span>Застряли в работе</span><strong>{alertsByType.stale_in_progress || 0}</strong></li>,
-          <li key="stale_ready"><span>Залежались в готово</span><strong>{alertsByType.stale_ready || 0}</strong></li>,
-          <li key="stale_reserved"><span>Задержка в резерве</span><strong>{alertsByType.stale_reserved || 0}</strong></li>,
-          <li key="overdue_by_stage"><span>Просрочено по этапам</span><strong>{alertsByType.overdue_by_stage || 0}</strong></li>,
-          <li key="equipment"><span>Неполные данные по оборудованию</span><strong>{alertsByType.incomplete_equipment_data || 0}</strong></li>,
+          <li key="unassigned"><span>{t('overdue_without_assignment')}</span><strong>{alertsByType.unassigned_too_long || 0}</strong></li>,
+          <li key="stale_in_progress"><span>{t('stale_in_progress')}</span><strong>{alertsByType.stale_in_progress || 0}</strong></li>,
+          <li key="stale_ready"><span>{t('stale_ready_short')}</span><strong>{alertsByType.stale_ready || 0}</strong></li>,
+          <li key="stale_reserved"><span>{t('stale_reserved')}</span><strong>{alertsByType.stale_reserved || 0}</strong></li>,
+          <li key="overdue_by_stage"><span>{t('overdue_by_stage')}</span><strong>{alertsByType.overdue_by_stage || 0}</strong></li>,
+          <li key="equipment"><span>{t('incomplete_equipment_data')}</span><strong>{alertsByType.incomplete_equipment_data || 0}</strong></li>,
         ]} />
       </div>
 
       <div className="owner-grid owner-grid--2">
-        <ChartCard title="Executive moments">
+        <ChartCard title={t('executive_moments')}>
           <div className="owner-moment-grid">
             {executiveMoments.map((item) => (
               <div key={item.label} className="owner-moment-card">
