@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ActionRail, ActionRailButton, Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
+import { ROLES } from '../roleConfig';
 import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
 const TABS = [
@@ -397,9 +399,11 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete 
                       {isCover ? 'На карточке' : 'На карточку'}
                     </button>
                   ) : null}
-                  <button type="button" className="equipment-gallery-card__action danger" onClick={() => onDelete?.(media)}>
-                    Удалить
-                  </button>
+                  {onDelete ? (
+                    <button type="button" className="equipment-gallery-card__action danger" onClick={() => onDelete(media)}>
+                      Удалить
+                    </button>
+                  ) : null}
                 </div>
                 <div className="equipment-gallery-card__footer">
                   <strong>{getMediaDisplayTitle(media, 'Битый файл')}</strong>
@@ -477,7 +481,14 @@ function TimelineView({ rows = [] }) {
   );
 }
 
-function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }) {
+function ActionPanel({
+  detail,
+  onQuickMediaUploaded,
+  navigateToBoard,
+  basePath,
+  canUploadCaseMedia = false,
+  canCommercialOperate = false,
+}) {
   const [actionLoading, setActionLoading] = useState('');
   const [quickMediaFiles, setQuickMediaFiles] = useState([]);
   const [quickMediaCaption, setQuickMediaCaption] = useState('');
@@ -549,42 +560,46 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
         </button>
       </div>
 
-      <div className="equipment-action-panel__media">
-        <h5>Быстрое добавление медиа</h5>
-        {!activeCase?.id ? <p className="empty-copy">Активный кейс не найден — быстрая загрузка недоступна.</p> : null}
-        <input type="file" multiple accept="image/*,video/*" onChange={(event) => setQuickMediaFiles(Array.from(event.target.files || []))} />
-        <input
-          type="text"
-          value={quickMediaCaption}
-          onChange={(event) => setQuickMediaCaption(event.target.value)}
-          placeholder="Комментарий к медиа"
-        />
-        <button
-          type="button"
-          className="equipment-action-panel__upload-btn"
-          disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)}
-          onClick={() => submitQuickMedia()}
-        >
-          {actionLoading === 'media' ? 'Загрузка...' : 'Загрузить медиа в активный кейс'}
-        </button>
-      </div>
-
-      <div className="equipment-action-panel__commercial">
-        <h5>Быстрые коммерческие действия</h5>
-        <div className="quick-filter-row">
-          {commercialActions.map((action) => (
-            <button
-              disabled={Boolean(actionLoading)}
-              key={action.key + action.targetStatus}
-              type="button"
-              onClick={() => applyCommercialAction(action)}
-            >
-              {actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
-            </button>
-          ))}
-          {!commercialActions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
+      {canUploadCaseMedia ? (
+        <div className="equipment-action-panel__media">
+          <h5>Быстрое добавление медиа</h5>
+          {!activeCase?.id ? <p className="empty-copy">Активный кейс не найден — быстрая загрузка недоступна.</p> : null}
+          <input type="file" multiple accept="image/*,video/*" onChange={(event) => setQuickMediaFiles(Array.from(event.target.files || []))} />
+          <input
+            type="text"
+            value={quickMediaCaption}
+            onChange={(event) => setQuickMediaCaption(event.target.value)}
+            placeholder="Комментарий к медиа"
+          />
+          <button
+            type="button"
+            className="equipment-action-panel__upload-btn"
+            disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)}
+            onClick={() => submitQuickMedia()}
+          >
+            {actionLoading === 'media' ? 'Загрузка...' : 'Загрузить медиа в активный кейс'}
+          </button>
         </div>
-      </div>
+      ) : null}
+
+      {canCommercialOperate ? (
+        <div className="equipment-action-panel__commercial">
+          <h5>Быстрые коммерческие действия</h5>
+          <div className="quick-filter-row">
+            {commercialActions.map((action) => (
+              <button
+                disabled={Boolean(actionLoading)}
+                key={action.key + action.targetStatus}
+                type="button"
+                onClick={() => applyCommercialAction(action)}
+              >
+                {actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
+              </button>
+            ))}
+            {!commercialActions.length ? <span className="empty-copy">Нет доступных действий.</span> : null}
+          </div>
+        </div>
+      ) : null}
 
       <p className="equipment-action-panel__links">
         Быстрые ссылки: <a href={`${basePath}/service`}>Сервисная доска</a> · <a href={`${basePath}/director`}>Доска директора</a> · <a href={`${basePath}/sales`}>Доска продаж</a>
@@ -595,7 +610,20 @@ function ActionPanel({ detail, onQuickMediaUploaded, navigateToBoard, basePath }
   );
 }
 
-function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, basePath }) {
+function TabPanel({
+  tab,
+  detail,
+  onOpenMedia,
+  onRefreshDetail,
+  navigateToBoard,
+  basePath,
+  canCreateEquipment = false,
+  canEditEquipment = false,
+  canUploadEquipmentMedia = false,
+  canDeleteEquipmentMedia = false,
+  canCommercialOperate = false,
+  canUploadCaseMedia = false,
+}) {
   const [commentBody, setCommentBody] = useState('');
   const [noteBody, setNoteBody] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -610,10 +638,12 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
     const warnings = getEquipmentWarnings(detail);
     return (
       <section className="equipment-detail-section">
-        <div className="quick-filter-row">
-          <button type="button" onClick={() => navigateToBoard('equipment_create')}>Добавить оборудование</button>
-          <button type="button" onClick={() => navigateToBoard('equipment_intake')}>Принять оборудование (intake)</button>
-        </div>
+        {canCreateEquipment ? (
+          <div className="quick-filter-row">
+            <button type="button" onClick={() => navigateToBoard('equipment_create')}>Добавить оборудование</button>
+            <button type="button" onClick={() => navigateToBoard('equipment_intake')}>Принять оборудование (intake)</button>
+          </div>
+        ) : null}
         <article className="equipment-summary-hero">
           <div>
             <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
@@ -662,35 +692,39 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
           <p><Icon name="dashboard" /> Обновлено: {formatDate(equipment.updatedAt)}</p>
         </div>
 
-        <article className="equipment-detail-section">
-          <h4>Редактирование Equipment card</h4>
-          <div className="equipment-detail-grid">
-            <input placeholder={equipment.brand || 'Бренд'} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
-            <input placeholder={equipment.model || 'Модель'} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
-            <input placeholder={equipment.serial || 'Серийный'} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
-            <input placeholder={equipment.internalNumber || 'Инв. №'} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
-          </div>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={async () => {
-              setBusy('edit');
-              try {
-                await adminServiceApi.updateEquipment(equipment.id, editForm);
-                setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
-                await onRefreshDetail?.();
-              } finally { setBusy(''); }
-            }}
-          >
-            {busy === 'edit' ? 'Сохраняем...' : 'Сохранить карточку'}
-          </button>
-        </article>
+        {canEditEquipment ? (
+          <article className="equipment-detail-section">
+            <h4>Редактирование Equipment card</h4>
+            <div className="equipment-detail-grid">
+              <input placeholder={equipment.brand || 'Бренд'} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
+              <input placeholder={equipment.model || 'Модель'} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
+              <input placeholder={equipment.serial || 'Серийный'} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
+              <input placeholder={equipment.internalNumber || 'Инв. №'} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+            </div>
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={async () => {
+                setBusy('edit');
+                try {
+                  await adminServiceApi.updateEquipment(equipment.id, editForm);
+                  setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                  await onRefreshDetail?.();
+                } finally { setBusy(''); }
+              }}
+            >
+              {busy === 'edit' ? 'Сохраняем...' : 'Сохранить карточку'}
+            </button>
+          </article>
+        ) : null}
 
         <ActionPanel
           detail={detail}
           onQuickMediaUploaded={onRefreshDetail}
           navigateToBoard={navigateToBoard}
           basePath={basePath}
+          canUploadCaseMedia={canUploadCaseMedia}
+          canCommercialOperate={canCommercialOperate}
         />
       </section>
     );
@@ -700,27 +734,29 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
     return (
       <section className="equipment-detail-section">
         <p>Загрузка медиа: можно сохранить в паспорт техники или в активный сервисный кейс.</p>
-        <div className="quick-filter-row">
-          <input type="file" multiple accept="image/*,video/*" />
-          <button
-            type="button"
-            onClick={async () => {
-              const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
-              const files = Array.from(fileInput?.files || []);
-              if (!files.length) return;
-              const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите "Отмена", чтобы сохранить в паспорт оборудования.`);
-              await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
-              if (fileInput) fileInput.value = '';
-              await onRefreshDetail?.();
-            }}
-          >Загрузить</button>
-        </div>
+        {canUploadEquipmentMedia ? (
+          <div className="quick-filter-row">
+            <input type="file" multiple accept="image/*,video/*" />
+            <button
+              type="button"
+              onClick={async () => {
+                const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
+                const files = Array.from(fileInput?.files || []);
+                if (!files.length) return;
+                const toCase = activeCase?.id && window.confirm(`Активный кейс найден (${activeCase.id}). Загрузить в кейс? Нажмите "Отмена", чтобы сохранить в паспорт оборудования.`);
+                await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
+                if (fileInput) fileInput.value = '';
+                await onRefreshDetail?.();
+              }}
+            >Загрузить</button>
+          </div>
+        ) : null}
         <MediaGallery
           rows={detail.media || []}
           onOpen={onOpenMedia}
           equipmentId={detail.equipment?.id}
           onCoverSelect={onRefreshDetail}
-          onDelete={(media) => adminServiceApi.deleteMedia(media.id).then(() => onRefreshDetail?.())}
+          onDelete={canDeleteEquipmentMedia ? ((media) => adminServiceApi.deleteMedia(media.id).then(() => onRefreshDetail?.())) : null}
         />
       </section>
     );
@@ -889,6 +925,7 @@ function TabPanel({ tab, detail, onOpenMedia, onRefreshDetail, navigateToBoard, 
 }
 
 export function AdminEquipmentPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -904,6 +941,12 @@ export function AdminEquipmentPage() {
   const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
+  const canCreateEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canEditEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canUploadEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canDeleteEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canCommercialOperate = [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
+  const canUploadCaseMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
 
   const basePath = getBaseAdminPath(location.pathname);
   const warningFilter = String(searchParams.get('warning') || '').trim();
@@ -1082,6 +1125,12 @@ export function AdminEquipmentPage() {
             onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId || selectedId)}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
+            canCreateEquipment={canCreateEquipment}
+            canEditEquipment={canEditEquipment}
+            canUploadEquipmentMedia={canUploadEquipmentMedia}
+            canDeleteEquipmentMedia={canDeleteEquipmentMedia}
+            canCommercialOperate={canCommercialOperate}
+            canUploadCaseMedia={canUploadCaseMedia}
           />
         </article>
       </div>

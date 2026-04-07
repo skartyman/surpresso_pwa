@@ -62,6 +62,7 @@ export function AdminEmployeesPage() {
   const [serviceKpi, setServiceKpi] = useState(null);
   const isEngineer = user?.role === ROLES.serviceEngineer;
   const canEdit = [ROLES.owner, ROLES.director, ROLES.serviceHead, ROLES.manager].includes(user?.role);
+  const canReadServiceKpi = [ROLES.owner, ROLES.director, ROLES.serviceHead, ROLES.manager, ROLES.serviceEngineer].includes(user?.role);
 
   const roleOptions = useMemo(() => Object.values(ROLES), []);
 
@@ -71,7 +72,7 @@ export function AdminEmployeesPage() {
       adminEmployeesApi.specializations(),
       adminEmployeesApi.brands(),
       adminEmployeesApi.zones(),
-      adminServiceApi.serviceKpi().catch(() => null),
+      (canReadServiceKpi ? adminServiceApi.serviceKpi().catch(() => null) : Promise.resolve(null)),
     ]);
 
     const users = usersPayload.users || [];
