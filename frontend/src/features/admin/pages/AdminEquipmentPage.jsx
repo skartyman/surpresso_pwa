@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
+import { ActionRail, ActionRailButton, Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
 import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
 const TABS = [
@@ -131,7 +131,10 @@ function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
 
       <article className="equipment-hub-alerts">
         <header>
-          <h3>Предупреждения</h3>
+          <div>
+            <small>Equipment pulse</small>
+            <h3>Предупреждения</h3>
+          </div>
           <small>{alertRows.reduce((sum, row) => sum + (row.count || 0), 0)} проблем в парке</small>
         </header>
         <div className="equipment-hub-alerts__grid">
@@ -224,12 +227,12 @@ function EquipmentListCard({
         </div>
       ) : null}
 
-      <div className="equipment-ops-card__actions" onClick={(event) => event.stopPropagation()}>
-        <button type="button" onClick={() => onOpenCard?.()}>Открыть</button>
-        <button type="button" onClick={() => onOpenServiceCase()}>{quickActionLabel}</button>
-        <button type="button" onClick={() => onOpenPhotos?.()}>Фото</button>
-        {onOptionalAction ? <button type="button" onClick={() => onOptionalAction?.()}>Продажи</button> : null}
-      </div>
+      <ActionRail compact className="equipment-ops-card__actions" onClick={(event) => event.stopPropagation()}>
+        <ActionRailButton onClick={() => onOpenCard?.()}>Открыть</ActionRailButton>
+        <ActionRailButton tone="brand" onClick={() => onOpenServiceCase()}>{quickActionLabel}</ActionRailButton>
+        <ActionRailButton onClick={() => onOpenPhotos?.()}>Фото</ActionRailButton>
+        {onOptionalAction ? <ActionRailButton onClick={() => onOptionalAction?.()}>Продажи</ActionRailButton> : null}
+      </ActionRail>
     </article>
   );
 }
@@ -267,22 +270,22 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
   return (
     <div className="equipment-list-toolbar">
       <div className="equipment-list-toolbar__row">
-        <div className="equipment-list-toolbar__chips">
+        <ActionRail compact className="equipment-list-toolbar__chips">
           {EQUIPMENT_LIST_FILTERS.map((filter) => (
-            <button
+            <ActionRailButton
               key={filter.key}
-              type="button"
-              className={quickFilter === filter.key ? 'active' : ''}
+              active={quickFilter === filter.key}
+              tone={quickFilter === filter.key ? 'brand' : 'default'}
               onClick={() => onFilterChange(filter.key)}
             >
               {filter.label}
-            </button>
+            </ActionRailButton>
           ))}
-        </div>
-        <div className="equipment-list-toolbar__toggle" role="group" aria-label="Вид списка">
-          <button type="button" className={viewMode === 'grid' ? 'active' : ''} onClick={() => onViewModeChange('grid')}>Сетка</button>
-          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => onViewModeChange('list')}>Список</button>
-        </div>
+        </ActionRail>
+        <ActionRail compact className="equipment-list-toolbar__toggle" role="group" aria-label="Вид списка">
+          <ActionRailButton active={viewMode === 'grid'} tone={viewMode === 'grid' ? 'brand' : 'default'} onClick={() => onViewModeChange('grid')}>Сетка</ActionRailButton>
+          <ActionRailButton active={viewMode === 'list'} tone={viewMode === 'list' ? 'brand' : 'default'} onClick={() => onViewModeChange('list')}>Список</ActionRailButton>
+        </ActionRail>
       </div>
       <input
         type="search"
@@ -1013,8 +1016,9 @@ export function AdminEquipmentPage() {
 
   return (
     <section className="equipment-ops-page">
-      <header className="service-headline">
+      <header className="equipment-command">
         <div>
+          <small>Equipment registry</small>
           <h2>Центр оборудования</h2>
           <p>Центр управления парком техники: KPI, предупреждения, быстрые действия и операционный паспорт.</p>
         </div>

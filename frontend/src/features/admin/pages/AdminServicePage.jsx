@@ -3,6 +3,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { ROLES } from '../roleConfig';
 import {
+  ActionRail,
+  ActionRailButton,
   AlertPanel,
   DetailPanel,
   FilterRow,
@@ -88,12 +90,12 @@ function getRoleActions(request, user) {
 function ServiceQuickActions({ actions, loadingKey, onAction }) {
   if (!actions.length) return null;
   return (
-    <div className="service-board-card__actions">
+    <ActionRail compact className="service-board-card__actions">
       {actions.map((action) => (
-        <button
+        <ActionRailButton
           key={`${action.kind}:${action.status || action.label}`}
-          type="button"
           className={`service-board-card__action ${action.kind === 'claim' ? '' : 'secondary'}`}
+          tone={action.kind === 'claim' ? 'brand' : 'default'}
           disabled={Boolean(loadingKey)}
           onClick={(event) => {
             event.stopPropagation();
@@ -101,9 +103,9 @@ function ServiceQuickActions({ actions, loadingKey, onAction }) {
           }}
         >
           {loadingKey === `${action.kind}:${action.status || 'claim'}` ? '...' : action.label}
-        </button>
+        </ActionRailButton>
       ))}
-    </div>
+    </ActionRail>
   );
 }
 
@@ -324,26 +326,53 @@ export function AdminServicePage() {
   const kpis = dashboard?.kpis || [];
   const attention = dashboard?.attention || [];
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
+  const quickFilters = [
+    { key: 'all', label: 'Все' },
+    { key: 'unassigned', label: 'Без назначения' },
+    { key: 'mine', label: 'Мои' },
+    { key: 'critical', label: 'Критические' },
+    { key: 'with_qc', label: 'QC / контроль' },
+  ];
+  const statusOptions = [...BOARD_COLUMNS, 'closed', 'cancelled'];
 
   return (
     <section className="service-dashboard">
-      <header className="service-headline">
-        <div><h2>Сервисные заявки</h2><p>Новый request workflow: от входящей заявки до контроля и счета.</p></div>
+      <header className="service-command">
+        <div className="service-command__copy">
+          <small>Service board</small>
+          <h2>Сервисные заявки</h2>
+          <p>Редакционный kanban по заявкам: входящий поток, инженерная работа, QC и финализация без перегруженных панелей.</p>
+        </div>
+        <div className="service-command__stats">
+          {(kpis || []).slice(0, 4).map((item) => (
+            <KPIChipCard key={item.key} label={item.label} value={item.value} icon="service" tone={item.key} hint="workflow" />
+          ))}
+        </div>
       </header>
-
-      <div className="kpi-row">
-        {kpis.map((item) => <KPIChipCard key={item.key} label={item.label} value={item.value} icon="service" tone={item.key} hint="Requests" />)}
-      </div>
 
       <AlertPanel items={attention.map((item) => <li key={item.key}><span>{item.label}</span><strong>{item.value}</strong></li>)} />
 
-      <FilterRow>
-        <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const next = { ...filters, engineer: e.target.value }; setFilters(next); load(next); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
-        <label><span>Быстрый фильтр</span><select value={filters.quickFilter} onChange={(e) => setFilters((prev) => ({ ...prev, quickFilter: e.target.value }))}><option value="all">Все</option><option value="unassigned">Без назначения</option><option value="mine">Мои</option><option value="critical">Критические</option><option value="with_qc">QC / контроль</option></select></label>
-        <label><span>Статус</span><select value={filters.status} onChange={(e) => { const next = { ...filters, status: e.target.value }; setFilters(next); load(next); }}><option value="all">Все</option>{[...BOARD_COLUMNS, 'closed', 'cancelled'].map((status) => <option key={status} value={status}>{BOARD_LABELS[status]}</option>)}</select></label>
-        <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-..." /></label>
-        <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
-      </FilterRow>
+      <div className="service-filter-shell">
+        <ActionRail compact className="service-filter-shell__chips">
+          {quickFilters.map((item) => (
+            <ActionRailButton
+              key={item.key}
+              active={filters.quickFilter === item.key}
+              tone={filters.quickFilter === item.key ? 'brand' : 'default'}
+              onClick={() => setFilters((prev) => ({ ...prev, quickFilter: item.key }))}
+            >
+              {item.label}
+            </ActionRailButton>
+          ))}
+        </ActionRail>
+
+        <FilterRow>
+          <label><span>Инженер</span><select value={filters.engineer} onChange={(e) => { const next = { ...filters, engineer: e.target.value }; setFilters(next); load(next); }}><option value="all">Все инженеры</option>{engineers.map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}</select></label>
+          <label><span>Статус</span><select value={filters.status} onChange={(e) => { const next = { ...filters, status: e.target.value }; setFilters(next); load(next); }}><option value="all">Все</option>{statusOptions.map((status) => <option key={status} value={status}>{BOARD_LABELS[status]}</option>)}</select></label>
+          <label><span>ID</span><input value={filters.id} onChange={(e) => setFilters((prev) => ({ ...prev, id: e.target.value }))} onBlur={() => load(filters)} placeholder="req-..." /></label>
+          <label><span>Клиент</span><input value={filters.client} onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))} onBlur={() => load(filters)} placeholder="поиск" /></label>
+        </FilterRow>
+      </div>
 
       {error ? <p className="error-text">{error}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
@@ -417,14 +446,14 @@ export function AdminServicePage() {
 
                   <div className="assignment-box">
                     <h4>Быстрые действия</h4>
-                    <div className="quick-filter-row">
+                    <ActionRail>
                       {getRoleActions(selectedRequest, user).map((action) => (
-                        <button key={`${action.kind}-${action.status || action.label}`} type="button" disabled={Boolean(actionLoading)} onClick={() => runAction(action)}>
+                        <ActionRailButton key={`${action.kind}-${action.status || action.label}`} tone={action.kind === 'claim' ? 'brand' : 'default'} disabled={Boolean(actionLoading)} onClick={() => runAction(action)}>
                           {action.label}
-                        </button>
+                        </ActionRailButton>
                       ))}
                       {!getRoleActions(selectedRequest, user).length ? <p className="empty-copy">Для вашей роли быстрых действий нет.</p> : null}
-                    </div>
+                    </ActionRail>
                   </div>
                 </>
               ) : null}

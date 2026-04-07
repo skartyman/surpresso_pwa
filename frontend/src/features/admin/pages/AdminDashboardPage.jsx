@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { AlertPanel, CompactMetricCard, Icon, KPIChipCard } from '../components/AdminUi';
+import { ActionRail, ActionRailButton, AlertPanel, ChartCard, CompactMetricCard, Icon, KPIChipCard } from '../components/AdminUi';
 import { ROLES } from '../roleConfig';
 import { useAdminI18n } from '../adminI18n';
 
@@ -154,13 +154,48 @@ export function AdminDashboardPage() {
   const escalationBlocks = alertsState?.escalationBlocks || {};
   const recentCritical = alertsState?.recentCriticalChanges || [];
   const notificationPreview = notificationState?.notificationPreview || { pendingCritical: 0, pendingWarning: 0, digestSize: 0 };
+  const hotAlerts = useMemo(() => [
+    { key: 'unassigned_too_long', label: 'Без назначения', value: alertsByType.unassigned_too_long || 0 },
+    { key: 'stale_in_progress', label: 'Застряли в работе', value: alertsByType.stale_in_progress || 0 },
+    { key: 'stale_ready', label: 'Готово без выдачи', value: alertsByType.stale_ready || 0 },
+    { key: 'overdue_by_stage', label: 'Просрочено по этапам', value: alertsByType.overdue_by_stage || 0 },
+  ].sort((a, b) => b.value - a.value), [alertsByType]);
+  const serviceFlow = useMemo(() => [
+    { label: 'Принято', value: serviceByStatus.accepted || 0 },
+    { label: 'В работе', value: serviceByStatus.in_progress || 0 },
+    { label: 'Тест', value: serviceByStatus.testing || 0 },
+    { label: 'Готово', value: serviceByStatus.ready || 0 },
+  ], [serviceByStatus]);
+  const commercialFlow = useMemo(() => [
+    { label: 'Аренда', value: (salesByStatus.ready_for_rent || 0) + (salesByStatus.reserved_for_rent || 0) + (salesByStatus.out_on_rent || 0) },
+    { label: 'Продажа', value: (salesByStatus.ready_for_sale || 0) + (salesByStatus.reserved_for_sale || 0) + (salesByStatus.sold || 0) },
+    { label: 'Подмена', value: salesByStatus.out_on_replacement || 0 },
+    { label: 'У клиента', value: salesByStatus.issued_to_client || 0 },
+  ], [salesByStatus]);
+  const executiveMoments = [
+    { label: 'Среднее назначение', value: formatMinutes(service.avgAssignTimeMinutes) },
+    { label: 'Средний ремонт', value: formatMinutes(service.avgRepairTimeMinutes) },
+    { label: 'QC / контроль', value: (serviceByStatus.ready_for_qc || 0) + (serviceByStatus.on_service_head_control || 0) },
+    { label: 'Дайджест', value: notificationPreview.digestSize || 0 },
+  ];
 
   return (
     <section className="owner-dashboard">
       <header className="owner-hero">
-        <div>
+        <div className="owner-hero__content">
           <h2>{t('executive_title')}</h2>
           <p>{t('executive_subtitle')}</p>
+          <ActionRail compact className="owner-hero__actions">
+            <ActionRailButton tone="brand" onClick={() => window.location.assign(`${basePath}/service`)}>
+              <Icon name="service" /> Сервис
+            </ActionRailButton>
+            <ActionRailButton onClick={() => window.location.assign(`${basePath}/equipment`)}>
+              <Icon name="equipment" /> Оборудование
+            </ActionRailButton>
+            <ActionRailButton onClick={() => window.location.assign(`${basePath}/director`)}>
+              <Icon name="dashboard" /> Директор
+            </ActionRailButton>
+          </ActionRail>
         </div>
         <div className="owner-hero__meta">
           <KPIChipCard label={t('service_cases')} value={serviceCases.length} icon="service" hint={t('service_total')} />
@@ -172,41 +207,96 @@ export function AdminDashboardPage() {
       {loading ? <p className="empty-copy">{t('loading_executive')}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
+      <section className="owner-spotlight-grid">
+        <article className="owner-spotlight owner-spotlight--feature">
+          <header>
+            <small>Операционный пульс</small>
+            <h3>Где сейчас лежит нагрузка по потоку сервиса</h3>
+          </header>
+          <div className="owner-spotlight__figures">
+            {serviceFlow.map((item) => (
+              <div key={item.label} className="owner-spotlight__metric">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="owner-spotlight__timeline">
+            {serviceFlow.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <i style={{ width: `${Math.max(14, Math.min(100, Math.round((item.value / Math.max(serviceCases.length || 1, 1)) * 100)))}%` }} />
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Горячие зоны</small>
+            <h3>Что требует внимания прямо сейчас</h3>
+          </header>
+          <div className="owner-hot-list">
+            {hotAlerts.map((item) => (
+              <div key={item.key} className="owner-hot-list__item">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="owner-spotlight">
+          <header>
+            <small>Коммерческий поток</small>
+            <h3>Как распределён парк по продаже и аренде</h3>
+          </header>
+          <div className="owner-hot-list owner-hot-list--soft">
+            {commercialFlow.map((item) => (
+              <div key={item.label} className="owner-hot-list__item">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
       <div className="owner-grid owner-grid--3">
-        <article className="owner-card">
+        <article className="owner-card owner-card--section">
           <header><h3><Icon name="service" /> {t('service_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.service.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
+                {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
         </article>
 
-        <article className="owner-card">
+        <article className="owner-card owner-card--section">
           <header><h3><Icon name="dashboard" /> {t('director_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.director.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
+                {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
         </article>
 
-        <article className="owner-card">
+        <article className="owner-card owner-card--section">
           <header><h3><Icon name="sales" /> {t('sales_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.sales.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
+                {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
@@ -214,7 +304,7 @@ export function AdminDashboardPage() {
       </div>
 
       <div className="owner-grid owner-grid--2">
-        <article className="owner-card">
+        <article className="owner-card owner-card--section">
           <header><h3><Icon name="employees" /> {t('team_performance')}</h3></header>
           <div className="team-performance-grid">
             {engineerRows.slice(0, 8).map((row) => (
@@ -241,7 +331,18 @@ export function AdminDashboardPage() {
       </div>
 
       <div className="owner-grid owner-grid--2">
-        <article className="owner-card">
+        <ChartCard title="Executive moments">
+          <div className="owner-moment-grid">
+            {executiveMoments.map((item) => (
+              <div key={item.label} className="owner-moment-card">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+
+        <article className="owner-card owner-card--section">
           <header><h3><Icon name="dashboard" /> {t('escalations')}</h3></header>
           <ul className="simple-list">
             <li>{t('service_head')}: {(escalationBlocks.serviceHead || []).length}</li>
@@ -251,7 +352,8 @@ export function AdminDashboardPage() {
           </ul>
           <p className="muted-copy">{t('notification_preview')}: {t('critical')} {notificationPreview.pendingCritical}, {t('warning')} {notificationPreview.pendingWarning}, {t('digest')} {notificationPreview.digestSize}.</p>
         </article>
-        <article className="owner-card">
+
+        <article className="owner-card owner-card--section owner-card--span">
           <header><h3><Icon name="service" /> {t('recent_critical_changes')}</h3></header>
           <ul className="simple-list">
             {recentCritical.slice(0, 5).map((item, idx) => <li key={`${item.caseId || idx}-${item.type}`}>{item.message || item.type}</li>)}

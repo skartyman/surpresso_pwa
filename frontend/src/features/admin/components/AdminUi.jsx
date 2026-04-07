@@ -62,6 +62,29 @@ export function StatusBadge({ status, children }) {
   return <span className="status-badge" data-status={status}>{children}</span>;
 }
 
+export function ActionRail({ children, compact = false, className = '', ...props }) {
+  return <div className={`action-rail ${compact ? 'action-rail--compact' : ''} ${className}`.trim()} {...props}>{children}</div>;
+}
+
+export function ActionRailButton({
+  children,
+  active = false,
+  tone = 'default',
+  className = '',
+  ...props
+}) {
+  return (
+    <button
+      type="button"
+      className={`action-rail__button ${active ? 'active' : ''} ${className}`.trim()}
+      data-tone={tone}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function CompactMetricCard({ label, value, progress, state = 'normal' }) {
   return (
     <article className="compact-metric" data-state={state}>
