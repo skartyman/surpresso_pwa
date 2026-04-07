@@ -1002,11 +1002,6 @@ export function AdminEquipmentPage() {
     });
     const rows = payload.items || [];
     setItems(rows);
-    if (equipmentId) {
-      setSelectedId(equipmentId);
-      return;
-    }
-    if (!isMobile) setSelectedId((prev) => prev || rows[0]?.id || null);
   }
 
   async function loadDetail(id) {
@@ -1021,9 +1016,8 @@ export function AdminEquipmentPage() {
   }, [searchParams, equipmentId, isMobile]); // eslint-disable-line
 
   useEffect(() => {
-    const targetId = equipmentId || selectedId;
-    loadDetail(targetId).catch(() => setDetail(null));
-  }, [equipmentId, selectedId]);
+    loadDetail(equipmentId).catch(() => setDetail(null));
+  }, [equipmentId]);
 
   const mediaRows = useMemo(() => (detail?.media || []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [detail]);
   const filteredItems = useMemo(
@@ -1038,14 +1032,10 @@ export function AdminEquipmentPage() {
   })), [filteredItems]);
 
   function selectEquipment(id) {
-    if (isMobile) {
-      navigate(`${basePath}/equipment/${id}`);
-      return;
-    }
-    setSelectedId(id);
+    navigate(`${basePath}/equipment/${id}`);
   }
 
-  function closeMobileDetail() {
+  function closeDetail() {
     navigate(`${basePath}/equipment${warningFilter ? `?warning=${encodeURIComponent(warningFilter)}` : ''}`);
   }
 
@@ -1091,7 +1081,7 @@ export function AdminEquipmentPage() {
     navigate(`${basePath}/equipment${query ? `?${query}` : ''}`);
   }
 
-  const mobileDetailMode = isMobile && Boolean(equipmentId);
+  const detailRouteMode = Boolean(equipmentId);
   const detailEquipment = detail?.equipment || null;
   const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const detailPreview = (mediaRows || [])[0] || null;
@@ -1108,9 +1098,9 @@ export function AdminEquipmentPage() {
 
       <DashboardHeader dashboard={dashboard} onAlertClick={onAlertClick} activeWarning={warningFilter} />
 
-      <div className={`equipment-ops-layout ${mobileDetailMode ? 'mobile-detail' : ''}`}>
-        {!mobileDetailMode ? (
-          <aside className="equipment-ops-list">
+      {!detailRouteMode ? (
+        <section className="equipment-ops-board-page">
+          <div className="equipment-ops-list equipment-ops-list--full">
             <EquipmentListToolbar
               quickFilter={quickFilter}
               onFilterChange={setQuickFilter}
@@ -1142,7 +1132,7 @@ export function AdminEquipmentPage() {
                           key={item.id}
                           item={item}
                           viewMode="list"
-                          active={(equipmentId || selectedId) === item.id}
+                          active={equipmentId === item.id}
                           onClick={() => selectEquipment(item.id)}
                           onOpenCard={() => selectEquipment(item.id)}
                           onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
@@ -1162,7 +1152,7 @@ export function AdminEquipmentPage() {
                     key={item.id}
                     item={item}
                     viewMode={isMobile ? 'list' : viewMode}
-                    active={(equipmentId || selectedId) === item.id}
+                    active={equipmentId === item.id}
                     onClick={() => selectEquipment(item.id)}
                     onOpenCard={() => selectEquipment(item.id)}
                     onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
@@ -1173,11 +1163,12 @@ export function AdminEquipmentPage() {
               </div>
             )}
             {!filteredItems.length ? <p className="empty-copy">Нет оборудования по выбранному фильтру.</p> : null}
-          </aside>
-        ) : null}
-
-        <article className="equipment-ops-detail">
-          {mobileDetailMode ? <button type="button" className="equipment-back-button" onClick={closeMobileDetail}>← Назад к списку</button> : null}
+          </div>
+        </section>
+      ) : (
+        <section className="equipment-ops-detail-page">
+        <article className="equipment-ops-detail equipment-ops-detail--page">
+          <button type="button" className="equipment-back-button" onClick={closeDetail}>← Назад к ленте</button>
           <header className="equipment-ops-detail__hero">
             <div className="equipment-ops-detail__hero-copy">
               <small>Equipment passport</small>
@@ -1224,7 +1215,7 @@ export function AdminEquipmentPage() {
             tab={activeTab}
             detail={{ ...detail, media: mediaRows }}
             onOpenMedia={setLightboxIndex}
-            onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId || selectedId)}
+            onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId)}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
             canCreateEquipment={canCreateEquipment}
@@ -1235,7 +1226,8 @@ export function AdminEquipmentPage() {
             canUploadCaseMedia={canUploadCaseMedia}
           />
         </article>
-      </div>
+        </section>
+      )}
 
       <Lightbox
         rows={mediaRows}
