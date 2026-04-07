@@ -269,7 +269,7 @@ function EquipmentListCard({
       </div>
 
       <div className="equipment-ops-card__scan-chips">
-        <em>{item.serviceStatus || '—'}</em>
+        <em>{getServiceLabel(item.serviceStatus, t)}</em>
         {hasActiveCase ? <em>{t('active_case_short')}: {item.activeServiceCaseId}</em> : <em>{t('no_active_case_short')}</em>}
       </div>
 
@@ -284,14 +284,14 @@ function EquipmentListCard({
   );
 }
 
-function classifyEquipmentColumn(item) {
+function classifyEquipmentColumn(item, canSeeCommercial = true) {
   const serviceStatus = String(item.serviceStatus || item.activeServiceCaseStatus || '').trim();
   const commercialStatus = String(item.commercialStatus || '').trim();
   const warnings = item.warnings || [];
 
-  if (commercialStatus === 'issued_to_client') return 'client';
-  if (RENT_STATUSES.has(commercialStatus)) return 'rent';
-  if (SALE_STATUSES.has(commercialStatus)) return 'sale';
+  if (canSeeCommercial && commercialStatus === 'issued_to_client') return 'client';
+  if (canSeeCommercial && RENT_STATUSES.has(commercialStatus)) return 'rent';
+  if (canSeeCommercial && SALE_STATUSES.has(commercialStatus)) return 'sale';
   if (serviceStatus === 'ready') return 'ready';
   if (warnings.length) return 'attention';
   return 'service';
@@ -756,6 +756,7 @@ function TabPanel({
               <article>
                 <span>{t('status')}</span>
                 <strong>{canSeeCommercial ? getCommercialLabel(equipment.commercialStatus || 'none', t) : getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
+                {!canSeeCommercial ? <small>{t('service_status_control_hint')}</small> : null}
               </article>
               <article>
                 <span>{t('history')}</span>
@@ -1136,8 +1137,8 @@ export function AdminEquipmentPage() {
     ...column,
     label: t(column.labelKey),
     eyebrow: t(column.eyebrowKey),
-    items: filteredItems.filter((item) => classifyEquipmentColumn(item) === column.key),
-  })), [filteredItems, t]);
+    items: filteredItems.filter((item) => classifyEquipmentColumn(item, canSeeCommercial) === column.key),
+  })), [filteredItems, t, canSeeCommercial]);
   const boardNavItems = useMemo(() => [
     { key: 'summary', label: t('summary'), count: dashboard?.kpi?.totalEquipment || 0 },
     ...boardColumns.map((column) => ({ key: column.key, label: column.label, count: column.items.length })),

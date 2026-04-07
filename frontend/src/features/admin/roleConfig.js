@@ -118,7 +118,7 @@ export function getAdminRoleProfile(role) {
       showAssignmentPanel: isServiceHead || isManager || isOwner,
       showInternalNotesComposer: isEngineer || isServiceHead || isManager || isDirector || isOwner,
       visibleStatuses: isEngineer
-        ? ['new', 'assigned', 'taken_in_work', 'ready_for_qc']
+        ? ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced']
         : isServiceHead
           ? ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control']
           : ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced'],
