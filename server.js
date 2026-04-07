@@ -2404,4 +2404,4 @@ app.delete("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handl
 // START
 // =======================
 await setupMiniAppLayer();
-app.listen(PORT, () => console.log("Server started on port " + PORT));
+app.listen(PORT, "0.0.0.0", () => console.log("Server started on 0.0.0.0:" + PORT));
