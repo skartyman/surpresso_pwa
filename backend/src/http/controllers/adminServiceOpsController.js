@@ -540,7 +540,17 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     async listEquipment(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const items = await serviceOpsRepository.listEquipment(req.query || {});
-      return res.json({ items });
+      const normalized = (items || []).map((item) => {
+        const media = normalizeEquipmentMedia(req, item.media || []);
+        const firstMedia = media[0] || null;
+        return {
+          ...item,
+          media,
+          previewUrl: item.previewUrl || firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || '',
+          mediaPreviewUrl: item.mediaPreviewUrl || firstMedia?.previewUrl || firstMedia?.fullUrl || firstMedia?.fileUrl || '',
+        };
+      });
+      return res.json({ items: normalized });
     },
 
     async equipmentById(req, res) {
@@ -557,6 +567,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.json({
         item: {
           ...item,
+          media: normalizeEquipmentMedia(req, item.media || []),
           availableCommercialActions,
           availableActions: nextActions.all,
           nextActions,
