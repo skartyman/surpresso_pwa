@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
-import { ActionRail, ActionRailButton, Icon, KPIChipCard, StatusBadge } from '../components/AdminUi';
+import { ActionRail, ActionRailButton, Icon, StatusBadge } from '../components/AdminUi';
 import { ROLES } from '../roleConfig';
 import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
@@ -59,16 +59,6 @@ const ALERT_TONES = {
   inconsistent_status_data: 'critical',
 };
 
-const EQUIPMENT_LIST_FILTERS = [
-  { key: 'all', label: 'Все' },
-  { key: 'in_service', label: 'В сервисе' },
-  { key: 'ready', label: 'Готово' },
-  { key: 'rent', label: 'Аренда' },
-  { key: 'sale', label: 'Продажа' },
-  { key: 'client', label: 'У клиента' },
-  { key: 'attention', label: 'Требует внимания' },
-];
-
 const RENT_STATUSES = new Set(['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'out_on_replacement']);
 const SALE_STATUSES = new Set(['ready_for_sale', 'reserved_for_sale', 'sold']);
 const EQUIPMENT_BOARD_COLUMNS = [
@@ -124,30 +114,54 @@ function getEquipmentWarnings(detail) {
   return warnings.map((key) => ALERT_LABELS[key] || key);
 }
 
-function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
+function DashboardSummaryColumn({ dashboard, onAlertClick, activeWarning, onResetWarning }) {
   const kpi = dashboard?.kpi || {};
   const alertRows = dashboard?.alerts || [];
+  const kpiRows = [
+    { key: 'total', label: 'Всего техники', value: kpi.totalEquipment || 0, hint: 'Парк в реестре' },
+    { key: 'service', label: 'В сервисе', value: kpi.inService || 0, hint: 'Активный цикл' },
+    { key: 'rent', label: 'Готово к аренде', value: kpi.readyForRent || 0, hint: 'Rental flow' },
+    { key: 'sale', label: 'Готово к продаже', value: kpi.readyForSale || 0, hint: 'Sales flow' },
+    { key: 'client', label: 'У клиента', value: kpi.issuedToClient || 0, hint: 'Точки и клиенты' },
+    { key: 'field', label: 'Подмена / аренда', value: kpi.onReplacementOrRent || 0, hint: 'В полях' },
+  ];
 
   return (
-    <div className="equipment-hub-header">
-      <div className="equipment-hub-kpi-grid">
-        <KPIChipCard label="Всего техники" value={kpi.totalEquipment || 0} icon="equipment" hint="Парк в реестре" tone="info" />
-        <KPIChipCard label="В сервисе" value={kpi.inService || 0} icon="service" hint="Активный сервисный цикл" tone="warning" />
-        <KPIChipCard label="Готово к аренде" value={kpi.readyForRent || 0} icon="sales" hint="Можно выводить в rental" tone="positive" />
-        <KPIChipCard label="Готово к продаже" value={kpi.readyForSale || 0} icon="sales" hint="Доступно для sales" tone="positive" />
-        <KPIChipCard label="У клиента" value={kpi.issuedToClient || 0} icon="clients" hint="Выдано клиентам" tone="info" />
-        <KPIChipCard label="На подмене / в аренде" value={kpi.onReplacementOrRent || 0} icon="dashboard" hint="Активно в полях" tone="warning" />
+    <section className="equipment-board-column equipment-board-column--summary" data-accent="gold">
+      <header className="equipment-board-column__header equipment-board-column__header--summary">
+        <div>
+          <small>Equipment pulse</small>
+          <h4>Сводка</h4>
+        </div>
+        <strong>{kpi.totalEquipment || 0}</strong>
+      </header>
+
+      {activeWarning ? (
+        <div className="equipment-warning-filter-chip equipment-warning-filter-chip--summary">
+          <span>Фильтр: {ALERT_LABELS[activeWarning] || activeWarning}</span>
+          <button type="button" onClick={onResetWarning}>Сбросить</button>
+        </div>
+      ) : null}
+
+      <div className="equipment-board-summary-grid">
+        {kpiRows.map((row) => (
+          <article key={row.key} className="equipment-board-summary-card">
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+            <small>{row.hint}</small>
+          </article>
+        ))}
       </div>
 
-      <article className="equipment-hub-alerts">
+      <article className="equipment-hub-alerts equipment-hub-alerts--column">
         <header>
           <div>
-            <small>Equipment pulse</small>
+            <small>Мониторинг</small>
             <h3>Предупреждения</h3>
           </div>
-          <small>{alertRows.reduce((sum, row) => sum + (row.count || 0), 0)} проблем в парке</small>
+          <small>{alertRows.reduce((sum, row) => sum + (row.count || 0), 0)} сигналов</small>
         </header>
-        <div className="equipment-hub-alerts__grid">
+        <div className="equipment-hub-alerts__grid equipment-hub-alerts__grid--column">
           {Object.keys(ALERT_LABELS).map((key) => {
             const row = alertRows.find((item) => item.key === key) || { count: 0 };
             const isActive = activeWarning === key;
@@ -165,7 +179,7 @@ function DashboardHeader({ dashboard, onAlertClick, activeWarning }) {
           })}
         </div>
       </article>
-    </div>
+    </section>
   );
 }
 
@@ -260,20 +274,6 @@ function classifyEquipmentColumn(item) {
   return 'service';
 }
 
-function passesQuickFilter(item, quickFilter) {
-  const serviceStatus = String(item.serviceStatus || item.activeServiceCaseStatus || '').trim();
-  const commercialStatus = String(item.commercialStatus || '').trim();
-  const warnings = item.warnings || [];
-
-  if (quickFilter === 'in_service') return ['accepted', 'in_progress', 'testing', 'ready'].includes(serviceStatus);
-  if (quickFilter === 'ready') return serviceStatus === 'ready';
-  if (quickFilter === 'rent') return RENT_STATUSES.has(commercialStatus);
-  if (quickFilter === 'sale') return SALE_STATUSES.has(commercialStatus);
-  if (quickFilter === 'client') return commercialStatus === 'issued_to_client';
-  if (quickFilter === 'attention') return warnings.length > 0;
-  return true;
-}
-
 function matchesSearch(item, value) {
   if (!value) return true;
   const haystack = [
@@ -289,37 +289,21 @@ function matchesSearch(item, value) {
   return haystack.includes(value.toLowerCase());
 }
 
-function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewModeChange, searchTerm, onSearchTermChange }) {
+function EquipmentBoardToolbar({ boardNavItems, onBoardNav }) {
   return (
     <div className="equipment-list-toolbar">
       <div className="equipment-list-toolbar__copy">
         <small>Equipment lane</small>
         <strong>Лента оборудования</strong>
       </div>
-      <div className="equipment-list-toolbar__row">
-        <ActionRail compact className="equipment-list-toolbar__chips">
-          {EQUIPMENT_LIST_FILTERS.map((filter) => (
-            <ActionRailButton
-              key={filter.key}
-              active={quickFilter === filter.key}
-              tone={quickFilter === filter.key ? 'brand' : 'default'}
-              onClick={() => onFilterChange(filter.key)}
-            >
-              {filter.label}
-            </ActionRailButton>
-          ))}
-        </ActionRail>
-        <ActionRail compact className="equipment-list-toolbar__toggle" role="group" aria-label="Вид списка">
-          <ActionRailButton active={viewMode === 'list'} tone={viewMode === 'list' ? 'brand' : 'default'} onClick={() => onViewModeChange('list')}>Лента</ActionRailButton>
-          <ActionRailButton active={viewMode === 'grid'} tone={viewMode === 'grid' ? 'brand' : 'default'} onClick={() => onViewModeChange('grid')}>Плитка</ActionRailButton>
-        </ActionRail>
+      <div className="equipment-board-nav" aria-label="Навигация по колонкам">
+        {boardNavItems.map((column) => (
+          <button key={column.key} type="button" className="equipment-board-nav__chip" onClick={() => onBoardNav?.(column.key)}>
+            <span>{column.label}</span>
+            <strong>{column.count}</strong>
+          </button>
+        ))}
       </div>
-      <input
-        type="search"
-        value={searchTerm}
-        onChange={(event) => onSearchTermChange(event.target.value)}
-        placeholder="Поиск: бренд, модель, серийный номер, клиент…"
-      />
     </div>
   );
 }
@@ -969,10 +953,9 @@ export function AdminEquipmentPage() {
   const [detail, setDetail] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
-  const [quickFilter, setQuickFilter] = useState('all');
-  const [viewMode, setViewMode] = useState('list');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
+  const boardRef = useRef(null);
+  const boardColumnRefs = useRef({});
   const canCreateEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canEditEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canUploadEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
@@ -982,14 +965,6 @@ export function AdminEquipmentPage() {
 
   const basePath = getBaseAdminPath(location.pathname);
   const warningFilter = String(searchParams.get('warning') || '').trim();
-
-  useEffect(() => {
-    const query = typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)') : null;
-    if (!query) return undefined;
-    const listener = (event) => setIsMobile(event.matches);
-    query.addEventListener('change', listener);
-    return () => query.removeEventListener('change', listener);
-  }, []);
 
   async function loadDashboard() {
     const payload = await adminServiceApi.equipmentDashboard();
@@ -1013,7 +988,7 @@ export function AdminEquipmentPage() {
   useEffect(() => {
     loadDashboard().catch(() => setDashboard({ kpi: {}, alerts: [] }));
     loadList().catch(() => setItems([]));
-  }, [searchParams, equipmentId, isMobile]); // eslint-disable-line
+  }, [searchParams, equipmentId]); // eslint-disable-line
 
   useEffect(() => {
     loadDetail(equipmentId).catch(() => setDetail(null));
@@ -1021,15 +996,17 @@ export function AdminEquipmentPage() {
 
   const mediaRows = useMemo(() => (detail?.media || []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [detail]);
   const filteredItems = useMemo(
-    () => items
-      .filter((item) => passesQuickFilter(item, quickFilter))
-      .filter((item) => matchesSearch(item, searchTerm)),
-    [items, quickFilter, searchTerm],
+    () => items.filter((item) => matchesSearch(item, searchTerm)),
+    [items, searchTerm],
   );
   const boardColumns = useMemo(() => EQUIPMENT_BOARD_COLUMNS.map((column) => ({
     ...column,
     items: filteredItems.filter((item) => classifyEquipmentColumn(item) === column.key),
   })), [filteredItems]);
+  const boardNavItems = useMemo(() => [
+    { key: 'summary', label: 'Сводка', count: dashboard?.kpi?.totalEquipment || 0 },
+    ...boardColumns.map((column) => ({ key: column.key, label: column.label, count: column.items.length })),
+  ], [boardColumns, dashboard]);
 
   function selectEquipment(id) {
     navigate(`${basePath}/equipment/${id}`);
@@ -1081,6 +1058,15 @@ export function AdminEquipmentPage() {
     navigate(`${basePath}/equipment${query ? `?${query}` : ''}`);
   }
 
+  function scrollToBoardColumn(key) {
+    const container = boardRef.current;
+    const target = boardColumnRefs.current[key];
+    if (!container || !target) return;
+    const gap = 12;
+    const nextLeft = Math.max(target.offsetLeft - gap, 0);
+    container.scrollTo({ left: nextLeft, behavior: 'smooth' });
+  }
+
   const detailRouteMode = Boolean(equipmentId);
   const detailEquipment = detail?.equipment || null;
   const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
@@ -1095,73 +1081,65 @@ export function AdminEquipmentPage() {
           <p>Центр управления парком техники: KPI, предупреждения, быстрые действия и операционный паспорт.</p>
         </div>
       </header>
-
-      <DashboardHeader dashboard={dashboard} onAlertClick={onAlertClick} activeWarning={warningFilter} />
-
       {!detailRouteMode ? (
         <section className="equipment-ops-board-page">
-          <div className="equipment-ops-list equipment-ops-list--full">
-            <EquipmentListToolbar
-              quickFilter={quickFilter}
-              onFilterChange={setQuickFilter}
-              viewMode={isMobile ? 'list' : viewMode}
-              onViewModeChange={setViewMode}
-              searchTerm={searchTerm}
-              onSearchTermChange={setSearchTerm}
+          <div className="equipment-board-toolbar-shell">
+            <div className="equipment-list-search">
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Поиск: бренд, модель, серийный номер, клиент…"
+              />
+            </div>
+            <EquipmentBoardToolbar
+              boardNavItems={boardNavItems}
+              onBoardNav={scrollToBoardColumn}
             />
-            {warningFilter ? (
-              <div className="equipment-warning-filter-chip">
-                <span>Фильтр: {ALERT_LABELS[warningFilter] || warningFilter}</span>
-                <button type="button" onClick={resetWarningFilter}>Сбросить</button>
+          </div>
+          <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
+            <div ref={boardRef} className="equipment-board">
+              <div ref={(node) => { boardColumnRefs.current.summary = node; }} className="equipment-board-column-anchor">
+                <DashboardSummaryColumn
+                  dashboard={dashboard}
+                  onAlertClick={onAlertClick}
+                  activeWarning={warningFilter}
+                  onResetWarning={resetWarningFilter}
+                />
               </div>
-            ) : null}
-            {(!isMobile && viewMode === 'list') ? (
-              <div className="equipment-board">
-                {boardColumns.map((column) => (
-                  <section key={column.key} className="equipment-board-column" data-accent={column.accent}>
-                    <header className="equipment-board-column__header">
-                      <div>
-                        <small>{column.eyebrow}</small>
-                        <h4>{column.label}</h4>
-                      </div>
-                      <strong>{column.items.length}</strong>
-                    </header>
-                    <div className="equipment-board-column__cards">
-                      {column.items.map((item) => (
-                        <EquipmentListCard
-                          key={item.id}
-                          item={item}
-                          viewMode="list"
-                          active={equipmentId === item.id}
-                          onClick={() => selectEquipment(item.id)}
-                          onOpenCard={() => selectEquipment(item.id)}
-                          onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
-                          onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
-                          onOptionalAction={() => navigateToBoard('sales_board', item.id)}
-                        />
-                      ))}
-                      {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+              {boardColumns.map((column) => (
+                <section
+                  key={column.key}
+                  ref={(node) => { boardColumnRefs.current[column.key] = node; }}
+                  className="equipment-board-column"
+                  data-accent={column.accent}
+                >
+                  <header className="equipment-board-column__header">
+                    <div>
+                      <small>{column.eyebrow}</small>
+                      <h4>{column.label}</h4>
                     </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <div className={`equipment-ops-list__cards equipment-ops-list__cards--${isMobile ? 'list' : viewMode}`}>
-                {filteredItems.map((item) => (
-                  <EquipmentListCard
-                    key={item.id}
-                    item={item}
-                    viewMode={isMobile ? 'list' : viewMode}
-                    active={equipmentId === item.id}
-                    onClick={() => selectEquipment(item.id)}
-                    onOpenCard={() => selectEquipment(item.id)}
-                    onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
-                    onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
-                    onOptionalAction={() => navigateToBoard('sales_board', item.id)}
-                  />
-                ))}
-              </div>
-            )}
+                    <strong>{column.items.length}</strong>
+                  </header>
+                  <div className="equipment-board-column__cards">
+                    {column.items.map((item) => (
+                      <EquipmentListCard
+                        key={item.id}
+                        item={item}
+                        viewMode="list"
+                        active={equipmentId === item.id}
+                        onClick={() => selectEquipment(item.id)}
+                        onOpenCard={() => selectEquipment(item.id)}
+                        onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
+                        onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                        onOptionalAction={() => navigateToBoard('sales_board', item.id)}
+                      />
+                    ))}
+                    {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                  </div>
+                </section>
+              ))}
+            </div>
             {!filteredItems.length ? <p className="empty-copy">Нет оборудования по выбранному фильтру.</p> : null}
           </div>
         </section>

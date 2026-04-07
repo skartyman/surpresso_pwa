@@ -68,11 +68,6 @@ export function AdminLayout() {
     [sectionsSource, user.role],
   );
 
-  const flatNavItems = useMemo(
-    () => sections.flatMap((section) => section.items.map((item) => ({ ...item, sectionLabel: section.label }))),
-    [sections],
-  );
-
   const currentItem = useMemo(() => {
     for (const section of sections) {
       const found = section.items.find((item) => location.pathname.includes(`/${item.to}`));
@@ -201,18 +196,6 @@ export function AdminLayout() {
             <ThemeToggle mode={mode} resolvedTheme={resolvedTheme} onToggle={cycleMode} />
           </div>
         </header>
-        <div className="admin-mobile-nav" aria-label="Навигация админки">
-          {flatNavItems.map((item) => (
-            <NavLink
-              key={`mobile-${item.key}`}
-              to={`${basePath}/${item.to}`}
-              className={({ isActive }) => `admin-mobile-nav__item ${isActive ? 'active' : ''}`}
-            >
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </div>
         <section className="admin-content"><Outlet /></section>
       </main>
     </div>
