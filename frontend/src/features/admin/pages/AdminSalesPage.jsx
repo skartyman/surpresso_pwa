@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { AlertPanel, DetailPanel, Icon, KPIChipCard, OpsBoardCard, StatusBadge } from '../components/AdminUi';
+import { useAdminI18n } from '../adminI18n';
 
 const SALES_COLUMNS = ['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'ready_for_sale', 'reserved_for_sale', 'sold'];
 const LABELS = {
@@ -16,9 +17,10 @@ const LABELS = {
 function formatDate(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—'; }
 
 function SalesCard({ item, active, onSelect }) {
+  const { t } = useAdminI18n();
   const status = item.commercialStatus || 'none';
   const warnings = [];
-  if (!item.serial) warnings.push('No serial');
+  if (!item.serial) warnings.push(t('no_serial'));
   if (status === 'ready_for_rent' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
   if (status === 'ready_for_sale' && (Date.now() - new Date(item.updatedAt).getTime()) > 24 * 3600000) warnings.push('Слишком долго в статусе «Готово»');
 
@@ -30,9 +32,9 @@ function SalesCard({ item, active, onSelect }) {
       statusLabel={LABELS[status] || status}
       title={item.clientName || 'Клиент'}
       subtitle={`${item.brand || '—'} ${item.model || ''} · ${item.internalNumber || '—'} / ${item.serial || '—'}`}
-      ownerType={`owner: ${item.ownerType || '—'}`}
-      intakeType={`intake: ${item.intakeType || '—'}`}
-      assignedMaster={item.assignedToUser?.fullName || 'Мастер: —'}
+      ownerType={`${t('owner')}: ${item.ownerType || '—'}`}
+      intakeType={`${t('intake')}: ${item.intakeType || '—'}`}
+      assignedMaster={item.assignedToUser?.fullName || t('master_empty')}
       serviceStatus={item.serviceStatus || '—'}
       commercialStatus={status}
       updatedAt={formatDate(item.updatedAt)}
@@ -44,6 +46,7 @@ function SalesCard({ item, active, onSelect }) {
 }
 
 export function AdminSalesPage() {
+  const { t } = useAdminI18n();
   const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -62,7 +65,7 @@ export function AdminSalesPage() {
       setSelectedId((prev) => prev || requestedEquipmentId || rows[0]?.id || null);
       setError('');
     } catch {
-      setError('Не удалось загрузить sales board.');
+        setError('Не удалось загрузить доску продаж.');
     }
   }
 
@@ -134,7 +137,7 @@ export function AdminSalesPage() {
 
   return (
     <section className="service-dashboard">
-      <header className="service-headline"><div><h2>Sales Board</h2><p>Action-based commercial workflow для salesManager.</p></div></header>
+      <header className="service-headline"><div><h2>{t('sales_board_title')}</h2><p>{t('sales_board_subtitle')}</p></div></header>
       <div className="kpi-row">
         <KPIChipCard label="Готово к аренде" value={columns.find((c) => c.status === 'ready_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
         <KPIChipCard label="Зарезервировано под аренду" value={columns.find((c) => c.status === 'reserved_for_rent')?.items.length || 0} icon="sales" hint="Sales" />
@@ -142,17 +145,17 @@ export function AdminSalesPage() {
         <KPIChipCard label="Готово к продаже" value={columns.find((c) => c.status === 'ready_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
         <KPIChipCard label="Зарезервировано к продаже" value={columns.find((c) => c.status === 'reserved_for_sale')?.items.length || 0} icon="sales" hint="Sales" />
         <KPIChipCard label="Продано" value={columns.find((c) => c.status === 'sold')?.items.length || 0} icon="dashboard" hint="Sales" />
-        <KPIChipCard label="Rent backlog" value={items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
-        <KPIChipCard label="Sale backlog" value={items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
-        <KPIChipCard label="Reserved aging" value={items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length} icon="bell" hint="Sales" />
+        <KPIChipCard label="Бэклог аренды" value={items.filter((item) => ['ready_for_rent', 'reserved_for_rent'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
+        <KPIChipCard label="Бэклог продажи" value={items.filter((item) => ['ready_for_sale', 'reserved_for_sale'].includes(item.commercialStatus)).length} icon="sales" hint="Sales" />
+        <KPIChipCard label="Задержка в бронях" value={items.filter((item) => ['reserved_for_rent', 'reserved_for_sale'].includes(item.commercialStatus) && (Date.now() - new Date(item.updatedAt).getTime()) > 48 * 3600000).length} icon="bell" hint="Sales" />
       </div>
 
       <AlertPanel items={[
-        <li key="unassigned"><span>Unassigned</span><strong>{attention.unassigned}</strong></li>,
-        <li key="equipment"><span>No equipment data</span><strong>{attention.noEquipment}</strong></li>,
-        <li key="stale"><span>Stale in progress</span><strong>{attention.staleInProgress}</strong></li>,
+        <li key="unassigned"><span>{t('unassigned')}</span><strong>{attention.unassigned}</strong></li>,
+        <li key="equipment"><span>{t('no_equipment_data')}</span><strong>{attention.noEquipment}</strong></li>,
+        <li key="stale"><span>{t('stale_in_progress')}</span><strong>{attention.staleInProgress}</strong></li>,
         <li key="ready"><span>Слишком долго в статусе «Готово»</span><strong>{attention.readyTooLong}</strong></li>,
-        <li key="backlog"><span>Rent/sale backlog</span><strong>{attention.rentSaleBacklog}</strong></li>,
+        <li key="backlog"><span>{t('rent_sale_backlog')}</span><strong>{attention.rentSaleBacklog}</strong></li>,
       ]} />
 
       {error ? <p className="error-text">{error}</p> : null}
@@ -172,15 +175,15 @@ export function AdminSalesPage() {
         </div>
 
         <DetailPanel>
-          {!selectedEquipment ? <p>Выберите оборудование.</p> : (
+          {!selectedEquipment ? <p>{t('select_equipment')}</p> : (
             <>
               <header className="detail-header"><h3>{selectedEquipment.id}</h3><StatusBadge status={selectedEquipment.commercialStatus || 'none'}>{LABELS[selectedEquipment.commercialStatus || 'none'] || (selectedEquipment.commercialStatus || 'none')}</StatusBadge></header>
               <div className="detail-split">
                 <div className="detail-grid">
                   <p><Icon name="clients" /> Клиент: {selectedEquipment.clientName || '—'}</p>
                   <p><Icon name="equipment" /> Оборудование: {selectedEquipment.brand || '—'} {selectedEquipment.model || ''}</p>
-                  <p><Icon name="equipment" /> Internal/Serial: {selectedEquipment.internalNumber || '—'} / {selectedEquipment.serial || '—'}</p>
-                  <p><Icon name="service" /> Service status: {selectedEquipment.serviceStatus || '—'}</p>
+                  <p><Icon name="equipment" /> {t('internal_serial')}: {selectedEquipment.internalNumber || '—'} / {selectedEquipment.serial || '—'}</p>
+                  <p><Icon name="service" /> Статус сервиса: {selectedEquipment.serviceStatus || '—'}</p>
                   <p><Icon name="sales" /> Обновлено: {formatDate(selectedEquipment.updatedAt)}</p>
                 </div>
                 <div className="detail-stack">
@@ -189,14 +192,14 @@ export function AdminSalesPage() {
               </div>
 
               <div className="assignment-box">
-                <h4>Commercial actions</h4>
+                <h4>Коммерческие действия</h4>
                 <div className="quick-filter-row">
                   {actions.map((action) => (
                     <button disabled={Boolean(actionLoading)} key={action.key + action.targetStatus} type="button" onClick={() => performAction(action.key, action.targetStatus).catch(() => setError('Коммерческий переход запрещен.'))}>
                       {actionLoading === `${action.key}:${action.targetStatus || ''}` ? 'Сохраняем...' : action.label}
                     </button>
                   ))}
-                  {!actions.length ? <p className="empty-copy">Нет доступных действий.</p> : null}
+                  {!actions.length ? <p className="empty-copy">{t('no_actions')}</p> : null}
                 </div>
               </div>
             </>

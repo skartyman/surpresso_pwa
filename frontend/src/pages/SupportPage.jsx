@@ -30,7 +30,7 @@ export function SupportPage() {
       <form className="service-panel service-form" onSubmit={onSubmit}>
         <input
           value={chatId}
-          placeholder="Telegram chat ID"
+          placeholder={t('support_chat_id')}
           onChange={(e) => setChatId(e.target.value)}
           required
         />

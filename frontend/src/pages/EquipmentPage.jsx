@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import { telegramClientApi } from '../api/telegramClientApi';
 import { useI18n } from '../i18n';
 
+function translateEquipmentStatus(status, t) {
+  if (!status) return t('active');
+  return t(`status_${String(status).trim().toLowerCase()}`);
+}
+
 export function EquipmentPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +38,7 @@ export function EquipmentPage() {
           <Link className="list-item client-equipment-card" key={item.id} to={`/equipment/${item.id}`}>
             <div className="client-equipment-card__head">
               <strong>{item.brand} {item.model}</strong>
-              <span>{item.status || 'active'}</span>
+              <span>{translateEquipmentStatus(item.status, t)}</span>
             </div>
             <p>{t('serial_short')}: {item.serialNumber || '—'}</p>
             <p>{t('equipment_point')}: {item.locationName || item.clientLocation || item.address || '—'}</p>

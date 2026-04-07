@@ -8,6 +8,18 @@ export const ROLES = {
   seo: 'seo',
 };
 
+export function getRoleLabels(t) {
+  return {
+    [ROLES.manager]: t('role_manager'),
+    [ROLES.serviceEngineer]: t('role_service_engineer'),
+    [ROLES.serviceHead]: t('role_service_head'),
+    [ROLES.salesManager]: t('role_sales_manager'),
+    [ROLES.owner]: t('role_owner'),
+    [ROLES.director]: t('role_director'),
+    [ROLES.seo]: t('role_seo'),
+  };
+}
+
 export const ROLE_LABELS = {
   [ROLES.manager]: 'Менеджер',
   [ROLES.serviceEngineer]: 'Сервисный инженер',
@@ -20,44 +32,46 @@ export const ROLE_LABELS = {
 
 const ALL_ROLES = Object.values(ROLES);
 
-export const ADMIN_SECTIONS = [
+export function getAdminSections(t) {
+  return [
   {
     key: 'operations',
-    label: 'Операционная работа',
+    label: t('nav_operations'),
     items: [
-      { key: 'service', to: 'service', icon: 'service', label: 'Сервис', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
-      { key: 'employees', to: 'employees', icon: 'employees', label: 'Сотрудники', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo] },
-      { key: 'director', to: 'director', icon: 'dashboard', label: 'Директор', roles: [ROLES.director, ROLES.owner] },
-      { key: 'sales', to: 'sales', icon: 'sales', label: 'Продажи', roles: [ROLES.salesManager, ROLES.owner, ROLES.director] },
-      { key: 'equipment', to: 'equipment', icon: 'equipment', label: 'Оборудование', roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
+      { key: 'service', to: 'service', icon: 'service', label: t('nav_service'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
+      { key: 'employees', to: 'employees', icon: 'employees', label: t('nav_employees'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo] },
+      { key: 'director', to: 'director', icon: 'dashboard', label: t('nav_director'), roles: [ROLES.director, ROLES.owner] },
+      { key: 'sales', to: 'sales', icon: 'sales', label: t('nav_sales'), roles: [ROLES.salesManager, ROLES.owner, ROLES.director] },
+      { key: 'equipment', to: 'equipment', icon: 'equipment', label: t('nav_equipment'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
     ],
   },
   {
     key: 'management',
-    label: 'Управление',
+    label: t('nav_management'),
     items: [
-      { key: 'executive', to: 'executive', icon: 'dashboard', label: 'Сводка', roles: [ROLES.director, ROLES.owner] },
-      { key: 'reports', to: 'reports', icon: 'reports', label: 'Отчёты', roles: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
-      { key: 'notifications', to: 'notifications', icon: 'bell', label: 'Центр уведомлений', roles: [ROLES.serviceHead, ROLES.director, ROLES.owner] },
+      { key: 'executive', to: 'executive', icon: 'dashboard', label: t('nav_executive'), roles: [ROLES.director, ROLES.owner] },
+      { key: 'reports', to: 'reports', icon: 'reports', label: t('nav_reports'), roles: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
+      { key: 'notifications', to: 'notifications', icon: 'bell', label: t('nav_notifications'), roles: [ROLES.serviceHead, ROLES.director, ROLES.owner] },
     ],
   },
   {
     key: 'content',
-    label: 'Контент',
+    label: t('nav_content'),
     items: [
-      { key: 'content', to: 'content', icon: 'content', label: 'Контент и SEO', roles: [ROLES.seo, ROLES.owner] },
+      { key: 'content', to: 'content', icon: 'content', label: t('nav_content_seo'), roles: [ROLES.seo, ROLES.owner] },
     ],
   },
   {
     key: 'system',
-    label: 'Система',
+    label: t('nav_system'),
     items: [
-      { key: 'settings', to: 'settings', icon: 'settings', label: 'Настройки', roles: ALL_ROLES },
+      { key: 'settings', to: 'settings', icon: 'settings', label: t('nav_settings'), roles: ALL_ROLES },
     ],
   },
 ];
+}
 
-export const ADMIN_MENU = ADMIN_SECTIONS.flatMap((section) => section.items);
+export const ADMIN_MENU = [];
 
 export const PAGE_PERMISSIONS = {
   executive: [ROLES.owner, ROLES.director],

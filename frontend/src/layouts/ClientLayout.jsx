@@ -46,8 +46,8 @@ export function ClientLayout({ children }) {
 
         <div className="client-sidebar__promo">
           <small>{t('welcome_kicker')}</small>
-          <strong>Workshop flow, point equipment, service requests.</strong>
-          <p>Mini App для клиента, точки и сети с быстрым доступом к сервису.</p>
+          <strong>{t('workshop_flow')}</strong>
+          <p>{t('client_promo')}</p>
         </div>
 
         <nav className="client-nav">

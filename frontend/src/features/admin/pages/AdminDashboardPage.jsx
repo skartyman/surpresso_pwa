@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { AlertPanel, CompactMetricCard, Icon, KPIChipCard } from '../components/AdminUi';
 import { ROLES } from '../roleConfig';
+import { useAdminI18n } from '../adminI18n';
 
 function formatMinutes(value) {
   return Number.isFinite(value) ? `${value} мин` : '—';
@@ -21,6 +22,7 @@ function buildBasePath(pathname) {
 }
 
 export function AdminDashboardPage() {
+  const { t } = useAdminI18n();
   const { user } = useAuth();
   const location = useLocation();
   const basePath = buildBasePath(location.pathname);
@@ -52,7 +54,7 @@ export function AdminDashboardPage() {
         setSalesItems(salesPayload.items || []);
         setError('');
       } catch {
-        setError('Не удалось загрузить owner executive dashboard.');
+        setError('Не удалось загрузить управленческую сводку.');
       } finally {
         setLoading(false);
       }
@@ -121,29 +123,29 @@ export function AdminDashboardPage() {
 
   const sectionKpis = {
     service: [
-      { label: 'Accepted', value: serviceByStatus.accepted || 0, to: `${basePath}/service?status=accepted` },
-      { label: 'In progress', value: serviceByStatus.in_progress || 0, to: `${basePath}/service?status=in_progress` },
-      { label: 'Testing', value: serviceByStatus.testing || 0, to: `${basePath}/service?status=testing` },
-      { label: 'Ready', value: serviceByStatus.ready || 0, to: `${basePath}/service?status=ready` },
-      { label: 'Avg assign time', value: formatMinutes(service.avgAssignTimeMinutes), to: `${basePath}/service?quickFilter=unassigned` },
-      { label: 'Avg repair time', value: formatMinutes(service.avgRepairTimeMinutes), to: `${basePath}/service?status=in_progress` },
-      { label: 'Overdue by stage', value: Object.values(sla.overdueByStage || {}).reduce((sum, value) => sum + value, 0), to: `${basePath}/service?quickFilter=overdue` },
-      { label: 'Stale ready', value: sla.staleReadyCount || 0, to: `${basePath}/service?status=ready&quickFilter=stale_ready` },
+      { label: 'Принято', value: serviceByStatus.accepted || 0, to: `${basePath}/service?status=accepted` },
+      { label: 'В работе', value: serviceByStatus.in_progress || 0, to: `${basePath}/service?status=in_progress` },
+      { label: 'Тестирование', value: serviceByStatus.testing || 0, to: `${basePath}/service?status=testing` },
+      { label: 'Готово', value: serviceByStatus.ready || 0, to: `${basePath}/service?status=ready` },
+      { label: 'Среднее время назначения', value: formatMinutes(service.avgAssignTimeMinutes), to: `${basePath}/service?quickFilter=unassigned` },
+      { label: 'Среднее время ремонта', value: formatMinutes(service.avgRepairTimeMinutes), to: `${basePath}/service?status=in_progress` },
+      { label: 'Просрочено по этапам', value: Object.values(sla.overdueByStage || {}).reduce((sum, value) => sum + value, 0), to: `${basePath}/service?quickFilter=overdue` },
+      { label: 'Залежалось в готово', value: sla.staleReadyCount || 0, to: `${basePath}/service?status=ready&quickFilter=stale_ready` },
     ],
     director: [
-      { label: 'Ready aging', value: director.readyAgingCount || 0, to: `${basePath}/director?serviceStatus=ready` },
-      { label: 'Processed today', value: director.processedTodayCount || 0, to: `${basePath}/director?serviceStatus=processed` },
-      { label: 'Route backlog', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=route_backlog` },
-      { label: 'Waiting commercial routing', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=ready_for_issue` },
+      { label: 'Задержка готовых', value: director.readyAgingCount || 0, to: `${basePath}/director?serviceStatus=ready` },
+      { label: 'Обработано сегодня', value: director.processedTodayCount || 0, to: `${basePath}/director?serviceStatus=processed` },
+      { label: 'Бэклог маршрутизации', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=route_backlog` },
+      { label: 'Ждут коммерческого решения', value: director.routeBacklogCount || 0, to: `${basePath}/director?commercialStatus=ready_for_issue` },
     ],
     sales: [
-      { label: 'Ready for rent', value: salesByStatus.ready_for_rent || 0, to: `${basePath}/sales?commercialStatus=ready_for_rent` },
-      { label: 'Ready for sale', value: salesByStatus.ready_for_sale || 0, to: `${basePath}/sales?commercialStatus=ready_for_sale` },
-      { label: 'Reserved for rent', value: salesByStatus.reserved_for_rent || 0, to: `${basePath}/sales?commercialStatus=reserved_for_rent` },
-      { label: 'Reserved for sale', value: salesByStatus.reserved_for_sale || 0, to: `${basePath}/sales?commercialStatus=reserved_for_sale` },
-      { label: 'Rent backlog', value: sales.rentBacklogCount || 0, to: `${basePath}/sales?commercialStatus=rent_backlog` },
-      { label: 'Sale backlog', value: sales.saleBacklogCount || 0, to: `${basePath}/sales?commercialStatus=sale_backlog` },
-      { label: 'Reserved aging', value: sales.reservedAgingCount || 0, to: `${basePath}/sales?commercialStatus=reserved_aging` },
+      { label: 'Готово к аренде', value: salesByStatus.ready_for_rent || 0, to: `${basePath}/sales?commercialStatus=ready_for_rent` },
+      { label: 'Готово к продаже', value: salesByStatus.ready_for_sale || 0, to: `${basePath}/sales?commercialStatus=ready_for_sale` },
+      { label: 'Бронь аренды', value: salesByStatus.reserved_for_rent || 0, to: `${basePath}/sales?commercialStatus=reserved_for_rent` },
+      { label: 'Бронь продажи', value: salesByStatus.reserved_for_sale || 0, to: `${basePath}/sales?commercialStatus=reserved_for_sale` },
+      { label: 'Бэклог аренды', value: sales.rentBacklogCount || 0, to: `${basePath}/sales?commercialStatus=rent_backlog` },
+      { label: 'Бэклог продажи', value: sales.saleBacklogCount || 0, to: `${basePath}/sales?commercialStatus=sale_backlog` },
+      { label: 'Задержка в бронях', value: sales.reservedAgingCount || 0, to: `${basePath}/sales?commercialStatus=reserved_aging` },
     ],
   };
 
@@ -157,54 +159,54 @@ export function AdminDashboardPage() {
     <section className="owner-dashboard">
       <header className="owner-hero">
         <div>
-          <h2>Owner Executive Dashboard</h2>
-          <p>Управленческий обзор сервиса, director queue и sales flow без операционного шума.</p>
+          <h2>{t('executive_title')}</h2>
+          <p>{t('executive_subtitle')}</p>
         </div>
         <div className="owner-hero__meta">
-          <KPIChipCard label="Service cases" value={serviceCases.length} icon="service" hint="Total" />
-          <KPIChipCard label="Equipment in sales flow" value={salesItems.length} icon="sales" hint="Commercial" />
-          <KPIChipCard label="Engineers" value={engineerRows.length} icon="employees" hint="Team" />
+          <KPIChipCard label={t('service_cases')} value={serviceCases.length} icon="service" hint={t('service_total')} />
+          <KPIChipCard label={t('equipment_in_sales')} value={salesItems.length} icon="sales" hint={t('commercial_total')} />
+          <KPIChipCard label={t('engineers')} value={engineerRows.length} icon="employees" hint={t('team_total')} />
         </div>
       </header>
 
-      {loading ? <p className="empty-copy">Загрузка executive summary...</p> : null}
+      {loading ? <p className="empty-copy">{t('loading_executive')}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
       <div className="owner-grid owner-grid--3">
         <article className="owner-card">
-          <header><h3><Icon name="service" /> Service Health</h3></header>
+          <header><h3><Icon name="service" /> {t('service_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.service.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-                {canDrillDown ? <Link to={kpi.to}>Drill-down →</Link> : <small>Read-only</small>}
+          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
         </article>
 
         <article className="owner-card">
-          <header><h3><Icon name="dashboard" /> Director Queue Health</h3></header>
+          <header><h3><Icon name="dashboard" /> {t('director_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.director.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-                {canDrillDown ? <Link to={kpi.to}>Drill-down →</Link> : <small>Read-only</small>}
+          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
         </article>
 
         <article className="owner-card">
-          <header><h3><Icon name="sales" /> Sales Flow Health</h3></header>
+          <header><h3><Icon name="sales" /> {t('sales_health')}</h3></header>
           <div className="owner-kpi-grid">
             {sectionKpis.sales.map((kpi) => (
               <div key={kpi.label} className="owner-kpi-block">
                 <span>{kpi.label}</span>
                 <strong>{kpi.value}</strong>
-                {canDrillDown ? <Link to={kpi.to}>Drill-down →</Link> : <small>Read-only</small>}
+          {canDrillDown ? <Link to={kpi.to}>{t('drill_down')}</Link> : <small>{t('read_only')}</small>}
               </div>
             ))}
           </div>
@@ -213,7 +215,7 @@ export function AdminDashboardPage() {
 
       <div className="owner-grid owner-grid--2">
         <article className="owner-card">
-          <header><h3><Icon name="employees" /> Team Performance</h3></header>
+          <header><h3><Icon name="employees" /> {t('team_performance')}</h3></header>
           <div className="team-performance-grid">
             {engineerRows.slice(0, 8).map((row) => (
               <CompactMetricCard
@@ -224,36 +226,36 @@ export function AdminDashboardPage() {
                 state={row.overdue > 2 ? 'danger' : row.overdue > 0 ? 'warning' : 'calm'}
               />
             ))}
-            {!engineerRows.length ? <p className="empty-copy">Нет данных по инженерам.</p> : null}
+            {!engineerRows.length ? <p className="empty-copy">{t('no_engineer_data')}</p> : null}
           </div>
         </article>
 
         <AlertPanel items={[
-          <li key="unassigned"><span>Unassigned too long</span><strong>{alertsByType.unassigned_too_long || 0}</strong></li>,
-          <li key="stale_in_progress"><span>Stale in progress</span><strong>{alertsByType.stale_in_progress || 0}</strong></li>,
-          <li key="stale_ready"><span>Stale ready</span><strong>{alertsByType.stale_ready || 0}</strong></li>,
-          <li key="stale_reserved"><span>Stale reserved</span><strong>{alertsByType.stale_reserved || 0}</strong></li>,
-          <li key="overdue_by_stage"><span>Overdue by stage</span><strong>{alertsByType.overdue_by_stage || 0}</strong></li>,
-          <li key="equipment"><span>Incomplete equipment data</span><strong>{alertsByType.incomplete_equipment_data || 0}</strong></li>,
+          <li key="unassigned"><span>Слишком долго без назначения</span><strong>{alertsByType.unassigned_too_long || 0}</strong></li>,
+          <li key="stale_in_progress"><span>Застряли в работе</span><strong>{alertsByType.stale_in_progress || 0}</strong></li>,
+          <li key="stale_ready"><span>Залежались в готово</span><strong>{alertsByType.stale_ready || 0}</strong></li>,
+          <li key="stale_reserved"><span>Задержка в резерве</span><strong>{alertsByType.stale_reserved || 0}</strong></li>,
+          <li key="overdue_by_stage"><span>Просрочено по этапам</span><strong>{alertsByType.overdue_by_stage || 0}</strong></li>,
+          <li key="equipment"><span>Неполные данные по оборудованию</span><strong>{alertsByType.incomplete_equipment_data || 0}</strong></li>,
         ]} />
       </div>
 
       <div className="owner-grid owner-grid--2">
         <article className="owner-card">
-          <header><h3><Icon name="dashboard" /> Escalations</h3></header>
+          <header><h3><Icon name="dashboard" /> {t('escalations')}</h3></header>
           <ul className="simple-list">
-            <li>Service Head: {(escalationBlocks.serviceHead || []).length}</li>
-            <li>Director: {(escalationBlocks.director || []).length}</li>
-            <li>Sales: {(escalationBlocks.salesManager || []).length}</li>
-            <li>Owner: {(escalationBlocks.owner || []).length}</li>
+            <li>{t('service_head')}: {(escalationBlocks.serviceHead || []).length}</li>
+            <li>{t('nav_director')}: {(escalationBlocks.director || []).length}</li>
+            <li>{t('sales_short')}: {(escalationBlocks.salesManager || []).length}</li>
+            <li>{t('role_owner')}: {(escalationBlocks.owner || []).length}</li>
           </ul>
-          <p className="muted-copy">Notification preview: critical {notificationPreview.pendingCritical}, warning {notificationPreview.pendingWarning}, digest {notificationPreview.digestSize}.</p>
+          <p className="muted-copy">{t('notification_preview')}: {t('critical')} {notificationPreview.pendingCritical}, {t('warning')} {notificationPreview.pendingWarning}, {t('digest')} {notificationPreview.digestSize}.</p>
         </article>
         <article className="owner-card">
-          <header><h3><Icon name="service" /> Recent critical changes</h3></header>
+          <header><h3><Icon name="service" /> {t('recent_critical_changes')}</h3></header>
           <ul className="simple-list">
             {recentCritical.slice(0, 5).map((item, idx) => <li key={`${item.caseId || idx}-${item.type}`}>{item.message || item.type}</li>)}
-            {!recentCritical.length ? <li>Нет критичных изменений.</li> : null}
+            {!recentCritical.length ? <li>{t('no_critical_changes')}</li> : null}
           </ul>
         </article>
       </div>

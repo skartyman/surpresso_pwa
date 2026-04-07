@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useAdminI18n } from '../adminI18n';
 
 const ICONS = {
   dashboard: 'M3 13h8V3H3v10Zm10 8h8V11h-8v10ZM3 21h8v-6H3v6Zm10-10h8V3h-8v8Z',
@@ -26,10 +27,13 @@ export function Icon({ name, className }) {
 }
 
 export function ThemeToggle({ mode, resolvedTheme, onToggle }) {
+  const { t } = useAdminI18n();
   const icon = resolvedTheme === 'dark' ? 'sun' : 'moon';
-  const label = mode === 'system' ? `Система (${resolvedTheme === 'dark' ? 'Тёмная' : 'Светлая'})` : (mode === 'dark' ? 'Тёмная' : 'Светлая');
+  const label = mode === 'system'
+    ? (resolvedTheme === 'dark' ? t('admin_theme_system_dark') : t('admin_theme_system_light'))
+    : (mode === 'dark' ? t('admin_theme_dark') : t('admin_theme_light'));
   return (
-    <button type="button" className="theme-toggle" onClick={onToggle} aria-label="Переключить тему">
+    <button type="button" className="theme-toggle" onClick={onToggle} aria-label={t('admin_toggle_theme')}>
       <Icon name={icon} />
       <span>{label}</span>
     </button>
@@ -37,8 +41,9 @@ export function ThemeToggle({ mode, resolvedTheme, onToggle }) {
 }
 
 export function NotificationBell({ count = 0 }) {
+  const { t } = useAdminI18n();
   return (
-    <button type="button" className="notification-bell" aria-label="Уведомления">
+    <button type="button" className="notification-bell" aria-label={t('admin_notifications')}>
       <Icon name="bell" />
       {count > 0 ? <em>{count}</em> : null}
     </button>
@@ -72,7 +77,8 @@ export function WorkloadWidget({ items = [] }) {
 }
 
 export function AlertPanel({ items = [] }) {
-  return <article className="alert-panel"><h3>Требует внимания</h3><ul>{items}</ul></article>;
+  const { t } = useAdminI18n();
+  return <article className="alert-panel"><h3>{t('attention_required')}</h3><ul>{items}</ul></article>;
 }
 
 export function FilterRow({ children }) {
@@ -106,6 +112,7 @@ export function OpsBoardCard({
   active,
   onSelect,
 }) {
+  const { t } = useAdminI18n();
   const media = getFirstMedia(item);
   const mediaUrl = media?.previewUrl || media?.fileUrl || null;
   return (
@@ -115,14 +122,14 @@ export function OpsBoardCard({
         <StatusBadge status={status}>{statusLabel || status}</StatusBadge>
         <small>#{id}</small>
       </div>
-      <strong>{title || 'Без названия'}</strong>
-      <p>{subtitle || '—'}</p>
+      <strong>{title || t('unnamed')}</strong>
+      <p>{subtitle || t('empty')}</p>
       <div className="ticket-tags">
-        <em>{ownerType || 'owner: —'}</em>
-        <em>{intakeType || 'intake: —'}</em>
+        <em>{ownerType || `${t('owner')}: ${t('empty')}`}</em>
+        <em>{intakeType || `${t('intake')}: ${t('empty')}`}</em>
       </div>
       <div className="ticket-tags">
-        <em>{assignedMaster || 'Мастер: не назначен'}</em>
+        <em>{assignedMaster || t('master_unassigned')}</em>
       </div>
       <div className="ticket-tags">
         {serviceStatus ? <em>{serviceStatus}</em> : null}

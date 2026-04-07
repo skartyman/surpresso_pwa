@@ -4,6 +4,13 @@ import { routes } from '../app/routes';
 import { telegramClientApi } from '../api/telegramClientApi';
 import { useI18n } from '../i18n';
 
+function translateRole(role, t) {
+  if (role === 'barista') return t('role_barista');
+  if (role === 'manager') return t('role_manager');
+  if (role === 'owner') return t('role_owner');
+  return t('guest');
+}
+
 export function HomePage() {
   const { t } = useI18n();
   const [profile, setProfile] = useState(null);
@@ -39,7 +46,7 @@ export function HomePage() {
           <div className="hero-orbit hero-orbit--two" />
           <div className="hero-device">
             <span>{t('home_highlight_network')}</span>
-            <strong>Point-based equipment</strong>
+            <strong>{t('point_equipment')}</strong>
             <em>{t('home_highlight_flow')}</em>
           </div>
           <div className="hero-chip hero-chip--service">{t('home_highlight_service')}</div>
@@ -53,7 +60,7 @@ export function HomePage() {
           <strong>{profile?.location?.name || t('home_context_missing')}</strong>
           <p>{profile?.network?.name || t('home_context_hint')}</p>
         </div>
-        <span>{profile?.pointUser?.role || 'guest'}</span>
+        <span>{translateRole(profile?.pointUser?.role, t)}</span>
       </section>
 
       <div className="cards-grid">

@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { ADMIN_SECTIONS, ROLE_LABELS } from '../roleConfig';
+import { getAdminSections, getRoleLabels } from '../roleConfig';
 import { Icon, NotificationBell, ThemeToggle } from './AdminUi';
+import { useAdminI18n } from '../adminI18n';
 
 const STORAGE_KEY = 'surpresso-admin-theme-mode';
 
@@ -45,20 +46,23 @@ function useAdminTheme() {
 export function AdminLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { locale, toggleLocale, t } = useAdminI18n();
   const basePath = location.pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
   const { mode, resolvedTheme, cycleMode } = useAdminTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sectionsSource = useMemo(() => getAdminSections(t), [t]);
+  const roleLabels = useMemo(() => getRoleLabels(t), [t]);
 
   useEffect(() => setSidebarOpen(false), [location.pathname]);
 
   const sections = useMemo(
-    () => ADMIN_SECTIONS
+    () => sectionsSource
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => item.roles.includes(user.role)),
       }))
       .filter((section) => section.items.length),
-    [user.role],
+    [sectionsSource, user.role],
   );
 
   const title = useMemo(() => {
@@ -66,8 +70,8 @@ export function AdminLayout() {
       const found = section.items.find((item) => location.pathname.includes(`/${item.to}`));
       if (found) return found.label;
     }
-    return 'Панель управления';
-  }, [sections, location.pathname]);
+    return t('admin_panel');
+  }, [sections, location.pathname, t]);
 
   return (
     <div className="admin-app-shell">
@@ -75,7 +79,7 @@ export function AdminLayout() {
         <div className="admin-brand">
           <img src="/icons/logo-service.png" alt="Логотип Surpresso" className="admin-brand__logo" />
           <strong>Surpresso</strong>
-          <span>Панель управления</span>
+          <span>{t('admin_panel')}</span>
         </div>
 
         <nav className="admin-sidebar-sections">
@@ -98,15 +102,18 @@ export function AdminLayout() {
 
         <div className="admin-sidebar__bottom">
           <ThemeToggle mode={mode} resolvedTheme={resolvedTheme} onToggle={cycleMode} />
+          <button type="button" className="secondary" onClick={toggleLocale}>
+            {t('admin_lang')}: {locale.toUpperCase()}
+          </button>
           <div>
             <strong>{user.fullName || user.name}</strong>
-            <span className="role-badge">{ROLE_LABELS[user.role]}</span>
+            <span className="role-badge">{roleLabels[user.role]}</span>
           </div>
-          <button type="button" className="secondary" onClick={logout}>Выйти</button>
+          <button type="button" className="secondary" onClick={logout}>{t('admin_logout')}</button>
         </div>
       </aside>
 
-      {sidebarOpen ? <button type="button" className="admin-drawer-overlay" onClick={() => setSidebarOpen(false)} aria-label="Закрыть меню" /> : null}
+      {sidebarOpen ? <button type="button" className="admin-drawer-overlay" onClick={() => setSidebarOpen(false)} aria-label={t('admin_close_menu')} /> : null}
 
       <main className="admin-main">
         <header className="admin-topbar">

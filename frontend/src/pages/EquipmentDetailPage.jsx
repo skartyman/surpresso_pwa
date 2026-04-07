@@ -3,6 +3,11 @@ import { Link, useParams } from 'react-router-dom';
 import { telegramClientApi } from '../api/telegramClientApi';
 import { useI18n } from '../i18n';
 
+function translateEquipmentStatus(status, t) {
+  if (!status) return t('active');
+  return t(`status_${String(status).trim().toLowerCase()}`);
+}
+
 export function EquipmentDetailPage() {
   const { equipmentId } = useParams();
   const [item, setItem] = useState(null);
@@ -32,7 +37,7 @@ export function EquipmentDetailPage() {
       <div className="client-detail-card__grid">
         <p>{t('serial_number')}: {item.serialNumber || '—'}</p>
         <p>{t('internal_number')}: {item.internalNumber || '—'}</p>
-        <p>{t('status')}: {item.status || 'active'}</p>
+        <p>{t('status')}: {translateEquipmentStatus(item.status, t)}</p>
         <p>{t('equipment_address')}: {item.address || item.locationName || item.clientLocation || '—'}</p>
       </div>
     </section>
