@@ -71,6 +71,14 @@ const EQUIPMENT_LIST_FILTERS = [
 
 const RENT_STATUSES = new Set(['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'out_on_replacement']);
 const SALE_STATUSES = new Set(['ready_for_sale', 'reserved_for_sale', 'sold']);
+const EQUIPMENT_BOARD_COLUMNS = [
+  { key: 'service', label: 'Сервис', eyebrow: 'В работе', accent: 'blue' },
+  { key: 'ready', label: 'Готово', eyebrow: 'Можно выпускать', accent: 'green' },
+  { key: 'rent', label: 'Аренда', eyebrow: 'Rental flow', accent: 'yellow' },
+  { key: 'sale', label: 'Продажа', eyebrow: 'Sales flow', accent: 'rose' },
+  { key: 'client', label: 'У клиента', eyebrow: 'Field', accent: 'violet' },
+  { key: 'attention', label: 'Внимание', eyebrow: 'Нужно проверить', accent: 'orange' },
+];
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('ru-RU') : '—';
@@ -207,6 +215,12 @@ function EquipmentListCard({
           <StatusBadge status={item.commercialStatus || 'none'}>{COMMERCIAL_LABELS[item.commercialStatus || 'none'] || (item.commercialStatus || 'none')}</StatusBadge>
           <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || 'оборудование'}</span>
         </div>
+        <ActionRail compact className="equipment-ops-card__overlay-actions" onClick={(event) => event.stopPropagation()}>
+          <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOpenCard?.()}>Открыть</ActionRailButton>
+          <ActionRailButton className="equipment-ops-card__overlay-action" tone="brand" onClick={() => onOpenServiceCase()}>{quickActionLabel}</ActionRailButton>
+          <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOpenPhotos?.()}>Фото</ActionRailButton>
+          {onOptionalAction ? <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOptionalAction?.()}>Продажи</ActionRailButton> : null}
+        </ActionRail>
       </div>
 
       <p className="equipment-ops-card__title">{modelTitle}</p>
@@ -229,14 +243,21 @@ function EquipmentListCard({
         </div>
       ) : null}
 
-      <ActionRail compact className="equipment-ops-card__actions" onClick={(event) => event.stopPropagation()}>
-        <ActionRailButton onClick={() => onOpenCard?.()}>Открыть</ActionRailButton>
-        <ActionRailButton tone="brand" onClick={() => onOpenServiceCase()}>{quickActionLabel}</ActionRailButton>
-        <ActionRailButton onClick={() => onOpenPhotos?.()}>Фото</ActionRailButton>
-        {onOptionalAction ? <ActionRailButton onClick={() => onOptionalAction?.()}>Продажи</ActionRailButton> : null}
-      </ActionRail>
     </article>
   );
+}
+
+function classifyEquipmentColumn(item) {
+  const serviceStatus = String(item.serviceStatus || item.activeServiceCaseStatus || '').trim();
+  const commercialStatus = String(item.commercialStatus || '').trim();
+  const warnings = item.warnings || [];
+
+  if (commercialStatus === 'issued_to_client') return 'client';
+  if (RENT_STATUSES.has(commercialStatus)) return 'rent';
+  if (SALE_STATUSES.has(commercialStatus)) return 'sale';
+  if (serviceStatus === 'ready') return 'ready';
+  if (warnings.length) return 'attention';
+  return 'service';
 }
 
 function passesQuickFilter(item, quickFilter) {
@@ -1011,6 +1032,10 @@ export function AdminEquipmentPage() {
       .filter((item) => matchesSearch(item, searchTerm)),
     [items, quickFilter, searchTerm],
   );
+  const boardColumns = useMemo(() => EQUIPMENT_BOARD_COLUMNS.map((column) => ({
+    ...column,
+    items: filteredItems.filter((item) => classifyEquipmentColumn(item) === column.key),
+  })), [filteredItems]);
 
   function selectEquipment(id) {
     if (isMobile) {
@@ -1097,21 +1122,53 @@ export function AdminEquipmentPage() {
                 <button type="button" onClick={resetWarningFilter}>Сбросить</button>
               </div>
             ) : null}
-            <div className={`equipment-ops-list__cards equipment-ops-list__cards--${isMobile ? 'list' : viewMode}`}>
-              {filteredItems.map((item) => (
-                <EquipmentListCard
-                  key={item.id}
-                  item={item}
-                  viewMode={isMobile ? 'list' : viewMode}
-                  active={(equipmentId || selectedId) === item.id}
-                  onClick={() => selectEquipment(item.id)}
-                  onOpenCard={() => selectEquipment(item.id)}
-                  onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
-                  onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
-                  onOptionalAction={() => navigateToBoard('sales_board', item.id)}
-                />
-              ))}
-            </div>
+            {(!isMobile && viewMode === 'list') ? (
+              <div className="equipment-board">
+                {boardColumns.map((column) => (
+                  <section key={column.key} className="equipment-board-column" data-accent={column.accent}>
+                    <header className="equipment-board-column__header">
+                      <div>
+                        <small>{column.eyebrow}</small>
+                        <h4>{column.label}</h4>
+                      </div>
+                      <strong>{column.items.length}</strong>
+                    </header>
+                    <div className="equipment-board-column__cards">
+                      {column.items.map((item) => (
+                        <EquipmentListCard
+                          key={item.id}
+                          item={item}
+                          viewMode="list"
+                          active={(equipmentId || selectedId) === item.id}
+                          onClick={() => selectEquipment(item.id)}
+                          onOpenCard={() => selectEquipment(item.id)}
+                          onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
+                          onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                          onOptionalAction={() => navigateToBoard('sales_board', item.id)}
+                        />
+                      ))}
+                      {!column.items.length ? <p className="empty-copy">Пусто</p> : null}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className={`equipment-ops-list__cards equipment-ops-list__cards--${isMobile ? 'list' : viewMode}`}>
+                {filteredItems.map((item) => (
+                  <EquipmentListCard
+                    key={item.id}
+                    item={item}
+                    viewMode={isMobile ? 'list' : viewMode}
+                    active={(equipmentId || selectedId) === item.id}
+                    onClick={() => selectEquipment(item.id)}
+                    onOpenCard={() => selectEquipment(item.id)}
+                    onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
+                    onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                    onOptionalAction={() => navigateToBoard('sales_board', item.id)}
+                  />
+                ))}
+              </div>
+            )}
             {!filteredItems.length ? <p className="empty-copy">Нет оборудования по выбранному фильтру.</p> : null}
           </aside>
         ) : null}
