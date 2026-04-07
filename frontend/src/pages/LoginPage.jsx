@@ -9,8 +9,8 @@ export function LoginPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('owner@surpresso.local');
-  const [password, setPassword] = useState('Owner123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   async function handleSubmit(event) {
@@ -30,10 +30,10 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="login-form" onSubmit={handleSubmit}>
+      <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
         <h1>{t('login_title')}</h1>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" autoComplete="username" />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t('login_password')} autoComplete="current-password" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" autoComplete="off" name="admin_login_email" />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t('login_password')} autoComplete="new-password" name="admin_login_password" />
         {error ? <p className="error-text">{error}</p> : null}
         <button type="submit">{t('login_btn')}</button>
       </form>
