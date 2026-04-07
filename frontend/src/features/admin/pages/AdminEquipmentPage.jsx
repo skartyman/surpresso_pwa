@@ -119,6 +119,19 @@ function getCommercialLabel(status, t = (value) => value) {
   return t(COMMERCIAL_LABEL_KEYS[status] || status || 'none');
 }
 
+function getServiceLabel(status, t = (value) => value) {
+  if (!status) return '—';
+  return t(status) || status;
+}
+
+function getTimelineSummary(row, t = (value) => value) {
+  if (!row) return t('history_empty');
+  const comment = String(row.comment || '').trim();
+  if (!comment) return t(row.type) || t('history_empty');
+  if (comment.startsWith('http://') || comment.startsWith('https://')) return t(row.type) || t('history_empty');
+  return comment;
+}
+
 function DashboardSummaryColumn({ dashboard, onAlertClick, activeWarning, onResetWarning, t }) {
   const kpi = dashboard?.kpi || {};
   const alertRows = dashboard?.alerts || [];
@@ -649,7 +662,7 @@ function TabPanel({
   const latestTimelineEvent = (detail.timeline || [])[0] || null;
   if (tab === 'overview') {
     const passportStats = [
-      { key: 'service', label: t('service_label'), value: activeCase?.serviceStatus || equipment.serviceStatus || '—', meta: activeCase?.id || t('no_active_case') },
+      { key: 'service', label: t('service_label'), value: getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t), meta: activeCase?.id || t('no_active_case') },
       { key: 'commerce', label: t('commerce'), value: getCommercialLabel(equipment.commercialStatus || 'none', t), meta: equipment.ownerType || '—' },
       { key: 'updated', label: t('updated'), value: formatDay(equipment.updatedAt, locale, '—'), meta: formatDate(equipment.updatedAt, locale) },
       { key: 'case', label: t('active_service_case'), value: activeCase?.id || '—', meta: activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || t('not_assigned') },
@@ -678,7 +691,7 @@ function TabPanel({
               <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
               <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
               <div className="equipment-summary-hero__statuses">
-                <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {activeCase?.serviceStatus || equipment.serviceStatus || '—'}</StatusBadge>
+                <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</StatusBadge>
                 <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge>
               </div>
               <div className="equipment-passport-stats">
@@ -709,14 +722,14 @@ function TabPanel({
                 <h4>{t('action_panel')}</h4>
               </div>
               <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>
-                {activeCase?.serviceStatus || equipment.serviceStatus || '—'}
+                {getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}
               </StatusBadge>
             </header>
             {activeCase ? (
               <div className="equipment-active-case-highlight equipment-active-case-highlight--passport">
                 <header>
                   <h4>{t('active_service_case')}</h4>
-                  <StatusBadge status={activeCase.serviceStatus || 'none'}>{activeCase.serviceStatus || '—'}</StatusBadge>
+                  <StatusBadge status={activeCase.serviceStatus || 'none'}>{getServiceLabel(activeCase.serviceStatus, t)}</StatusBadge>
                 </header>
                 <p><strong>{activeCase.id}</strong> · {t('assigned_lower')}: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || t('not_assigned')}.</p>
                 <p>{t('updated_lower')}: {formatDate(activeCase.updatedAt, locale)}.</p>
@@ -740,7 +753,7 @@ function TabPanel({
               <article>
                 <span>{t('history')}</span>
                 <strong>{latestTimelineEvent?.actor || t('system_user')}</strong>
-                <small>{latestTimelineEvent?.comment || t('history_empty')}</small>
+                <small>{getTimelineSummary(latestTimelineEvent, t)}</small>
               </article>
             </div>
           </article>
@@ -777,7 +790,7 @@ function TabPanel({
             </article>
             <article className="equipment-passport-data__item">
               <span><Icon name="service" /> {t('current_service_status')}</span>
-              <strong>{activeCase?.serviceStatus || equipment.serviceStatus || '—'}</strong>
+              <strong>{getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
             </article>
             <article className="equipment-passport-data__item">
               <span><Icon name="sales" /> {t('current_commercial_status')}</span>
@@ -904,7 +917,7 @@ function TabPanel({
             <article key={row.id} className="equipment-case-card">
               <header>
                 <strong>{row.id}</strong>
-                <StatusBadge status={row.serviceStatus || 'none'}>{row.serviceStatus || '—'}</StatusBadge>
+                <StatusBadge status={row.serviceStatus || 'none'}>{getServiceLabel(row.serviceStatus, t)}</StatusBadge>
               </header>
               <p>{t('assignee')}: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
               <p>{t('created')}: {formatDate(row.createdAt, locale)} · {t('updated')}: {formatDate(row.updatedAt, locale)}</p>
@@ -1269,7 +1282,7 @@ export function AdminEquipmentPage() {
                 {detailEquipment ? (
                   <div className="equipment-ops-detail__hero-statuses">
                     <StatusBadge status={detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || 'none'}>
-                      {t('service_label')}: {detailActiveCase?.serviceStatus || detailEquipment.serviceStatus || '—'}
+                      {t('service_label')}: {getServiceLabel(detailActiveCase?.serviceStatus || detailEquipment.serviceStatus, t)}
                     </StatusBadge>
                     <StatusBadge status={detailEquipment.commercialStatus || 'none'}>
                       {getCommercialLabel(detailEquipment.commercialStatus || 'none', t)}

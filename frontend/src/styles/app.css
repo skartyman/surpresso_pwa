@@ -2612,6 +2612,23 @@ textarea { min-height: 110px; resize: vertical; }
   .equipment-passport-stats,
   .equipment-ops-detail__hero-stats,
   .equipment-passport-data__grid { grid-template-columns: 1fr; }
+  .equipment-passport-layout,
+  .equipment-summary-hero,
+  .equipment-summary-hero--passport,
+  .equipment-passport-ops-grid,
+  .equipment-passport-data__header,
+  .equipment-edit-passport-card__header,
+  .equipment-ops-detail__hero-topline { grid-template-columns: 1fr; }
+  .equipment-passport-layout,
+  .equipment-passport-ops-grid { display: grid; }
+  .equipment-summary-hero,
+  .equipment-summary-hero--passport { grid-template-columns: 1fr; }
+  .equipment-passport-workflow,
+  .equipment-passport-data,
+  .equipment-summary-hero--passport { min-width: 0; }
+  .equipment-passport-data__header,
+  .equipment-edit-passport-card__header,
+  .equipment-ops-detail__hero-topline { display: grid; gap: 10px; }
 }
 
 .equipment-summary-hero {
@@ -3645,5 +3662,38 @@ textarea { min-height: 110px; resize: vertical; }
 
   .admin-app-shell {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .equipment-passport-layout,
+  .equipment-passport-ops-grid,
+  .equipment-summary-hero,
+  .equipment-summary-hero--passport,
+  .equipment-ops-detail__hero,
+  .equipment-ops-detail__hero-topline,
+  .equipment-passport-data__header,
+  .equipment-edit-passport-card__header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .equipment-summary-hero,
+  .equipment-summary-hero--passport {
+    align-items: start;
+  }
+
+  .equipment-passport-stats,
+  .equipment-ops-detail__hero-stats,
+  .equipment-passport-data__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .equipment-summary-hero--passport .equipment-summary-hero__preview,
+  .equipment-summary-hero--passport .equipment-summary-hero__preview img,
+  .equipment-summary-hero--passport .equipment-summary-hero__preview video,
+  .equipment-ops-detail__hero-preview img,
+  .equipment-ops-detail__hero-preview video {
+    min-height: 180px;
   }
 }
