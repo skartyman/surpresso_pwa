@@ -271,6 +271,10 @@ function matchesSearch(item, value) {
 function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewModeChange, searchTerm, onSearchTermChange }) {
   return (
     <div className="equipment-list-toolbar">
+      <div className="equipment-list-toolbar__copy">
+        <small>Equipment lane</small>
+        <strong>Лента оборудования</strong>
+      </div>
       <div className="equipment-list-toolbar__row">
         <ActionRail compact className="equipment-list-toolbar__chips">
           {EQUIPMENT_LIST_FILTERS.map((filter) => (
@@ -285,8 +289,8 @@ function EquipmentListToolbar({ quickFilter, onFilterChange, viewMode, onViewMod
           ))}
         </ActionRail>
         <ActionRail compact className="equipment-list-toolbar__toggle" role="group" aria-label="Вид списка">
-          <ActionRailButton active={viewMode === 'grid'} tone={viewMode === 'grid' ? 'brand' : 'default'} onClick={() => onViewModeChange('grid')}>Сетка</ActionRailButton>
-          <ActionRailButton active={viewMode === 'list'} tone={viewMode === 'list' ? 'brand' : 'default'} onClick={() => onViewModeChange('list')}>Список</ActionRailButton>
+          <ActionRailButton active={viewMode === 'list'} tone={viewMode === 'list' ? 'brand' : 'default'} onClick={() => onViewModeChange('list')}>Лента</ActionRailButton>
+          <ActionRailButton active={viewMode === 'grid'} tone={viewMode === 'grid' ? 'brand' : 'default'} onClick={() => onViewModeChange('grid')}>Плитка</ActionRailButton>
         </ActionRail>
       </div>
       <input
@@ -945,7 +949,7 @@ export function AdminEquipmentPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [quickFilter, setQuickFilter] = useState('all');
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 980px)').matches : false));
   const canCreateEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
