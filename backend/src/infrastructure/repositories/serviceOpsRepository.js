@@ -723,6 +723,13 @@ export class NeonServiceOpsRepository {
     return mapMedia(row);
   }
 
+  async deleteEquipmentById(id) {
+    const row = await this.prisma.equipment.findUnique({ where: { id } });
+    if (!row) return null;
+    await this.prisma.equipment.delete({ where: { id } });
+    return mapEquipment(row);
+  }
+
   async updateEquipmentById(id, patch = {}) {
     const row = await this.prisma.equipment.update({
       where: { id },
@@ -1228,6 +1235,7 @@ export class InMemoryServiceOpsRepository {
   async listServiceCaseHistory() { return []; }
   async createMedia() { return null; }
   async deleteMediaById() { return null; }
+  async deleteEquipmentById() { return null; }
   async updateEquipmentById() { return null; }
   async addEquipmentComment() { return null; }
   async addEquipmentNote() { return null; }
