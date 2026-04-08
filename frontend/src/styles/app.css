@@ -655,6 +655,64 @@ textarea { min-height: 110px; resize: vertical; }
   border-radius: 16px;
   padding: 18px;
 }
+.forbidden-page {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  padding: 24px;
+}
+.forbidden-card {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 14px;
+  padding: 28px;
+  border-radius: 28px;
+  border: 1px solid color-mix(in oklab, var(--border), var(--accent) 20%);
+  background: color-mix(in oklab, var(--surface), white 3%);
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.18);
+}
+.forbidden-card__code {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger), transparent 82%);
+  color: var(--danger);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.forbidden-card h1 {
+  margin: 0;
+}
+.forbidden-card p {
+  margin: 0;
+  color: var(--muted);
+}
+.forbidden-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.forbidden-card__action {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border), var(--accent) 14%);
+  background: color-mix(in oklab, var(--surface), white 2%);
+  color: var(--text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.forbidden-card__action--primary {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--accent), white 12%), var(--accent));
+  color: #1f1400;
+  border-color: transparent;
+  font-weight: 700;
+}
 
 @media (max-width: 900px) {
   .admin-shell {
