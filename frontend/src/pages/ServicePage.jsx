@@ -43,9 +43,6 @@ export function ServicePage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [mediaFiles, setMediaFiles] = useState([]);
   const mountedRef = useRef(true);
-  const filePickerRef = useRef(null);
-  const photoPickerRef = useRef(null);
-  const videoPickerRef = useRef(null);
   const [form, setForm] = useState({
     equipmentId: searchParams.get('equipmentId') || '',
     category: 'coffee_machine',
@@ -330,14 +327,19 @@ export function ServicePage() {
           </div>
 
           <div className="service-form__media-actions">
-            <button type="button" className="service-media-action" onClick={() => photoPickerRef.current?.click()}>{t('request_take_photo')}</button>
-            <button type="button" className="service-media-action" onClick={() => videoPickerRef.current?.click()}>{t('request_take_video')}</button>
-            <button type="button" className="service-media-action" onClick={() => filePickerRef.current?.click()}>{t('request_pick_gallery')}</button>
+            <label className="service-media-action service-media-action--picker">
+              <span>{t('request_take_photo')}</span>
+              <input className="service-media-input" type="file" accept="image/*" capture="environment" onChange={handleFileSelect} />
+            </label>
+            <label className="service-media-action service-media-action--picker">
+              <span>{t('request_take_video')}</span>
+              <input className="service-media-input" type="file" accept="video/*" capture="environment" onChange={handleFileSelect} />
+            </label>
+            <label className="service-media-action service-media-action--picker">
+              <span>{t('request_pick_gallery')}</span>
+              <input className="service-media-input" type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} />
+            </label>
           </div>
-
-          <input ref={photoPickerRef} type="file" accept="image/*" capture="environment" hidden onChange={handleFileSelect} />
-          <input ref={videoPickerRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelect} />
-          <input ref={filePickerRef} type="file" multiple accept="image/*,video/*" hidden onChange={handleFileSelect} />
 
           {mediaFiles.length ? (
             <>

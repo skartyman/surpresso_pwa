@@ -432,6 +432,20 @@ textarea { min-height: 110px; resize: vertical; }
   background: color-mix(in oklab, var(--surface), white 3%);
   color: var(--text);
 }
+.service-media-action--picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+.service-media-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0.0001;
+  cursor: pointer;
+}
 .service-media-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
