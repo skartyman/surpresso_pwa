@@ -1445,6 +1445,8 @@ textarea { min-height: 110px; resize: vertical; }
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   backdrop-filter: blur(16px);
 }
 .admin-brand { display: flex; gap: 12px; padding: 6px 8px 10px; align-items: center; }
@@ -3814,6 +3816,9 @@ textarea { min-height: 110px; resize: vertical; }
     position: fixed;
     inset: 0 auto 0 0;
     width: min(84vw, 320px);
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-105%);
     transition: transform .24s ease;
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
@@ -3836,6 +3841,14 @@ textarea { min-height: 110px; resize: vertical; }
 }
 
 @media (max-width: 640px) {
+  .admin-sidebar {
+    gap: 12px;
+  }
+  .admin-sidebar__bottom {
+    position: sticky;
+    bottom: 0;
+    margin-top: 0;
+  }
   .equipment-passport-layout,
   .equipment-passport-ops-grid,
   .equipment-summary-hero,
