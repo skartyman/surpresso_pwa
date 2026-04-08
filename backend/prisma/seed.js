@@ -1,7 +1,9 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import prismaClientPkg from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { seed } from '../src/infrastructure/seed/mockData.js';
+
+const { PrismaClient } = prismaClientPkg;
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,

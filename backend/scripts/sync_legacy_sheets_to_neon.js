@@ -26,6 +26,7 @@ function parseArgs(argv = []) {
     source: 'sheets',
     apply: false,
     verbose: false,
+    gasEnrich: false,
     spreadsheetId: DEFAULT_SPREADSHEET_ID,
     gids: { ...DEFAULT_GIDS },
     files: {},
@@ -35,6 +36,7 @@ function parseArgs(argv = []) {
     const arg = String(argv[i] || '');
     if (arg === '--apply') flags.apply = true;
     else if (arg === '--verbose') flags.verbose = true;
+    else if (arg === '--gas-enrich') flags.gasEnrich = true;
     else if (arg === '--source') flags.source = String(argv[i + 1] || 'sheets').trim().toLowerCase(), i += 1;
     else if (arg === '--spreadsheet-id') flags.spreadsheetId = String(argv[i + 1] || '').trim(), i += 1;
     else if (arg === '--equipment-gid') flags.gids.equipment = String(argv[i + 1] || '').trim(), i += 1;
@@ -50,6 +52,35 @@ function parseArgs(argv = []) {
   }
 
   return flags;
+}
+
+async function gasPost(payload) {
+  if (!process.env.GAS_WEBAPP_URL || !process.env.GAS_SECRET) {
+    throw new Error('GAS_WEBAPP_URL and GAS_SECRET are required for GAS enrichment');
+  }
+
+  const response = await fetch(process.env.GAS_WEBAPP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      secret: process.env.GAS_SECRET,
+      ...payload,
+    }),
+  });
+
+  const text = await response.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`gas_non_json_response:${text.slice(0, 200)}`);
+  }
+
+  if (!parsed?.ok) {
+    throw new Error(parsed?.error || 'gas_request_failed');
+  }
+
+  return parsed;
 }
 
 function csvExportUrl(spreadsheetId, gid) {
@@ -149,6 +180,48 @@ async function loadCsvRows({ source, spreadsheetId, gids, files, verbose }) {
     equipmentRows: await loadRemote('equipment', gids.equipment),
     statusRows: await loadRemote('status', gids.status),
     photoRows: await loadRemote('photos', gids.photos),
+  };
+}
+
+async function hydrateRowsFromGas(equipmentRows = [], { verbose } = {}) {
+  const hydratedEquipment = [];
+  const statusRows = [];
+  const photoRows = [];
+
+  for (const item of equipmentRows) {
+    const equipmentId = normalizeId(item.id);
+    if (!equipmentId) continue;
+    const bundle = await gasPost({ action: 'get', id: equipmentId });
+    if (verbose) {
+      console.log(`[sync] gas bundle ${equipmentId}`, `photos=${(bundle.photos || []).length}`, `log=${(bundle.log || []).length}`);
+    }
+    hydratedEquipment.push({ ...item, ...(bundle.equipment || {}) });
+    (bundle.log || []).forEach((row) => {
+      statusRows.push({
+        equipmentId,
+        ts: row.ts,
+        oldStatus: row.oldStatus,
+        newStatus: row.newStatus,
+        comment: row.comment,
+        actor: row.actor,
+      });
+    });
+    (bundle.photos || []).forEach((row) => {
+      photoRows.push({
+        equipmentId,
+        ts: row.ts,
+        fileId: row.fileId,
+        fileUrl: row.url,
+        imgUrl: row.imgUrl,
+        caption: row.caption,
+      });
+    });
+  }
+
+  return {
+    equipmentRows: hydratedEquipment,
+    statusRows,
+    photoRows,
   };
 }
 
@@ -609,16 +682,23 @@ async function main() {
   }
 
   const { equipmentRows, statusRows, photoRows } = await loadCsvRows(args);
-  const groupedStatus = groupByEquipmentId(statusRows, 'equipmentId');
-  const groupedPhotos = groupByEquipmentId(photoRows, 'equipmentId');
+  const enrichedRows = ((args.gasEnrich || (!statusRows.length && !photoRows.length))
+    && equipmentRows.length
+    && process.env.GAS_WEBAPP_URL
+    && process.env.GAS_SECRET)
+    ? await hydrateRowsFromGas(equipmentRows, { verbose: args.verbose })
+    : { equipmentRows, statusRows, photoRows };
+  const groupedStatus = groupByEquipmentId(enrichedRows.statusRows, 'equipmentId');
+  const groupedPhotos = groupByEquipmentId(enrichedRows.photoRows, 'equipmentId');
 
   const summary = {
     source: args.source,
     apply: args.apply,
+    gasEnrich: Boolean((args.gasEnrich || (!statusRows.length && !photoRows.length)) && process.env.GAS_WEBAPP_URL && process.env.GAS_SECRET),
     spreadsheetId: args.source === 'sheets' ? args.spreadsheetId : null,
-    equipmentRows: equipmentRows.length,
-    statusRows: statusRows.length,
-    photoRows: photoRows.length,
+    equipmentRows: enrichedRows.equipmentRows.length,
+    statusRows: enrichedRows.statusRows.length,
+    photoRows: enrichedRows.photoRows.length,
     syncedEquipment: 0,
     syncedServiceCases: 0,
     syncedServiceHistory: 0,
@@ -627,7 +707,7 @@ async function main() {
     warnings: [],
   };
 
-  for (const row of equipmentRows) {
+  for (const row of enrichedRows.equipmentRows) {
     const equipmentId = normalizeId(row.id);
     if (!equipmentId) continue;
 
