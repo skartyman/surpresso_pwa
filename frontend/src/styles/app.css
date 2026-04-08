@@ -2340,6 +2340,9 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-list-toolbar__copy { display: grid; gap: 2px; padding: 12px 12px 0; }
 .equipment-list-toolbar__copy small { color: var(--sa-muted); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
 .equipment-list-toolbar__copy strong { font-size: 18px; letter-spacing: -.03em; }
+.service-mode-filters {
+  padding: 0 12px;
+}
 .equipment-board-nav {
   display: flex;
   gap: 8px;

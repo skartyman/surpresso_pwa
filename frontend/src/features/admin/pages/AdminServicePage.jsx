@@ -259,6 +259,23 @@ function ServiceSummaryColumn({ dashboard, t }) {
   );
 }
 
+function ServiceModeFilters({ value, onChange, t }) {
+  const options = [
+    { key: 'all', label: t('all') },
+    { key: 'remote', label: t('request_mode_remote') },
+    { key: 'visit', label: t('request_mode_visit') },
+  ];
+  return (
+    <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-mode-filters">
+      {options.map((item) => (
+        <button key={item.key} type="button" className={value === item.key ? 'active' : ''} onClick={() => onChange(item.key)}>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function RequestMediaLightbox({ rows = [], index = -1, onClose, onNavigate, t, locale }) {
   const media = rows[index];
   if (!media) return null;
@@ -321,6 +338,7 @@ export function AdminServicePage() {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [modeFilter, setModeFilter] = useState('all');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const boardRef = useRef(null);
   const boardColumnRefs = useRef({});
@@ -503,6 +521,7 @@ export function AdminServicePage() {
   }
 
   const filteredRequests = useMemo(() => requests.filter((item) => {
+    if (modeFilter !== 'all' && getRequestMode(item, t).key !== modeFilter) return false;
     if (!searchTerm.trim()) return true;
     const haystack = [
       item.id,
@@ -516,7 +535,7 @@ export function AdminServicePage() {
       item.assignedToUser?.fullName,
     ].join(' ').toLowerCase();
     return haystack.includes(searchTerm.toLowerCase());
-  }), [requests, searchTerm]);
+  }), [modeFilter, requests, searchTerm, t]);
 
   const visibleBoardStatuses = roleProfile.service.visibleStatuses;
   const boardColumns = useMemo(() => visibleBoardStatuses.map((status) => ({
@@ -576,6 +595,7 @@ export function AdminServicePage() {
                 placeholder={t('service_search_placeholder')}
               />
             </div>
+            <ServiceModeFilters value={modeFilter} onChange={setModeFilter} t={t} />
             <ServiceBoardToolbar boardNavItems={boardNavItems} onBoardNav={scrollToBoardColumn} t={t} />
           </div>
           <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
@@ -632,6 +652,7 @@ export function AdminServicePage() {
               {(() => {
                 const requestMode = getRequestMode(selectedRequest, t);
                 const contactPhone = selectedRequest.pointUser?.phone || selectedRequest.client?.phone || '';
+                const telegramUserId = selectedRequest.pointUser?.telegramUserId || selectedRequest.client?.telegramUserId || '';
                 return (
                   <>
               <header className="equipment-ops-detail__hero">
@@ -662,6 +683,7 @@ export function AdminServicePage() {
                 <ActionRailButton onClick={() => setActiveTab('history')}>{t('history')}</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('notes')}>{t('notes')}</ActionRailButton>
                 {contactPhone ? <a className="action-rail__button" href={`tel:${contactPhone}`}>{t('call_client')}</a> : null}
+                {telegramUserId ? <a className="action-rail__button" href={`tg://user?id=${telegramUserId}`}>{t('open_telegram')}</a> : null}
               </ActionRail>
               <nav className="equipment-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tabLabels[tab]}</button>)}
