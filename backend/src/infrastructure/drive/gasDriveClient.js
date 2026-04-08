@@ -35,7 +35,7 @@ function normalizeFileType(mimeType) {
   return String(mimeType || '').toLowerCase().startsWith('video') ? 'video' : 'image';
 }
 
-export async function uploadServiceRequestMedia({ entityId, file }) {
+export async function uploadDriveMedia({ entityId, file }) {
   const uploadResult = await gasPost({
     action: 'serviceRequestMediaUpload',
     entityType: 'service_request',
@@ -55,4 +55,8 @@ export async function uploadServiceRequestMedia({ entityId, file }) {
     originalName: String(file.originalname || ''),
     size: Number(file.size || 0),
   };
+}
+
+export async function uploadServiceRequestMedia({ entityId, file }) {
+  return uploadDriveMedia({ entityId, file });
 }

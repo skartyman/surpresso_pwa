@@ -12,9 +12,27 @@ import { getAllowedCommercialTransitions } from '../../domain/workflow/commercia
 import { buildEquipmentTimeline, normalizeEquipmentMedia } from '../utils/equipmentDetailView.js';
 import { normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
 import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
+import { uploadDriveMedia } from '../../infrastructure/drive/gasDriveClient.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
+}
+
+async function persistAdminMediaFile({ uploadsRoot, file, driveEntityId }) {
+  try {
+    const uploaded = await uploadDriveMedia({ entityId: driveEntityId, file });
+    return {
+      filePath: `drive:${uploaded.fileId || driveEntityId}`,
+      fileUrl: uploaded.fileUrl,
+      mimeType: uploaded.mimeType || file.mimetype,
+      originalName: uploaded.originalName || file.originalname,
+      fileSize: uploaded.size || file.size || 0,
+      kind: String(uploaded.type || '').toLowerCase() === 'video' ? 'video' : 'photo',
+    };
+  } catch (error) {
+    if (error?.message !== 'gas_not_configured') throw error;
+    return storeServiceMediaFile({ uploadsRoot, file });
+  }
 }
 
 function csvEscape(value) {
@@ -482,7 +500,11 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (mediaValidationError) return res.status(400).json({ error: mediaValidationError });
       const saved = [];
       for (const file of req.files) {
-        const meta = await storeServiceMediaFile({ uploadsRoot, file });
+        const meta = await persistAdminMediaFile({
+          uploadsRoot,
+          file,
+          driveEntityId: `service-case-${req.params.id}`,
+        });
         const row = await serviceOpsRepository.createMedia(req.params.id, {
           equipmentId: serviceCase.equipmentId,
           ...meta,
@@ -510,7 +532,11 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
 
       const saved = [];
       for (const file of req.files) {
-        const meta = await storeServiceMediaFile({ uploadsRoot, file, prefix: 'equipment' });
+        const meta = await persistAdminMediaFile({
+          uploadsRoot,
+          file,
+          driveEntityId: serviceCaseId ? `service-case-${serviceCaseId}` : `equipment-${req.params.id}`,
+        });
         const row = await serviceOpsRepository.createMedia(serviceCaseId, {
           equipmentId: req.params.id,
           ...meta,
