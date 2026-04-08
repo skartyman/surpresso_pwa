@@ -93,7 +93,6 @@ function ServiceQuickActions({ actions, loadingKey, onAction }) {
 function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onAction, boardLabels, t, locale }) {
   const preview = getRequestPreview(request);
   const actions = getRoleActions(request, user, t);
-  const canDelete = [ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const warnings = [];
   if (!request.assignedToUserId) warnings.push(t('no_engineer'));
   if (!request.equipmentId) warnings.push(t('no_equipment'));
@@ -106,21 +105,6 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
           <StatusBadge status={request.status}>{boardLabels[request.status] || request.status}</StatusBadge>
           <div className="service-board-card__topbar-actions">
             <small>#{request.id}</small>
-            {canDelete ? (
-              <button
-                type="button"
-                className="equipment-media-item__delete"
-                aria-label={t('delete_service_request_card')}
-                title={t('delete_service_request_card')}
-                disabled={Boolean(actionLoading)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAction({ kind: 'delete', label: t('delete_service_request_card') });
-                }}
-              >
-                ×
-              </button>
-            ) : null}
           </div>
         </div>
 
