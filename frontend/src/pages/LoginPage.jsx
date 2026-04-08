@@ -30,10 +30,10 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="login-form" onSubmit={handleSubmit} autoComplete="off">
+      <form className="login-form" onSubmit={handleSubmit} autoComplete="on">
         <h1>{t('login_title')}</h1>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" autoComplete="off" name="admin_login_email" />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t('login_password')} autoComplete="new-password" name="admin_login_password" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" autoComplete="username email" name="username" />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t('login_password')} autoComplete="current-password" name="password" />
         {error ? <p className="error-text">{error}</p> : null}
         <button type="submit">{t('login_btn')}</button>
       </form>
