@@ -115,7 +115,7 @@ export function AdminLayout() {
       <div className="admin-app-shell__glow admin-app-shell__glow--two" />
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">
-          <img src="/icons/logo-service.png" alt="Surpresso" className="admin-brand__logo" />
+          <img src="/icons/crm.png" alt="Surpresso CRM" className="admin-brand__logo" />
           <div className="admin-brand__meta">
             <strong>Surpresso</strong>
             <span>{t('admin_panel')}</span>
