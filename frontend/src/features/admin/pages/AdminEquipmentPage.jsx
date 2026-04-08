@@ -1090,6 +1090,7 @@ export function AdminEquipmentPage() {
   const boardColumnRefs = useRef({});
   const canCreateEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canEditEquipment = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canDeleteEquipment = [ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canUploadEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canDeleteEquipmentMedia = [ROLES.manager, ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canCommercialOperate = [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director].includes(user?.role);
@@ -1211,6 +1212,20 @@ export function AdminEquipmentPage() {
     const gap = 12;
     const nextLeft = Math.max(target.offsetLeft - gap, 0);
     container.scrollTo({ left: nextLeft, behavior: 'smooth' });
+  }
+
+  async function removeEquipmentCard() {
+    const currentId = detail?.equipment?.id;
+    if (!currentId || !canDeleteEquipment) return;
+    if (!window.confirm(t('delete_equipment_confirm'))) return;
+    try {
+      await adminServiceApi.deleteEquipment(currentId);
+      await loadDashboard();
+      await loadList();
+      navigate(`${basePath}/equipment${warningFilter ? `?warning=${encodeURIComponent(warningFilter)}` : ''}`);
+    } catch {
+      window.alert(t('delete_equipment_failed'));
+    }
   }
 
   const detailRouteMode = Boolean(equipmentId);
@@ -1359,6 +1374,7 @@ export function AdminEquipmentPage() {
               <ActionRailButton onClick={() => navigateToBoard('service_board', detailEquipment.id)}>{t('service_board')}</ActionRailButton>
               {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detailEquipment.id)}>{t('director_board')}</ActionRailButton> : null}
               {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detailEquipment.id)}>{t('sales_board')}</ActionRailButton> : null}
+              {canDeleteEquipment ? <ActionRailButton tone="danger" onClick={removeEquipmentCard}>{t('delete_equipment_card')}</ActionRailButton> : null}
             </ActionRail>
           ) : null}
 

@@ -94,6 +94,7 @@ export function createApiRouter(deps) {
   router.get('/admin/service-cases/:id/history', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.history));
   router.get('/admin/equipment', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listEquipment));
   router.post('/admin/equipment', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.createEquipment));
+  router.delete('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.deleteEquipment));
   router.post('/admin/intake', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.intakeCreate));
   router.get('/admin/equipment/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentDashboard));
   router.get('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentById));

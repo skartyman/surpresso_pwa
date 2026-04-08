@@ -524,6 +524,13 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.json({ removed });
     },
 
+    async deleteEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentDelete)) return res.status(403).json({ error: 'forbidden' });
+      const removed = await serviceOpsRepository.deleteEquipmentById(req.params.id);
+      if (!removed) return res.status(404).json({ error: 'not_found' });
+      return res.json({ removed });
+    },
+
     async history(req, res) {
       if (!can(req.adminUser, PERMISSIONS.serviceCaseRead)) return res.status(403).json({ error: 'forbidden' });
       const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
