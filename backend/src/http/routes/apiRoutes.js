@@ -40,7 +40,7 @@ export function createApiRouter(deps) {
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
-  const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot, equipmentRepository: deps.equipmentRepository });
+  const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot, equipmentRepository: deps.equipmentRepository, clientRepository: deps.clientRepository });
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
     uploadsRoot: deps.uploadsRoot,
     executiveNotifier: deps.executiveNotifier,

@@ -1959,6 +1959,7 @@ textarea { min-height: 110px; resize: vertical; }
   color: var(--sa-muted);
 }
 .service-create-card select,
+.service-create-card input,
 .service-create-card textarea {
   width: 100%;
   border: 1px solid var(--sa-line);
@@ -1975,6 +1976,9 @@ textarea { min-height: 110px; resize: vertical; }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+.service-create-card__suggestions {
+  margin-top: -2px;
 }
 .service-create-card .service-form__checkbox {
   align-self: end;
@@ -3517,6 +3521,7 @@ textarea { min-height: 110px; resize: vertical; }
   :root[data-admin-theme='dark'] .service-filter-shell,
   :root[data-admin-theme='dark'] .equipment-hub-alerts { background: linear-gradient(180deg, rgba(31, 27, 23, .96), rgba(20, 17, 15, .92)); border-color: rgba(118, 93, 63, 0.22); box-shadow: 0 20px 40px rgba(0,0,0,.24); }
 :root[data-admin-theme='dark'] .service-create-card select,
+:root[data-admin-theme='dark'] .service-create-card input,
 :root[data-admin-theme='dark'] .service-create-card textarea {
   background: rgba(10,18,34,.42);
   border-color: #2a3a54;

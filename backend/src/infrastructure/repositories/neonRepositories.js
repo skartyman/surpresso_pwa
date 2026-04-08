@@ -300,6 +300,67 @@ export class NeonClientRepository {
     this.prisma = prisma;
   }
 
+  async createAdminLeadContext(payload = {}) {
+    const companyName = String(payload.companyName || '').trim();
+    const contactName = String(payload.contactName || '').trim() || companyName || 'Новый клиент';
+    const phone = String(payload.phone || '').trim();
+    const locationName = String(payload.locationName || '').trim();
+    const locationAddress = String(payload.locationAddress || '').trim();
+
+    if (!companyName) throw new Error('company_name_required');
+
+    const client = await this.prisma.client.create({
+      data: {
+        id: `client-admin-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        telegramUserId: `admin-manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        companyName,
+        contactName,
+        phone,
+        isActive: true,
+      },
+    });
+
+    const existingNetwork = await this.prisma.network.findFirst({
+      where: { name: { equals: companyName, mode: 'insensitive' } },
+      orderBy: { createdAt: 'asc' },
+    });
+    const network = existingNetwork || await this.prisma.network.create({
+      data: {
+        id: `network-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name: companyName,
+        legalName: companyName,
+        isActive: true,
+      },
+    });
+
+    let location = null;
+    if (locationName) {
+      const existingLocation = await this.prisma.location.findFirst({
+        where: {
+          networkId: network.id,
+          name: { equals: locationName, mode: 'insensitive' },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      location = existingLocation || await this.prisma.location.create({
+        data: {
+          id: `location-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          networkId: network.id,
+          code: null,
+          name: locationName,
+          address: locationAddress || null,
+          isActive: true,
+        },
+      });
+    }
+
+    return {
+      client: mapClient(client),
+      network: mapNetwork(network),
+      location: mapLocation(location),
+    };
+  }
+
   async findByTelegramUserId(telegramUserId) {
     const client = await this.prisma.client.findUnique({
       where: { telegramUserId: String(telegramUserId) },

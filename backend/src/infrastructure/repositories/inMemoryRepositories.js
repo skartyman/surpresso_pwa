@@ -175,6 +175,63 @@ export class InMemoryClientRepository {
     this.pointUsers = [...(seed.pointUsers || [])];
   }
 
+  async createAdminLeadContext(payload = {}) {
+    const companyName = String(payload.companyName || '').trim();
+    const contactName = String(payload.contactName || '').trim() || companyName || 'Новый клиент';
+    const phone = String(payload.phone || '').trim();
+    const locationName = String(payload.locationName || '').trim();
+    const locationAddress = String(payload.locationAddress || '').trim();
+
+    if (!companyName) throw new Error('company_name_required');
+
+    const now = new Date().toISOString();
+    const client = {
+      id: `client-admin-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      telegramUserId: `admin-manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      companyName,
+      contactName,
+      phone,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.clients.unshift(client);
+
+    let network = this.networks.find((item) => String(item.name || '').trim().toLowerCase() === companyName.toLowerCase()) || null;
+    if (!network) {
+      network = {
+        id: `network-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name: companyName,
+        legalName: companyName,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.networks.unshift(network);
+    }
+
+    let location = null;
+    if (locationName) {
+      location = this.locations.find((item) => item.networkId === network.id && String(item.name || '').trim().toLowerCase() === locationName.toLowerCase()) || null;
+      if (!location) {
+        location = {
+          id: `location-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          networkId: network.id,
+          code: null,
+          name: locationName,
+          city: null,
+          address: locationAddress || null,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.locations.unshift(location);
+      }
+    }
+
+    return { client, network, location };
+  }
+
   async findByTelegramUserId(telegramUserId) {
     return this.clients.find((client) => client.telegramUserId === String(telegramUserId)) || null;
   }

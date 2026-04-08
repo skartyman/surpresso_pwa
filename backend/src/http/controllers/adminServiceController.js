@@ -33,6 +33,7 @@ function normalizeSort(value) {
 export function createAdminServiceController(serviceRepository, options = {}) {
   const uploadsRoot = options.uploadsRoot;
   const equipmentRepository = options.equipmentRepository;
+  const clientRepository = options.clientRepository;
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
   const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
   const STATUS_UPDATE_ALLOWED_ROLES = ['service_engineer', 'service_head', 'manager', 'owner', 'director', 'sales_manager'];
@@ -150,6 +151,13 @@ export function createAdminServiceController(serviceRepository, options = {}) {
 
       const type = normalizeRequestType(req.body?.type || REQUEST_TYPES.serviceRepair) || REQUEST_TYPES.serviceRepair;
       const equipmentId = String(req.body?.equipmentId || '').trim();
+      const selectedClientId = String(req.body?.clientId || '').trim() || null;
+      const selectedLocationId = String(req.body?.locationId || '').trim() || null;
+      const companyName = String(req.body?.companyName || '').trim();
+      const contactName = String(req.body?.contactName || '').trim();
+      const phone = String(req.body?.phone || '').trim();
+      const locationName = String(req.body?.locationName || '').trim();
+      const locationAddress = String(req.body?.locationAddress || '').trim();
       const category = String(req.body?.category || '').trim().toLowerCase();
       const description = String(req.body?.description || '').trim();
       const title = String(req.body?.title || '').trim() || description.slice(0, 100) || 'Новая заявка';
@@ -157,9 +165,6 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       const canOperateNow = String(req.body?.canOperateNow ?? 'true').trim().toLowerCase();
       const assignedToUserId = String(req.body?.assignedToUserId || '').trim() || null;
 
-      if (!equipmentId) {
-        return res.status(400).json({ error: 'equipment_required' });
-      }
       if (!description) {
         return res.status(400).json({ error: 'description_required' });
       }
@@ -174,12 +179,32 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         return res.status(400).json({ error: 'urgency_required' });
       }
 
-      const equipment = equipmentRepository ? await equipmentRepository.findById(equipmentId) : null;
-      if (!equipment) {
-        return res.status(400).json({ error: 'equipment_not_found' });
-      }
-      if (!equipment.clientId) {
-        return res.status(400).json({ error: 'equipment_client_required' });
+      let equipment = null;
+      let clientId = selectedClientId;
+      let locationId = selectedLocationId;
+
+      if (equipmentId) {
+        equipment = equipmentRepository ? await equipmentRepository.findById(equipmentId) : null;
+        if (!equipment) {
+          return res.status(400).json({ error: 'equipment_not_found' });
+        }
+        if (!equipment.clientId) {
+          return res.status(400).json({ error: 'equipment_client_required' });
+        }
+        clientId = equipment.clientId;
+        locationId = equipment.locationId || locationId || null;
+      } else if (!clientId) {
+        if (!companyName) {
+          return res.status(400).json({ error: 'company_name_required' });
+        }
+        const createdContext = clientRepository?.createAdminLeadContext
+          ? await clientRepository.createAdminLeadContext({ companyName, contactName, phone, locationName, locationAddress })
+          : null;
+        if (!createdContext?.client?.id) {
+          return res.status(400).json({ error: 'client_context_required' });
+        }
+        clientId = createdContext.client.id;
+        locationId = createdContext.location?.id || null;
       }
 
       const requestId = `req-${Date.now()}`;
@@ -194,9 +219,9 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         type,
         title,
         description,
-        equipmentId: equipment.id,
-        clientId: equipment.clientId,
-        locationId: equipment.locationId || null,
+        equipmentId: equipment?.id || null,
+        clientId,
+        locationId: locationId || null,
         pointUserId: null,
         category,
         urgency,

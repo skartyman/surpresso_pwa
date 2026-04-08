@@ -344,7 +344,13 @@ export function AdminServicePage() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
-    equipmentId: '',
+    clientId: '',
+    locationId: '',
+    venueSearch: '',
+    companyName: '',
+    contactName: '',
+    phone: '',
+    locationName: '',
     category: 'coffee_machine',
     urgency: 'normal',
     serviceMode: 'remote',
@@ -402,7 +408,6 @@ export function AdminServicePage() {
         const equipmentPayload = await adminServiceApi.equipmentList({});
         const items = Array.isArray(equipmentPayload?.items) ? equipmentPayload.items : [];
         setEquipmentOptions(items);
-        setCreateForm((prev) => ({ ...prev, equipmentId: prev.equipmentId || items[0]?.id || '' }));
       }
       setError('');
     } catch {
@@ -569,6 +574,35 @@ export function AdminServicePage() {
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
   const selectedRequestMedia = selectedRequest?.media || [];
   const detailRouteMode = Boolean(requestId);
+  const venueOptions = useMemo(() => {
+    const seen = new Set();
+    return equipmentOptions.reduce((acc, item) => {
+      const clientId = String(item.clientId || '').trim();
+      const locationId = String(item.locationId || '').trim();
+      const companyName = String(item.clientName || item.companyName || '').trim();
+      const locationName = String(item.locationName || item.clientLocation || item.address || '').trim();
+      if (!clientId || !companyName) return acc;
+      const key = `${clientId}:${locationId || locationName}`;
+      if (seen.has(key)) return acc;
+      seen.add(key);
+      acc.push({
+        key,
+        clientId,
+        locationId: locationId || '',
+        companyName,
+        locationName,
+        label: locationName ? `${companyName} · ${locationName}` : companyName,
+      });
+      return acc;
+    }, []).sort((a, b) => a.label.localeCompare(b.label, locale === 'uk' ? 'uk' : 'ru'));
+  }, [equipmentOptions, locale]);
+  const filteredVenueOptions = useMemo(() => {
+    const query = String(createForm.venueSearch || '').trim().toLowerCase();
+    if (!query) return venueOptions.slice(0, 8);
+    return venueOptions
+      .filter((item) => `${item.companyName} ${item.locationName}`.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [createForm.venueSearch, venueOptions]);
 
   function selectRequest(id) {
     navigate(`${basePath}/service/${id}`);
@@ -587,19 +621,24 @@ export function AdminServicePage() {
 
   async function submitCreateRequest(event) {
     event.preventDefault();
-    if (!createForm.equipmentId) {
-      setError(t('equipment_required'));
-      return;
-    }
     if (!createForm.description.trim()) {
       setError(t('description_required'));
+      return;
+    }
+    if (!createForm.clientId && !createForm.companyName.trim()) {
+      setError(t('company_name_required'));
       return;
     }
     setActionLoading('create-request');
     setError('');
     try {
       const createdPayload = await adminServiceApi.createRequest({
-        equipmentId: createForm.equipmentId,
+        clientId: createForm.clientId || null,
+        locationId: createForm.locationId || null,
+        companyName: createForm.companyName.trim(),
+        contactName: createForm.contactName.trim(),
+        phone: createForm.phone.trim(),
+        locationName: createForm.locationName.trim(),
         category: createForm.category,
         urgency: createForm.urgency,
         canOperateNow: createForm.canOperateNow,
@@ -612,7 +651,21 @@ export function AdminServicePage() {
       const created = createdPayload?.request || null;
       setFeedback(t('service_request_created'));
       setCreateOpen(false);
-      setCreateForm((prev) => ({ ...prev, description: '', assignedToUserId: '', urgency: 'normal', serviceMode: 'remote', canOperateNow: true }));
+      setCreateForm((prev) => ({
+        ...prev,
+        clientId: '',
+        locationId: '',
+        venueSearch: '',
+        companyName: '',
+        contactName: '',
+        phone: '',
+        locationName: '',
+        description: '',
+        assignedToUserId: '',
+        urgency: 'normal',
+        serviceMode: 'remote',
+        canOperateNow: true,
+      }));
       setCreateMediaFiles([]);
       if (created?.id) {
         navigate(`${basePath}/service/${created.id}`);
@@ -648,15 +701,18 @@ export function AdminServicePage() {
           <form className="detail-section-card service-create-card" onSubmit={submitCreateRequest}>
             <div className="service-create-card__grid">
               <label>
-                <span>{t('equipment')}</span>
-                <select value={createForm.equipmentId} onChange={(event) => setCreateForm((prev) => ({ ...prev, equipmentId: event.target.value }))}>
-                  <option value="">{t('choose_equipment')}</option>
-                  {equipmentOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.brand} {item.model} · {item.id}
-                    </option>
-                  ))}
-                </select>
+                <span>{t('service_request_venue_search')}</span>
+                <input
+                  type="search"
+                  value={createForm.venueSearch}
+                  placeholder={t('service_request_venue_search_placeholder')}
+                  onChange={(event) => setCreateForm((prev) => ({
+                    ...prev,
+                    venueSearch: event.target.value,
+                    clientId: '',
+                    locationId: '',
+                  }))}
+                />
               </label>
               <label>
                 <span>{t('request_mode')}</span>
@@ -698,6 +754,65 @@ export function AdminServicePage() {
                   onChange={(event) => setCreateForm((prev) => ({ ...prev, canOperateNow: event.target.checked }))}
                 />
                 <span>{t('can_operate_now')}</span>
+              </label>
+            </div>
+            {filteredVenueOptions.length ? (
+              <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-create-card__suggestions">
+                {filteredVenueOptions.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={createForm.clientId === item.clientId && createForm.locationId === item.locationId ? 'active' : ''}
+                    onClick={() => setCreateForm((prev) => ({
+                      ...prev,
+                      clientId: item.clientId,
+                      locationId: item.locationId,
+                      venueSearch: item.label,
+                      companyName: item.companyName,
+                      locationName: item.locationName,
+                    }))}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="service-create-card__grid">
+              <label>
+                <span>{t('client')}</span>
+                <input
+                  type="text"
+                  value={createForm.companyName}
+                  placeholder={t('service_request_company_placeholder')}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, companyName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>{t('point_not_selected')}</span>
+                <input
+                  type="text"
+                  value={createForm.locationName}
+                  placeholder={t('service_request_location_placeholder')}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, locationName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>{t('contact_back')}</span>
+                <input
+                  type="text"
+                  value={createForm.contactName}
+                  placeholder={t('service_request_contact_placeholder')}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, contactName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>{t('call_client')}</span>
+                <input
+                  type="tel"
+                  value={createForm.phone}
+                  placeholder={t('service_request_phone_placeholder')}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, phone: event.target.value }))}
+                />
               </label>
             </div>
             <label>
