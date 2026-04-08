@@ -1556,7 +1556,7 @@ body {
 }
 
 .accent-miniapp-admin {
-  background-image: linear-gradient(130deg, rgba(99,102,241,0.35), rgba(30,64,175,0.62)), url('icons/logo-service.png');
+  background-image: linear-gradient(130deg, rgba(99,102,241,0.35), rgba(30,64,175,0.62)), url('icons/crm.png');
 }
 
 .section-card.accent-equipment {
