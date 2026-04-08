@@ -361,6 +361,54 @@ export class NeonClientRepository {
       isActive: true,
     });
 
+    let networkId = payload.networkId || null;
+    let locationId = payload.locationId || null;
+
+    if (!networkId && payload.networkName) {
+      const normalizedNetworkName = String(payload.networkName || '').trim();
+      const existingNetwork = normalizedNetworkName
+        ? await this.prisma.network.findFirst({
+          where: { name: { equals: normalizedNetworkName, mode: 'insensitive' } },
+          orderBy: { createdAt: 'asc' },
+        })
+        : null;
+      const network = existingNetwork || await this.prisma.network.create({
+        data: {
+          id: `network-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          name: normalizedNetworkName,
+          legalName: payload.companyName || normalizedNetworkName,
+          isActive: true,
+        },
+      });
+      networkId = network.id;
+    }
+
+    if (!locationId && networkId && payload.locationName) {
+      const normalizedLocationName = String(payload.locationName || '').trim();
+      const normalizedLocationAddress = String(payload.locationAddress || '').trim();
+      const existingLocation = normalizedLocationName
+        ? await this.prisma.location.findFirst({
+          where: {
+            networkId,
+            name: { equals: normalizedLocationName, mode: 'insensitive' },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+        : null;
+      const location = existingLocation || await this.prisma.location.create({
+        data: {
+          id: `location-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          networkId,
+          code: null,
+          name: normalizedLocationName,
+          city: payload.locationCity || null,
+          address: normalizedLocationAddress || null,
+          isActive: true,
+        },
+      });
+      locationId = location.id;
+    }
+
     await this.prisma.client.update({
       where: { id: client.id },
       data: {
@@ -374,8 +422,8 @@ export class NeonClientRepository {
       where: { telegramUserId },
       update: {
         clientId: client.id,
-        networkId: payload.networkId || null,
-        locationId: payload.locationId || null,
+        networkId,
+        locationId,
         role: payload.role || 'barista',
         fullName: payload.fullName || payload.contactName || client.contactName || null,
         phone: payload.phone || client.phone || null,
@@ -385,8 +433,8 @@ export class NeonClientRepository {
         id: `point-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         telegramUserId,
         clientId: client.id,
-        networkId: payload.networkId || null,
-        locationId: payload.locationId || null,
+        networkId,
+        locationId,
         role: payload.role || 'barista',
         fullName: payload.fullName || payload.contactName || client.contactName || null,
         phone: payload.phone || client.phone || null,

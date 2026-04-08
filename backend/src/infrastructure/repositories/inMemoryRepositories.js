@@ -233,14 +233,50 @@ export class InMemoryClientRepository {
       isActive: true,
     });
     const telegramUserId = String(telegramUser?.id || '').trim();
+    let networkId = payload.networkId || null;
+    let locationId = payload.locationId || null;
+
+    if (!networkId && payload.networkName) {
+      const normalizedNetworkName = String(payload.networkName || '').trim();
+      const existingNetwork = this.networks.find((item) => String(item.name || '').trim().toLowerCase() === normalizedNetworkName.toLowerCase()) || null;
+      const network = existingNetwork || {
+        id: `network-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name: normalizedNetworkName,
+        legalName: payload.companyName || normalizedNetworkName,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (!existingNetwork) this.networks.unshift(network);
+      networkId = network.id;
+    }
+
+    if (!locationId && networkId && payload.locationName) {
+      const normalizedLocationName = String(payload.locationName || '').trim();
+      const existingLocation = this.locations.find((item) => item.networkId === networkId && String(item.name || '').trim().toLowerCase() === normalizedLocationName.toLowerCase()) || null;
+      const location = existingLocation || {
+        id: `location-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        networkId,
+        code: null,
+        name: normalizedLocationName,
+        city: payload.locationCity || null,
+        address: payload.locationAddress || null,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (!existingLocation) this.locations.unshift(location);
+      locationId = location.id;
+    }
+
     const existingIndex = this.pointUsers.findIndex((item) => item.telegramUserId === telegramUserId);
     const now = new Date().toISOString();
     const pointUser = {
       id: existingIndex >= 0 ? this.pointUsers[existingIndex].id : `point-user-${Date.now()}`,
       telegramUserId,
       clientId: client.id,
-      networkId: payload.networkId || null,
-      locationId: payload.locationId || null,
+      networkId,
+      locationId,
       role: payload.role || 'barista',
       fullName: payload.fullName || payload.contactName || client.contactName || '',
       phone: payload.phone || client.phone || '',

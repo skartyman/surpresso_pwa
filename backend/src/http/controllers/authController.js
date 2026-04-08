@@ -28,10 +28,17 @@ export function createAuthController(clientRepository) {
         companyName: String(req.body?.companyName || '').trim(),
         networkId: String(req.body?.networkId || '').trim(),
         locationId: String(req.body?.locationId || '').trim(),
+        networkName: String(req.body?.networkName || '').trim(),
+        locationName: String(req.body?.locationName || '').trim(),
+        locationCity: String(req.body?.locationCity || '').trim(),
+        locationAddress: String(req.body?.locationAddress || '').trim(),
         role: String(req.body?.role || 'barista').trim() || 'barista',
       };
 
-      if (!payload.networkId || !payload.locationId) {
+      const hasExistingSelection = Boolean(payload.networkId && payload.locationId);
+      const hasNewLocation = Boolean(payload.networkName && payload.locationName);
+
+      if (!hasExistingSelection && !hasNewLocation) {
         return res.status(400).json({ error: 'network_and_location_required' });
       }
 

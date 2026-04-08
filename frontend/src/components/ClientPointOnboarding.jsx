@@ -12,23 +12,36 @@ export function ClientPointOnboarding({
   const pointUser = profile?.pointUser || null;
   const initialNetworkId = profile?.network?.id || networks[0]?.id || '';
   const initialLocationId = profile?.location?.id || '';
+  const initialMode = profile?.network?.id || networks.length ? 'existing' : 'new';
+  const [mode, setMode] = useState(initialMode);
   const [form, setForm] = useState({
+    companyName: profile?.client?.companyName || '',
     networkId: initialNetworkId,
     locationId: initialLocationId,
+    networkName: profile?.network?.name || profile?.client?.companyName || '',
+    locationName: profile?.location?.name || '',
+    locationCity: profile?.location?.city || '',
+    locationAddress: profile?.location?.address || '',
     fullName: pointUser?.fullName || '',
     phone: pointUser?.phone || profile?.client?.phone || '',
     role: pointUser?.role || 'barista',
   });
 
   useEffect(() => {
+    setMode(profile?.network?.id || networks.length ? 'existing' : 'new');
     setForm({
+      companyName: profile?.client?.companyName || '',
       networkId: profile?.network?.id || networks[0]?.id || '',
       locationId: profile?.location?.id || '',
+      networkName: profile?.network?.name || profile?.client?.companyName || '',
+      locationName: profile?.location?.name || '',
+      locationCity: profile?.location?.city || '',
+      locationAddress: profile?.location?.address || '',
       fullName: pointUser?.fullName || '',
       phone: pointUser?.phone || profile?.client?.phone || '',
       role: pointUser?.role || 'barista',
     });
-  }, [networks, pointUser, profile?.client?.phone, profile?.location?.id, profile?.network?.id]);
+  }, [networks, pointUser, profile?.client?.companyName, profile?.client?.phone, profile?.location?.address, profile?.location?.city, profile?.location?.id, profile?.location?.name, profile?.network?.id, profile?.network?.name]);
 
   const locations = useMemo(() => {
     if (!form.networkId) return [];
@@ -49,8 +62,13 @@ export function ClientPointOnboarding({
   const handleSubmit = (event) => {
     event.preventDefault();
     onSubmit?.({
-      networkId: form.networkId,
-      locationId: form.locationId,
+      companyName: form.companyName.trim(),
+      networkId: mode === 'existing' ? form.networkId : '',
+      locationId: mode === 'existing' ? form.locationId : '',
+      networkName: mode === 'new' ? form.networkName.trim() : '',
+      locationName: mode === 'new' ? form.locationName.trim() : '',
+      locationCity: mode === 'new' ? form.locationCity.trim() : '',
+      locationAddress: mode === 'new' ? form.locationAddress.trim() : '',
       fullName: form.fullName.trim(),
       contactName: form.fullName.trim(),
       phone: form.phone.trim(),
@@ -68,11 +86,32 @@ export function ClientPointOnboarding({
 
       <form className="point-onboarding__form" onSubmit={handleSubmit}>
         <label>
+          <span>{t('profile_company')}</span>
+          <input
+            type="text"
+            value={form.companyName}
+            onChange={(event) => setForm((prev) => ({ ...prev, companyName: event.target.value }))}
+            placeholder={t('profile_company')}
+          />
+        </label>
+
+        <label>
+          <span>{t('onboarding_mode')}</span>
+          <select value={mode} onChange={(event) => setMode(event.target.value)}>
+            <option value="existing">{t('onboarding_mode_existing')}</option>
+            <option value="new">{t('onboarding_mode_new')}</option>
+          </select>
+        </label>
+
+        {mode === 'existing' ? (
+          <>
+        <label>
           <span>{t('onboarding_network')}</span>
           <select
             value={form.networkId}
             onChange={(event) => setForm((prev) => ({ ...prev, networkId: event.target.value, locationId: '' }))}
           >
+            {!networks.length ? <option value="">{t('onboarding_no_networks')}</option> : null}
             {networks.map((network) => (
               <option key={network.id} value={network.id}>{network.name}</option>
             ))}
@@ -85,11 +124,56 @@ export function ClientPointOnboarding({
             value={form.locationId}
             onChange={(event) => setForm((prev) => ({ ...prev, locationId: event.target.value }))}
           >
+            {!locations.length ? <option value="">{t('onboarding_no_locations')}</option> : null}
             {locations.map((location) => (
               <option key={location.id} value={location.id}>{location.name}</option>
             ))}
           </select>
         </label>
+          </>
+        ) : (
+          <>
+            <label>
+              <span>{t('onboarding_network_new')}</span>
+              <input
+                type="text"
+                value={form.networkName}
+                onChange={(event) => setForm((prev) => ({ ...prev, networkName: event.target.value }))}
+                placeholder={t('onboarding_network_new')}
+              />
+            </label>
+
+            <label>
+              <span>{t('onboarding_location_new')}</span>
+              <input
+                type="text"
+                value={form.locationName}
+                onChange={(event) => setForm((prev) => ({ ...prev, locationName: event.target.value }))}
+                placeholder={t('onboarding_location_new')}
+              />
+            </label>
+
+            <label>
+              <span>{t('onboarding_city')}</span>
+              <input
+                type="text"
+                value={form.locationCity}
+                onChange={(event) => setForm((prev) => ({ ...prev, locationCity: event.target.value }))}
+                placeholder={t('onboarding_city')}
+              />
+            </label>
+
+            <label>
+              <span>{t('onboarding_address')}</span>
+              <input
+                type="text"
+                value={form.locationAddress}
+                onChange={(event) => setForm((prev) => ({ ...prev, locationAddress: event.target.value }))}
+                placeholder={t('onboarding_address')}
+              />
+            </label>
+          </>
+        )}
 
         <label>
           <span>{t('onboarding_name')}</span>
@@ -125,7 +209,12 @@ export function ClientPointOnboarding({
 
         <button
           type="submit"
-          disabled={submitting || !form.networkId || !form.locationId || !form.fullName.trim()}
+          disabled={
+            submitting
+            || !form.fullName.trim()
+            || (mode === 'existing' && (!form.networkId || !form.locationId))
+            || (mode === 'new' && (!form.companyName.trim() || !form.networkName.trim() || !form.locationName.trim()))
+          }
         >
           {submitting ? t('saving') : t('onboarding_save')}
         </button>
