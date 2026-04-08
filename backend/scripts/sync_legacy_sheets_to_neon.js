@@ -88,6 +88,38 @@ function csvExportUrl(spreadsheetId, gid) {
 }
 
 function parseCsv(text = '') {
+  const rows = parseCsvRows(text);
+  if (!rows.length) return [];
+
+  const headers = rows[0].map((item) => String(item || '').trim());
+  return rows.slice(1).map((items) => {
+    const out = {};
+    headers.forEach((header, index) => {
+      if (!header) return;
+      out[header] = items[index] ?? '';
+    });
+    return out;
+  });
+}
+
+function parseLegacyPhotosCsv(text = '') {
+  const rows = [];
+  const parsed = parseCsvRows(text);
+  for (const row of parsed) {
+    if (!row || row.length < 4) continue;
+    rows.push({
+      ts: row[0] ?? '',
+      equipmentId: row[1] ?? '',
+      fileId: row[2] ?? '',
+      fileUrl: row[3] ?? '',
+      imgUrl: row[4] ?? '',
+      caption: row[5] ?? '',
+    });
+  }
+  return rows;
+}
+
+function parseCsvRows(text = '') {
   const rows = [];
   let row = [];
   let value = '';
@@ -134,17 +166,7 @@ function parseCsv(text = '') {
 
   row.push(value);
   if (row.length > 1 || row[0] !== '') rows.push(row);
-  if (!rows.length) return [];
-
-  const headers = rows[0].map((item) => String(item || '').trim());
-  return rows.slice(1).map((items) => {
-    const out = {};
-    headers.forEach((header, index) => {
-      if (!header) return;
-      out[header] = items[index] ?? '';
-    });
-    return out;
-  });
+  return rows;
 }
 
 async function loadCsvRows({ source, spreadsheetId, gids, files, verbose }) {
@@ -161,18 +183,24 @@ async function loadCsvRows({ source, spreadsheetId, gids, files, verbose }) {
     return parseCsv(text);
   };
 
-  const loadFile = async (filePath) => {
+  const loadFile = async (filePath, kind = 'generic') => {
     if (!filePath) return [];
     const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
     const text = await readFile(absolutePath, 'utf8');
+    if (kind === 'photos') {
+      const firstLine = String(text.split(/\r?\n/, 1)[0] || '');
+      if (/^\d{1,2}\.\d{1,2}\.\d{4}\s+\d{1,2}:\d{2}:\d{2},/.test(firstLine)) {
+        return parseLegacyPhotosCsv(text);
+      }
+    }
     return parseCsv(text);
   };
 
   if (source === 'files') {
     return {
-      equipmentRows: await loadFile(files.equipment),
-      statusRows: await loadFile(files.status),
-      photoRows: await loadFile(files.photos),
+      equipmentRows: await loadFile(files.equipment, 'equipment'),
+      statusRows: await loadFile(files.status, 'status'),
+      photoRows: await loadFile(files.photos, 'photos'),
     };
   }
 
@@ -247,13 +275,15 @@ function parseBool(value) {
 function parseLegacyDate(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return null;
+  const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (match) {
+    const [, dd, mm, yyyy, hh = '0', min = '0', sec = '0'] = match;
+    return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), Number(sec));
+  }
+
   const iso = new Date(raw);
   if (!Number.isNaN(iso.getTime())) return iso;
-
-  const match = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (!match) return null;
-  const [, dd, mm, yyyy, hh = '0', min = '0', sec = '0'] = match;
-  return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), Number(sec));
+  return null;
 }
 
 function parseEquipmentType(typeRaw) {
@@ -563,7 +593,7 @@ function buildMediaRows(equipmentId, photoRows = [], cases = []) {
       if (!fileUrl) return null;
       const assignedCase = pickCaseForMedia(createdAt, cases);
       return {
-        id: stableId('legacy-scm', [equipmentId, row.fileId || '', fileUrl, createdAt.toISOString()]),
+        id: stableId('legacy-scm', [equipmentId, row.fileId || '', fileUrl]),
         equipmentId,
         serviceCaseId: assignedCase?.id || null,
         kind: /\.(mp4|mov|avi|webm)$/i.test(fileUrl) ? 'video' : 'photo',
@@ -682,11 +712,19 @@ async function main() {
   }
 
   const { equipmentRows, statusRows, photoRows } = await loadCsvRows(args);
-  const enrichedRows = ((args.gasEnrich || (!statusRows.length && !photoRows.length))
+  const shouldGasEnrich = (args.gasEnrich || (!statusRows.length && !photoRows.length))
     && equipmentRows.length
     && process.env.GAS_WEBAPP_URL
-    && process.env.GAS_SECRET)
+    && process.env.GAS_SECRET;
+  const gasRows = shouldGasEnrich
     ? await hydrateRowsFromGas(equipmentRows, { verbose: args.verbose })
+    : null;
+  const enrichedRows = shouldGasEnrich
+    ? {
+        equipmentRows: gasRows?.equipmentRows?.length ? gasRows.equipmentRows : equipmentRows,
+        statusRows: statusRows.length ? statusRows : (gasRows?.statusRows || []),
+        photoRows: photoRows.length ? photoRows : (gasRows?.photoRows || []),
+      }
     : { equipmentRows, statusRows, photoRows };
   const groupedStatus = groupByEquipmentId(enrichedRows.statusRows, 'equipmentId');
   const groupedPhotos = groupByEquipmentId(enrichedRows.photoRows, 'equipmentId');
@@ -694,7 +732,7 @@ async function main() {
   const summary = {
     source: args.source,
     apply: args.apply,
-    gasEnrich: Boolean((args.gasEnrich || (!statusRows.length && !photoRows.length)) && process.env.GAS_WEBAPP_URL && process.env.GAS_SECRET),
+    gasEnrich: Boolean(shouldGasEnrich),
     spreadsheetId: args.source === 'sheets' ? args.spreadsheetId : null,
     equipmentRows: enrichedRows.equipmentRows.length,
     statusRows: enrichedRows.statusRows.length,

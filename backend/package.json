@@ -11,7 +11,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
     "import:equipment-xlsx": "python3 scripts/import_equipment_xlsx.py",
-    "sync:legacy-sheets": "node scripts/sync_legacy_sheets_to_neon.js"
+    "sync:legacy-sheets": "node scripts/sync_legacy_sheets_to_neon.js",
+    "dedupe:service-media": "node scripts/dedupe_service_media.js"
   },
   "dependencies": {
     "express": "^4.21.0",
