@@ -11,6 +11,7 @@ import { getAllowedServiceTransitions } from '../../domain/workflow/serviceTrans
 import { getAllowedCommercialTransitions } from '../../domain/workflow/commercialTransitions.js';
 import { buildEquipmentTimeline, normalizeEquipmentMedia } from '../utils/equipmentDetailView.js';
 import { normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
+import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
@@ -477,6 +478,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const serviceCase = await serviceOpsRepository.getServiceCaseById(req.params.id);
       if (!serviceCase) return res.status(404).json({ error: 'not_found' });
       if (!req.files?.length) return res.status(400).json({ error: 'file_required' });
+      const mediaValidationError = validateUploadedMediaFiles(req.files || [], { required: true });
+      if (mediaValidationError) return res.status(400).json({ error: mediaValidationError });
       const saved = [];
       for (const file of req.files) {
         const meta = await storeServiceMediaFile({ uploadsRoot, file });
@@ -496,6 +499,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const equipment = await serviceOpsRepository.getEquipmentById(req.params.id);
       if (!equipment) return res.status(404).json({ error: 'not_found' });
       if (!req.files?.length) return res.status(400).json({ error: 'file_required' });
+      const mediaValidationError = validateUploadedMediaFiles(req.files || [], { required: true });
+      if (mediaValidationError) return res.status(400).json({ error: mediaValidationError });
 
       const serviceCaseId = String(req.body?.serviceCaseId || '').trim() || null;
       if (serviceCaseId) {

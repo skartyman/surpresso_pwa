@@ -4,6 +4,21 @@ import { telegramClientApi } from '../api/telegramClientApi';
 import { ClientPointOnboarding } from '../components/ClientPointOnboarding';
 import { useI18n } from '../i18n';
 
+function formatFileSize(size = 0) {
+  const value = Number(size || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${value} B`;
+}
+
+function getUploadErrorMessage(error, t) {
+  const code = String(error?.message || '').trim();
+  if (code === 'unsupported_media_type') return t('request_media_invalid_type');
+  if (code === 'media_file_too_large') return t('request_media_too_large');
+  if (code === 'too_many_media_files') return t('request_media_too_many');
+  return error?.message || t('err_request_failed');
+}
+
 export function ServicePage() {
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
@@ -103,7 +118,7 @@ export function ServicePage() {
       setMediaFiles([]);
       setForm((prev) => ({ ...prev, description: '' }));
     } catch (submitError) {
-      setError(submitError.message || t('err_request_failed'));
+      setError(getUploadErrorMessage(submitError, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -210,6 +225,16 @@ export function ServicePage() {
           <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
           <small>{t('request_media_hint')}</small>
           {mediaFiles.length ? <small>{t('request_selected')}: {mediaFiles.length}</small> : null}
+          {mediaFiles.length ? (
+            <ul className="detail-list">
+              {mediaFiles.map((file) => (
+                <li key={`${file.name}-${file.size}-${file.lastModified}`} className="detail-list__item">
+                  <p><strong>{file.name}</strong></p>
+                  <small>{String(file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(file.size)}</small>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
         <button type="submit" disabled={isSubmitting || !form.equipmentId}>{isSubmitting ? t('sending') : t('send_request')}</button>

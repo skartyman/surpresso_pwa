@@ -2,6 +2,7 @@ import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 import { normalizeRequestType, REQUEST_DEPARTMENTS, REQUEST_TYPES } from '../../domain/entities/requestTypes.js';
 import { normalizeServiceRequestStatus } from '../../domain/workflow/serviceRequestStatuses.js';
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
+import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 const ALLOWED_SORT = ['urgency', 'createdAt', 'updatedAt'];
 const WORKFLOW = {
   new: ['assigned', 'taken_in_work', 'cancelled'],
@@ -298,6 +299,10 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       }
       if (!req.files?.length) {
         return res.status(400).json({ error: 'media_required' });
+      }
+      const mediaValidationError = validateUploadedMediaFiles(req.files || [], { required: true });
+      if (mediaValidationError) {
+        return res.status(400).json({ error: mediaValidationError });
       }
 
       const mediaStage = String(req.body?.mediaStage || 'before').trim().toLowerCase();

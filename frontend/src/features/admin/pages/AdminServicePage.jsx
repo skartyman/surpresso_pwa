@@ -22,8 +22,34 @@ function formatDate(value, locale = 'ru') {
   return value ? new Date(value).toLocaleString(locale === 'uk' ? 'uk-UA' : 'ru-RU') : '—';
 }
 
+function formatFileSize(size = 0) {
+  const value = Number(size || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${value} B`;
+}
+
+function getUploadErrorMessage(error, t) {
+  const code = String(error?.message || '').trim();
+  if (code === 'unsupported_media_type') return t('upload_media_invalid_type');
+  if (code === 'media_file_too_large') return t('upload_media_too_large');
+  if (code === 'too_many_media_files') return t('upload_media_too_many');
+  return error?.message || t('upload_media_failed');
+}
+
+function isRequestMediaVideo(item) {
+  return String(item?.mediaKind || item?.mimeType || item?.type || '').toLowerCase().includes('video');
+}
+
+function getRequestMediaVisualUrl(item) {
+  return item?.previewUrl || item?.imgUrl || item?.fileUrl || item?.url || '';
+}
+
 function getRequestPreview(request) {
-  return (request?.media || []).find((item) => item.previewUrl || item.fileUrl) || null;
+  const rows = request?.media || [];
+  return rows.find((item) => !isRequestMediaVideo(item) && getRequestMediaVisualUrl(item))
+    || rows.find((item) => getRequestMediaVisualUrl(item))
+    || null;
 }
 
 function splitMediaByStage(rows = []) {
@@ -109,8 +135,12 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
         </div>
 
         <div className="service-board-card__preview">
-          {preview?.previewUrl || preview?.fileUrl
-            ? <img src={preview.previewUrl || preview.fileUrl} alt={request.equipment?.model || 'preview'} loading="lazy" />
+          {getRequestMediaVisualUrl(preview)
+            ? (
+              isRequestMediaVideo(preview)
+                ? <video src={preview.fileUrl || getRequestMediaVisualUrl(preview)} muted playsInline preload="metadata" />
+                : <img src={getRequestMediaVisualUrl(preview)} alt={request.equipment?.model || 'preview'} loading="lazy" />
+            )
             : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>{t('no_photo')}</span></div>}
         </div>
 
@@ -398,7 +428,7 @@ export function AdminServicePage() {
       await loadDetails(requestId);
       setFeedback(mediaStage === 'after' ? t('media_after_uploaded') : t('media_before_uploaded'));
     } catch (mediaError) {
-      setError(mediaError?.message || t('upload_media_failed'));
+      setError(getUploadErrorMessage(mediaError, t));
     } finally {
       setActionLoading('');
     }
@@ -536,8 +566,12 @@ export function AdminServicePage() {
                   </div>
                 </div>
                 <div className="equipment-ops-detail__hero-preview">
-                  {getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl
-                    ? <img className="ticket-preview" src={getRequestPreview(selectedRequest)?.previewUrl || getRequestPreview(selectedRequest)?.fileUrl} alt={selectedRequest.equipment?.model || 'preview'} loading="lazy" />
+                  {getRequestMediaVisualUrl(getRequestPreview(selectedRequest))
+                    ? (
+                      isRequestMediaVideo(getRequestPreview(selectedRequest))
+                        ? <video className="ticket-preview" src={getRequestPreview(selectedRequest)?.fileUrl || getRequestMediaVisualUrl(getRequestPreview(selectedRequest))} muted playsInline preload="metadata" />
+                        : <img className="ticket-preview" src={getRequestMediaVisualUrl(getRequestPreview(selectedRequest))} alt={selectedRequest.equipment?.model || 'preview'} loading="lazy" />
+                    )
                     : <div className="service-board-card__preview-empty"><Icon name="equipment" /><span>{t('no_photo')}</span></div>}
                 </div>
               </header>
@@ -637,7 +671,7 @@ export function AdminServicePage() {
                     <div className="media-grid">
                       {mediaGroups.before.map((item) => (
                         <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                          {String(item.mimeType || '').startsWith('video/') ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={item.previewUrl || item.fileUrl} alt={item.originalName || 'before'} />}
+                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'before'} />}
                           <small>{item.originalName || t('photo_before_fallback')}</small>
                         </a>
                       ))}
@@ -650,11 +684,24 @@ export function AdminServicePage() {
                     <div className="media-grid">
                       {mediaGroups.after.map((item) => (
                         <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                          {String(item.mimeType || '').startsWith('video/') ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={item.previewUrl || item.fileUrl} alt={item.originalName || 'after'} />}
+                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'after'} />}
                           <small>{item.originalName || t('photo_after_fallback')}</small>
                         </a>
                       ))}
                       {!mediaGroups.after.length ? <p className="empty-copy media-empty">{t('no_after_photos')}</p> : null}
+                    </div>
+                  </div>
+
+                  <div className="detail-section-card">
+                    <h4>{t('client_media')}</h4>
+                    <div className="media-grid">
+                      {mediaGroups.client.map((item) => (
+                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
+                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'client'} />}
+                          <small>{item.originalName || t('client_media_fallback')}</small>
+                        </a>
+                      ))}
+                      {!mediaGroups.client.length ? <p className="empty-copy media-empty">{t('no_client_media')}</p> : null}
                     </div>
                   </div>
 
@@ -665,6 +712,16 @@ export function AdminServicePage() {
                       <option value="after">{t('photos_after')}</option>
                     </select>
                     <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
+                    {mediaFiles.length ? (
+                      <ul className="detail-list">
+                        {mediaFiles.map((file) => (
+                          <li key={`${file.name}-${file.size}-${file.lastModified}`} className="detail-list__item">
+                            <p><strong>{file.name}</strong></p>
+                            <small>{String(file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(file.size)}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     <ActionRail compact>
                       <ActionRailButton tone="brand" disabled={Boolean(actionLoading) || !mediaFiles.length} onClick={submitMedia}>{actionLoading === 'media' ? t('loading') : t('upload')}</ActionRailButton>
                     </ActionRail>

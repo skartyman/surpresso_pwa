@@ -7,18 +7,28 @@ function parseMediaStage(type) {
   return 'client';
 }
 
+function parseMediaKind(item = {}) {
+  const mimeType = String(item.mimeType || '').trim().toLowerCase();
+  const type = String(item.type || '').trim().toLowerCase();
+  if (mimeType.startsWith('video/') || type.includes('video')) return 'video';
+  return 'image';
+}
+
 export function enrichServiceRequestMedia(req, request) {
   if (!request) return request;
 
   return {
     ...request,
     media: (request.media || []).map((item) => {
+      const mediaKind = parseMediaKind(item);
       const fileUrl = normalizeRequestUrl(req, item.fileUrl || item.url || '');
       const explicitPreview = normalizeRequestUrl(req, item.previewUrl || item.imgUrl || '');
-      const previewUrl = explicitPreview || (item.type === 'image' ? buildProxyDriveUrl(req, fileUrl) : '');
+      const previewUrl = explicitPreview
+        || (mediaKind === 'image' ? (buildProxyDriveUrl(req, fileUrl) || fileUrl) : fileUrl);
 
       return {
         ...item,
+        mediaKind,
         stage: parseMediaStage(item.type),
         url: fileUrl,
         fileUrl,

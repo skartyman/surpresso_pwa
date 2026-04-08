@@ -79,6 +79,21 @@ function formatDay(value, locale = 'ru', fallback = '—') {
   return value ? new Date(value).toLocaleDateString(locale === 'uk' ? 'uk-UA' : 'ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }) : fallback;
 }
 
+function formatFileSize(size = 0) {
+  const value = Number(size || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${value} B`;
+}
+
+function getUploadErrorMessage(error, t = (value) => value) {
+  const code = String(error?.message || '').trim();
+  if (code === 'unsupported_media_type') return t('upload_media_invalid_type');
+  if (code === 'media_file_too_large') return t('upload_media_too_large');
+  if (code === 'too_many_media_files') return t('upload_media_too_many');
+  return t('upload_media_failed');
+}
+
 function isUrlLike(value = '') {
   return /^https?:\/\//i.test(String(value).trim());
 }
@@ -452,6 +467,21 @@ function MediaGallery({ rows = [], onOpen, equipmentId, onCoverSelect, onDelete,
   );
 }
 
+function MediaFileSelection({ files = [], t }) {
+  if (!files.length) return null;
+
+  return (
+    <ul className="detail-list">
+      {files.map((file) => (
+        <li key={`${file.name}-${file.size}-${file.lastModified}`} className="detail-list__item">
+          <p><strong>{file.name}</strong></p>
+          <small>{String(file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(file.size)}</small>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Lightbox({ rows = [], index, onClose, onNavigate, t, locale }) {
   const media = rows[index];
   if (!media) return null;
@@ -562,8 +592,8 @@ function ActionPanel({
       setQuickMediaCaption('');
       setFeedback(t('media_added_to_case'));
       await onQuickMediaUploaded?.();
-    } catch {
-      setError(t('upload_media_failed'));
+    } catch (uploadError) {
+      setError(getUploadErrorMessage(uploadError, t));
     } finally {
       setActionLoading('');
     }
@@ -597,6 +627,7 @@ function ActionPanel({
             onChange={(event) => setQuickMediaCaption(event.target.value)}
             placeholder={t('media_comment_placeholder')}
           />
+          <MediaFileSelection files={quickMediaFiles} t={t} />
           <button
             type="button"
             className="equipment-action-panel__upload-btn"
@@ -657,6 +688,10 @@ function TabPanel({
   const [noteBody, setNoteBody] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
+  const [equipmentMediaFiles, setEquipmentMediaFiles] = useState([]);
+  const [equipmentMediaPlacement, setEquipmentMediaPlacement] = useState('equipment');
+  const [equipmentMediaFeedback, setEquipmentMediaFeedback] = useState('');
+  const [equipmentMediaError, setEquipmentMediaError] = useState('');
   const [editForm, setEditForm] = useState({ brand: '', model: '', serial: '', internalNumber: '' });
   const [busy, setBusy] = useState('');
   if (!detail) return <p className="empty-copy">{t('equipment_unit_select')}</p>;
@@ -868,21 +903,40 @@ function TabPanel({
         </article>
         {canUploadEquipmentMedia ? (
           <div className="detail-composer detail-composer--stack">
-            <input type="file" multiple accept="image/*,video/*" />
+            <select value={equipmentMediaPlacement} onChange={(event) => setEquipmentMediaPlacement(event.target.value)}>
+              <option value="equipment">{t('upload_to_equipment_card')}</option>
+              <option value="service_case" disabled={!activeCase?.id}>
+                {activeCase?.id ? `${t('upload_to_case')} ${activeCase.id}` : t('active_case_not_found_upload')}
+              </option>
+            </select>
+            <input type="file" multiple accept="image/*,video/*" onChange={(event) => setEquipmentMediaFiles(Array.from(event.target.files || []))} />
+            <MediaFileSelection files={equipmentMediaFiles} t={t} />
             <ActionRail compact>
               <ActionRailButton
                 tone="brand"
+                disabled={!equipmentMediaFiles.length || busy === 'equipment-media'}
                 onClick={async () => {
-                  const fileInput = document.querySelector('.equipment-detail-section input[type=\"file\"]');
-                  const files = Array.from(fileInput?.files || []);
-                  if (!files.length) return;
-                  const toCase = activeCase?.id && window.confirm(t('upload_to_case_confirm').replace('{id}', activeCase.id));
-                  await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, files, { serviceCaseId: toCase ? activeCase.id : null });
-                  if (fileInput) fileInput.value = '';
-                  await onRefreshDetail?.();
+                  if (!equipmentMediaFiles.length) return;
+                  const targetCaseId = equipmentMediaPlacement === 'service_case' ? (activeCase?.id || null) : null;
+                  setBusy('equipment-media');
+                  setEquipmentMediaError('');
+                  setEquipmentMediaFeedback('');
+                  try {
+                    const response = await adminServiceApi.uploadEquipmentMedia(detail.equipment.id, equipmentMediaFiles, { serviceCaseId: targetCaseId });
+                    setEquipmentMediaFiles([]);
+                    setEquipmentMediaFeedback(response?.placement === 'service_case' ? t('media_added_to_case') : t('media_added_to_equipment'));
+                    await onRefreshDetail?.();
+                  } catch (uploadError) {
+                    setEquipmentMediaError(getUploadErrorMessage(uploadError, t));
+                  } finally {
+                    setBusy('');
+                  }
                 }}
-              >{t('upload')}</ActionRailButton>
+              >{busy === 'equipment-media' ? t('loading') : t('upload')}</ActionRailButton>
             </ActionRail>
+            {equipmentMediaFiles.length ? <small>{t('request_selected')}: {equipmentMediaFiles.length}</small> : null}
+            {equipmentMediaFeedback ? <p>{equipmentMediaFeedback}</p> : null}
+            {equipmentMediaError ? <p className="error-text">{equipmentMediaError}</p> : null}
           </div>
         ) : null}
         <MediaGallery

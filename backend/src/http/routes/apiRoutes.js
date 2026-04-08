@@ -10,6 +10,7 @@ import { createAdminServiceController } from '../controllers/adminServiceControl
 import { createAdminServiceOpsController } from '../controllers/adminServiceOpsController.js';
 import { createAdminEmployeeController } from '../controllers/adminEmployeeController.js';
 import { requireAuth, requireRole } from '../middleware/adminAuth.js';
+import { isAllowedUploadMimeType, MAX_UPLOAD_MEDIA_FILES, MAX_UPLOAD_MEDIA_FILE_SIZE } from '../utils/uploadedMediaValidation.js';
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -19,7 +20,15 @@ export function createApiRouter(deps) {
   const router = express.Router();
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { files: 6, fileSize: 30 * 1024 * 1024 },
+    limits: { files: MAX_UPLOAD_MEDIA_FILES, fileSize: MAX_UPLOAD_MEDIA_FILE_SIZE },
+    fileFilter: (req, file, cb) => {
+      if (!isAllowedUploadMimeType(file?.mimetype)) {
+        const error = new Error('unsupported_media_type');
+        error.statusCode = 400;
+        return cb(error);
+      }
+      return cb(null, true);
+    },
   });
 
   const authMiddleware = telegramAuth(deps.clientRepository);
@@ -146,6 +155,16 @@ export function createApiRouter(deps) {
   router.use((err, req, res, next) => {
     if (res.headersSent) {
       return next(err);
+    }
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'media_file_too_large' });
+      if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'too_many_media_files' });
+      return res.status(400).json({ error: 'media_upload_failed' });
+    }
+
+    if (err?.message === 'unsupported_media_type') {
+      return res.status(err.statusCode || 400).json({ error: 'unsupported_media_type' });
     }
 
     console.error('[miniapp-api] request failed', {

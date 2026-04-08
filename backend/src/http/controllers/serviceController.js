@@ -1,6 +1,7 @@
 import { uploadServiceRequestMedia } from '../../infrastructure/drive/gasDriveClient.js';
 import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 import { REQUEST_TYPES, normalizeRequestType, resolveDepartmentByType } from '../../domain/entities/requestTypes.js';
+import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 
 const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
 const ALLOWED_URGENCY = new Set(['low', 'normal', 'high', 'critical']);
@@ -60,12 +61,16 @@ export function createServiceController(serviceRepository, equipmentRepository, 
       const urgency = normalizeText(req.body?.urgency || 'normal');
       const equipmentId = normalizeText(req.body?.equipmentId);
       const canOperateNow = toBoolean(req.body?.canOperateNow ?? req.body?.canOperate ?? false);
+      const mediaValidationError = validateUploadedMediaFiles(req.files || []);
 
       if (!type) {
         return res.status(400).json({ error: 'type_required' });
       }
       if (!description) {
         return res.status(400).json({ error: 'description_required' });
+      }
+      if (mediaValidationError) {
+        return res.status(400).json({ error: mediaValidationError });
       }
 
       const isServiceRepair = type === REQUEST_TYPES.serviceRepair;
