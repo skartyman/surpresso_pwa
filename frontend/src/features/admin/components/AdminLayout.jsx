@@ -122,6 +122,11 @@ export function AdminLayout() {
           </div>
         </div>
 
+        <div className="admin-sidebar__profile">
+          <strong>{user.fullName || user.name}</strong>
+          <span className="role-badge">{roleLabels[user.role]}</span>
+        </div>
+
         <nav className="admin-sidebar-sections">
           {sections.map((section) => (
             <section key={section.key} className="admin-nav-group">
@@ -145,10 +150,6 @@ export function AdminLayout() {
           <button type="button" className="secondary" onClick={toggleLocale}>
             {t('admin_lang')}: {locale.toUpperCase()}
           </button>
-          <div>
-            <strong>{user.fullName || user.name}</strong>
-            <span className="role-badge">{roleLabels[user.role]}</span>
-          </div>
           <button type="button" className="secondary" onClick={() => setPasswordOpen((prev) => !prev)}>{t('change_password')}</button>
           {passwordOpen ? (
             <form className="admin-password-form" onSubmit={handlePasswordSubmit}>
