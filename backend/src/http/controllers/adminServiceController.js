@@ -4,6 +4,8 @@ import { normalizeServiceRequestStatus } from '../../domain/workflow/serviceRequ
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
 import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 const ALLOWED_SORT = ['urgency', 'createdAt', 'updatedAt'];
+const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
+const ALLOWED_URGENCY = new Set(['low', 'normal', 'high', 'critical']);
 const WORKFLOW = {
   new: ['assigned', 'taken_in_work', 'cancelled'],
   assigned: ['taken_in_work', 'cancelled'],
@@ -29,10 +31,12 @@ function normalizeSort(value) {
 
 export function createAdminServiceController(serviceRepository, options = {}) {
   const uploadsRoot = options.uploadsRoot;
+  const equipmentRepository = options.equipmentRepository;
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
   const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
   const STATUS_UPDATE_ALLOWED_ROLES = ['service_engineer', 'service_head', 'manager', 'owner', 'director', 'sales_manager'];
   const DELETE_ALLOWED_ROLES = ['service_head', 'owner', 'director'];
+  const CREATE_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
 
   function canAssign(role) {
     return ASSIGNMENT_ALLOWED_ROLES.includes(role);
@@ -96,6 +100,10 @@ export function createAdminServiceController(serviceRepository, options = {}) {
     return DELETE_ALLOWED_ROLES.includes(role);
   }
 
+  function canCreateRequest(role) {
+    return CREATE_ALLOWED_ROLES.includes(role);
+  }
+
   function normalizeMediaType(stage, mimeType) {
     const kind = String(mimeType || '').toLowerCase().startsWith('video/') ? 'video' : 'photo';
     const normalizedStage = String(stage || '').trim().toLowerCase();
@@ -132,6 +140,64 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       const scopedFilters = scopeFiltersByRole(req.adminUser?.role, req.adminUser?.id, { status, type, assignedToUserId: engineer });
       const metrics = await serviceRepository.getDashboardMetrics(scopedFilters);
       return res.json(metrics);
+    },
+
+    async create(req, res) {
+      if (!canCreateRequest(req.adminUser?.role)) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+
+      const type = normalizeRequestType(req.body?.type || REQUEST_TYPES.serviceRepair) || REQUEST_TYPES.serviceRepair;
+      const equipmentId = String(req.body?.equipmentId || '').trim();
+      const category = String(req.body?.category || '').trim().toLowerCase();
+      const description = String(req.body?.description || '').trim();
+      const title = String(req.body?.title || '').trim() || description.slice(0, 100) || 'Новая заявка';
+      const urgency = String(req.body?.urgency || 'normal').trim().toLowerCase();
+      const canOperateNow = String(req.body?.canOperateNow ?? 'true').trim().toLowerCase();
+      const assignedToUserId = String(req.body?.assignedToUserId || '').trim() || null;
+
+      if (!equipmentId) {
+        return res.status(400).json({ error: 'equipment_required' });
+      }
+      if (!description) {
+        return res.status(400).json({ error: 'description_required' });
+      }
+      if (!ALLOWED_CATEGORIES.has(category)) {
+        return res.status(400).json({ error: 'category_required' });
+      }
+      if (!ALLOWED_URGENCY.has(urgency)) {
+        return res.status(400).json({ error: 'urgency_required' });
+      }
+
+      const equipment = equipmentRepository ? await equipmentRepository.findById(equipmentId) : null;
+      if (!equipment) {
+        return res.status(400).json({ error: 'equipment_not_found' });
+      }
+      if (!equipment.clientId) {
+        return res.status(400).json({ error: 'equipment_client_required' });
+      }
+
+      const created = await serviceRepository.create({
+        id: `req-${Date.now()}`,
+        type,
+        title,
+        description,
+        equipmentId: equipment.id,
+        clientId: equipment.clientId,
+        locationId: equipment.locationId || null,
+        pointUserId: null,
+        category,
+        urgency,
+        canOperateNow: ['1', 'true', 'yes', 'on'].includes(canOperateNow),
+        assignedDepartment: REQUEST_DEPARTMENTS.service,
+        source: 'admin_manual',
+        assignedToUserId,
+        assignedByUserId: assignedToUserId ? req.adminUser?.id || null : null,
+        status: assignedToUserId ? 'assigned' : 'new',
+        media: [],
+      });
+
+      return res.status(201).json({ request: enrichServiceRequestMedia(req, created) });
     },
 
     async byId(req, res) {

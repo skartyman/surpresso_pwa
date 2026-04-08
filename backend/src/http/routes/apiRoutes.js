@@ -40,7 +40,7 @@ export function createApiRouter(deps) {
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
-  const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot });
+  const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot, equipmentRepository: deps.equipmentRepository });
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
     uploadsRoot: deps.uploadsRoot,
     executiveNotifier: deps.executiveNotifier,
@@ -64,6 +64,7 @@ export function createApiRouter(deps) {
   router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.listServiceEngineers));
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.list));
   router.get('/admin/service-requests/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.dashboard));
+  router.post('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.create));
   router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.byId));
   router.delete('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminServiceController.deleteById));
   router.post('/admin/service-requests/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.updateStatus));

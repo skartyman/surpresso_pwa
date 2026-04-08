@@ -320,12 +320,14 @@ export function AdminServicePage() {
   const roleProfile = useMemo(() => getAdminRoleProfile(user?.role), [user?.role]);
   const canAssign = roleProfile.service.showAssignmentPanel;
   const canDelete = [ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const canCreateRequest = [ROLES.serviceHead, ROLES.manager, ROLES.owner, ROLES.director].includes(user?.role);
   const canSeeInternalNotes = roleProfile.service.showInternalNotesComposer;
   const basePath = getBaseAdminPath(location.pathname);
 
   const [requests, setRequests] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [engineers, setEngineers] = useState([]);
+  const [equipmentOptions, setEquipmentOptions] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [assignmentHistory, setAssignmentHistory] = useState([]);
   const [assignForm, setAssignForm] = useState({ assignedToUserId: '' });
@@ -340,6 +342,16 @@ export function AdminServicePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [modeFilter, setModeFilter] = useState('all');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    equipmentId: '',
+    category: 'coffee_machine',
+    urgency: 'normal',
+    serviceMode: 'remote',
+    canOperateNow: true,
+    description: '',
+    assignedToUserId: '',
+  });
   const boardRef = useRef(null);
   const boardColumnRefs = useRef({});
   const boardLabels = useMemo(() => ({
@@ -385,6 +397,12 @@ export function AdminServicePage() {
       setRequests(rows);
       setDashboard(dash || null);
       setEngineers(engineerPayload.engineers || []);
+      if (canCreateRequest) {
+        const equipmentPayload = await adminServiceApi.equipmentList({});
+        const items = Array.isArray(equipmentPayload?.items) ? equipmentPayload.items : [];
+        setEquipmentOptions(items);
+        setCreateForm((prev) => ({ ...prev, equipmentId: prev.equipmentId || items[0]?.id || '' }));
+      }
       setError('');
     } catch {
       setError(t('load_service_requests_failed'));
@@ -403,7 +421,7 @@ export function AdminServicePage() {
     setAssignForm({ assignedToUserId: payload.request?.assignedToUserId || '' });
   }
 
-  useEffect(() => { load(); }, [canReadServiceEngineers]); // eslint-disable-line
+  useEffect(() => { load(); }, [canReadServiceEngineers, canCreateRequest]); // eslint-disable-line
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       load().catch(() => {});
@@ -566,6 +584,43 @@ export function AdminServicePage() {
     container.scrollTo({ left: Math.max(target.offsetLeft - 12, 0), behavior: 'smooth' });
   }
 
+  async function submitCreateRequest(event) {
+    event.preventDefault();
+    if (!createForm.equipmentId) {
+      setError(t('equipment_required'));
+      return;
+    }
+    if (!createForm.description.trim()) {
+      setError(t('description_required'));
+      return;
+    }
+    setActionLoading('create-request');
+    setError('');
+    try {
+      const createdPayload = await adminServiceApi.createRequest({
+        equipmentId: createForm.equipmentId,
+        category: createForm.category,
+        urgency: createForm.urgency,
+        canOperateNow: createForm.canOperateNow,
+        description: createForm.description.trim(),
+        type: createForm.serviceMode === 'visit' ? 'service_repair_visit' : 'service_repair_remote',
+        assignedToUserId: createForm.assignedToUserId || null,
+      });
+      await load();
+      const created = createdPayload?.request || null;
+      setFeedback(t('service_request_created'));
+      setCreateOpen(false);
+      setCreateForm((prev) => ({ ...prev, description: '', assignedToUserId: '', urgency: 'normal', serviceMode: 'remote', canOperateNow: true }));
+      if (created?.id) {
+        navigate(`${basePath}/service/${created.id}`);
+      }
+    } catch (createError) {
+      setError(createError?.message || t('service_request_create_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   function openRequestMedia(item) {
     const index = selectedRequestMedia.findIndex((row) => row.id === item.id);
     if (index >= 0) setLightboxIndex(index);
@@ -579,6 +634,85 @@ export function AdminServicePage() {
           <h2>{t('service_board_heading')}</h2>
           <p>{t('service_board_description')}</p>
         </div>
+        {canCreateRequest ? (
+          <ActionRail className="service-command__actions">
+            <ActionRailButton tone="brand" onClick={() => setCreateOpen((prev) => !prev)}>
+              {createOpen ? t('cancel') : t('create_service_request')}
+            </ActionRailButton>
+          </ActionRail>
+        ) : null}
+        {canCreateRequest && createOpen ? (
+          <form className="detail-section-card service-create-card" onSubmit={submitCreateRequest}>
+            <div className="service-create-card__grid">
+              <label>
+                <span>{t('equipment')}</span>
+                <select value={createForm.equipmentId} onChange={(event) => setCreateForm((prev) => ({ ...prev, equipmentId: event.target.value }))}>
+                  <option value="">{t('choose_equipment')}</option>
+                  {equipmentOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.brand} {item.model} · {item.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{t('request_mode')}</span>
+                <select value={createForm.serviceMode} onChange={(event) => setCreateForm((prev) => ({ ...prev, serviceMode: event.target.value }))}>
+                  <option value="remote">{t('request_mode_remote')}</option>
+                  <option value="visit">{t('request_mode_visit')}</option>
+                </select>
+              </label>
+              <label>
+                <span>{t('urgency')}</span>
+                <select value={createForm.urgency} onChange={(event) => setCreateForm((prev) => ({ ...prev, urgency: event.target.value }))}>
+                  <option value="low">{t('urgency_low')}</option>
+                  <option value="normal">{t('urgency_normal')}</option>
+                  <option value="high">{t('urgency_high')}</option>
+                  <option value="critical">{t('urgency_critical')}</option>
+                </select>
+              </label>
+              <label>
+                <span>{t('request_problem_type')}</span>
+                <select value={createForm.category} onChange={(event) => setCreateForm((prev) => ({ ...prev, category: event.target.value }))}>
+                  <option value="coffee_machine">{t('cat_coffee_machine')}</option>
+                  <option value="grinder">{t('cat_grinder')}</option>
+                  <option value="water">{t('cat_water')}</option>
+                </select>
+              </label>
+              {canAssign ? (
+                <label>
+                  <span>{t('assign_engineer')}</span>
+                  <select value={createForm.assignedToUserId} onChange={(event) => setCreateForm((prev) => ({ ...prev, assignedToUserId: event.target.value }))}>
+                    <option value="">{t('later')}</option>
+                    {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              <label className="checkbox service-form__checkbox">
+                <input
+                  type="checkbox"
+                  checked={createForm.canOperateNow}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, canOperateNow: event.target.checked }))}
+                />
+                <span>{t('can_operate_now')}</span>
+              </label>
+            </div>
+            <label>
+              <span>{t('problem_description')}</span>
+              <textarea
+                rows={4}
+                value={createForm.description}
+                placeholder={t('service_create_placeholder')}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, description: event.target.value }))}
+              />
+            </label>
+            <ActionRail compact>
+              <ActionRailButton tone="brand" disabled={actionLoading === 'create-request'} onClick={submitCreateRequest}>
+                {actionLoading === 'create-request' ? t('saving') : t('create_service_request')}
+              </ActionRailButton>
+            </ActionRail>
+          </form>
+        ) : null}
       </header>
 
       {error ? <p className="error-text">{error}</p> : null}

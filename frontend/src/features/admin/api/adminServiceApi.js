@@ -117,6 +117,10 @@ export const adminServiceApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/service-requests/dashboard${query}`);
   },
+  createRequest: async (payload) => apiFetch('/api/telegram/admin/service-requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
   serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
   delete: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`, { method: 'DELETE' }),
