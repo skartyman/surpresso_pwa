@@ -56,6 +56,7 @@ export function createApiRouter(deps) {
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.list));
   router.get('/admin/service-requests/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.dashboard));
   router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.byId));
+  router.delete('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminServiceController.deleteById));
   router.post('/admin/service-requests/:id/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.updateStatus));
   router.post('/admin/service-requests/:id/assign', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'service_engineer']), asyncHandler(adminServiceController.assignManager));
   router.get('/admin/service-requests/:id/assignment-history', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.assignmentHistory));

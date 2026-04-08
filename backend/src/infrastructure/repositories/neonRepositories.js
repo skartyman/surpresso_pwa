@@ -688,6 +688,11 @@ export class NeonServiceRequestRepository {
     return mapServiceRequest(item);
   }
 
+  async deleteById(id) {
+    await this.prisma.serviceRequest.delete({ where: { id } });
+    return true;
+  }
+
   async create(payload) {
     const created = await this.prisma.serviceRequest.create({
       data: {

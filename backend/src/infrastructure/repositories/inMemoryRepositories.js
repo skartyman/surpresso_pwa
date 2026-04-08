@@ -526,6 +526,16 @@ export class InMemoryServiceRequestRepository {
     return this.findById(id);
   }
 
+  async deleteById(id) {
+    const index = this.requests.findIndex((item) => item.id === id);
+    if (index === -1) return false;
+    this.requests.splice(index, 1);
+    this.history = this.history.filter((item) => item.serviceRequestId !== id);
+    this.assignmentHistory = this.assignmentHistory.filter((item) => item.serviceRequestId !== id);
+    this.notes = this.notes.filter((item) => item.serviceRequestId !== id);
+    return true;
+  }
+
   async create(payload) {
     const now = new Date().toISOString();
     const next = {

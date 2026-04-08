@@ -31,6 +31,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
   const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
   const STATUS_UPDATE_ALLOWED_ROLES = ['service_engineer', 'service_head', 'manager', 'owner', 'director', 'sales_manager'];
+  const DELETE_ALLOWED_ROLES = ['service_head', 'owner', 'director'];
 
   function canAssign(role) {
     return ASSIGNMENT_ALLOWED_ROLES.includes(role);
@@ -90,6 +91,10 @@ export function createAdminServiceController(serviceRepository, options = {}) {
     return true;
   }
 
+  function canDeleteRequest(role) {
+    return DELETE_ALLOWED_ROLES.includes(role);
+  }
+
   function normalizeMediaType(stage, mimeType) {
     const kind = String(mimeType || '').toLowerCase().startsWith('video/') ? 'video' : 'photo';
     const normalizedStage = String(stage || '').trim().toLowerCase();
@@ -137,6 +142,21 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       return res.json({ request: enrichServiceRequestMedia(req, request) });
+    },
+
+    async deleteById(req, res) {
+      if (!canDeleteRequest(req.adminUser?.role)) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+      const request = await serviceRepository.findForAdminById(req.params.id);
+      if (!request) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      if (!isVisibleToRole(req.adminUser?.role, req.adminUser?.id, request)) {
+        return res.status(404).json({ error: 'request_not_found' });
+      }
+      await serviceRepository.deleteById(request.id);
+      return res.status(204).send();
     },
 
     async updateStatus(req, res) {
