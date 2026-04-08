@@ -244,6 +244,41 @@ function ServiceSummaryColumn({ dashboard, t }) {
   );
 }
 
+function RequestMediaLightbox({ rows = [], index = -1, onClose, onNavigate, t, locale }) {
+  const media = rows[index];
+  if (!media) return null;
+
+  return (
+    <div className="equipment-lightbox" role="dialog" aria-modal="true">
+      <div className="equipment-lightbox__content">
+        <button type="button" className="equipment-lightbox__close" onClick={onClose}>×</button>
+        {isRequestMediaVideo(media)
+          ? <video src={media.fileUrl || getRequestMediaVisualUrl(media)} controls autoPlay />
+          : <img src={media.fileUrl || getRequestMediaVisualUrl(media)} alt={media.originalName || `media-${index + 1}`} />}
+        <div className="equipment-lightbox__meta">
+          <p>{media.originalName || (isRequestMediaVideo(media) ? t('video') : t('photo'))}</p>
+          <small>{formatDate(media.createdAt, locale)}{media.stage ? ` · ${media.stage}` : ''}</small>
+          {media.fileUrl ? <a href={media.fileUrl} target="_blank" rel="noreferrer">{t('open')}</a> : null}
+        </div>
+        <div className="equipment-lightbox__controls">
+          <button type="button" disabled={index <= 0} onClick={() => onNavigate(-1)}>{t('previous')}</button>
+          <span>{index + 1} / {rows.length}</span>
+          <button type="button" disabled={index >= rows.length - 1} onClick={() => onNavigate(1)}>{t('next')}</button>
+        </div>
+        <div className="equipment-lightbox__carousel">
+          {rows.map((item, thumbIndex) => (
+            <button type="button" key={item.id || `${item.fileUrl}-${thumbIndex}`} className={thumbIndex === index ? 'active' : ''} onClick={() => onNavigate(thumbIndex - index)}>
+              {isRequestMediaVideo(item)
+                ? <video src={item.previewUrl || item.fileUrl} muted playsInline preload="metadata" />
+                : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || `thumb-${thumbIndex + 1}`} loading="lazy" />}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminServicePage() {
   const { user } = useAuth();
   const { t, locale } = useAdminI18n();
@@ -271,6 +306,7 @@ export function AdminServicePage() {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [lightboxIndex, setLightboxIndex] = useState(-1);
   const boardRef = useRef(null);
   const boardColumnRefs = useRef({});
   const boardLabels = useMemo(() => ({
@@ -461,6 +497,7 @@ export function AdminServicePage() {
     ...boardColumns.map((column) => ({ key: column.status, label: column.label, count: column.items.length })),
   ], [boardColumns, dashboard, roleProfile.service.showSummary, t]);
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
+  const selectedRequestMedia = selectedRequest?.media || [];
   const detailRouteMode = Boolean(requestId);
 
   function selectRequest(id) {
@@ -476,6 +513,11 @@ export function AdminServicePage() {
     const target = boardColumnRefs.current[key];
     if (!container || !target) return;
     container.scrollTo({ left: Math.max(target.offsetLeft - 12, 0), behavior: 'smooth' });
+  }
+
+  function openRequestMedia(item) {
+    const index = selectedRequestMedia.findIndex((row) => row.id === item.id);
+    if (index >= 0) setLightboxIndex(index);
   }
 
   return (
@@ -670,10 +712,12 @@ export function AdminServicePage() {
                     <h4>{t('photos_before')}</h4>
                     <div className="media-grid">
                       {mediaGroups.before.map((item) => (
-                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'before'} />}
+                        <article key={item.id} className="media-card">
+                          <button type="button" className="media-card__preview" onClick={() => openRequestMedia(item)}>
+                            {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" onClick={(event) => event.stopPropagation()} /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'before'} />}
+                          </button>
                           <small>{item.originalName || t('photo_before_fallback')}</small>
-                        </a>
+                        </article>
                       ))}
                       {!mediaGroups.before.length ? <p className="empty-copy media-empty">{t('no_before_photos')}</p> : null}
                     </div>
@@ -683,10 +727,12 @@ export function AdminServicePage() {
                     <h4>{t('photos_after')}</h4>
                     <div className="media-grid">
                       {mediaGroups.after.map((item) => (
-                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'after'} />}
+                        <article key={item.id} className="media-card">
+                          <button type="button" className="media-card__preview" onClick={() => openRequestMedia(item)}>
+                            {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" onClick={(event) => event.stopPropagation()} /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'after'} />}
+                          </button>
                           <small>{item.originalName || t('photo_after_fallback')}</small>
-                        </a>
+                        </article>
                       ))}
                       {!mediaGroups.after.length ? <p className="empty-copy media-empty">{t('no_after_photos')}</p> : null}
                     </div>
@@ -696,10 +742,12 @@ export function AdminServicePage() {
                     <h4>{t('client_media')}</h4>
                     <div className="media-grid">
                       {mediaGroups.client.map((item) => (
-                        <a key={item.id} className="media-card" href={item.fileUrl} target="_blank" rel="noreferrer">
-                          {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'client'} />}
+                        <article key={item.id} className="media-card">
+                          <button type="button" className="media-card__preview" onClick={() => openRequestMedia(item)}>
+                            {isRequestMediaVideo(item) ? <video src={item.fileUrl} controls preload="metadata" onClick={(event) => event.stopPropagation()} /> : <img src={getRequestMediaVisualUrl(item)} alt={item.originalName || 'client'} />}
+                          </button>
                           <small>{item.originalName || t('client_media_fallback')}</small>
-                        </a>
+                        </article>
                       ))}
                       {!mediaGroups.client.length ? <p className="empty-copy media-empty">{t('no_client_media')}</p> : null}
                     </div>
@@ -757,6 +805,14 @@ export function AdminServicePage() {
           </article>
         </section>
       )}
+      <RequestMediaLightbox
+        rows={selectedRequestMedia}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(-1)}
+        onNavigate={(delta) => setLightboxIndex((prev) => Math.min(Math.max(prev + delta, 0), selectedRequestMedia.length - 1))}
+        t={t}
+        locale={locale}
+      />
     </section>
   );
 }

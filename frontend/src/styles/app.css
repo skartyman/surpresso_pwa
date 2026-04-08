@@ -2018,6 +2018,7 @@ textarea { min-height: 110px; resize: vertical; }
 .timeline-item small { color: var(--sa-muted); }
 .media-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .media-card { border: 1px solid var(--sa-line); border-radius: 10px; padding: 6px; color: var(--sa-text); text-decoration: none; display: grid; gap: 6px; background: var(--sa-surface-2); }
+.media-card__preview { border: 0; padding: 0; background: transparent; text-align: left; color: inherit; }
 .media-card img, .media-card video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: #111827; }
 .media-empty { grid-column: 1 / -1; border: 1px dashed var(--sa-line); border-radius: 8px; }
 .note-item { border: 1px solid var(--sa-line); border-radius: 8px; padding: 8px; background: var(--sa-surface-2); display: grid; gap: 4px; }
