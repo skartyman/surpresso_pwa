@@ -9,7 +9,8 @@
     "prisma:migrate": "npm --prefix backend run prisma:migrate",
     "prisma:migrate:dev": "npm --prefix backend run prisma:migrate:dev",
     "prisma:seed": "npm --prefix backend run prisma:seed",
-    "import:equipment-xlsx": "npm --prefix backend run import:equipment-xlsx"
+    "import:equipment-xlsx": "npm --prefix backend run import:equipment-xlsx",
+    "sync:legacy-sheets": "npm --prefix backend run sync:legacy-sheets"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
