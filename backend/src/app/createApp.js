@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { Readable } from 'node:stream';
 import { config } from '../config/env.js';
 import { createMiniAppRepositories } from '../infrastructure/repositories/createMiniAppRepositories.js';
 import { TelegramBotGateway } from '../infrastructure/telegram/botApi.js';
@@ -52,16 +53,32 @@ export async function createApp() {
         return res.status(400).send('missing_file_id');
       }
 
-      const driveUrl = `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`;
-      const response = await fetch(driveUrl);
+      const driveUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+      const headers = {};
+      const rangeHeader = String(req.get('range') || '').trim();
+      if (rangeHeader) {
+        headers.Range = rangeHeader;
+      }
+
+      const response = await fetch(driveUrl, { headers });
       if (!response.ok) {
         return res.status(response.status).send('drive_error');
       }
 
-      const buffer = Buffer.from(await response.arrayBuffer());
+      res.status(response.status === 206 ? 206 : 200);
       res.set('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+      const contentLength = response.headers.get('content-length');
+      const contentRange = response.headers.get('content-range');
+      if (contentLength) res.set('Content-Length', contentLength);
+      if (contentRange) res.set('Content-Range', contentRange);
+      res.set('Accept-Ranges', 'bytes');
       res.set('Cache-Control', 'public, max-age=3600');
-      return res.send(buffer);
+      if (!response.body) {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return res.send(buffer);
+      }
+      Readable.fromWeb(response.body).pipe(res);
+      return undefined;
     } catch {
       return res.status(500).send('proxy_error');
     }

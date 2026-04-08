@@ -21,16 +21,18 @@ export function enrichServiceRequestMedia(req, request) {
     ...request,
     media: (request.media || []).map((item) => {
       const mediaKind = parseMediaKind(item);
-      const fileUrl = normalizeRequestUrl(req, item.fileUrl || item.url || '');
+      const externalUrl = normalizeRequestUrl(req, item.fileUrl || item.url || '');
+      const fileUrl = buildProxyDriveUrl(req, externalUrl) || externalUrl;
       const explicitPreview = normalizeRequestUrl(req, item.previewUrl || item.imgUrl || '');
-      const previewUrl = explicitPreview
-        || (mediaKind === 'image' ? (buildProxyDriveUrl(req, fileUrl) || fileUrl) : fileUrl);
+      const previewUrl = (buildProxyDriveUrl(req, explicitPreview) || explicitPreview)
+        || fileUrl;
 
       return {
         ...item,
         mediaKind,
         stage: parseMediaStage(item.type),
         url: fileUrl,
+        externalUrl,
         fileUrl,
         previewUrl,
         imgUrl: previewUrl,
