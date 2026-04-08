@@ -100,6 +100,45 @@ async function apiFetch(path, options = {}) {
   return response.json();
 }
 
+function apiUpload(path, payload, { onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', path, true);
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || typeof onProgress !== 'function') return;
+      onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+
+    xhr.onload = () => {
+      let responseBody = null;
+      try {
+        responseBody = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        responseBody = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(responseBody);
+        return;
+      }
+
+      const error = new Error(responseBody?.error || 'request_failed');
+      error.status = xhr.status;
+      reject(error);
+    };
+
+    xhr.onerror = () => {
+      const error = new Error('request_failed');
+      error.status = 0;
+      reject(error);
+    };
+
+    xhr.send(payload);
+  });
+}
+
 export const telegramClientApi = {
   login: telegramLogin,
   me: async () => {
@@ -121,10 +160,7 @@ export const telegramClientApi = {
   listEquipment: async () => apiFetch('/api/telegram/equipment'),
   equipmentById: async (id) => apiFetch(`/api/telegram/equipment/${id}`),
   listServiceRequests: async () => apiFetch('/api/telegram/service-requests'),
-  createServiceRequest: async (payload) => apiFetch('/api/telegram/service-requests', {
-    method: 'POST',
-    body: payload,
-  }),
+  createServiceRequest: async (payload, options = {}) => apiUpload('/api/telegram/service-requests', payload, options),
   serviceRequestStatus: async (id) => apiFetch(`/api/telegram/service-requests/${id}/status`),
   notifySupport: async (payload) => apiFetch('/api/telegram/support/notify', {
     method: 'POST',

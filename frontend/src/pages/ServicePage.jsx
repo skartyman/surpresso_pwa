@@ -16,7 +16,18 @@ function getUploadErrorMessage(error, t) {
   if (code === 'unsupported_media_type') return t('request_media_invalid_type');
   if (code === 'media_file_too_large') return t('request_media_too_large');
   if (code === 'too_many_media_files') return t('request_media_too_many');
+  if (code === 'description_required') return t('request_description_required');
   return error?.message || t('err_request_failed');
+}
+
+function createMediaEntry(file) {
+  return {
+    id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(16).slice(2, 8)}`,
+    file,
+    previewUrl: String(file.type || '').startsWith('image/') || String(file.type || '').startsWith('video/')
+      ? URL.createObjectURL(file)
+      : '',
+  };
 }
 
 export function ServicePage() {
@@ -29,8 +40,12 @@ export function ServicePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [successId, setSuccessId] = useState('');
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [mediaFiles, setMediaFiles] = useState([]);
   const mountedRef = useRef(true);
+  const filePickerRef = useRef(null);
+  const photoPickerRef = useRef(null);
+  const videoPickerRef = useRef(null);
   const [form, setForm] = useState({
     equipmentId: searchParams.get('equipmentId') || '',
     category: 'coffee_machine',
@@ -47,7 +62,8 @@ export function ServicePage() {
         telegramClientApi.me(),
       ]);
       if (!mountedRef.current) return;
-      setEquipment(Array.isArray(equipmentData?.items) ? equipmentData.items : []);
+      const nextEquipment = Array.isArray(equipmentData?.items) ? equipmentData.items : [];
+      setEquipment(nextEquipment);
       setProfile(meData?.profile || null);
     } catch (loadError) {
       if (!mountedRef.current) return;
@@ -67,6 +83,12 @@ export function ServicePage() {
     };
   }, [loadContext]);
 
+  useEffect(() => () => {
+    mediaFiles.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+  }, [mediaFiles]);
+
   useEffect(() => {
     const preselectedId = searchParams.get('equipmentId') || '';
     if (preselectedId) {
@@ -74,10 +96,25 @@ export function ServicePage() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!equipment.length) return;
+    setForm((prev) => {
+      if (prev.equipmentId && equipment.some((item) => item.id === prev.equipmentId)) {
+        return prev;
+      }
+      return { ...prev, equipmentId: equipment[0]?.id || '' };
+    });
+  }, [equipment]);
+
   const selectedEquipment = useMemo(
     () => equipment.find((item) => item.id === form.equipmentId) || null,
     [equipment, form.equipmentId],
   );
+
+  const formValidationError = useMemo(() => {
+    if (!form.description.trim()) return t('request_description_required');
+    return '';
+  }, [form.description, t]);
 
   const handleRegisterProfile = useCallback(async (payload) => {
     setIsSavingProfile(true);
@@ -99,28 +136,78 @@ export function ServicePage() {
     }
   }, [t]);
 
+  const appendFiles = useCallback((fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setMediaFiles((prev) => [...prev, ...files.map(createMediaEntry)].slice(0, 6));
+  }, []);
+
+  const handleFileSelect = useCallback((event) => {
+    appendFiles(event.target.files);
+    event.target.value = '';
+  }, [appendFiles]);
+
+  const removeMedia = useCallback((id) => {
+    setMediaFiles((prev) => {
+      const next = [];
+      prev.forEach((item) => {
+        if (item.id === id) {
+          if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+          return;
+        }
+        next.push(item);
+      });
+      return next;
+    });
+  }, []);
+
+  const clearMedia = useCallback(() => {
+    setMediaFiles((prev) => {
+      prev.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  }, []);
+
   const submit = async (event) => {
     event.preventDefault();
+    if (formValidationError) {
+      setError(formValidationError);
+      return;
+    }
     setError('');
     setSuccessId('');
+    setUploadProgress(0);
     setIsSubmitting(true);
     try {
       const payload = new FormData();
       payload.append('type', 'service_repair');
-      payload.append('equipmentId', form.equipmentId);
+      if (form.equipmentId) payload.append('equipmentId', form.equipmentId);
       payload.append('category', form.category);
       payload.append('description', form.description.trim());
       payload.append('urgency', form.urgency);
       payload.append('canOperateNow', String(form.canOperateNow));
-      mediaFiles.forEach((file) => payload.append('media', file));
-      const created = await telegramClientApi.createServiceRequest(payload);
+      mediaFiles.forEach((item) => payload.append('media', item.file));
+      const created = await telegramClientApi.createServiceRequest(payload, {
+        onProgress: (value) => {
+          if (!mountedRef.current) return;
+          setUploadProgress(value);
+        },
+      });
+      if (!mountedRef.current) return;
       setSuccessId(created.id);
-      setMediaFiles([]);
+      clearMedia();
       setForm((prev) => ({ ...prev, description: '' }));
+      setUploadProgress(100);
     } catch (submitError) {
+      if (!mountedRef.current) return;
       setError(getUploadErrorMessage(submitError, t));
+      setUploadProgress(0);
     } finally {
-      setIsSubmitting(false);
+      if (mountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -167,20 +254,27 @@ export function ServicePage() {
 
       <form className="service-panel service-form service-form--rich" onSubmit={submit}>
         <div className="service-form__equipment-picker">
-          <label className="service-field-label">{t('request_pick_equipment')}</label>
-          <div className="service-form__equipment-grid">
-            {equipment.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                className={`service-equipment-option ${form.equipmentId === item.id ? 'active' : ''}`}
-                onClick={() => setForm((prev) => ({ ...prev, equipmentId: item.id }))}
-              >
-                <strong>{item.brand} {item.model}</strong>
-                <span>{item.locationName || item.clientLocation || item.address || item.serialNumber || item.id}</span>
-              </button>
-            ))}
+          <div className="service-form__section-head">
+            <label className="service-field-label">{t('request_pick_equipment')}</label>
+            <small>{t('request_equipment_optional')}</small>
           </div>
+          {equipment.length ? (
+            <div className="service-form__equipment-grid">
+              {equipment.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={`service-equipment-option ${form.equipmentId === item.id ? 'active' : ''}`}
+                  onClick={() => setForm((prev) => ({ ...prev, equipmentId: item.id }))}
+                >
+                  <strong>{item.brand} {item.model}</strong>
+                  <span>{item.locationName || item.clientLocation || item.address || item.serialNumber || item.id}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="notice notice-error">{t('request_equipment_missing')}</p>
+          )}
         </div>
 
         <div className="service-form__grid">
@@ -221,24 +315,61 @@ export function ServicePage() {
         </label>
 
         <div className="service-form__media">
-          <label className="service-field-label">{t('request_attach_media')}</label>
-          <input type="file" multiple accept="image/*,video/*" onChange={(e) => setMediaFiles(Array.from(e.target.files || []))} />
-          <small>{t('request_media_hint')}</small>
-          {mediaFiles.length ? <small>{t('request_selected')}: {mediaFiles.length}</small> : null}
+          <div className="service-form__section-head">
+            <label className="service-field-label">{t('request_attach_media')}</label>
+            {mediaFiles.length ? <small>{t('request_selected')}: {mediaFiles.length}</small> : <small>{t('request_media_hint')}</small>}
+          </div>
+
+          <div className="service-form__media-actions">
+            <button type="button" className="service-media-action" onClick={() => photoPickerRef.current?.click()}>{t('request_take_photo')}</button>
+            <button type="button" className="service-media-action" onClick={() => videoPickerRef.current?.click()}>{t('request_take_video')}</button>
+            <button type="button" className="service-media-action" onClick={() => filePickerRef.current?.click()}>{t('request_pick_gallery')}</button>
+          </div>
+
+          <input ref={photoPickerRef} type="file" accept="image/*" capture="environment" hidden onChange={handleFileSelect} />
+          <input ref={videoPickerRef} type="file" accept="video/*" capture="environment" hidden onChange={handleFileSelect} />
+          <input ref={filePickerRef} type="file" multiple accept="image/*,video/*" hidden onChange={handleFileSelect} />
+
           {mediaFiles.length ? (
-            <ul className="detail-list">
-              {mediaFiles.map((file) => (
-                <li key={`${file.name}-${file.size}-${file.lastModified}`} className="detail-list__item">
-                  <p><strong>{file.name}</strong></p>
-                  <small>{String(file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(file.size)}</small>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="service-media-preview-grid">
+                {mediaFiles.map((item) => (
+                  <article key={item.id} className="service-media-preview-card">
+                    <div className="service-media-preview-card__visual">
+                      {String(item.file.type || '').startsWith('video/') ? (
+                        <video src={item.previewUrl} muted playsInline preload="metadata" />
+                      ) : (
+                        <img src={item.previewUrl} alt={item.file.name} />
+                      )}
+                      <button type="button" className="service-media-preview-card__remove" onClick={() => removeMedia(item.id)}>
+                        {t('remove')}
+                      </button>
+                    </div>
+                    <div className="service-media-preview-card__meta">
+                      <strong>{item.file.name}</strong>
+                      <small>{String(item.file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(item.file.size)}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <button type="button" className="service-media-clear" onClick={clearMedia}>{t('request_clear_media')}</button>
+            </>
           ) : null}
         </div>
 
-        <button type="submit" disabled={isSubmitting || !form.equipmentId}>{isSubmitting ? t('sending') : t('send_request')}</button>
+        {isSubmitting ? (
+          <div className="service-upload-progress" aria-live="polite">
+            <div className="service-upload-progress__bar">
+              <span style={{ width: `${uploadProgress}%` }} />
+            </div>
+            <small>{t('request_upload_progress')}: {uploadProgress}%</small>
+          </div>
+        ) : null}
 
+        <button type="submit" disabled={isSubmitting || Boolean(formValidationError)}>{isSubmitting ? t('sending') : t('send_request')}</button>
+
+        {!selectedEquipment ? <p className="notice">{t('request_submit_without_equipment')}</p> : null}
+        {formValidationError ? <p className="notice notice-error">{formValidationError}</p> : null}
         {successId ? <p className="notice notice-success">{t('sent_ok')} {t('request_id_label')}: {successId}</p> : null}
         {error ? <p className="notice notice-error">{error}</p> : null}
       </form>

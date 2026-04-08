@@ -374,6 +374,14 @@ textarea { min-height: 110px; resize: vertical; }
 .service-form__overview em { font-style: normal; color: var(--muted); }
 .service-form--rich { gap: 14px; }
 .service-form__equipment-picker { display: grid; gap: 8px; }
+.service-form__section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.service-form__section-head small { color: var(--muted); }
 .service-form__equipment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -410,6 +418,85 @@ textarea { min-height: 110px; resize: vertical; }
   background: color-mix(in oklab, var(--surface), white 2%);
 }
 .service-form__media small { color: var(--muted); }
+.service-form__media-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.service-media-action,
+.service-media-clear {
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border), var(--accent) 24%);
+  background: color-mix(in oklab, var(--surface), white 3%);
+  color: var(--text);
+}
+.service-media-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+}
+.service-media-preview-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface), white 3%);
+}
+.service-media-preview-card__visual {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0f172a;
+  min-height: 148px;
+}
+.service-media-preview-card__visual img,
+.service-media-preview-card__visual video {
+  width: 100%;
+  height: 148px;
+  object-fit: cover;
+  display: block;
+}
+.service-media-preview-card__remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+}
+.service-media-preview-card__meta {
+  display: grid;
+  gap: 4px;
+}
+.service-media-preview-card__meta strong {
+  font-size: 13px;
+  line-height: 1.25;
+  word-break: break-word;
+}
+.service-upload-progress {
+  display: grid;
+  gap: 6px;
+}
+.service-upload-progress__bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface), black 6%);
+  border: 1px solid var(--border);
+}
+.service-upload-progress__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent), white 18%));
+  transition: width .2s ease;
+}
 .service-form__checkbox { padding: 8px 0; }
 .point-onboarding {
   display: grid;
