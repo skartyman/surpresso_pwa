@@ -1,5 +1,7 @@
 export const REQUEST_TYPES = {
   serviceRepair: 'service_repair',
+  serviceRepairRemote: 'service_repair_remote',
+  serviceRepairVisit: 'service_repair_visit',
   coffeeOrder: 'coffee_order',
   coffeeTasting: 'coffee_tasting',
   grinderCheck: 'grinder_check',
@@ -16,7 +18,7 @@ export const REQUEST_DEPARTMENTS = {
 export const ALL_REQUEST_TYPES = Object.values(REQUEST_TYPES);
 
 export function resolveDepartmentByType(type) {
-  if (type === REQUEST_TYPES.serviceRepair) {
+  if ([REQUEST_TYPES.serviceRepair, REQUEST_TYPES.serviceRepairRemote, REQUEST_TYPES.serviceRepairVisit].includes(type)) {
     return REQUEST_DEPARTMENTS.service;
   }
   return REQUEST_DEPARTMENTS.sales;

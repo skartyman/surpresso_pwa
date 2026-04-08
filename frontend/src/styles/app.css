@@ -1727,6 +1727,9 @@ textarea { min-height: 110px; resize: vertical; }
 .status-badge[data-status='invoiced'],
 .status-badge[data-status='issued_to_client'],
 .status-badge[data-status='sold'] { background: linear-gradient(180deg, #fff1f2, #ffe0e4); color: #9f1239; border-color: rgba(244, 114, 182, 0.34); }
+.status-badge[data-status='critical'] { background: linear-gradient(180deg, #fee2e2, #fecaca); color: #991b1b; border-color: rgba(239, 68, 68, 0.46); }
+.status-badge[data-status='visit'] { background: linear-gradient(180deg, #ffedd5, #fed7aa); color: #9a3412; border-color: rgba(234, 88, 12, 0.38); }
+.status-badge[data-status='remote'] { background: linear-gradient(180deg, #e0f2fe, #bae6fd); color: #075985; border-color: rgba(14, 165, 233, 0.34); }
 
 .action-rail {
   display: flex;
@@ -1747,8 +1750,9 @@ textarea { min-height: 110px; resize: vertical; }
   background: linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,248,235,.66));
   color: var(--sa-text);
   box-shadow: 0 10px 22px rgba(84, 61, 16, 0.06);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
-}
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+  }
+.action-rail__button[href] { text-decoration: none; }
 .action-rail__button:hover { transform: translateY(-1px); box-shadow: 0 14px 24px rgba(84, 61, 16, 0.10); }
 .action-rail__button.active,
 .action-rail__button[data-tone='brand'] {
@@ -1824,6 +1828,8 @@ textarea { min-height: 110px; resize: vertical; }
   gap: 6px;
   align-items: center;
 }
+.service-board-card__meta .status-badge { margin-left: auto; }
+.service-form__grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .service-board-card__meta .ui-icon,
 .service-board-card__facts .ui-icon { width: 14px; height: 14px; }
 .service-board-card__footer {
@@ -2687,6 +2693,7 @@ textarea { min-height: 110px; resize: vertical; }
   .equipment-passport-data__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .equipment-detail-grid { grid-template-columns: 1fr; }
   .equipment-ops-card--list { grid-template-columns: 1fr; }
+  .service-form__grid--triple { grid-template-columns: 1fr; }
   .equipment-ops-card--list .equipment-ops-card__preview { grid-row: auto; min-height: 104px; height: 104px; }
   .equipment-ops-detail__hero-preview img,
   .equipment-ops-detail__hero-preview video { min-height: 164px; }

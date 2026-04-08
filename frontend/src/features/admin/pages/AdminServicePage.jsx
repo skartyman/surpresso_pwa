@@ -45,6 +45,18 @@ function getRequestMediaVisualUrl(item) {
   return item?.previewUrl || item?.imgUrl || item?.fileUrl || item?.url || '';
 }
 
+function getRequestMode(request, t) {
+  const type = String(request?.type || '').trim().toLowerCase();
+  if (type === 'service_repair_visit') return { key: 'visit', label: t('request_mode_visit') };
+  if (type === 'service_repair_remote') return { key: 'remote', label: t('request_mode_remote') };
+  return { key: 'remote', label: t('request_mode_remote') };
+}
+
+function getUrgencyLabel(value, t) {
+  const key = String(value || 'normal').trim().toLowerCase();
+  return t(`urgency_${key}`) || key;
+}
+
 function getRequestPreview(request) {
   const rows = request?.media || [];
   return rows.find((item) => !isRequestMediaVideo(item) && getRequestMediaVisualUrl(item))
@@ -119,6 +131,7 @@ function ServiceQuickActions({ actions, loadingKey, onAction }) {
 function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onAction, boardLabels, t, locale }) {
   const preview = getRequestPreview(request);
   const actions = getRoleActions(request, user, t);
+  const requestMode = getRequestMode(request, t);
   const warnings = [];
   if (!request.assignedToUserId) warnings.push(t('no_engineer'));
   if (!request.equipmentId) warnings.push(t('no_equipment'));
@@ -130,6 +143,7 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
         <div className="service-board-card__topbar">
           <StatusBadge status={request.status}>{boardLabels[request.status] || request.status}</StatusBadge>
           <div className="service-board-card__topbar-actions">
+            <StatusBadge status={requestMode.key}>{requestMode.label}</StatusBadge>
             <small>#{request.id}</small>
           </div>
         </div>
@@ -160,7 +174,8 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
         <div className="service-board-card__meta">
           <span><Icon name="employees" /> {request.assignedToUser?.fullName || t('not_assigned')}</span>
           <span><Icon name="clients" /> {request.client?.companyName || '—'}</span>
-          <span><Icon name="service" /> {request.urgency || 'normal'}</span>
+          <span><Icon name="clients" /> {request.pointUser?.phone || request.client?.phone || t('no_phone')}</span>
+          <span><Icon name="service" /> <StatusBadge status={request.urgency || 'normal'}>{getUrgencyLabel(request.urgency, t)}</StatusBadge></span>
           <span><Icon name="equipment" /> {(request.media || []).length}</span>
         </div>
 
@@ -371,6 +386,23 @@ export function AdminServicePage() {
   }
 
   useEffect(() => { load(); }, [canReadServiceEngineers]); // eslint-disable-line
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      load().catch(() => {});
+      if (requestId) loadDetails(requestId).catch(() => {});
+    }, 5000);
+    const handleFocus = () => {
+      load().catch(() => {});
+      if (requestId) loadDetails(requestId).catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [requestId, canReadServiceEngineers]); // eslint-disable-line
   useEffect(() => {
     if (!requestId) {
       setSelectedRequest(null);
@@ -597,6 +629,11 @@ export function AdminServicePage() {
             <button type="button" className="equipment-back-button" onClick={closeDetail}>{t('back_to_board')}</button>
             {!selectedRequest ? <p>{t('choose_request')}</p> : (
             <>
+              {(() => {
+                const requestMode = getRequestMode(selectedRequest, t);
+                const contactPhone = selectedRequest.pointUser?.phone || selectedRequest.client?.phone || '';
+                return (
+                  <>
               <header className="equipment-ops-detail__hero">
                 <div className="equipment-ops-detail__hero-copy">
                   <small>Service request</small>
@@ -604,7 +641,8 @@ export function AdminServicePage() {
                   <p>{selectedRequest.client?.companyName || selectedRequest.pointUser?.fullName || t('client')} · {selectedRequest.location?.name || selectedRequest.equipment?.locationName || t('point_not_selected')}</p>
                   <div className="equipment-ops-detail__hero-statuses">
                     <StatusBadge status={selectedRequest.status}>{boardLabels[selectedRequest.status] || selectedRequest.status}</StatusBadge>
-                    <StatusBadge status={selectedRequest.urgency || 'normal'}>{selectedRequest.urgency || 'normal'}</StatusBadge>
+                    <StatusBadge status={selectedRequest.urgency || 'normal'}>{getUrgencyLabel(selectedRequest.urgency, t)}</StatusBadge>
+                    <StatusBadge status={requestMode.key}>{requestMode.label}</StatusBadge>
                   </div>
                 </div>
                 <div className="equipment-ops-detail__hero-preview">
@@ -623,6 +661,7 @@ export function AdminServicePage() {
                 <ActionRailButton onClick={() => setActiveTab('media')}>{t('photos_video')}</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('history')}>{t('history')}</ActionRailButton>
                 <ActionRailButton onClick={() => setActiveTab('notes')}>{t('notes')}</ActionRailButton>
+                {contactPhone ? <a className="action-rail__button" href={`tel:${contactPhone}`}>{t('call_client')}</a> : null}
               </ActionRail>
               <nav className="equipment-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tabLabels[tab]}</button>)}
@@ -634,9 +673,11 @@ export function AdminServicePage() {
                       <div className="equipment-detail-grid">
                         <p><Icon name="clients" /> {t('client')}: {selectedRequest.client?.companyName || '—'}</p>
                         <p><Icon name="employees" /> Бариста: {selectedRequest.pointUser?.fullName || '—'}</p>
+                        <p><Icon name="clients" /> {t('contact_back')}: {contactPhone || t('no_phone')}</p>
                         <p><Icon name="equipment" /> {t('equipment')}: {selectedRequest.equipment?.brand || '—'} {selectedRequest.equipment?.model || ''}</p>
                         <p><Icon name="equipment" /> Точка: {selectedRequest.location?.name || selectedRequest.equipment?.locationName || '—'}</p>
-                        <p><Icon name="service" /> {t('urgency')}: {selectedRequest.urgency || 'normal'}</p>
+                        <p><Icon name="service" /> {t('urgency')}: {getUrgencyLabel(selectedRequest.urgency, t)}</p>
+                        <p><Icon name="service" /> {t('request_mode')}: {requestMode.label}</p>
                         <p><Icon name="dashboard" /> {t('assigned')}: {selectedRequest.assignedToUser?.fullName || t('not_assigned')}</p>
                         <p><Icon name="content" /> {t('can_operate_now')}: {selectedRequest.canOperateNow ? t('yes') : t('no')}</p>
                         <p><Icon name="clients" /> {t('service_updated')}: {formatDate(selectedRequest.updatedAt, locale)}</p>
@@ -800,6 +841,9 @@ export function AdminServicePage() {
                   ) : null}
                 </div>
               ) : null}
+                  </>
+                );
+              })()}
             </>
           )}
           </article>

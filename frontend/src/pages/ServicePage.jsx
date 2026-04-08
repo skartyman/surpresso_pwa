@@ -49,6 +49,7 @@ export function ServicePage() {
   const [form, setForm] = useState({
     equipmentId: searchParams.get('equipmentId') || '',
     category: 'coffee_machine',
+    serviceMode: 'remote',
     description: '',
     urgency: 'normal',
     canOperateNow: true,
@@ -182,7 +183,7 @@ export function ServicePage() {
     setIsSubmitting(true);
     try {
       const payload = new FormData();
-      payload.append('type', 'service_repair');
+      payload.append('type', form.serviceMode === 'visit' ? 'service_repair_visit' : 'service_repair_remote');
       if (form.equipmentId) payload.append('equipmentId', form.equipmentId);
       payload.append('category', form.category);
       payload.append('description', form.description.trim());
@@ -277,7 +278,7 @@ export function ServicePage() {
           )}
         </div>
 
-        <div className="service-form__grid">
+        <div className="service-form__grid service-form__grid--triple">
           <label>
             <span className="service-field-label">{t('request_problem_type')}</span>
             <select value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}>
@@ -294,6 +295,14 @@ export function ServicePage() {
               <option value="normal">{t('normal')}</option>
               <option value="high">{t('high')}</option>
               <option value="critical">{t('critical')}</option>
+            </select>
+          </label>
+
+          <label>
+            <span className="service-field-label">{t('request_service_mode')}</span>
+            <select value={form.serviceMode} onChange={(e) => setForm((prev) => ({ ...prev, serviceMode: e.target.value }))}>
+              <option value="remote">{t('request_service_mode_remote')}</option>
+              <option value="visit">{t('request_service_mode_visit')}</option>
             </select>
           </label>
         </div>
