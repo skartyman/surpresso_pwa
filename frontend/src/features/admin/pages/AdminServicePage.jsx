@@ -352,6 +352,7 @@ export function AdminServicePage() {
     description: '',
     assignedToUserId: '',
   });
+  const [createMediaFiles, setCreateMediaFiles] = useState([]);
   const boardRef = useRef(null);
   const boardColumnRefs = useRef({});
   const boardLabels = useMemo(() => ({
@@ -605,12 +606,14 @@ export function AdminServicePage() {
         description: createForm.description.trim(),
         type: createForm.serviceMode === 'visit' ? 'service_repair_visit' : 'service_repair_remote',
         assignedToUserId: createForm.assignedToUserId || null,
+        media: createMediaFiles,
       });
       await load();
       const created = createdPayload?.request || null;
       setFeedback(t('service_request_created'));
       setCreateOpen(false);
       setCreateForm((prev) => ({ ...prev, description: '', assignedToUserId: '', urgency: 'normal', serviceMode: 'remote', canOperateNow: true }));
+      setCreateMediaFiles([]);
       if (created?.id) {
         navigate(`${basePath}/service/${created.id}`);
       }
@@ -706,6 +709,34 @@ export function AdminServicePage() {
                 onChange={(event) => setCreateForm((prev) => ({ ...prev, description: event.target.value }))}
               />
             </label>
+            <div className="service-create-card__media">
+              <label>
+                <span>{t('upload_media')}</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  onChange={(event) => setCreateMediaFiles(Array.from(event.target.files || []))}
+                />
+              </label>
+              {createMediaFiles.length ? (
+                <ul className="detail-list">
+                  {createMediaFiles.map((file, index) => (
+                    <li key={`${file.name}-${file.size}-${file.lastModified}-${index}`} className="detail-list__item">
+                      <p><strong>{file.name}</strong></p>
+                      <small>{String(file.type || '').startsWith('video/') ? t('video') : t('photo')} · {formatFileSize(file.size)}</small>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setCreateMediaFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index))}
+                      >
+                        {t('remove')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
             <ActionRail compact>
               <ActionRailButton tone="brand" disabled={actionLoading === 'create-request'} onClick={submitCreateRequest}>
                 {actionLoading === 'create-request' ? t('saving') : t('create_service_request')}

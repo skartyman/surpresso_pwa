@@ -2,6 +2,7 @@ import { enrichServiceRequestMedia } from '../utils/serviceRequestMediaView.js';
 import { normalizeRequestType, REQUEST_DEPARTMENTS, REQUEST_TYPES } from '../../domain/entities/requestTypes.js';
 import { normalizeServiceRequestStatus } from '../../domain/workflow/serviceRequestStatuses.js';
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
+import { uploadServiceRequestMedia } from '../../infrastructure/drive/gasDriveClient.js';
 import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 const ALLOWED_SORT = ['urgency', 'createdAt', 'updatedAt'];
 const ALLOWED_CATEGORIES = new Set(['coffee_machine', 'grinder', 'water']);
@@ -162,6 +163,10 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       if (!description) {
         return res.status(400).json({ error: 'description_required' });
       }
+      const mediaValidationError = validateUploadedMediaFiles(req.files || []);
+      if (mediaValidationError) {
+        return res.status(400).json({ error: mediaValidationError });
+      }
       if (!ALLOWED_CATEGORIES.has(category)) {
         return res.status(400).json({ error: 'category_required' });
       }
@@ -177,8 +182,15 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         return res.status(400).json({ error: 'equipment_client_required' });
       }
 
+      const requestId = `req-${Date.now()}`;
+      const uploadedMedia = [];
+      for (const file of req.files || []) {
+        const uploaded = await uploadServiceRequestMedia({ entityId: requestId, file });
+        uploadedMedia.push(uploaded);
+      }
+
       const created = await serviceRepository.create({
-        id: `req-${Date.now()}`,
+        id: requestId,
         type,
         title,
         description,
@@ -194,7 +206,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         assignedToUserId,
         assignedByUserId: assignedToUserId ? req.adminUser?.id || null : null,
         status: assignedToUserId ? 'assigned' : 'new',
-        media: [],
+        media: uploadedMedia,
       });
 
       return res.status(201).json({ request: enrichServiceRequestMedia(req, created) });

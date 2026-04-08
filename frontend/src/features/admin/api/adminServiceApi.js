@@ -117,10 +117,19 @@ export const adminServiceApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/service-requests/dashboard${query}`);
   },
-  createRequest: async (payload) => apiFetch('/api/telegram/admin/service-requests', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }),
+  createRequest: async (payload) => {
+    const form = new FormData();
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (key === 'media') return;
+      if (value === undefined || value === null || value === '') return;
+      form.append(key, typeof value === 'boolean' ? String(value) : value);
+    });
+    (payload?.media || []).forEach((file) => form.append('media', file));
+    return apiFetch('/api/telegram/admin/service-requests', {
+      method: 'POST',
+      body: form,
+    });
+  },
   serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
   delete: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`, { method: 'DELETE' }),

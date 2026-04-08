@@ -1979,6 +1979,30 @@ textarea { min-height: 110px; resize: vertical; }
 .service-create-card .service-form__checkbox {
   align-self: end;
 }
+.service-create-card__media {
+  display: grid;
+  gap: 8px;
+}
+.service-create-card__media input[type='file'] {
+  width: 100%;
+  border: 1px dashed var(--sa-line);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--sa-surface), white 4%);
+  color: var(--sa-text);
+  padding: 10px 12px;
+}
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #b45309;
+  text-align: left;
+  cursor: pointer;
+}
+.link-button:hover {
+  color: #92400e;
+  text-decoration: underline;
+}
 .service-command__stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3497,6 +3521,17 @@ textarea { min-height: 110px; resize: vertical; }
   background: rgba(10,18,34,.42);
   border-color: #2a3a54;
   color: #d8e1ef;
+}
+:root[data-admin-theme='dark'] .service-create-card__media input[type='file'] {
+  background: rgba(10,18,34,.42);
+  border-color: #2a3a54;
+  color: #d8e1ef;
+}
+:root[data-admin-theme='dark'] .link-button {
+  color: #f2c76f;
+}
+:root[data-admin-theme='dark'] .link-button:hover {
+  color: #fde68a;
 }
 :root[data-admin-theme='dark'] .filter-row label,
 :root[data-admin-theme='dark'] .owner-spotlight,
