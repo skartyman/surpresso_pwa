@@ -27,6 +27,7 @@ export class ServiceRequestRepository {
   async create(_) { throw new Error('Not implemented'); }
   async listForAdmin(_) { throw new Error('Not implemented'); }
   async findForAdminById(_) { throw new Error('Not implemented'); }
+  async deleteById(_) { throw new Error('Not implemented'); }
   async findById(_) { throw new Error('Not implemented'); }
   async updateStatus(_, __, ___) { throw new Error('Not implemented'); }
   async assignToUser(_, __, ___) { throw new Error('Not implemented'); }

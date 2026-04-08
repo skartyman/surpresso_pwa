@@ -119,6 +119,7 @@ export const adminServiceApi = {
   },
   serviceEngineers: async () => apiFetch('/api/telegram/admin/service-engineers'),
   byId: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`),
+  delete: async (id) => apiFetch(`/api/telegram/admin/service-requests/${id}`, { method: 'DELETE' }),
   updateStatus: async (id, status, comment = '') => apiFetch(`/api/telegram/admin/service-requests/${id}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, comment }),

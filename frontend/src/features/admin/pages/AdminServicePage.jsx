@@ -93,6 +93,7 @@ function ServiceQuickActions({ actions, loadingKey, onAction }) {
 function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onAction, boardLabels, t, locale }) {
   const preview = getRequestPreview(request);
   const actions = getRoleActions(request, user, t);
+  const canDelete = [ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const warnings = [];
   if (!request.assignedToUserId) warnings.push(t('no_engineer'));
   if (!request.equipmentId) warnings.push(t('no_equipment'));
@@ -103,7 +104,24 @@ function ServiceTicketCard({ request, active, user, actionLoading, onSelect, onA
       <button type="button" className="service-board-card__body" onClick={() => onSelect(request.id)}>
         <div className="service-board-card__topbar">
           <StatusBadge status={request.status}>{boardLabels[request.status] || request.status}</StatusBadge>
-          <small>#{request.id}</small>
+          <div className="service-board-card__topbar-actions">
+            <small>#{request.id}</small>
+            {canDelete ? (
+              <button
+                type="button"
+                className="equipment-media-item__delete"
+                aria-label={t('delete_service_request_card')}
+                title={t('delete_service_request_card')}
+                disabled={Boolean(actionLoading)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAction({ kind: 'delete', label: t('delete_service_request_card') });
+                }}
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="service-board-card__preview">
@@ -220,6 +238,7 @@ export function AdminServicePage() {
   const { requestId } = useParams();
   const roleProfile = useMemo(() => getAdminRoleProfile(user?.role), [user?.role]);
   const canAssign = roleProfile.service.showAssignmentPanel;
+  const canDelete = [ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
   const canSeeInternalNotes = roleProfile.service.showInternalNotesComposer;
   const basePath = getBaseAdminPath(location.pathname);
 
@@ -316,23 +335,37 @@ export function AdminServicePage() {
 
   async function runAction(action, request = selectedRequest) {
     if (!request) return;
-    const busyKey = `${action.kind}:${action.status || 'claim'}`;
+    const busyKey = `${action.kind}:${action.status || (action.kind === 'delete' ? 'delete' : 'claim')}`;
     setActionLoading(busyKey);
     setError('');
     try {
-      if (action.kind === 'claim') {
+      if (action.kind === 'delete') {
+        if (!window.confirm(t('delete_service_request_confirm'))) return;
+        await adminServiceApi.delete(request.id);
+        await load();
+        if (requestId === request.id) {
+          navigate(`${basePath}/service`);
+          setSelectedRequest(null);
+        }
+        setFeedback(t('delete_service_request_success'));
+      } else if (action.kind === 'claim') {
         await adminServiceApi.assignManager(request.id, user.id, 'Engineer self-claimed request');
         await adminServiceApi.updateStatus(request.id, 'taken_in_work', 'Engineer started work');
+        await load();
+        if (requestId === request.id) {
+          await loadDetails(request.id);
+        }
+        setFeedback(action.label);
       } else {
         await adminServiceApi.updateStatus(request.id, action.status, action.label);
+        await load();
+        if (requestId === request.id) {
+          await loadDetails(request.id);
+        }
+        setFeedback(action.label);
       }
-      await load();
-      if (requestId === request.id) {
-        await loadDetails(request.id);
-      }
-      setFeedback(action.label);
     } catch (actionError) {
-      setError(actionError?.message || t('run_action_failed'));
+      setError(actionError?.message || (action.kind === 'delete' ? t('delete_service_request_failed') : t('run_action_failed')));
     } finally {
       setActionLoading('');
     }
@@ -571,6 +604,11 @@ export function AdminServicePage() {
                   <div className="detail-section-card">
                     <h4>{t('quick_actions')}</h4>
                     <ActionRail>
+                      {canDelete ? (
+                        <ActionRailButton tone="danger" disabled={Boolean(actionLoading)} onClick={() => runAction({ kind: 'delete', label: t('delete_service_request_card') })}>
+                          {t('delete_service_request_card')}
+                        </ActionRailButton>
+                      ) : null}
                       {getRoleActions(selectedRequest, user, t).map((action) => (
                         <ActionRailButton key={`${action.kind}-${action.status || action.label}`} tone={action.kind === 'claim' ? 'brand' : 'default'} disabled={Boolean(actionLoading)} onClick={() => runAction(action)}>
                           {action.label}
