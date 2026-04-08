@@ -10,9 +10,10 @@ export function ClientPointOnboarding({
   const { t } = useI18n();
   const networks = Array.isArray(profile?.availableNetworks) ? profile.availableNetworks : [];
   const pointUser = profile?.pointUser || null;
+  const hasBoundPoint = Boolean(profile?.network?.id && profile?.location?.id);
   const initialNetworkId = profile?.network?.id || networks[0]?.id || '';
   const initialLocationId = profile?.location?.id || '';
-  const initialMode = profile?.network?.id || networks.length ? 'existing' : 'new';
+  const initialMode = hasBoundPoint ? 'existing' : 'new';
   const [mode, setMode] = useState(initialMode);
   const [form, setForm] = useState({
     companyName: profile?.client?.companyName || '',
@@ -28,7 +29,7 @@ export function ClientPointOnboarding({
   });
 
   useEffect(() => {
-    setMode(profile?.network?.id || networks.length ? 'existing' : 'new');
+    setMode(profile?.network?.id && profile?.location?.id ? 'existing' : 'new');
     setForm({
       companyName: profile?.client?.companyName || '',
       networkId: profile?.network?.id || networks[0]?.id || '',
@@ -59,8 +60,24 @@ export function ClientPointOnboarding({
     }
   }, [form.locationId, locations]);
 
+  const validationError = (() => {
+    if (!form.fullName.trim()) return t('onboarding_validation_name');
+    if (mode === 'existing') {
+      if (!networks.length) return t('onboarding_no_networks');
+      if (!form.networkId) return t('onboarding_validation_network');
+      if (!locations.length) return t('onboarding_no_locations');
+      if (!form.locationId) return t('onboarding_validation_location');
+      return '';
+    }
+    if (!form.companyName.trim()) return t('onboarding_validation_company');
+    if (!form.networkName.trim()) return t('onboarding_validation_network_new');
+    if (!form.locationName.trim()) return t('onboarding_validation_location_new');
+    return '';
+  })();
+
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (validationError) return;
     onSubmit?.({
       companyName: form.companyName.trim(),
       networkId: mode === 'existing' ? form.networkId : '',
@@ -98,7 +115,7 @@ export function ClientPointOnboarding({
         <label>
           <span>{t('onboarding_mode')}</span>
           <select value={mode} onChange={(event) => setMode(event.target.value)}>
-            <option value="existing">{t('onboarding_mode_existing')}</option>
+            <option value="existing" disabled={!networks.length}>{t('onboarding_mode_existing')}</option>
             <option value="new">{t('onboarding_mode_new')}</option>
           </select>
         </label>
@@ -209,15 +226,12 @@ export function ClientPointOnboarding({
 
         <button
           type="submit"
-          disabled={
-            submitting
-            || !form.fullName.trim()
-            || (mode === 'existing' && (!form.networkId || !form.locationId))
-            || (mode === 'new' && (!form.companyName.trim() || !form.networkName.trim() || !form.locationName.trim()))
-          }
+          disabled={submitting || Boolean(validationError)}
         >
           {submitting ? t('saving') : t('onboarding_save')}
         </button>
+
+        {validationError ? <p className="notice notice-error">{validationError}</p> : null}
       </form>
     </section>
   );
