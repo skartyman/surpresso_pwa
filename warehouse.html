@@ -67,6 +67,7 @@
         <div class="warehouse-modes">
           <button id="wm-manual" class="active" type="button" onclick="setWarehouseMode('manual')">🔍 Ввод</button>
           <button id="wm-qr" type="button" onclick="setWarehouseMode('qr')">📷 QR</button>
+          <button id="open-parts-request-btn" type="button">🛒 Закупка</button>
           <button id="wm-recount" type="button" onclick="location.href='/recount.html'">🧮 Переучет склада</button>
         </div>
 
@@ -177,6 +178,43 @@
         <button type="button" class="btn ghost" onclick="closeKitChoice()">Отмена</button>
         <button type="button" class="btn ghost danger" id="kit-choice-replace-btn">Заменить</button>
         <button type="button" class="btn primary" id="kit-choice-add-btn">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="parts-request-modal" class="mini-modal hidden">
+    <div class="mini-modal__backdrop" onclick="closePartsRequestModal()"></div>
+
+    <div class="mini-modal__card parts-request-card" role="dialog" aria-modal="true" aria-labelledby="parts-request-title">
+      <div class="mini-modal__title" id="parts-request-title">Заявка на закупку запчастей</div>
+      <div class="mini-modal__text">
+        Показаны только позиции с ячейкой и остатком меньше 5. Можно скорректировать количество и отправить список в текст.
+      </div>
+
+      <div class="field parts-request-search">
+        <label for="parts-request-search">Поиск по коду, названию или ячейке</label>
+        <input id="parts-request-search" type="text" placeholder="Например: клапан, 00012345 или 2.4.7" />
+      </div>
+
+      <div class="parts-request-table-wrap">
+        <table class="parts-request-table">
+          <thead>
+            <tr>
+              <th>✓</th>
+              <th>Код</th>
+              <th>Название</th>
+              <th>Ячейка</th>
+              <th>Остаток</th>
+              <th>Заказать</th>
+            </tr>
+          </thead>
+          <tbody id="parts-request-body"></tbody>
+        </table>
+      </div>
+
+      <div class="mini-modal__actions">
+        <button type="button" class="btn ghost" onclick="closePartsRequestModal()">Закрыть</button>
+        <button type="button" class="btn primary" id="share-parts-request-btn">Поделиться текстом</button>
       </div>
     </div>
   </div>

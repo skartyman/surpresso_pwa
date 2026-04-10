@@ -2657,13 +2657,33 @@ function renderPartCode(code) {
 }
 
 function getFilteredPartsForRequest() {
-  const q = partsRequestFilter.trim().toLowerCase();
-  if (!q) return parts;
+  const lowStockParts = parts
+    .filter(p => {
+      const cell = String(p?.cell || "").trim();
+      const stock = parseStockNum(p?.stock);
+      return Boolean(cell) && Number.isFinite(stock) && stock < 5;
+    })
+    .sort((a, b) => {
+      const stockA = parseStockNum(a?.stock);
+      const stockB = parseStockNum(b?.stock);
+      if (stockA !== stockB) return stockA - stockB;
+      return String(a?.name || a?.code || "").localeCompare(String(b?.name || b?.code || ""), "ru");
+    });
 
-  return parts.filter(p =>
+  const q = partsRequestFilter.trim().toLowerCase();
+  if (!q) return lowStockParts;
+
+  return lowStockParts.filter(p =>
     String(p.code || "").toLowerCase().includes(q) ||
-    String(p.name || "").toLowerCase().includes(q)
+    String(p.name || "").toLowerCase().includes(q) ||
+    String(p.cell || "").toLowerCase().includes(q)
   );
+}
+
+function getSuggestedPartsRequestQty(part) {
+  const stock = parseStockNum(part?.stock);
+  if (!Number.isFinite(stock)) return 1;
+  return Math.max(1, Math.ceil(5 - stock));
 }
 
 function renderPartsRequestTable() {
@@ -2672,14 +2692,14 @@ function renderPartsRequestTable() {
 
   const filtered = getFilteredPartsForRequest();
   if (!filtered.length) {
-    body.innerHTML = '<tr><td colspan="6" class="muted">Ничего не найдено.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="muted">Нет позиций с ячейкой и остатком меньше 5.</td></tr>';
     return;
   }
 
   body.innerHTML = filtered.map(p => {
     const code = String(p.code || "").trim();
     const key = code || String(p.name || "").trim();
-    const selectedQty = Number(partsRequestSelected.get(key) || 1);
+    const selectedQty = Number(partsRequestSelected.get(key) || getSuggestedPartsRequestQty(p));
     const isChecked = partsRequestSelected.has(key);
 
     return `
@@ -2687,7 +2707,7 @@ function renderPartsRequestTable() {
         <td><input type="checkbox" data-pr-code="${escapeHtml(key)}" ${isChecked ? "checked" : ""}></td>
         <td>${renderPartCode(code)}</td>
         <td>${escapeHtml(p.name || "")}</td>
-        <td>${Number(p.price || 0).toFixed(2)}</td>
+        <td>${escapeHtml(p.cell || "—")}</td>
         <td>${escapeHtml(p.stock || "—")}</td>
         <td>
           <input
@@ -2706,6 +2726,13 @@ function renderPartsRequestTable() {
 
 function openPartsRequestModal() {
   partsRequestFilter = "";
+  partsRequestSelected = new Map(
+    getFilteredPartsForRequest().map(p => {
+      const code = String(p.code || "").trim();
+      const key = code || String(p.name || "").trim();
+      return [key, getSuggestedPartsRequestQty(p)];
+    })
+  );
   const searchEl = document.getElementById("parts-request-search");
   if (searchEl) searchEl.value = "";
 
@@ -2728,9 +2755,17 @@ async function sharePartsRequestText() {
     return;
   }
 
-  const lines = [];
+  const lines = ["Заявка на закупку запчастей", ""];
   for (const [code, qty] of partsRequestSelected.entries()) {
-    lines.push(`${code} x ${qty}`);
+    const part = parts.find(p => {
+      const partCode = String(p.code || "").trim();
+      const key = partCode || String(p.name || "").trim();
+      return key === code;
+    });
+    const name = String(part?.name || "").trim();
+    const cell = String(part?.cell || "").trim() || "—";
+    const stock = part?.stock ?? "—";
+    lines.push(`${code}${name ? ` | ${name}` : ""} | ячейка: ${cell} | остаток: ${stock} | заказать: ${qty}`);
   }
 
   const text = lines.join("\n");
@@ -3050,7 +3085,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const partsRequestBody = document.getElementById("parts-request-body");
   if (partsRequestBody) {
-    partsRequestBody.addEventListener("change", e => {
+    const handlePartsRequestBodyUpdate = e => {
       const target = e.target;
       const code = target?.dataset?.prCode;
       if (!code) return;
@@ -3072,7 +3107,10 @@ window.addEventListener("DOMContentLoaded", async () => {
           partsRequestSelected.set(code, qty);
         }
       }
-    });
+    };
+
+    partsRequestBody.addEventListener("change", handlePartsRequestBodyUpdate);
+    partsRequestBody.addEventListener("input", handlePartsRequestBodyUpdate);
   }
 
   const sharePartsRequestBtn = document.getElementById("share-parts-request-btn");

@@ -1282,6 +1282,27 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   width: 86px;
 }
 
+@media (max-width: 720px) {
+  .parts-request-card {
+    width: min(96vw, 96vw);
+    max-height: 84vh;
+    padding: 12px;
+  }
+
+  .parts-request-table {
+    font-size: 12px;
+  }
+
+  .parts-request-table th,
+  .parts-request-table td {
+    padding: 7px 5px;
+  }
+
+  .parts-request-qty {
+    width: 68px;
+  }
+}
+
 .dvg-link {
   color: inherit;
   text-decoration: underline;
