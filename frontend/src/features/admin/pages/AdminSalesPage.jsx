@@ -92,10 +92,30 @@ export function AdminSalesPage() {
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [catalogPricelists, setCatalogPricelists] = useState([]);
   const [relatedCases, setRelatedCases] = useState([]);
   const [actionLoading, setActionLoading] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
+  const [productForm, setProductForm] = useState({
+    title: '',
+    category: 'coffee',
+    subtitle: '',
+    description: '',
+    price: '',
+    currency: 'UAH',
+    priceMode: 'sale',
+    availability: 'available',
+    ctaLabel: '',
+  });
+  const [productMedia, setProductMedia] = useState([]);
+  const [pricelistForm, setPricelistForm] = useState({
+    title: '',
+    category: 'coffee',
+    note: '',
+  });
+  const [pricelistFiles, setPricelistFiles] = useState([]);
 
   async function load() {
     try {
@@ -110,6 +130,12 @@ export function AdminSalesPage() {
       setSalesRequests(requestRows);
       setSelectedId((prev) => prev || requestedEquipmentId || rows[0]?.id || null);
       setSelectedLeadId((prev) => prev || requestRows[0]?.id || null);
+      const [productsPayload, pricelistsPayload] = await Promise.all([
+        adminServiceApi.catalogProducts().catch(() => ({ items: [] })),
+        adminServiceApi.catalogPricelists().catch(() => ({ items: [] })),
+      ]);
+      setCatalogProducts(productsPayload.items || []);
+      setCatalogPricelists(pricelistsPayload.items || []);
       setError('');
     } catch {
         setError(t('sales_board_load_failed'));
@@ -193,6 +219,72 @@ export function AdminSalesPage() {
     setActionLoading('');
   }
 
+  async function submitProduct(event) {
+    event.preventDefault();
+    setActionLoading('catalog-product');
+    try {
+      await adminServiceApi.createCatalogProduct({ ...productForm, media: productMedia });
+      const productsPayload = await adminServiceApi.catalogProducts();
+      setCatalogProducts(productsPayload.items || []);
+      setProductForm({
+        title: '',
+        category: 'coffee',
+        subtitle: '',
+        description: '',
+        price: '',
+        currency: 'UAH',
+        priceMode: 'sale',
+        availability: 'available',
+        ctaLabel: '',
+      });
+      setProductMedia([]);
+      setFeedback(t('catalog_product_saved'));
+    } catch {
+      setError(t('catalog_product_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function submitPricelist(event) {
+    event.preventDefault();
+    setActionLoading('catalog-pricelist');
+    try {
+      await adminServiceApi.createCatalogPricelist({ ...pricelistForm, file: pricelistFiles });
+      const pricelistsPayload = await adminServiceApi.catalogPricelists();
+      setCatalogPricelists(pricelistsPayload.items || []);
+      setPricelistForm({ title: '', category: 'coffee', note: '' });
+      setPricelistFiles([]);
+      setFeedback(t('catalog_pricelist_saved'));
+    } catch {
+      setError(t('catalog_pricelist_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function removeProduct(key) {
+    setActionLoading(`product-delete:${key}`);
+    try {
+      await adminServiceApi.deleteCatalogProduct(key);
+      const productsPayload = await adminServiceApi.catalogProducts();
+      setCatalogProducts(productsPayload.items || []);
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function removePricelist(key) {
+    setActionLoading(`pricelist-delete:${key}`);
+    try {
+      await adminServiceApi.deleteCatalogPricelist(key);
+      const pricelistsPayload = await adminServiceApi.catalogPricelists();
+      setCatalogPricelists(pricelistsPayload.items || []);
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   const attention = {
     unassigned: items.filter((item) => !item.assignedToUserId).length,
     noEquipment: items.filter((item) => !item.id || !item.serial).length,
@@ -262,6 +354,117 @@ export function AdminSalesPage() {
 
       {error ? <p className="error-text">{error}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
+
+      <section className="sales-catalog-shell">
+        <header className="sales-catalog-shell__header">
+          <div>
+            <small>{t('catalog_management')}</small>
+            <h3>{t('catalog_management_subtitle')}</h3>
+          </div>
+          <div className="sales-leads-shell__stats">
+            <span>{t('catalog_products')}: <strong>{catalogProducts.length}</strong></span>
+            <span>{t('catalog_pricelists')}: <strong>{catalogPricelists.length}</strong></span>
+          </div>
+        </header>
+
+        <div className="sales-catalog-shell__grid">
+          <article className="detail-section-card">
+            <h4>{t('catalog_new_product')}</h4>
+            <form className="sales-catalog-form" onSubmit={submitProduct}>
+              <div className="detail-grid">
+                <label><span>{t('title')}</span><input value={productForm.title} onChange={(e) => setProductForm((prev) => ({ ...prev, title: e.target.value }))} /></label>
+                <label>
+                  <span>{t('category')}</span>
+                  <select value={productForm.category} onChange={(e) => setProductForm((prev) => ({ ...prev, category: e.target.value }))}>
+                    <option value="coffee">{t('catalog_category_coffee')}</option>
+                    <option value="accessories">{t('catalog_category_accessories')}</option>
+                    <option value="equipment">{t('catalog_category_equipment')}</option>
+                  </select>
+                </label>
+                <label><span>{t('subtitle')}</span><input value={productForm.subtitle} onChange={(e) => setProductForm((prev) => ({ ...prev, subtitle: e.target.value }))} /></label>
+                <label><span>{t('price')}</span><input value={productForm.price} onChange={(e) => setProductForm((prev) => ({ ...prev, price: e.target.value }))} /></label>
+                <label><span>{t('currency')}</span><input value={productForm.currency} onChange={(e) => setProductForm((prev) => ({ ...prev, currency: e.target.value }))} /></label>
+                <label>
+                  <span>{t('catalog_price_mode')}</span>
+                  <select value={productForm.priceMode} onChange={(e) => setProductForm((prev) => ({ ...prev, priceMode: e.target.value }))}>
+                    <option value="sale">{t('sales_request_purchase')}</option>
+                    <option value="rent">{t('sales_request_rent')}</option>
+                    <option value="retail">{t('catalog_retail')}</option>
+                  </select>
+                </label>
+              </div>
+              <label><span>{t('description')}</span><textarea rows={4} value={productForm.description} onChange={(e) => setProductForm((prev) => ({ ...prev, description: e.target.value }))} /></label>
+              <label><span>{t('catalog_cta_label')}</span><input value={productForm.ctaLabel} onChange={(e) => setProductForm((prev) => ({ ...prev, ctaLabel: e.target.value }))} /></label>
+              <label><span>{t('photo')}</span><input type="file" accept="image/*,video/*" onChange={(e) => setProductMedia(Array.from(e.target.files || []))} /></label>
+              <ActionRail compact>
+                <ActionRailButton tone="brand" disabled={actionLoading === 'catalog-product'}>{actionLoading === 'catalog-product' ? t('saving') : t('catalog_save_product')}</ActionRailButton>
+              </ActionRail>
+            </form>
+          </article>
+
+          <article className="detail-section-card">
+            <h4>{t('catalog_new_pricelist')}</h4>
+            <form className="sales-catalog-form" onSubmit={submitPricelist}>
+              <div className="detail-grid">
+                <label><span>{t('title')}</span><input value={pricelistForm.title} onChange={(e) => setPricelistForm((prev) => ({ ...prev, title: e.target.value }))} /></label>
+                <label>
+                  <span>{t('category')}</span>
+                  <select value={pricelistForm.category} onChange={(e) => setPricelistForm((prev) => ({ ...prev, category: e.target.value }))}>
+                    <option value="coffee">{t('catalog_category_coffee')}</option>
+                    <option value="accessories">{t('catalog_category_accessories')}</option>
+                    <option value="equipment">{t('catalog_category_equipment')}</option>
+                  </select>
+                </label>
+              </div>
+              <label><span>{t('notes')}</span><textarea rows={4} value={pricelistForm.note} onChange={(e) => setPricelistForm((prev) => ({ ...prev, note: e.target.value }))} /></label>
+              <label><span>{t('catalog_upload_pricelist')}</span><input type="file" accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => setPricelistFiles(Array.from(e.target.files || []))} /></label>
+              <ActionRail compact>
+                <ActionRailButton tone="brand" disabled={actionLoading === 'catalog-pricelist'}>{actionLoading === 'catalog-pricelist' ? t('saving') : t('catalog_save_pricelist')}</ActionRailButton>
+              </ActionRail>
+            </form>
+          </article>
+        </div>
+
+        <div className="sales-catalog-shell__grid">
+          <article className="detail-section-card">
+            <h4>{t('catalog_products')}</h4>
+            <div className="sales-catalog-list">
+              {catalogProducts.map((item) => (
+                <article key={item.key} className="sales-catalog-item">
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.data?.category || '—'} · {item.data?.price || '—'} {item.data?.currency || ''}</p>
+                    <small>{item.data?.subtitle || item.data?.description || '—'}</small>
+                  </div>
+                  <ActionRail compact>
+                    <ActionRailButton tone="danger" disabled={actionLoading === `product-delete:${item.key}`} onClick={() => removeProduct(item.key)}>{t('delete')}</ActionRailButton>
+                  </ActionRail>
+                </article>
+              ))}
+              {!catalogProducts.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
+            </div>
+          </article>
+
+          <article className="detail-section-card">
+            <h4>{t('catalog_pricelists')}</h4>
+            <div className="sales-catalog-list">
+              {catalogPricelists.map((item) => (
+                <article key={item.key} className="sales-catalog-item">
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.data?.category || '—'}</p>
+                    {item.data?.document?.fileUrl ? <a href={item.data.document.fileUrl} target="_blank" rel="noreferrer">{t('open')}</a> : null}
+                  </div>
+                  <ActionRail compact>
+                    <ActionRailButton tone="danger" disabled={actionLoading === `pricelist-delete:${item.key}`} onClick={() => removePricelist(item.key)}>{t('delete')}</ActionRailButton>
+                  </ActionRail>
+                </article>
+              ))}
+              {!catalogPricelists.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
+            </div>
+          </article>
+        </div>
+      </section>
 
       <section className="sales-leads-shell">
         <header className="sales-leads-shell__header">

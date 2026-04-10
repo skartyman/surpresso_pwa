@@ -94,6 +94,30 @@ export const adminServiceApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/api/telegram/admin/sales/equipment${query}`);
   },
+  catalogProducts: async () => apiFetch('/api/telegram/admin/catalog/products'),
+  createCatalogProduct: async (payload) => {
+    const form = new FormData();
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (key === 'media') return;
+      if (value === undefined || value === null || value === '') return;
+      form.append(key, value);
+    });
+    (payload?.media || []).forEach((file) => form.append('media', file));
+    return apiFetch('/api/telegram/admin/catalog/products', { method: 'POST', body: form });
+  },
+  deleteCatalogProduct: async (key) => apiFetch(`/api/telegram/admin/catalog/products/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  catalogPricelists: async () => apiFetch('/api/telegram/admin/catalog/pricelists'),
+  createCatalogPricelist: async (payload) => {
+    const form = new FormData();
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (key === 'file') return;
+      if (value === undefined || value === null || value === '') return;
+      form.append(key, value);
+    });
+    (payload?.file || []).forEach((file) => form.append('file', file));
+    return apiFetch('/api/telegram/admin/catalog/pricelists', { method: 'POST', body: form });
+  },
+  deleteCatalogPricelist: async (key) => apiFetch(`/api/telegram/admin/catalog/pricelists/${encodeURIComponent(key)}`, { method: 'DELETE' }),
   updateCommercialStatus: async (id, commercialStatus, comment = '', serviceCaseId = null) => apiFetch(`/api/telegram/admin/equipment/${id}/commercial-status`, { method: 'POST', body: JSON.stringify({ commercialStatus, comment, serviceCaseId }) }),
   reserveRent: async (id, serviceCaseId = null) => apiFetch(`/api/telegram/admin/equipment/${id}/reserve-rent`, { method: 'POST', body: JSON.stringify({ serviceCaseId }) }),
   reserveSale: async (id, serviceCaseId = null) => apiFetch(`/api/telegram/admin/equipment/${id}/reserve-sale`, { method: 'POST', body: JSON.stringify({ serviceCaseId }) }),

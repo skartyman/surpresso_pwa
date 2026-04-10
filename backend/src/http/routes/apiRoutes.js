@@ -9,8 +9,16 @@ import { createAdminController } from '../controllers/adminController.js';
 import { createAdminServiceController } from '../controllers/adminServiceController.js';
 import { createAdminServiceOpsController } from '../controllers/adminServiceOpsController.js';
 import { createAdminEmployeeController } from '../controllers/adminEmployeeController.js';
+import { createAdminCatalogController } from '../controllers/adminCatalogController.js';
 import { requireAuth, requireRole } from '../middleware/adminAuth.js';
-import { isAllowedUploadMimeType, MAX_UPLOAD_MEDIA_FILES, MAX_UPLOAD_MEDIA_FILE_SIZE } from '../utils/uploadedMediaValidation.js';
+import {
+  isAllowedUploadDocumentMimeType,
+  isAllowedUploadMimeType,
+  MAX_UPLOAD_DOCUMENT_FILES,
+  MAX_UPLOAD_DOCUMENT_FILE_SIZE,
+  MAX_UPLOAD_MEDIA_FILES,
+  MAX_UPLOAD_MEDIA_FILE_SIZE,
+} from '../utils/uploadedMediaValidation.js';
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -24,6 +32,18 @@ export function createApiRouter(deps) {
     fileFilter: (req, file, cb) => {
       if (!isAllowedUploadMimeType(file?.mimetype)) {
         const error = new Error('unsupported_media_type');
+        error.statusCode = 400;
+        return cb(error);
+      }
+      return cb(null, true);
+    },
+  });
+  const documentUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: MAX_UPLOAD_DOCUMENT_FILES, fileSize: MAX_UPLOAD_DOCUMENT_FILE_SIZE },
+    fileFilter: (req, file, cb) => {
+      if (!isAllowedUploadDocumentMimeType(file?.mimetype)) {
+        const error = new Error('unsupported_document_type');
         error.statusCode = 400;
         return cb(error);
       }
@@ -47,6 +67,7 @@ export function createApiRouter(deps) {
     notificationCenterService: deps.notificationCenterService,
   });
   const adminEmployeeController = createAdminEmployeeController(deps.userRepository, deps.serviceRepository);
+  const adminCatalogController = createAdminCatalogController(deps.serviceOpsRepository, { uploadsRoot: deps.uploadsRoot });
   const adminAuth = requireAuth(deps.userRepository, deps.sessionManager);
 
   router.post('/auth/login', asyncHandler(adminAuthController.login));
@@ -119,6 +140,12 @@ export function createApiRouter(deps) {
   router.patch('/admin/tasks/:taskId/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateServiceTaskStatus));
   router.post('/admin/equipment/:id/commercial-status', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateCommercialStatus));
   router.get('/admin/sales/equipment', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listSalesEquipment));
+  router.get('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listProducts));
+  router.post('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), upload.array('media', 1), asyncHandler(adminCatalogController.saveProduct));
+  router.delete('/admin/catalog/products/:key', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deleteProduct));
+  router.get('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listPricelists));
+  router.post('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), documentUpload.array('file', 1), asyncHandler(adminCatalogController.savePricelist));
+  router.delete('/admin/catalog/pricelists/:key', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deletePricelist));
   router.post('/admin/equipment/:id/reserve-rent', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForRent));
   router.post('/admin/equipment/:id/reserve-sale', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForSale));
   router.get('/admin/equipment/:id/service-cases', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentServiceCases));
@@ -166,6 +193,9 @@ export function createApiRouter(deps) {
 
     if (err?.message === 'unsupported_media_type') {
       return res.status(err.statusCode || 400).json({ error: 'unsupported_media_type' });
+    }
+    if (err?.message === 'unsupported_document_type') {
+      return res.status(err.statusCode || 400).json({ error: 'unsupported_document_type' });
     }
 
     console.error('[miniapp-api] request failed', {

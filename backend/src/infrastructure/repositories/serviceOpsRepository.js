@@ -507,6 +507,20 @@ export class NeonServiceOpsRepository {
     }));
   }
 
+  async deleteReportPresetByKey(key) {
+    if (!key) return null;
+    try {
+      const removed = await this.prisma.reportPreset.delete({ where: { key } });
+      return {
+        ...removed,
+        createdAt: removed.createdAt?.toISOString?.() || removed.createdAt,
+        updatedAt: removed.updatedAt?.toISOString?.() || removed.updatedAt,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   buildWhere(filters = {}) {
     const { serviceStatus, commercialStatus, ownerType, clientServiceType, equipmentType, assignedToUserId, intakeType, search } = filters;
     return {
@@ -1350,6 +1364,13 @@ export class InMemoryServiceOpsRepository {
   }
   async listReportPresets({ reportType, ownerRole } = {}) {
     return this.reportPresets.filter((item) => (!reportType || item.reportType === reportType) && (!ownerRole || !item.ownerRole || item.ownerRole === ownerRole));
+  }
+
+  async deleteReportPresetByKey(key) {
+    const idx = this.reportPresets.findIndex((item) => item.key === key);
+    if (idx < 0) return null;
+    const [removed] = this.reportPresets.splice(idx, 1);
+    return removed || null;
   }
 }
 
