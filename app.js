@@ -467,13 +467,31 @@ function looksLikeCellQuery(q) {
 
 function parseStockNum(stockRaw) {
   if (stockRaw === null || stockRaw === undefined) return NaN;
-  const s = String(stockRaw)
-    .replace(/\u00A0|\u202F/g, "")
-    .replace(/\s+/g, "")
-    .replace(",", ".")
-    .replace(/[^0-9.\-]/g, "");
-  const n = parseFloat(s);
+  const raw = String(stockRaw)
+    .replace(/\u00A0|\u202F/g, " ")
+    .trim()
+    .replace(",", ".");
+  const match = raw.match(/-?\d+(?:\.\d+)?/);
+  const n = parseFloat(match ? match[0] : raw);
   return Number.isFinite(n) ? n : NaN;
+}
+
+function isLowStockForPartsRequest(part) {
+  const cell = String(part?.cell || "").trim();
+  if (!cell) return false;
+
+  const stockRaw = String(part?.stock ?? "")
+    .replace(/\u00A0|\u202F/g, " ")
+    .trim()
+    .replace(",", ".");
+
+  if (!stockRaw) return false;
+
+  const stock = parseStockNum(stockRaw);
+  if (Number.isFinite(stock)) return stock < 5;
+
+  const normalized = stockRaw.replace(/[^0-9.\-]/g, "");
+  return /^0+(?:\.0+)?$/.test(normalized);
 }
 function inStock(item) {
   const n = parseStockNum(item?.stock);
@@ -2662,11 +2680,7 @@ function renderPartCode(code) {
 
 function getFilteredPartsForRequest() {
   const lowStockParts = parts
-    .filter(p => {
-      const cell = String(p?.cell || "").trim();
-      const stock = parseStockNum(p?.stock);
-      return Boolean(cell) && Number.isFinite(stock) && stock < 5;
-    })
+    .filter(isLowStockForPartsRequest)
     .sort((a, b) => {
       const stockA = parseStockNum(a?.stock);
       const stockB = parseStockNum(b?.stock);
