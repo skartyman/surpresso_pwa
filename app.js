@@ -2978,6 +2978,54 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   attachSuggest("warehouse-input", "warehouse-suggest", parts);
 
+  const openPartsRequestBtn = document.getElementById("open-parts-request-btn");
+  if (openPartsRequestBtn) {
+    openPartsRequestBtn.addEventListener("click", openPartsRequestModal);
+  }
+
+  const partsRequestSearch = document.getElementById("parts-request-search");
+  if (partsRequestSearch) {
+    partsRequestSearch.addEventListener("input", e => {
+      partsRequestFilter = e.target.value || "";
+      renderPartsRequestTable();
+    });
+  }
+
+  const partsRequestBody = document.getElementById("parts-request-body");
+  if (partsRequestBody) {
+    const handlePartsRequestBodyUpdate = e => {
+      const target = e.target;
+      const code = target?.dataset?.prCode;
+      if (!code) return;
+
+      if (target.matches('input[type="checkbox"]')) {
+        if (target.checked) {
+          const qtyInput = partsRequestBody.querySelector(`input.parts-request-qty[data-pr-code="${CSS.escape(code)}"]`);
+          const qty = Math.max(1, Number(qtyInput?.value || 1));
+          partsRequestSelected.set(code, qty);
+        } else {
+          partsRequestSelected.delete(code);
+        }
+      }
+
+      if (target.matches(".parts-request-qty")) {
+        const qty = Math.max(1, Number(target.value || 1));
+        target.value = qty;
+        if (partsRequestSelected.has(code)) {
+          partsRequestSelected.set(code, qty);
+        }
+      }
+    };
+
+    partsRequestBody.addEventListener("change", handlePartsRequestBodyUpdate);
+    partsRequestBody.addEventListener("input", handlePartsRequestBodyUpdate);
+  }
+
+  const sharePartsRequestBtn = document.getElementById("share-parts-request-btn");
+  if (sharePartsRequestBtn) {
+    sharePartsRequestBtn.addEventListener("click", sharePartsRequestText);
+  }
+
   if (pageType === "warehouse") {
     syncWarehouseBottomSpacing();
     window.addEventListener("resize", syncWarehouseBottomSpacing);
@@ -3069,54 +3117,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const recountFoundApply = document.getElementById("recount-found-apply");
   if (recountFoundApply) recountFoundApply.addEventListener("click", addFoundRecountItem);
-
-  const openPartsRequestBtn = document.getElementById("open-parts-request-btn");
-  if (openPartsRequestBtn) {
-    openPartsRequestBtn.addEventListener("click", openPartsRequestModal);
-  }
-
-  const partsRequestSearch = document.getElementById("parts-request-search");
-  if (partsRequestSearch) {
-    partsRequestSearch.addEventListener("input", e => {
-      partsRequestFilter = e.target.value || "";
-      renderPartsRequestTable();
-    });
-  }
-
-  const partsRequestBody = document.getElementById("parts-request-body");
-  if (partsRequestBody) {
-    const handlePartsRequestBodyUpdate = e => {
-      const target = e.target;
-      const code = target?.dataset?.prCode;
-      if (!code) return;
-
-      if (target.matches('input[type="checkbox"]')) {
-        if (target.checked) {
-          const qtyInput = partsRequestBody.querySelector(`input.parts-request-qty[data-pr-code="${CSS.escape(code)}"]`);
-          const qty = Math.max(1, Number(qtyInput?.value || 1));
-          partsRequestSelected.set(code, qty);
-        } else {
-          partsRequestSelected.delete(code);
-        }
-      }
-
-      if (target.matches(".parts-request-qty")) {
-        const qty = Math.max(1, Number(target.value || 1));
-        target.value = qty;
-        if (partsRequestSelected.has(code)) {
-          partsRequestSelected.set(code, qty);
-        }
-      }
-    };
-
-    partsRequestBody.addEventListener("change", handlePartsRequestBodyUpdate);
-    partsRequestBody.addEventListener("input", handlePartsRequestBodyUpdate);
-  }
-
-  const sharePartsRequestBtn = document.getElementById("share-parts-request-btn");
-  if (sharePartsRequestBtn) {
-    sharePartsRequestBtn.addEventListener("click", sharePartsRequestText);
-  }
 
   const addPartBtn = document.getElementById("add-part");
   if (addPartBtn) {
