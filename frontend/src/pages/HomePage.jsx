@@ -22,6 +22,7 @@ export function HomePage() {
   }, []);
 
   const cards = [
+    { to: routes.showcase, title: t('nav_showcase'), subtitle: t('home_showcase_subtitle'), icon: '🛍️' },
     { to: routes.equipment, title: t('nav_equipment_full'), subtitle: t('home_equipment_subtitle'), icon: '☕' },
     { to: routes.service, title: t('service_new'), subtitle: t('home_service_subtitle'), icon: '🛠️' },
     { to: routes.requests, title: t('nav_requests'), subtitle: t('home_requests_subtitle'), icon: '📋' },

@@ -7,6 +7,8 @@ export const REQUEST_TYPES = {
   grinderCheck: 'grinder_check',
   rentalAuto: 'rental_auto',
   rentalPro: 'rental_pro',
+  equipmentRent: 'equipment_rent',
+  equipmentPurchase: 'equipment_purchase',
   feedback: 'feedback',
 };
 

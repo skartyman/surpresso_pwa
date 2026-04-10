@@ -29,6 +29,31 @@ function getPreviewUrl(item) {
   return item?.media?.[0]?.previewUrl || item?.media?.[0]?.fileUrl || null;
 }
 
+function getSalesRequestTypeLabel(type, t) {
+  const value = String(type || '').trim().toLowerCase();
+  if (value === 'coffee_order') return t('sales_request_coffee_order');
+  if (value === 'coffee_tasting') return t('sales_request_tasting');
+  if (value === 'equipment_rent' || value === 'rental_auto' || value === 'rental_pro') return t('sales_request_rent');
+  if (value === 'equipment_purchase') return t('sales_request_purchase');
+  if (value === 'feedback') return t('sales_request_feedback');
+  return value || t('request');
+}
+
+function SalesLeadCard({ item, active, onSelect, t, locale }) {
+  return (
+    <button type="button" className={`sales-lead-card ${active ? 'active' : ''}`} onClick={() => onSelect(item.id)}>
+      <div className="sales-lead-card__head">
+        <strong>{item.title || item.id}</strong>
+        <StatusBadge status={item.status || 'new'}>{t(item.status || 'new')}</StatusBadge>
+      </div>
+      <p>{getSalesRequestTypeLabel(item.type, t)}</p>
+      <small>{item.client?.companyName || item.location?.name || t('client')}</small>
+      <small>{item.client?.phone || item.pointUser?.phone || t('no_phone')}</small>
+      <em>{formatDate(item.updatedAt, locale)}</em>
+    </button>
+  );
+}
+
 function SalesCard({ item, active, onSelect }) {
   const { t, locale } = useAdminI18n();
   const status = item.commercialStatus || 'none';
@@ -62,8 +87,11 @@ export function AdminSalesPage() {
   const { t, locale } = useAdminI18n();
   const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
+  const [salesRequests, setSalesRequests] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
   const [relatedCases, setRelatedCases] = useState([]);
   const [actionLoading, setActionLoading] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -71,11 +99,17 @@ export function AdminSalesPage() {
 
   async function load() {
     try {
-      const payload = await adminServiceApi.salesEquipment();
+      const [payload, requestsPayload] = await Promise.all([
+        adminServiceApi.salesEquipment(),
+        adminServiceApi.list({ sort: 'updatedAt' }).catch(() => ({ requests: [] })),
+      ]);
       const rows = payload.items || [];
+      const requestRows = (requestsPayload.requests || []).filter((item) => item.assignedDepartment === 'sales');
       const requestedEquipmentId = searchParams.get('equipmentId');
       setItems(rows);
+      setSalesRequests(requestRows);
       setSelectedId((prev) => prev || requestedEquipmentId || rows[0]?.id || null);
+      setSelectedLeadId((prev) => prev || requestRows[0]?.id || null);
       setError('');
     } catch {
         setError(t('sales_board_load_failed'));
@@ -91,6 +125,15 @@ export function AdminSalesPage() {
     setRelatedCases(serviceCases.items || []);
   }
 
+  async function loadLeadDetails(id) {
+    if (!id) {
+      setSelectedLead(null);
+      return;
+    }
+    const payload = await adminServiceApi.byId(id);
+    setSelectedLead(payload.request || null);
+  }
+
   useEffect(() => { load(); }, [searchParams]); // eslint-disable-line
   useEffect(() => {
     if (!selectedId) return setSelectedEquipment(null);
@@ -99,6 +142,9 @@ export function AdminSalesPage() {
       setRelatedCases([]);
     });
   }, [selectedId]);
+  useEffect(() => {
+    loadLeadDetails(selectedLeadId).catch(() => setSelectedLead(null));
+  }, [selectedLeadId]);
 
   const columns = useMemo(() => {
     const requested = searchParams.get('commercialStatus');
@@ -123,6 +169,13 @@ export function AdminSalesPage() {
   const caseHint = relatedCases[0] || null;
   const caseId = caseHint?.id || null;
   const actions = selectedEquipment?.nextActions?.all || [];
+  const salesLeadMetrics = useMemo(() => ({
+    total: salesRequests.length,
+    newCount: salesRequests.filter((item) => item.status === 'new').length,
+    rentCount: salesRequests.filter((item) => ['equipment_rent', 'rental_auto', 'rental_pro'].includes(item.type)).length,
+    buyCount: salesRequests.filter((item) => item.type === 'equipment_purchase').length,
+    coffeeCount: salesRequests.filter((item) => item.type === 'coffee_order').length,
+  }), [salesRequests]);
 
   async function performAction(actionKey, targetStatus) {
     if (!selectedId) return;
@@ -209,6 +262,58 @@ export function AdminSalesPage() {
 
       {error ? <p className="error-text">{error}</p> : null}
       {feedback ? <p>{feedback}</p> : null}
+
+      <section className="sales-leads-shell">
+        <header className="sales-leads-shell__header">
+          <div>
+            <small>{t('sales_request_stream')}</small>
+            <h3>{t('sales_request_queue')}</h3>
+          </div>
+          <div className="sales-leads-shell__stats">
+            <span>{t('total')}: <strong>{salesLeadMetrics.total}</strong></span>
+            <span>{t('new')}: <strong>{salesLeadMetrics.newCount}</strong></span>
+            <span>{t('sales_request_rent')}: <strong>{salesLeadMetrics.rentCount}</strong></span>
+            <span>{t('sales_request_purchase')}: <strong>{salesLeadMetrics.buyCount}</strong></span>
+            <span>{t('sales_request_coffee_order')}: <strong>{salesLeadMetrics.coffeeCount}</strong></span>
+          </div>
+        </header>
+        <div className="sales-leads-shell__layout">
+          <div className="sales-leads-shell__list">
+            {salesRequests.map((item) => (
+              <SalesLeadCard key={item.id} item={item} active={selectedLeadId === item.id} onSelect={setSelectedLeadId} t={t} locale={locale} />
+            ))}
+            {!salesRequests.length ? <p className="empty-copy">{t('queue_empty')}</p> : null}
+          </div>
+          <div className="sales-leads-shell__detail">
+            {!selectedLead ? <p>{t('select_request')}</p> : (
+              <>
+                <header className="detail-header">
+                  <h3>{selectedLead.title || selectedLead.id}</h3>
+                  <StatusBadge status={selectedLead.status || 'new'}>{t(selectedLead.status || 'new')}</StatusBadge>
+                </header>
+                <div className="detail-grid">
+                  <p><Icon name="sales" /> {t('request_type')}: {getSalesRequestTypeLabel(selectedLead.type, t)}</p>
+                  <p><Icon name="clients" /> {t('client')}: {selectedLead.client?.companyName || selectedLead.location?.name || '—'}</p>
+                  <p><Icon name="clients" /> {t('contact_back')}: {selectedLead.pointUser?.phone || selectedLead.client?.phone || t('no_phone')}</p>
+                  <p><Icon name="service" /> {t('updated')}: {formatDate(selectedLead.updatedAt, locale)}</p>
+                </div>
+                <div className="detail-section-card">
+                  <h4>{t('problem_description')}</h4>
+                  <p>{selectedLead.description || '—'}</p>
+                </div>
+                <ActionRail>
+                  {(selectedLead.pointUser?.phone || selectedLead.client?.phone) ? (
+                    <a className="action-rail__button" href={`tel:${selectedLead.pointUser?.phone || selectedLead.client?.phone}`}>{t('call_client')}</a>
+                  ) : null}
+                  {(selectedLead.pointUser?.telegramUserId || selectedLead.client?.telegramUserId) ? (
+                    <a className="action-rail__button" href={`tg://user?id=${selectedLead.pointUser?.telegramUserId || selectedLead.client?.telegramUserId}`}>{t('open_telegram')}</a>
+                  ) : null}
+                </ActionRail>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="service-workspace kanban-layout">
         <div className="kanban-board">

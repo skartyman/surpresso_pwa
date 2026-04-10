@@ -4,6 +4,7 @@ import { ClientLayout } from '../layouts/ClientLayout';
 import { HomePage } from '../pages/HomePage';
 import { EquipmentPage } from '../pages/EquipmentPage';
 import { EquipmentDetailPage } from '../pages/EquipmentDetailPage';
+import { StorefrontPage } from '../pages/StorefrontPage';
 import { ServicePage } from '../pages/ServicePage';
 import { ServiceStatusPage } from '../pages/ServiceStatusPage';
 import { SupportPage } from '../pages/SupportPage';
@@ -36,6 +37,7 @@ function ClientRoutes() {
       <TelegramMiniAppGate>
         <Routes>
           <Route path={routes.home} element={<HomePage />} />
+          <Route path={routes.showcase} element={<StorefrontPage />} />
           <Route path={routes.equipment} element={<EquipmentPage />} />
           <Route path={`${routes.equipment}/:equipmentId`} element={<EquipmentDetailPage />} />
           <Route path={routes.service} element={<ServicePage />} />

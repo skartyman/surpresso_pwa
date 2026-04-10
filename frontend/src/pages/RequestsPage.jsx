@@ -8,6 +8,11 @@ function translateRequestStatus(status, t) {
   return t(key);
 }
 
+function translateDepartment(department, t) {
+  const key = `department_${String(department || '').trim().toLowerCase()}`;
+  return t(key);
+}
+
 export function RequestsPage() {
   const { t, dateLocale } = useI18n();
   const [items, setItems] = useState([]);
@@ -36,7 +41,7 @@ export function RequestsPage() {
             </div>
             <p>{item.description}</p>
             <small>
-              {t('request_created')}: {new Date(item.createdAt).toLocaleString(dateLocale)} · {t('request_department')}: {item.assignedDepartment === 'service' ? t('department_service') : item.assignedDepartment}
+              {t('request_created')}: {new Date(item.createdAt).toLocaleString(dateLocale)} · {t('request_department')}: {translateDepartment(item.assignedDepartment, t)}
             </small>
           </Link>
         ))}

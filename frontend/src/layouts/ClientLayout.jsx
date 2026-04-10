@@ -22,6 +22,7 @@ export function ClientLayout({ children }) {
   const navItems = useMemo(
     () => [
       { to: routes.home, label: t('nav_home') },
+      { to: routes.showcase, label: t('nav_showcase') },
       { to: routes.equipment, label: t('nav_equipment_full') },
       { to: routes.service, label: t('nav_service') },
       { to: routes.requests, label: t('nav_requests') },
@@ -86,7 +87,7 @@ export function ClientLayout({ children }) {
         <main className="client-content">{children}</main>
 
         <nav className="client-bottom-nav">
-          {navItems.slice(0, 4).map((item) => (
+          {[routes.home, routes.showcase, routes.service, routes.requests].map((routeKey) => navItems.find((item) => item.to === routeKey)).filter(Boolean).map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}>
               {item.label}
             </NavLink>
