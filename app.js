@@ -476,22 +476,30 @@ function parseStockNum(stockRaw) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-function isLowStockForPartsRequest(part) {
-  const cell = String(part?.cell || "").trim();
-  if (!cell) return false;
-
+function getPartsRequestStockValue(part) {
   const stockRaw = String(part?.stock ?? "")
     .replace(/\u00A0|\u202F/g, " ")
     .trim()
     .replace(",", ".");
 
-  if (!stockRaw) return false;
+  if (!stockRaw || stockRaw === "—" || stockRaw === "-") return 0;
 
   const stock = parseStockNum(stockRaw);
-  if (Number.isFinite(stock)) return stock < 5;
+  if (Number.isFinite(stock)) return stock;
 
   const normalized = stockRaw.replace(/[^0-9.\-]/g, "");
-  return /^0+(?:\.0+)?$/.test(normalized);
+  if (!normalized) return 0;
+  if (/^0+(?:\.0+)?$/.test(normalized)) return 0;
+
+  return NaN;
+}
+
+function isLowStockForPartsRequest(part) {
+  const cell = String(part?.cell || "").trim();
+  if (!cell) return false;
+
+  const stock = getPartsRequestStockValue(part);
+  return !Number.isNaN(stock) && stock < 5;
 }
 function inStock(item) {
   const n = parseStockNum(item?.stock);
@@ -2682,8 +2690,8 @@ function getFilteredPartsForRequest() {
   const lowStockParts = parts
     .filter(isLowStockForPartsRequest)
     .sort((a, b) => {
-      const stockA = parseStockNum(a?.stock);
-      const stockB = parseStockNum(b?.stock);
+      const stockA = getPartsRequestStockValue(a);
+      const stockB = getPartsRequestStockValue(b);
       if (stockA !== stockB) return stockA - stockB;
       return String(a?.name || a?.code || "").localeCompare(String(b?.name || b?.code || ""), "ru");
     });
@@ -2699,7 +2707,7 @@ function getFilteredPartsForRequest() {
 }
 
 function getSuggestedPartsRequestQty(part) {
-  const stock = parseStockNum(part?.stock);
+  const stock = getPartsRequestStockValue(part);
   if (!Number.isFinite(stock)) return 1;
   return Math.max(1, Math.ceil(5 - stock));
 }
