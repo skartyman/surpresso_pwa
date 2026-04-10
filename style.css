@@ -1244,6 +1244,16 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   margin-bottom: 2px;
 }
 
+.parts-request-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.parts-request-toolbar .btn {
+  flex: 1 1 180px;
+}
+
 .parts-request-table-wrap {
   overflow: auto;
   max-height: 56vh;

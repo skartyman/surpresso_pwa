@@ -467,7 +467,11 @@ function looksLikeCellQuery(q) {
 
 function parseStockNum(stockRaw) {
   if (stockRaw === null || stockRaw === undefined) return NaN;
-  const s = String(stockRaw).replace(/\s+/g, "").replace(",", ".");
+  const s = String(stockRaw)
+    .replace(/\u00A0|\u202F/g, "")
+    .replace(/\s+/g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.\-]/g, "");
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : NaN;
 }
@@ -2686,6 +2690,22 @@ function getSuggestedPartsRequestQty(part) {
   return Math.max(1, Math.ceil(5 - stock));
 }
 
+function selectAllPartsForRequest() {
+  partsRequestSelected = new Map(
+    getFilteredPartsForRequest().map(p => {
+      const code = String(p.code || "").trim();
+      const key = code || String(p.name || "").trim();
+      return [key, getSuggestedPartsRequestQty(p)];
+    })
+  );
+  renderPartsRequestTable();
+}
+
+function clearAllPartsForRequest() {
+  partsRequestSelected.clear();
+  renderPartsRequestTable();
+}
+
 function renderPartsRequestTable() {
   const body = document.getElementById("parts-request-body");
   if (!body) return;
@@ -3024,6 +3044,16 @@ window.addEventListener("DOMContentLoaded", async () => {
   const sharePartsRequestBtn = document.getElementById("share-parts-request-btn");
   if (sharePartsRequestBtn) {
     sharePartsRequestBtn.addEventListener("click", sharePartsRequestText);
+  }
+
+  const selectAllPartsRequestBtn = document.getElementById("parts-request-select-all-btn");
+  if (selectAllPartsRequestBtn) {
+    selectAllPartsRequestBtn.addEventListener("click", selectAllPartsForRequest);
+  }
+
+  const clearAllPartsRequestBtn = document.getElementById("parts-request-clear-all-btn");
+  if (clearAllPartsRequestBtn) {
+    clearAllPartsRequestBtn.addEventListener("click", clearAllPartsForRequest);
   }
 
   if (pageType === "warehouse") {
