@@ -29,6 +29,7 @@ function parseArgs(argv = []) {
     apply: false,
     json: '',
     boardId: process.env.TRELLO_BOARD_ID || '',
+    listId: process.env.TRELLO_LIST_ID || '',
     includeArchived: false,
     createEquipment: false,
     verbose: false,
@@ -39,6 +40,7 @@ function parseArgs(argv = []) {
     if (arg === '--apply') args.apply = true;
     else if (arg === '--json') args.json = String(argv[i + 1] || ''), i += 1;
     else if (arg === '--board-id') args.boardId = String(argv[i + 1] || ''), i += 1;
+    else if (arg === '--list-id') args.listId = String(argv[i + 1] || ''), i += 1;
     else if (arg === '--include-archived') args.includeArchived = true;
     else if (arg === '--create-equipment') args.createEquipment = true;
     else if (arg === '--verbose') args.verbose = true;
@@ -151,11 +153,24 @@ function buildDescription({ card, listName, board }) {
   ].filter(Boolean).join('\n');
 }
 
-async function loadBoardFromApi(boardId) {
+async function resolveBoardIdFromList({ key, token, listId }) {
+  if (!listId) return '';
+  const params = new URLSearchParams({ key, token, fields: 'idBoard,name' });
+  const response = await fetch(`https://api.trello.com/1/lists/${encodeURIComponent(listId)}?${params.toString()}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`trello_list_api_http_${response.status}:${text.slice(0, 200)}`);
+  }
+  const list = await response.json();
+  return list.idBoard || '';
+}
+
+async function loadBoardFromApi(args) {
   const key = process.env.TRELLO_KEY;
   const token = process.env.TRELLO_TOKEN;
+  const boardId = args.boardId || await resolveBoardIdFromList({ key, token, listId: args.listId });
   if (!key || !token || !boardId) {
-    throw new Error('TRELLO_KEY, TRELLO_TOKEN and TRELLO_BOARD_ID/--board-id are required when --json is not used');
+    throw new Error('TRELLO_KEY, TRELLO_TOKEN and TRELLO_BOARD_ID/--board-id or TRELLO_LIST_ID/--list-id are required when --json is not used');
   }
 
   const params = new URLSearchParams({
@@ -182,7 +197,7 @@ async function loadBoard(args) {
     const absolutePath = path.isAbsolute(args.json) ? args.json : path.resolve(process.cwd(), args.json);
     return JSON.parse(await readFile(absolutePath, 'utf8'));
   }
-  return loadBoardFromApi(args.boardId);
+  return loadBoardFromApi(args);
 }
 
 function createPrisma() {
