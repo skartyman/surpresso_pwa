@@ -2838,10 +2838,12 @@ textarea { min-height: 110px; resize: vertical; }
   .equipment-passport-data__header,
   .equipment-edit-passport-card__header { display: grid; grid-template-columns: 1fr; }
   .equipment-passport-layout,
+  .equipment-passport-control-map,
   .equipment-passport-ops-grid { grid-template-columns: 1fr; }
   .equipment-passport-stats,
   .equipment-ops-detail__hero-stats,
-  .equipment-passport-data__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .equipment-passport-data__grid,
+  .equipment-passport-source-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .equipment-detail-grid { grid-template-columns: 1fr; }
   .equipment-ops-card--list { grid-template-columns: 1fr; }
   .service-form__grid--triple { grid-template-columns: 1fr; }
@@ -2857,15 +2859,18 @@ textarea { min-height: 110px; resize: vertical; }
 @media (max-width: 640px) {
   .equipment-passport-stats,
   .equipment-ops-detail__hero-stats,
-  .equipment-passport-data__grid { grid-template-columns: 1fr; }
+  .equipment-passport-data__grid,
+  .equipment-passport-source-list { grid-template-columns: 1fr; }
   .equipment-passport-layout,
   .equipment-summary-hero,
   .equipment-summary-hero--passport,
+  .equipment-passport-control-map,
   .equipment-passport-ops-grid,
   .equipment-passport-data__header,
   .equipment-edit-passport-card__header,
   .equipment-ops-detail__hero-topline { grid-template-columns: 1fr; }
   .equipment-passport-layout,
+  .equipment-passport-control-map,
   .equipment-passport-ops-grid { display: grid; }
   .equipment-summary-hero,
   .equipment-summary-hero--passport { grid-template-columns: 1fr; }
@@ -3054,6 +3059,93 @@ textarea { min-height: 110px; resize: vertical; }
   font-size: 12px;
 }
 .equipment-passport-data__item strong { font-size: 16px; line-height: 1.2; }
+.equipment-passport-control-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.equipment-passport-control-map > .detail-section-card {
+  border-radius: 22px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(244, 172, 43, .12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(250,243,232,.78));
+}
+.equipment-passport-control-map header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+.equipment-passport-control-map header small {
+  color: var(--sa-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-size: 10px;
+}
+.equipment-passport-control-map header h4 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.03em; }
+.equipment-passport-legacy-card p {
+  margin: 0 0 12px;
+  color: var(--sa-muted);
+  line-height: 1.45;
+}
+.equipment-passport-source-card,
+.equipment-passport-specs-card { min-height: 100%; }
+.equipment-passport-specs-card {
+  grid-column: 1 / -1;
+}
+.equipment-passport-source-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.equipment-passport-source-list article {
+  border: 1px solid rgba(215, 188, 142, 0.55);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  padding: 12px 14px;
+  display: grid;
+  gap: 5px;
+}
+.equipment-passport-source-list span {
+  color: var(--sa-muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 10px;
+}
+.equipment-passport-source-list strong { font-size: 15px; }
+.equipment-passport-source-list small { color: var(--sa-muted); line-height: 1.35; }
+.equipment-passport-request-strip {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.equipment-passport-request-strip article {
+  border: 1px solid rgba(215, 188, 142, 0.48);
+  border-radius: 14px;
+  background: rgba(255,255,255,.60);
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+}
+.equipment-passport-request-strip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.equipment-passport-request-strip small { color: var(--sa-muted); }
+.equipment-passport-specs {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid rgba(215, 188, 142, 0.55);
+  border-radius: 18px;
+  background: rgba(255,255,255,.78);
+  padding: 14px;
+  line-height: 1.5;
+}
+.equipment-passport-specs :first-child { margin-top: 0; }
+.equipment-passport-specs :last-child { margin-bottom: 0; }
 .equipment-passport-ops-grid {
   display: grid;
   grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
@@ -3103,6 +3195,7 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-action-panel h5 { margin: 0 0 6px; }
 .equipment-action-panel header p { margin: 0; color: var(--sa-muted); font-size: 13px; }
 .equipment-action-panel__media,
+.equipment-action-panel__service,
 .equipment-action-panel__commercial { display: grid; gap: 8px; margin-top: 8px; }
 .equipment-action-panel input[type="text"],
 .equipment-action-panel input[type="file"] {
@@ -3520,6 +3613,24 @@ textarea { min-height: 110px; resize: vertical; }
   border-color: rgba(118, 93, 63, 0.28);
 }
 :root[data-admin-theme='dark'] .equipment-detail-grid p { color: #d8e1ef; }
+:root[data-admin-theme='dark'] .equipment-passport-control-map > .detail-section-card {
+  border-color: rgba(118, 93, 63, 0.26);
+  background:
+    radial-gradient(circle at top right, rgba(246, 190, 72, .10), transparent 30%),
+    linear-gradient(180deg, rgba(24, 20, 18, .96), rgba(11, 18, 30, .90));
+}
+:root[data-admin-theme='dark'] .equipment-passport-source-list article,
+:root[data-admin-theme='dark'] .equipment-passport-request-strip article,
+:root[data-admin-theme='dark'] .equipment-passport-specs {
+  border-color: rgba(118, 93, 63, 0.32);
+  background: rgba(10, 18, 34, .58);
+  color: #d8e1ef;
+}
+:root[data-admin-theme='dark'] .equipment-passport-control-map header small,
+:root[data-admin-theme='dark'] .equipment-passport-legacy-card p,
+:root[data-admin-theme='dark'] .equipment-passport-source-list span,
+:root[data-admin-theme='dark'] .equipment-passport-request-strip small,
+:root[data-admin-theme='dark'] .equipment-passport-source-list small { color: #b8a88f; }
 :root[data-admin-theme='dark'] .equipment-detail-section .quick-filter-row button { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
 :root[data-admin-theme='dark'] .equipment-detail-section .quick-filter-row button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }
 :root[data-admin-theme='dark'] .status-badge { background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); border-color: rgba(118, 93, 63, 0.44); color: #f4eee5; box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
@@ -3955,6 +4066,7 @@ textarea { min-height: 110px; resize: vertical; }
     margin-top: 0;
   }
   .equipment-passport-layout,
+  .equipment-passport-control-map,
   .equipment-passport-ops-grid,
   .equipment-summary-hero,
   .equipment-summary-hero--passport,
@@ -3973,7 +4085,8 @@ textarea { min-height: 110px; resize: vertical; }
 
   .equipment-passport-stats,
   .equipment-ops-detail__hero-stats,
-  .equipment-passport-data__grid {
+  .equipment-passport-data__grid,
+  .equipment-passport-source-list {
     grid-template-columns: 1fr;
   }
 

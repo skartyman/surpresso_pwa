@@ -1064,7 +1064,7 @@ export class NeonServiceOpsRepository {
     const equipmentRow = await this.prisma.equipment.findUnique({ where: { id } });
     if (!equipmentRow) return null;
 
-    const [serviceCasesRows, mediaRows, historyRows, notesRows, commentsRows, equipmentNotesRows, tasksRows] = await Promise.all([
+    const [serviceCasesRows, mediaRows, historyRows, notesRows, commentsRows, equipmentNotesRows, tasksRows, serviceRequestsRows] = await Promise.all([
       this.prisma.serviceCase.findMany({
         where: { equipmentId: id },
         include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
@@ -1110,6 +1110,11 @@ export class NeonServiceOpsRepository {
         include: { assignedToUser: true, createdByUser: true },
         orderBy: { createdAt: 'desc' },
       }),
+      this.prisma.serviceRequest.findMany({
+        where: { equipmentId: id },
+        include: { assignedToUser: true, client: true },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
 
     const activeStatuses = new Set(['accepted', 'in_progress', 'testing', 'ready']);
@@ -1151,6 +1156,18 @@ export class NeonServiceOpsRepository {
       comments: commentsRows.map(mapEquipmentComment),
       equipmentNotes: equipmentNotesRows.map(mapEquipmentComment),
       tasks: tasksRows.map(mapTask),
+      serviceRequests: serviceRequestsRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        status: row.status,
+        urgency: row.urgency,
+        category: row.category,
+        clientName: row.client?.name || row.clientName || null,
+        assignedToUser: row.assignedToUser ? { id: row.assignedToUser.id, fullName: row.assignedToUser.fullName, role: row.assignedToUser.role } : null,
+        createdAt: row.createdAt?.toISOString?.() || row.createdAt,
+        updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt,
+      })),
       activeServiceCaseId: serviceCases.find((row) => row.isActive)?.id || null,
     };
   }

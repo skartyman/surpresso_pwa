@@ -139,6 +139,15 @@ function getServiceLabel(status, t = (value) => value) {
   return t(status) || status;
 }
 
+function openPassportLink(url) {
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function getLegacyEquipment(legacyPassport) {
+  return legacyPassport?.equipment || legacyPassport?.item || null;
+}
+
 function getTimelineSummary(row, t = (value) => value) {
   if (!row) return t('history_empty');
   const comment = String(row.comment || '').trim();
@@ -560,6 +569,7 @@ function ActionPanel({
   const [error, setError] = useState('');
 
   const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
+  const serviceActions = detail?.currentActions?.all?.filter((item) => item.type === 'service') || [];
   const commercialActions = detail?.currentActions?.all?.filter((item) => item.type === 'commercial') || [];
 
   async function applyCommercialAction(action) {
@@ -575,8 +585,25 @@ function ActionPanel({
         await adminServiceApi.updateCommercialStatus(detail.equipment.id, action.targetStatus, '', activeCase?.id || null);
       }
       setFeedback(t('commercial_action_done'));
+      await onQuickMediaUploaded?.();
     } catch {
       setError(t('commercial_action_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function applyServiceAction(action) {
+    if (!activeCase?.id || !action?.targetStatus) return;
+    setActionLoading(`service:${action.key}:${action.targetStatus || ''}`);
+    setError('');
+    setFeedback('');
+    try {
+      await adminServiceApi.updateServiceCaseStatus(activeCase.id, { serviceStatus: action.targetStatus });
+      setFeedback(t('service_action_done'));
+      await onQuickMediaUploaded?.();
+    } catch {
+      setError(t('service_action_failed'));
     } finally {
       setActionLoading('');
     }
@@ -639,6 +666,22 @@ function ActionPanel({
         </div>
       ) : null}
 
+      <div className="equipment-action-panel__service">
+        <h5>{t('quick_service_actions')}</h5>
+        <ActionRail>
+          {serviceActions.map((action) => (
+            <ActionRailButton
+              disabled={!activeCase?.id || Boolean(actionLoading)}
+              key={action.key + action.targetStatus}
+              onClick={() => applyServiceAction(action)}
+            >
+              {actionLoading === `service:${action.key}:${action.targetStatus || ''}` ? t('saving') : getServiceLabel(action.targetStatus, t)}
+            </ActionRailButton>
+          ))}
+          {!serviceActions.length ? <span className="empty-copy">{t('no_actions')}</span> : null}
+        </ActionRail>
+      </div>
+
       {canCommercialOperate ? (
         <div className="equipment-action-panel__commercial">
           <h5>{t('quick_commercial_actions')}</h5>
@@ -670,6 +713,7 @@ function ActionPanel({
 function TabPanel({
   tab,
   detail,
+  legacyPassport,
   onOpenMedia,
   onRefreshDetail,
   navigateToBoard,
@@ -696,6 +740,7 @@ function TabPanel({
   const [busy, setBusy] = useState('');
   if (!detail) return <p className="empty-copy">{t('equipment_unit_select')}</p>;
   const equipment = detail.equipment || {};
+  const legacyEquipment = getLegacyEquipment(legacyPassport) || {};
   const activeCase = detail.serviceCases?.find((item) => item.isActive) || null;
   const latestMedia = (detail.media || [])[0] || null;
   const warnings = getEquipmentWarnings(detail, t);
@@ -716,7 +761,20 @@ function TabPanel({
       { key: 'model', icon: 'equipment', label: t('model'), value: equipment.model || '—' },
       { key: 'inventory', icon: 'sales', label: t('inventory_number'), value: equipment.internalNumber || '—' },
       { key: 'serial', icon: 'service', label: t('serial_number'), value: equipment.serial || '—' },
+      { key: 'client_phone', icon: 'clients', label: t('client_phone'), value: equipment.clientPhone || legacyEquipment.clientPhone || '—' },
+      { key: 'client_location', icon: 'clients', label: t('client_location'), value: equipment.clientLocation || legacyEquipment.clientLocation || '—' },
+      { key: 'company_location', icon: 'equipment', label: t('company_location'), value: equipment.companyLocation || legacyEquipment.companyLocation || '—' },
+      { key: 'legacy_status', icon: 'bell', label: t('legacy_status'), value: legacyEquipment.status || equipment.currentStatusRaw || '—' },
     ];
+    const legacySpecs = String(legacyEquipment.specs || '').trim();
+    const serviceRequests = detail.serviceRequests || [];
+    const passportId = encodeURIComponent(equipment.id || '');
+    const legacyLinks = [
+      { key: 'client', label: t('open_client_passport'), url: passportId ? `/passport.html?id=${passportId}` : '' },
+      { key: 'internal', label: t('open_legacy_internal_passport'), url: passportId ? `/equip.html?id=${passportId}` : '' },
+      { key: 'print', label: t('open_print_passport'), url: passportId ? `/print.html?id=${passportId}` : '' },
+      { key: 'folder', label: t('open_drive_folder'), url: equipment.folderUrl || legacyEquipment.folderUrl || '' },
+    ].filter((item) => item.url);
 
     return (
       <section className="equipment-detail-section equipment-passport-overview">
@@ -842,6 +900,94 @@ function TabPanel({
               </article>
             ) : null}
           </div>
+        </section>
+
+        <section className="equipment-passport-control-map">
+          <article className="detail-section-card equipment-passport-legacy-card">
+            <header>
+              <div>
+                <small>{t('legacy_passport_data')}</small>
+                <h4>{t('internal_passport_control')}</h4>
+              </div>
+              <StatusBadge status={legacyEquipment.status || equipment.currentStatusRaw || 'none'}>
+                {legacyEquipment.status || equipment.currentStatusRaw || t('no_status')}
+              </StatusBadge>
+            </header>
+            <p>{t('legacy_passport_hint')}</p>
+            <ActionRail compact>
+              {legacyLinks.map((item) => (
+                <ActionRailButton key={item.key} onClick={() => openPassportLink(item.url)}>
+                  {item.label}
+                </ActionRailButton>
+              ))}
+            </ActionRail>
+          </article>
+
+          <article className="detail-section-card equipment-passport-source-card">
+            <header>
+              <div>
+                <small>{t('status_sources')}</small>
+                <h4>{t('what_controls_what')}</h4>
+              </div>
+            </header>
+            <div className="equipment-passport-source-list">
+              <article>
+                <span>{t('service_label')}</span>
+                <strong>{getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
+                <small>{t('service_status_control_hint')}</small>
+              </article>
+              {canSeeCommercial ? (
+                <article>
+                  <span>{t('commerce')}</span>
+                  <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+                  <small>{t('commercial_status_control_hint')}</small>
+                </article>
+              ) : null}
+              <article>
+                <span>{t('client_requests')}</span>
+                <strong>{serviceRequests.length}</strong>
+                <small>{t('requests_are_source_for_cases')}</small>
+              </article>
+            </div>
+            {serviceRequests.length ? (
+              <div className="equipment-passport-request-strip">
+                {serviceRequests.slice(0, 3).map((request) => (
+                  <article key={request.id}>
+                    <strong>{request.title || request.description || request.id}</strong>
+                    <small>{request.status || '—'} · {formatDate(request.updatedAt, locale)}</small>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </article>
+
+          <article className="detail-section-card equipment-passport-specs-card">
+            <header>
+              <div>
+                <small>{t('technical_specs')}</small>
+                <h4>{t('specs_and_documents')}</h4>
+              </div>
+            </header>
+            {legacySpecs ? (
+              <div className="equipment-passport-specs" dangerouslySetInnerHTML={{ __html: legacySpecs }} />
+            ) : (
+              <p className="empty-copy">{t('specs_empty')}</p>
+            )}
+            {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl || equipment.qrUrl || legacyEquipment.qrUrl) ? (
+              <ActionRail compact>
+                {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl) ? (
+                  <ActionRailButton onClick={() => openPassportLink(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl)}>
+                    {t('open_pdf_passport')}
+                  </ActionRailButton>
+                ) : null}
+                {(equipment.qrUrl || legacyEquipment.qrUrl) ? (
+                  <ActionRailButton onClick={() => openPassportLink(equipment.qrUrl || legacyEquipment.qrUrl)}>
+                    {t('open_qr')}
+                  </ActionRailButton>
+                ) : null}
+              </ActionRail>
+            ) : null}
+          </article>
         </section>
 
         <div className="equipment-passport-ops-grid">
@@ -1137,6 +1283,7 @@ export function AdminEquipmentPage() {
   const [dashboard, setDashboard] = useState({ kpi: {}, alerts: [] });
   const [items, setItems] = useState([]);
   const [detail, setDetail] = useState(null);
+  const [legacyPassport, setLegacyPassport] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1169,7 +1316,11 @@ export function AdminEquipmentPage() {
   }
 
   async function loadDetail(id) {
-    if (!id) return setDetail(null);
+    if (!id) {
+      setDetail(null);
+      setLegacyPassport(null);
+      return;
+    }
     const payload = await adminServiceApi.equipmentDetail(id);
     setDetail(payload.item || null);
   }
@@ -1181,6 +1332,22 @@ export function AdminEquipmentPage() {
 
   useEffect(() => {
     loadDetail(equipmentId).catch(() => setDetail(null));
+  }, [equipmentId]);
+
+  useEffect(() => {
+    if (!equipmentId) {
+      setLegacyPassport(null);
+      return;
+    }
+    let cancelled = false;
+    adminServiceApi.legacyEquipmentPassport(equipmentId)
+      .then((payload) => {
+        if (!cancelled) setLegacyPassport(payload || null);
+      })
+      .catch(() => {
+        if (!cancelled) setLegacyPassport(null);
+      });
+    return () => { cancelled = true; };
   }, [equipmentId]);
 
   const mediaRows = useMemo(() => (detail?.media || []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [detail]);
@@ -1441,6 +1608,7 @@ export function AdminEquipmentPage() {
           <TabPanel
             tab={activeTab}
             detail={{ ...detail, media: mediaRows }}
+            legacyPassport={legacyPassport}
             onOpenMedia={setLightboxIndex}
             onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId)}
             navigateToBoard={navigateToBoard}

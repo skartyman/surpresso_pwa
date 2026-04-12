@@ -67,6 +67,7 @@ export const adminServiceApi = {
     return apiFetch(`/api/telegram/admin/equipment${query}`);
   },
   equipmentById: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`),
+  legacyEquipmentPassport: async (id) => apiFetch(`/api/equip/${encodeURIComponent(id)}`),
   createEquipment: async (payload) => apiFetch('/api/telegram/admin/equipment', { method: 'POST', body: JSON.stringify(payload) }),
   deleteEquipment: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}`, { method: 'DELETE' }),
   intakeCreate: async (payload) => apiFetch('/api/telegram/admin/intake', { method: 'POST', body: JSON.stringify(payload) }),
