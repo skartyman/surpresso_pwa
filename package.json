@@ -11,6 +11,7 @@
     "prisma:seed": "npm --prefix backend run prisma:seed",
     "import:equipment-xlsx": "npm --prefix backend run import:equipment-xlsx",
     "sync:legacy-sheets": "npm --prefix backend run sync:legacy-sheets",
+    "import:trello": "npm --prefix backend run import:trello",
     "dedupe:service-media": "npm --prefix backend run dedupe:service-media"
   },
   "dependencies": {

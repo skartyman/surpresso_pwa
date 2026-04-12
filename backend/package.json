@@ -12,6 +12,7 @@
     "prisma:seed": "node prisma/seed.js",
     "import:equipment-xlsx": "python3 scripts/import_equipment_xlsx.py",
     "sync:legacy-sheets": "node scripts/sync_legacy_sheets_to_neon.js",
+    "import:trello": "node scripts/import_trello_to_neon.js",
     "dedupe:service-media": "node scripts/dedupe_service_media.js"
   },
   "dependencies": {
