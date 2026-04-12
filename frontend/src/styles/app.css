@@ -4016,6 +4016,12 @@ textarea { min-height: 110px; resize: vertical; }
     radial-gradient(circle at 20% 20%, rgba(255,255,255,.45), transparent 20%),
     linear-gradient(135deg, rgba(31, 41, 55, .25), rgba(217, 119, 6, .15));
 }
+.showroom-card__visual img {
+  display: block;
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
 .showroom-card--coffee .showroom-card__visual { background: linear-gradient(135deg, rgba(89, 51, 24, 0.82), rgba(202, 138, 4, 0.38)); }
 .showroom-card--machine .showroom-card__visual { background: linear-gradient(135deg, rgba(30, 64, 175, 0.42), rgba(17, 24, 39, 0.9)); }
 .showroom-card--grinder .showroom-card__visual { background: linear-gradient(135deg, rgba(91, 33, 182, 0.34), rgba(15, 23, 42, 0.92)); }
@@ -4126,6 +4132,14 @@ textarea { min-height: 110px; resize: vertical; }
   border-radius: 18px;
   border: 1px solid var(--sa-line);
   background: color-mix(in oklab, var(--sa-surface), white 3%);
+}
+.sales-catalog-item__preview {
+  width: 84px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 14px;
+  flex: 0 0 auto;
+  border: 1px solid var(--sa-line);
 }
 .sales-catalog-item p,
 .sales-catalog-item small { margin: 4px 0 0; color: var(--sa-muted); }

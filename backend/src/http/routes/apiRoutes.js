@@ -146,6 +146,7 @@ export function createApiRouter(deps) {
   router.get('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listPricelists));
   router.post('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), documentUpload.array('file', 1), asyncHandler(adminCatalogController.savePricelist));
   router.delete('/admin/catalog/pricelists/:key', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deletePricelist));
+  router.get('/catalog/products', asyncHandler(adminCatalogController.publicProducts));
   router.post('/admin/equipment/:id/reserve-rent', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForRent));
   router.post('/admin/equipment/:id/reserve-sale', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForSale));
   router.get('/admin/equipment/:id/service-cases', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentServiceCases));

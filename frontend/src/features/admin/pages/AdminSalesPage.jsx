@@ -431,6 +431,9 @@ export function AdminSalesPage() {
             <div className="sales-catalog-list">
               {catalogProducts.map((item) => (
                 <article key={item.key} className="sales-catalog-item">
+                  {item.data?.heroMedia?.previewUrl || item.data?.heroMedia?.fileUrl ? (
+                    <img className="sales-catalog-item__preview" src={item.data.heroMedia.previewUrl || item.data.heroMedia.fileUrl} alt="" loading="lazy" />
+                  ) : null}
                   <div>
                     <strong>{item.title}</strong>
                     <p>{item.data?.category || '—'} · {item.data?.price || '—'} {item.data?.currency || ''}</p>

@@ -57,6 +57,11 @@ export function createAdminCatalogController(serviceOpsRepository, { uploadsRoot
       return res.json({ items: items.map(mapPreset) });
     },
 
+    async publicProducts(req, res) {
+      const items = await serviceOpsRepository.listReportPresets?.({ reportType: PRODUCT_REPORT_TYPE, ownerRole: null }) || [];
+      return res.json({ items: items.map(mapPreset) });
+    },
+
     async saveProduct(req, res) {
       if (!assertAllowed(req.adminUser?.role)) return res.status(403).json({ error: 'forbidden' });
       const mediaValidationError = validateUploadedMediaFiles(req.files || []);

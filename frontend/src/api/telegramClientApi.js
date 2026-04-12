@@ -157,6 +157,7 @@ export const telegramClientApi = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  catalogProducts: async () => apiFetch('/api/telegram/catalog/products'),
   listEquipment: async () => apiFetch('/api/telegram/equipment'),
   equipmentById: async (id) => apiFetch(`/api/telegram/equipment/${id}`),
   listServiceRequests: async () => apiFetch('/api/telegram/service-requests'),
