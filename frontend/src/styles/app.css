@@ -2517,20 +2517,27 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-ops-list__cards--grid { grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); }
 .equipment-ops-list__cards--list { grid-template-columns: 1fr; }
 .equipment-board {
-  display: grid;
-  grid-template-columns: 320px repeat(6, minmax(300px, 300px));
+  display: flex;
   gap: 14px;
   overflow-x: auto;
-  padding-bottom: 6px;
+  padding-bottom: 10px;
   scrollbar-width: thin;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  contain: layout paint;
+  will-change: scroll-position;
 }
 .equipment-board-column-anchor {
   display: grid;
-  scroll-snap-align: start;
+  flex: 0 0 320px;
+  min-width: 320px;
+  contain: layout paint style;
 }
 .equipment-board-column {
   --column-accent: #cbd5e1;
+  flex: 0 0 300px;
+  min-width: 300px;
   display: grid;
   gap: 10px;
   align-content: start;
@@ -2539,7 +2546,9 @@ textarea { min-height: 110px; resize: vertical; }
   border: 1px solid rgba(214, 201, 184, 0.72);
   background: linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,248,235,.62));
   box-shadow: 0 18px 34px rgba(78, 58, 18, 0.07);
-  scroll-snap-align: start;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 300px 780px;
 }
 .equipment-board-column[data-accent='gold'] { --column-accent: #f0c572; }
 .equipment-board-column[data-accent='blue'] { --column-accent: #9fd6ff; }
@@ -2618,10 +2627,11 @@ textarea { min-height: 110px; resize: vertical; }
   display: grid;
   gap: 10px;
   cursor: pointer;
-  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  transition: border-color .16s ease;
   box-shadow: 0 18px 34px rgba(78, 58, 18, 0.08);
+  contain: layout paint style;
 }
-.equipment-ops-card:hover { transform: translateY(-2px); box-shadow: 0 22px 36px rgba(78, 58, 18, 0.14); }
+.equipment-ops-card:hover { box-shadow: 0 20px 32px rgba(78, 58, 18, 0.11); }
 .equipment-ops-card.active { border-color: #60a5fa; box-shadow: 0 0 0 1px #60a5fa; }
 .equipment-ops-card:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
 .equipment-ops-card__top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
@@ -3779,8 +3789,21 @@ textarea { min-height: 110px; resize: vertical; }
   .equipment-board-toolbar-shell { gap: 8px; }
   .equipment-ops-card--list .equipment-ops-card__preview { min-height: 156px; height: 156px; }
   .equipment-board {
-    grid-template-columns: 84vw repeat(6, minmax(84vw, 84vw));
     gap: 10px;
+    margin-inline: -10px;
+    padding-inline: 10px;
+  }
+  .equipment-board-column-anchor,
+  .equipment-board-column {
+    flex-basis: 84vw;
+    min-width: 84vw;
+    box-shadow: 0 10px 20px rgba(78, 58, 18, 0.05);
+  }
+  .equipment-ops-card {
+    box-shadow: 0 8px 16px rgba(78, 58, 18, 0.06);
+  }
+  .equipment-ops-card:hover {
+    box-shadow: 0 8px 16px rgba(78, 58, 18, 0.06);
   }
   .equipment-board-summary-grid {
     grid-template-columns: 1fr;
