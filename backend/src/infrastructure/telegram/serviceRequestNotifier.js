@@ -2,7 +2,7 @@ import { config } from '../../config/env.js';
 
 function parseChatIds(chatIdsRaw) {
   return String(chatIdsRaw || '')
-    .split(',')
+    .split(/[,\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }

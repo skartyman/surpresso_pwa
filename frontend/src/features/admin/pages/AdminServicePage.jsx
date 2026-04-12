@@ -361,6 +361,7 @@ export function AdminServicePage() {
   const [createMediaFiles, setCreateMediaFiles] = useState([]);
   const boardRef = useRef(null);
   const boardColumnRefs = useRef({});
+  const refreshTimerRef = useRef(null);
   const boardLabels = useMemo(() => ({
     new: t('new'),
     assigned: t('assigned'),
@@ -427,12 +428,22 @@ export function AdminServicePage() {
     setAssignForm({ assignedToUserId: payload.request?.assignedToUserId || '' });
   }
 
-  useEffect(() => { load(); }, [canReadServiceEngineers, canCreateRequest]); // eslint-disable-line
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
+  function scheduleRefresh() {
+    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = window.setTimeout(() => {
       load().catch(() => {});
       if (requestId) loadDetails(requestId).catch(() => {});
-    }, 5000);
+    }, 250);
+  }
+
+  useEffect(() => { load(); }, [canReadServiceEngineers, canCreateRequest]); // eslint-disable-line
+  useEffect(() => {
+    let events = null;
+    if (typeof EventSource !== 'undefined') {
+      events = new EventSource('/api/telegram/admin/service-requests/events', { withCredentials: true });
+      events.addEventListener('service-request', scheduleRefresh);
+      events.onerror = () => {};
+    }
     const handleFocus = () => {
       load().catch(() => {});
       if (requestId) loadDetails(requestId).catch(() => {});
@@ -440,7 +451,8 @@ export function AdminServicePage() {
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
     return () => {
-      window.clearInterval(intervalId);
+      if (events) events.close();
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };

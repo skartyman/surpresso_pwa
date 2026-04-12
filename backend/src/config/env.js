@@ -5,7 +5,7 @@ export const config = {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   telegramBotUsername: process.env.TELEGRAM_BOT_USERNAME || 'TG_NOTIFY_BOT',
   telegramWebAppUrl: process.env.TELEGRAM_WEB_APP_URL || 'https://miniapp.surpresso.ru',
-  telegramManagerChatIds: process.env.TELEGRAM_MANAGER_CHAT_IDS || '',
+  telegramManagerChatIds: process.env.TELEGRAM_MANAGER_CHAT_IDS || process.env.TELEGRAM_MANAGER_CHAT_ID || '',
   telegramServiceHeadChatIds: process.env.TELEGRAM_SERVICE_HEAD_CHAT_IDS || '',
   telegramDirectorChatIds: process.env.TELEGRAM_DIRECTOR_CHAT_IDS || '',
   telegramSalesManagerChatIds: process.env.TELEGRAM_SALES_MANAGER_CHAT_IDS || '',

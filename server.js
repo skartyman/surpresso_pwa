@@ -170,12 +170,14 @@ async function setupMiniAppLayer() {
       { createMiniAppRepositories },
       { createAdminSessionManager },
       { TelegramBotGateway },
+      { createServiceRequestEventBus },
     ] = await Promise.all([
       import("./backend/src/http/routes/apiRoutes.js"),
       import("./backend/src/http/controllers/supportController.js"),
       import("./backend/src/infrastructure/repositories/createMiniAppRepositories.js"),
       import("./backend/src/http/middleware/adminAuth.js"),
       import("./backend/src/infrastructure/telegram/botApi.js"),
+      import("./backend/src/domain/serviceRequestEvents.js"),
     ]);
 
     const { repositories: miniAppDeps, storage } = await createMiniAppRepositories(process.env.DATABASE_URL);
@@ -187,8 +189,9 @@ async function setupMiniAppLayer() {
     console.info(`[bootstrap] using prisma service flow: ${storage}`);
     const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
     const miniAppSupportController = createSupportController(miniAppBotGateway);
+    const serviceRequestEvents = createServiceRequestEventBus();
 
-    app.use("/api/telegram", createApiRouter({ ...miniAppDeps, botGateway: miniAppBotGateway, uploadsRoot }));
+    app.use("/api/telegram", createApiRouter({ ...miniAppDeps, botGateway: miniAppBotGateway, serviceRequestEvents, uploadsRoot }));
     app.post("/api/telegram/support/notify", miniAppSupportController.notify);
     miniAppStatus = { enabled: true, storage, adminServiceModuleOk: Boolean(miniAppDeps.serviceOpsRepository) };
   } catch (error) {

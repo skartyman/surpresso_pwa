@@ -56,11 +56,16 @@ export function createApiRouter(deps) {
   const telegramAuthController = createTelegramAuthController(deps.clientRepository);
   const authController = createAuthController(deps.clientRepository);
   const equipmentController = createEquipmentController(deps.equipmentRepository);
-  const serviceController = createServiceController(deps.serviceRepository, deps.equipmentRepository, deps.serviceRequestNotifier);
+  const serviceController = createServiceController(deps.serviceRepository, deps.equipmentRepository, deps.serviceRequestNotifier, deps.serviceRequestEvents);
 
   const adminAuthController = createAdminAuthController(deps.userRepository, deps.sessionManager);
   const adminController = createAdminController();
-  const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot, equipmentRepository: deps.equipmentRepository, clientRepository: deps.clientRepository });
+  const adminServiceController = createAdminServiceController(deps.serviceRepository, {
+    uploadsRoot: deps.uploadsRoot,
+    equipmentRepository: deps.equipmentRepository,
+    clientRepository: deps.clientRepository,
+    serviceRequestEvents: deps.serviceRequestEvents,
+  });
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
     uploadsRoot: deps.uploadsRoot,
     botGateway: deps.botGateway,
@@ -85,6 +90,7 @@ export function createApiRouter(deps) {
 
   router.get('/admin/service-engineers', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.listServiceEngineers));
   router.get('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.list));
+  router.get('/admin/service-requests/events', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.events));
   router.get('/admin/service-requests/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceController.dashboard));
   router.post('/admin/service-requests', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), upload.array('media', 6), asyncHandler(adminServiceController.create));
   router.get('/admin/service-requests/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceController.byId));

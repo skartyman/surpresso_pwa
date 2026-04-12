@@ -39,7 +39,7 @@ function formatNotifyMessage(request) {
   ].filter(Boolean).join('\n');
 }
 
-export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier) {
+export function createServiceController(serviceRepository, equipmentRepository, telegramNotifier, serviceRequestEvents = null) {
   const notifier = telegramNotifier || { notifyNewServiceRequest: async () => ({ ok: false, reason: 'not_configured' }) };
 
   return {
@@ -123,6 +123,7 @@ export function createServiceController(serviceRepository, equipmentRepository, 
 
       const created = await serviceRepository.create(payload);
       await notifier.notifyNewServiceRequest(formatNotifyMessage(created));
+      serviceRequestEvents?.emitChange?.({ type: 'created', requestId: created.id, status: created.status });
       return res.status(201).json(enrichServiceRequestMedia(req, created));
     },
     async status(req, res) {
@@ -155,6 +156,7 @@ export function createServiceController(serviceRepository, equipmentRepository, 
       }
       try {
         const updated = await serviceRepository.updateStatus(request.id, nextStatus);
+        serviceRequestEvents?.emitChange?.({ type: 'status_changed', requestId: updated.id, status: updated.status });
         return res.json({ id: updated.id, status: updated.status, updatedAt: updated.updatedAt });
       } catch {
         return res.status(500).json({ error: 'status_update_failed' });

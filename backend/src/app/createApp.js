@@ -11,6 +11,7 @@ import { createApiRouter } from '../http/routes/apiRoutes.js';
 import { createWebhookRouter } from '../http/routes/webhookRoutes.js';
 import { createSupportController } from '../http/controllers/supportController.js';
 import { createAdminSessionManager } from '../http/middleware/adminAuth.js';
+import { createServiceRequestEventBus } from '../domain/serviceRequestEvents.js';
 
 export async function createApp() {
   const app = express();
@@ -29,6 +30,7 @@ export async function createApp() {
     executiveNotifier,
   });
   const sessionManager = createAdminSessionManager(config.adminSessionSecret);
+  const serviceRequestEvents = createServiceRequestEventBus();
 
   app.get('/health', async (_, res) => {
     let dbOk = false;
@@ -84,7 +86,7 @@ export async function createApp() {
     }
   });
 
-  app.use('/api', createApiRouter({ ...deps, botGateway, serviceRequestNotifier, executiveNotifier, notificationCenterService, sessionManager, uploadsRoot }));
+  app.use('/api', createApiRouter({ ...deps, botGateway, serviceRequestNotifier, serviceRequestEvents, executiveNotifier, notificationCenterService, sessionManager, uploadsRoot }));
   app.use('/webhooks', createWebhookRouter(botGateway));
   app.post('/api/v1/support/notify', supportController.notify);
   app.post('/api/telegram/support/notify', supportController.notify);

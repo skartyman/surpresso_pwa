@@ -34,6 +34,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
   const uploadsRoot = options.uploadsRoot;
   const equipmentRepository = options.equipmentRepository;
   const clientRepository = options.clientRepository;
+  const serviceRequestEvents = options.serviceRequestEvents;
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
   const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
   const STATUS_UPDATE_ALLOWED_ROLES = ['service_engineer', 'service_head', 'manager', 'owner', 'director', 'sales_manager'];
@@ -113,7 +114,42 @@ export function createAdminServiceController(serviceRepository, options = {}) {
     return `${normalizedStage === 'after' ? 'after' : 'before'}_${kind}`;
   }
 
+  function emitRequestChanged(type, request) {
+    serviceRequestEvents?.emitChange?.({
+      type,
+      requestId: request?.id || null,
+      status: request?.status || null,
+    });
+  }
+
   return {
+    async events(req, res) {
+      if (!serviceRequestEvents?.onChange) {
+        return res.status(503).json({ error: 'events_unavailable' });
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(`event: ready\ndata: ${JSON.stringify({ ok: true, at: new Date().toISOString() })}\n\n`);
+
+      const unsubscribe = serviceRequestEvents.onChange((event) => {
+        res.write(`event: service-request\ndata: ${JSON.stringify(event)}\n\n`);
+      });
+      const heartbeat = setInterval(() => {
+        res.write(`event: ping\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+      }, 25000);
+
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+      });
+      return undefined;
+    },
+
     async list(req, res) {
       const status = normalizeStatus(req.query?.status);
       if (req.query?.status && !status) {
@@ -234,6 +270,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         media: uploadedMedia,
       });
 
+      emitRequestChanged('created', created);
       return res.status(201).json({ request: enrichServiceRequestMedia(req, created) });
     },
 
@@ -260,6 +297,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         return res.status(404).json({ error: 'request_not_found' });
       }
       await serviceRepository.deleteById(request.id);
+      emitRequestChanged('deleted', request);
       return res.status(204).send();
     },
 
@@ -294,6 +332,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         changedByRole: req.adminUser?.role || null,
         comment: comment || null,
       });
+      emitRequestChanged('status_changed', updated);
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
@@ -330,6 +369,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         assignedByUserId: req.adminUser?.id,
         comment,
       });
+      emitRequestChanged('assigned', updated);
       return res.json({ request: enrichServiceRequestMedia(req, updated) });
     },
 
@@ -389,6 +429,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         text,
       });
 
+      emitRequestChanged('note_added', request);
       return res.status(201).json({ note });
     },
 
@@ -424,6 +465,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       }));
 
       const updated = await serviceRepository.addMedia(request.id, rows);
+      emitRequestChanged('media_added', updated);
       return res.status(201).json({ request: enrichServiceRequestMedia(req, updated) });
     },
   };
