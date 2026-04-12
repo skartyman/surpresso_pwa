@@ -10,13 +10,8 @@ import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipment
 const TABS = [
   { key: 'overview', labelKey: 'overview' },
   { key: 'media', labelKey: 'photos_video' },
+  { key: 'status', labelKey: 'status' },
   { key: 'history', labelKey: 'history' },
-  { key: 'service_cases', labelKey: 'service_cases' },
-  { key: 'tasks', labelKey: 'tasks' },
-  { key: 'comments', labelKey: 'comments' },
-  { key: 'notes', labelKey: 'notes' },
-  { key: 'commercial', labelKey: 'commerce' },
-  { key: 'documents', labelKey: 'documents' },
 ];
 
 const COMMERCIAL_LABEL_KEYS = {
@@ -658,80 +653,6 @@ function ActionPanel({
         <p>{t('equipment_actions_description')}</p>
       </header>
 
-      <div className="equipment-action-panel__groups">
-        <div className="equipment-action-panel__group">
-          <h5>{t('service_label')}</h5>
-          <ActionList compact>
-            <ActionListItem
-              icon="service"
-              tone="brand"
-              title={t('open_active_case')}
-              meta={activeCase?.id || t('active_case_not_found_upload')}
-              disabled={!activeCase?.id}
-              onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}
-            />
-            <ActionListItem
-              icon="service"
-              title={t('service_board')}
-              meta={t('service_flow')}
-              onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}
-            />
-          </ActionList>
-        </div>
-
-        <div className="equipment-action-panel__group">
-          <h5>{t('documents')}</h5>
-          <ActionList compact>
-            <ActionListItem
-              icon="content"
-              title={getPrintLabelForEquipment(detail?.equipment || {}, {}, t)}
-              meta={t('equipment_passport')}
-              onClick={() => openPassportLink(getPrintLinkForEquipment(detail?.equipment || {}))}
-            />
-            <ActionListItem
-              icon="reports"
-              title={actionLoading === 'telegram' ? t('sending') : t('post_to_telegram')}
-              meta="Telegram"
-              disabled={Boolean(actionLoading)}
-              onClick={postToTelegram}
-            />
-          </ActionList>
-        </div>
-
-        {canSeeCommercial ? (
-          <div className="equipment-action-panel__group">
-            <h5>{t('commerce')}</h5>
-            <ActionList compact>
-              <ActionListItem icon="dashboard" title={t('nav_director')} meta={t('director_board')} onClick={() => navigateToBoard('director_board', detail?.equipment?.id)} />
-              <ActionListItem icon="sales" title={t('sales')} meta={t('sales_board')} onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)} />
-            </ActionList>
-          </div>
-        ) : null}
-      </div>
-
-      {canUploadCaseMedia ? (
-        <div className="equipment-action-panel__media">
-          <h5>{t('quick_media_add')}</h5>
-          {!activeCase?.id ? <p className="empty-copy">{t('active_case_not_found_upload')}</p> : null}
-          <input type="file" multiple accept="image/*,video/*" onChange={(event) => setQuickMediaFiles(Array.from(event.target.files || []))} />
-          <input
-            type="text"
-            value={quickMediaCaption}
-            onChange={(event) => setQuickMediaCaption(event.target.value)}
-            placeholder={t('media_comment_placeholder')}
-          />
-          <MediaFileSelection files={quickMediaFiles} t={t} />
-          <button
-            type="button"
-            className="equipment-action-panel__upload-btn"
-            disabled={!activeCase?.id || !quickMediaFiles.length || Boolean(actionLoading)}
-            onClick={() => submitQuickMedia()}
-          >
-            {actionLoading === 'media' ? t('loading') : t('upload_media_to_active_case')}
-          </button>
-        </div>
-      ) : null}
-
       <div className="equipment-action-panel__service">
         <h5>{t('quick_service_actions')}</h5>
         <ActionList compact>
@@ -769,9 +690,6 @@ function ActionPanel({
         </div>
       ) : null}
 
-      <p className="equipment-action-panel__links">
-        {t('quick_links')}: <a href={`${basePath}/service`}>{t('service_board')}</a>{canSeeCommercial ? <> · <a href={`${basePath}/director`}>{t('director_board')}</a> · <a href={`${basePath}/sales`}>{t('sales_board')}</a></> : null}
-      </p>
       {feedback ? <p>{feedback}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
     </section>
@@ -812,6 +730,127 @@ function TabPanel({
   const latestMedia = (detail.media || [])[0] || null;
   const warnings = getEquipmentWarnings(detail, t);
   const latestTimelineEvent = (detail.timeline || [])[0] || null;
+
+  if (tab === 'overview') {
+    const primaryNumber = equipment.ownerType === 'company'
+      ? (equipment.internalNumber || equipment.serial || equipment.id || '—')
+      : (equipment.serial || equipment.internalNumber || equipment.id || '—');
+    const numberLabel = equipment.ownerType === 'company' ? t('inventory_number') : t('serial_number');
+    const infoRows = [
+      { key: 'number', icon: 'equipment', label: numberLabel, value: primaryNumber },
+      { key: 'owner', icon: 'clients', label: t('owner_type'), value: equipment.ownerType || '—' },
+      { key: 'client', icon: 'clients', label: t('client'), value: equipment.clientName || '—' },
+      { key: 'location', icon: 'dashboard', label: t('client_location'), value: equipment.clientLocation || equipment.companyLocation || '—' },
+      { key: 'master', icon: 'employees', label: t('assignee'), value: activeCase?.assignedToUser?.fullName || activeCase?.assignedToUserId || t('not_assigned') },
+      { key: 'updated', icon: 'bell', label: t('updated'), value: formatDate(equipment.updatedAt, locale) },
+    ];
+
+    return (
+      <section className="equipment-detail-section equipment-workspace-overview">
+        <section className="equipment-workspace-grid">
+          <article className="detail-section-card equipment-workspace-info">
+            <header>
+              <div>
+                <small>{t('equipment_passport')}</small>
+                <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
+              </div>
+              <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>
+                {getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}
+              </StatusBadge>
+            </header>
+            <div className="equipment-workspace-info__rows">
+              {infoRows.map((row) => (
+                <article key={row.key}>
+                  <span><Icon name={row.icon} /> {row.label}</span>
+                  <strong>{row.value}</strong>
+                </article>
+              ))}
+            </div>
+            {warnings.length ? (
+              <div className="warning-badges">
+                {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+              </div>
+            ) : null}
+          </article>
+
+          <article className="detail-section-card equipment-workspace-case">
+            <header>
+              <div>
+                <small>{t('workflow')}</small>
+                <h4>{t('active_service_case')}</h4>
+              </div>
+              <strong>{activeCase?.id || '—'}</strong>
+            </header>
+            <div className="equipment-workspace-info__rows">
+              <article>
+                <span><Icon name="service" /> {t('current_service_status')}</span>
+                <strong>{getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</strong>
+              </article>
+              {canSeeCommercial ? (
+                <article>
+                  <span><Icon name="sales" /> {t('current_commercial_status')}</span>
+                  <strong>{getCommercialLabel(equipment.commercialStatus || 'none', t)}</strong>
+                </article>
+              ) : null}
+              <article>
+                <span><Icon name="reports" /> {t('history')}</span>
+                <strong>{getTimelineSummary(latestTimelineEvent, t)}</strong>
+              </article>
+            </div>
+          </article>
+        </section>
+
+        {canEditEquipment ? (
+          <article className="detail-section-card equipment-workspace-edit">
+            <header>
+              <div>
+                <small>{t('equipment')}</small>
+                <h4>{t('edit_equipment_card')}</h4>
+              </div>
+            </header>
+            <div className="equipment-detail-grid">
+              <input placeholder={equipment.brand || t('brand')} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
+              <input placeholder={equipment.model || t('model')} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
+              <input placeholder={equipment.serial || t('serial_number')} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
+              <input placeholder={equipment.internalNumber || t('inventory_number')} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+            </div>
+            <ActionRail compact>
+              <ActionRailButton
+                tone="brand"
+                disabled={Boolean(busy)}
+                onClick={async () => {
+                  setBusy('edit');
+                  try {
+                    await adminServiceApi.updateEquipment(equipment.id, editForm);
+                    setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                    await onRefreshDetail?.();
+                  } finally { setBusy(''); }
+                }}
+              >
+                {busy === 'edit' ? t('saving') : t('save_card')}
+              </ActionRailButton>
+            </ActionRail>
+          </article>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (tab === 'status') {
+    return (
+      <ActionPanel
+        detail={detail}
+        onQuickMediaUploaded={onRefreshDetail}
+        navigateToBoard={navigateToBoard}
+        basePath={basePath}
+        canUploadCaseMedia={false}
+        canCommercialOperate={canCommercialOperate}
+        canSeeCommercial={canSeeCommercial}
+        t={t}
+      />
+    );
+  }
+
   if (tab === 'overview') {
     const passportStats = [
       { key: 'service', label: t('service_label'), value: getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t), meta: activeCase?.id || t('no_active_case') },
@@ -1390,19 +1429,7 @@ export function AdminEquipmentPage() {
   }, [equipmentId]);
 
   useEffect(() => {
-    if (!equipmentId) {
-      setLegacyPassport(null);
-      return;
-    }
-    let cancelled = false;
-    adminServiceApi.legacyEquipmentPassport(equipmentId)
-      .then((payload) => {
-        if (!cancelled) setLegacyPassport(payload || null);
-      })
-      .catch(() => {
-        if (!cancelled) setLegacyPassport(null);
-      });
-    return () => { cancelled = true; };
+    setLegacyPassport(null);
   }, [equipmentId]);
 
   const mediaRows = useMemo(() => (detail?.media || []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [detail]);
@@ -1516,6 +1543,11 @@ export function AdminEquipmentPage() {
   const detailEquipment = detail?.equipment || null;
   const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const detailPreview = (mediaRows || [])[0] || null;
+  const detailPrimaryNumber = detailEquipment
+    ? (detailEquipment.ownerType === 'company'
+      ? (detailEquipment.internalNumber || detailEquipment.serial || detailEquipment.id || '—')
+      : (detailEquipment.serial || detailEquipment.internalNumber || detailEquipment.id || '—'))
+    : '—';
 
   return (
     <section className="equipment-ops-page">
@@ -1619,7 +1651,7 @@ export function AdminEquipmentPage() {
                 <div>
                   <small>{t('equipment_passport')}</small>
                   <h3>{detailEquipment ? `${detailEquipment.brand || '—'} ${detailEquipment.model || ''}` : t('choose_equipment')}</h3>
-                  <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailEquipment.internalNumber || '—'} / ${detailEquipment.serial || '—'}` : t('choose_equipment_from_board')}</p>
+                  <p>{detailEquipment ? detailPrimaryNumber : t('choose_equipment_from_board')}</p>
                 </div>
                 {detailEquipment ? (
                   <div className="equipment-ops-detail__hero-statuses">
@@ -1665,18 +1697,6 @@ export function AdminEquipmentPage() {
                 : <div className="equipment-summary-hero__preview equipment-summary-hero__preview--empty">{t('no_preview')}</div>}
             </div>
           </header>
-
-          {detailEquipment ? (
-            <div className="equipment-ops-detail__command-grid">
-              <ActionListItem icon="dashboard" tone="brand" title={t('overview')} meta={t('equipment_passport')} onClick={() => setActiveTab('overview')} />
-              <ActionListItem icon="content" title={t('photos_video')} meta={String(mediaRows.length || 0)} onClick={() => setActiveTab('media')} />
-              <ActionListItem icon="service" title={t('active_service_case')} meta={detailActiveCase?.id || t('active_case_not_found_upload')} disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)} />
-              <ActionListItem icon="service" title={t('service_board')} meta={t('service_label')} onClick={() => navigateToBoard('service_board', detailEquipment.id)} />
-              {canSeeCommercial ? <ActionListItem icon="dashboard" title={t('director_board')} meta={t('commerce')} onClick={() => navigateToBoard('director_board', detailEquipment.id)} /> : null}
-              {canSeeCommercial ? <ActionListItem icon="sales" title={t('sales_board')} meta={t('sales')} onClick={() => navigateToBoard('sales_board', detailEquipment.id)} /> : null}
-              {canDeleteEquipment ? <ActionListItem icon="settings" tone="danger" title={t('delete_equipment_card')} meta={t('equipment')} onClick={removeEquipmentCard} /> : null}
-            </div>
-          ) : null}
 
           <div className="equipment-tabs">
             {tabs.map((tab) => (
