@@ -565,6 +565,7 @@ function TimelineView({ rows = [], t, locale }) {
 function ActionPanel({
   detail,
   onQuickMediaUploaded,
+  onSelectTab,
   navigateToBoard,
   basePath,
   canUploadCaseMedia = false,
@@ -662,18 +663,19 @@ function ActionPanel({
         <div className="equipment-action-panel__group">
           <h5>{t('service_label')}</h5>
           <ActionList compact>
+            {activeCase?.id ? (
+              <ActionListItem
+                icon="service"
+                tone="brand"
+                title={t('open_active_case')}
+                meta={activeCase.id}
+                onClick={() => onSelectTab?.('service_cases')}
+              />
+            ) : null}
             <ActionListItem
               icon="service"
-              tone="brand"
-              title={t('open_active_case')}
-              meta={activeCase?.id || t('active_case_not_found_upload')}
-              disabled={!activeCase?.id}
-              onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}
-            />
-            <ActionListItem
-              icon="service"
-              title={t('service_board')}
-              meta={t('service_flow')}
+              title={`${t('service_cases')} / ${t('client_requests')}`}
+              meta={activeCase?.id || t('no_active_case')}
               onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}
             />
           </ActionList>
@@ -784,6 +786,7 @@ function TabPanel({
   legacyPassport,
   onOpenMedia,
   onRefreshDetail,
+  onSelectTab,
   navigateToBoard,
   basePath,
   canEditEquipment = false,
@@ -833,8 +836,8 @@ function TabPanel({
       { key: 'company_location', icon: 'equipment', label: t('company_location'), value: equipment.companyLocation || legacyEquipment.companyLocation || '—' },
       { key: 'legacy_status', icon: 'bell', label: t('legacy_status'), value: legacyEquipment.status || equipment.currentStatusRaw || '—' },
     ];
-    const legacySpecs = String(legacyEquipment.specs || '').trim();
     const serviceRequests = detail.serviceRequests || [];
+    const historyCount = (detail.timeline || []).length;
     const passportId = encodeURIComponent(equipment.id || '');
     const legacyLinks = [
       { key: 'client', label: t('open_client_passport'), url: passportId ? `/passport.html?id=${passportId}` : '' },
@@ -894,7 +897,7 @@ function TabPanel({
                 </header>
                 <p><strong>{activeCase.id}</strong> · {t('assigned_lower')}: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || t('not_assigned')}.</p>
                 <p>{t('updated_lower')}: {formatDate(activeCase.updatedAt, locale)}.</p>
-                <button type="button" onClick={() => navigateToBoard('service_case', activeCase.id)}>{t('open_case')}</button>
+                <button type="button" onClick={() => onSelectTab?.('service_cases')}>{t('open_case')}</button>
               </div>
             ) : (
               <div className="equipment-passport-workflow__empty">
@@ -1020,28 +1023,28 @@ function TabPanel({
             ) : null}
           </article>
 
-          <article className="detail-section-card equipment-passport-specs-card">
+          <article className="detail-section-card equipment-passport-history-card">
             <header>
               <div>
-                <small>{t('technical_specs')}</small>
-                <h4>{t('specs_and_documents')}</h4>
+                <small>{t('updated')}</small>
+                <h4>{t('history')}</h4>
               </div>
+              <StatusBadge status={latestTimelineEvent?.type || 'none'}>
+                {historyCount}
+              </StatusBadge>
             </header>
-            {legacySpecs ? (
-              <div className="equipment-passport-specs" dangerouslySetInnerHTML={{ __html: legacySpecs }} />
+            {latestTimelineEvent ? (
+              <div className="equipment-passport-history-preview">
+                <span>{formatDate(latestTimelineEvent.timestamp, locale)}</span>
+                <strong>{getTimelineSummary(latestTimelineEvent, t)}</strong>
+                <small>{latestTimelineEvent.actor || t('system_user')}</small>
+              </div>
             ) : (
-              <p className="empty-copy">{t('specs_empty')}</p>
+              <p className="empty-copy">{t('history_empty')}</p>
             )}
-            {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl || equipment.qrUrl || legacyEquipment.qrUrl) ? (
-              <ActionList compact>
-                {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl) ? (
-                  <ActionListItem icon="content" title={t('open_pdf_passport')} meta={t('equipment_passport')} onClick={() => openPassportLink(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl)} />
-                ) : null}
-                {(equipment.qrUrl || legacyEquipment.qrUrl) ? (
-                  <ActionListItem icon="equipment" title={t('open_qr')} meta="QR" onClick={() => openPassportLink(equipment.qrUrl || legacyEquipment.qrUrl)} />
-                ) : null}
-              </ActionList>
-            ) : null}
+            <ActionList compact>
+              <ActionListItem icon="reports" title={t('history')} meta={String(historyCount)} onClick={() => onSelectTab?.('history')} />
+            </ActionList>
           </article>
         </section>
 
@@ -1083,6 +1086,7 @@ function TabPanel({
           <ActionPanel
             detail={detail}
             onQuickMediaUploaded={onRefreshDetail}
+            onSelectTab={onSelectTab}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
             canUploadCaseMedia={canUploadCaseMedia}
@@ -1154,8 +1158,10 @@ function TabPanel({
   }
   if (tab === 'history') return <TimelineView rows={detail.timeline || []} t={t} locale={locale} />;
   if (tab === 'service_cases') {
-    const rows = detail.serviceCases || [];
-    if (!rows.length) return <p className="empty-copy">{t('no_cases_found')}</p>;
+    const byNewest = (a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const rows = [...(detail.serviceCases || [])].sort((a, b) => Number(Boolean(b.isActive)) - Number(Boolean(a.isActive)) || byNewest(a, b));
+    const requests = [...(detail.serviceRequests || [])].sort(byNewest);
+    if (!rows.length && !requests.length) return <p className="empty-copy">{t('no_cases_found')}</p>;
     const activeCase = rows.find((row) => row.isActive) || null;
     const pastCases = rows.filter((row) => !row.isActive);
     return (
@@ -1171,7 +1177,6 @@ function TabPanel({
               <p>{t('status')}: {activeCase.serviceStatus || '—'}</p>
               <p>{t('assignee')}: {activeCase.assignedToUser?.fullName || activeCase.assignedToUserId || '—'}</p>
               <p>{t('created')}: {formatDate(activeCase.createdAt, locale)} · {t('updated')}: {formatDate(activeCase.updatedAt, locale)}</p>
-              <a href={`${basePath}/service?caseId=${encodeURIComponent(activeCase.id)}`}>{t('open_case_detail')}: {activeCase.id}</a>
             </article>
           ) : <p className="empty-copy">{t('no_active_case')}</p>}
         </section>
@@ -1187,7 +1192,23 @@ function TabPanel({
               </header>
               <p>{t('assignee')}: {row.assignedToUser?.fullName || row.assignedToUserId || '—'}</p>
               <p>{t('created')}: {formatDate(row.createdAt, locale)} · {t('updated')}: {formatDate(row.updatedAt, locale)}</p>
-              <a href={`${basePath}/service?caseId=${encodeURIComponent(row.id)}`}>{t('open_case')} {row.id}</a>
+            </article>
+          ))}
+        </section>
+
+        <section className="detail-section-card equipment-case-history-block">
+          <h4>{t('client_requests')} ({requests.length})</h4>
+          {!requests.length ? <p className="empty-copy">{t('no_requests_for_search')}</p> : null}
+          {requests.map((row) => (
+            <article key={row.id} className="equipment-case-card">
+              <header>
+                <strong>{row.title || row.id}</strong>
+                <StatusBadge status={row.status || 'none'}>{t(row.status) || row.status || t('no_status')}</StatusBadge>
+              </header>
+              <p>{row.description || t('no_description')}</p>
+              <p>{t('assigned')}: {row.assignedToUser?.fullName || t('not_assigned')}</p>
+              <p>{t('created')}: {formatDate(row.createdAt, locale)} В· {t('updated')}: {formatDate(row.updatedAt, locale)}</p>
+              <a href={`${basePath}/service/${encodeURIComponent(row.id)}`}>{t('open_case')} {row.id}</a>
             </article>
           ))}
         </section>
@@ -1442,10 +1463,14 @@ export function AdminEquipmentPage() {
   function navigateToBoard(target, id) {
     const equipmentKey = id || detail?.equipment?.id || '';
     if (target === 'service_case' && id) {
-      navigate(`${basePath}/service?caseId=${encodeURIComponent(id)}`);
+      navigate(`${basePath}/service${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
       return;
     }
-    if (target === 'service_flow' || target === 'service_board') {
+    if (target === 'service_flow') {
+      navigate(`${basePath}/service${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
+      return;
+    }
+    if (target === 'service_board') {
       navigate(`${basePath}/service${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
       return;
     }
@@ -1516,6 +1541,7 @@ export function AdminEquipmentPage() {
   const detailEquipment = detail?.equipment || null;
   const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const detailPreview = (mediaRows || [])[0] || null;
+  const detailServiceFlowCount = (detail?.serviceCases?.length || 0) + (detail?.serviceRequests?.length || 0);
 
   return (
     <section className="equipment-ops-page">
@@ -1594,7 +1620,7 @@ export function AdminEquipmentPage() {
                         onClick={() => selectEquipment(item.id)}
                         onOpenCard={() => selectEquipment(item.id)}
                         onOpenPhotos={() => { setActiveTab('media'); selectEquipment(item.id); }}
-                        onOpenServiceCase={() => navigateToBoard(item.activeServiceCaseId ? 'service_case' : 'service_board', item.activeServiceCaseId || item.id)}
+                        onOpenServiceCase={() => { setActiveTab('service_cases'); selectEquipment(item.id); }}
                         onOptionalAction={canSeeCommercial ? (() => navigateToBoard('sales_board', item.id)) : null}
                         canSeeCommercial={canSeeCommercial}
                         t={t}
@@ -1670,8 +1696,8 @@ export function AdminEquipmentPage() {
             <div className="equipment-ops-detail__command-grid">
               <ActionListItem icon="dashboard" tone="brand" title={t('overview')} meta={t('equipment_passport')} onClick={() => setActiveTab('overview')} />
               <ActionListItem icon="content" title={t('photos_video')} meta={String(mediaRows.length || 0)} onClick={() => setActiveTab('media')} />
-              <ActionListItem icon="service" title={t('active_service_case')} meta={detailActiveCase?.id || t('active_case_not_found_upload')} disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)} />
-              <ActionListItem icon="service" title={t('service_board')} meta={t('service_label')} onClick={() => navigateToBoard('service_board', detailEquipment.id)} />
+              {detailActiveCase?.id ? <ActionListItem icon="service" title={t('active_service_case')} meta={detailActiveCase.id} onClick={() => setActiveTab('service_cases')} /> : null}
+              <ActionListItem icon="service" title={`${t('service_cases')} / ${t('client_requests')}`} meta={String(detailServiceFlowCount)} onClick={() => navigateToBoard('service_board', detailEquipment.id)} />
               {canSeeCommercial ? <ActionListItem icon="dashboard" title={t('director_board')} meta={t('commerce')} onClick={() => navigateToBoard('director_board', detailEquipment.id)} /> : null}
               {canSeeCommercial ? <ActionListItem icon="sales" title={t('sales_board')} meta={t('sales')} onClick={() => navigateToBoard('sales_board', detailEquipment.id)} /> : null}
               {canDeleteEquipment ? <ActionListItem icon="settings" tone="danger" title={t('delete_equipment_card')} meta={t('equipment')} onClick={removeEquipmentCard} /> : null}
@@ -1690,6 +1716,7 @@ export function AdminEquipmentPage() {
             legacyPassport={legacyPassport}
             onOpenMedia={setLightboxIndex}
             onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId)}
+            onSelectTab={setActiveTab}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
             canEditEquipment={canEditEquipment}

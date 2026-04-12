@@ -3273,8 +3273,8 @@ textarea { min-height: 110px; resize: vertical; }
   line-height: 1.45;
 }
 .equipment-passport-source-card,
-.equipment-passport-specs-card { min-height: 100%; }
-.equipment-passport-specs-card {
+.equipment-passport-history-card { min-height: 100%; }
+.equipment-passport-history-card {
   grid-column: 1 / -1;
 }
 .equipment-passport-source-list {
@@ -3317,17 +3317,26 @@ textarea { min-height: 110px; resize: vertical; }
   white-space: nowrap;
 }
 .equipment-passport-request-strip small { color: var(--sa-muted); }
-.equipment-passport-specs {
-  max-height: 320px;
-  overflow: auto;
+.equipment-passport-history-preview {
   border: 1px solid rgba(215, 188, 142, 0.55);
   border-radius: 18px;
-  background: rgba(255,255,255,.78);
+  background:
+    radial-gradient(circle at top left, rgba(246, 190, 72, .16), transparent 34%),
+    rgba(255,255,255,.78);
   padding: 14px;
-  line-height: 1.5;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
 }
-.equipment-passport-specs :first-child { margin-top: 0; }
-.equipment-passport-specs :last-child { margin-bottom: 0; }
+.equipment-passport-history-preview span {
+  color: var(--sa-muted);
+  font-size: 12px;
+}
+.equipment-passport-history-preview strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+.equipment-passport-history-preview small { color: var(--sa-muted); }
 .equipment-passport-ops-grid {
   display: grid;
   grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
@@ -3814,7 +3823,7 @@ textarea { min-height: 110px; resize: vertical; }
 }
 :root[data-admin-theme='dark'] .equipment-passport-source-list article,
 :root[data-admin-theme='dark'] .equipment-passport-request-strip article,
-:root[data-admin-theme='dark'] .equipment-passport-specs {
+:root[data-admin-theme='dark'] .equipment-passport-history-preview {
   border-color: rgba(118, 93, 63, 0.32);
   background: rgba(10, 18, 34, .58);
   color: #d8e1ef;
@@ -3823,6 +3832,8 @@ textarea { min-height: 110px; resize: vertical; }
 :root[data-admin-theme='dark'] .equipment-passport-legacy-card p,
 :root[data-admin-theme='dark'] .equipment-passport-source-list span,
 :root[data-admin-theme='dark'] .equipment-passport-request-strip small,
+:root[data-admin-theme='dark'] .equipment-passport-history-preview span,
+:root[data-admin-theme='dark'] .equipment-passport-history-preview small,
 :root[data-admin-theme='dark'] .equipment-passport-source-list small { color: #b8a88f; }
 :root[data-admin-theme='dark'] .equipment-detail-section .quick-filter-row button { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
 :root[data-admin-theme='dark'] .equipment-detail-section .quick-filter-row button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }

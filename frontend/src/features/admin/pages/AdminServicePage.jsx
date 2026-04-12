@@ -391,12 +391,14 @@ export function AdminServicePage() {
     notes: t('notes'),
   }), [t]);
   const canReadServiceEngineers = [ROLES.manager, ROLES.serviceHead, ROLES.owner, ROLES.director].includes(user?.role);
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedEquipmentId = searchParams.get('equipmentId') || '';
 
   async function load() {
     setLoading(true);
     try {
       const [list, dash, engineerPayload] = await Promise.all([
-        adminServiceApi.list({ sort: 'updatedAt' }),
+        adminServiceApi.list({ sort: 'updatedAt', equipment: requestedEquipmentId || undefined }),
         adminServiceApi.dashboard({}),
         canReadServiceEngineers
           ? adminServiceApi.serviceEngineers().catch(() => ({ engineers: [] }))
@@ -438,7 +440,7 @@ export function AdminServicePage() {
     }, 250);
   }
 
-  useEffect(() => { load(); }, [canReadServiceEngineers, canCreateRequest]); // eslint-disable-line
+  useEffect(() => { load(); }, [canReadServiceEngineers, canCreateRequest, requestedEquipmentId]); // eslint-disable-line
   useEffect(() => {
     let events = null;
     if (typeof EventSource !== 'undefined') {
