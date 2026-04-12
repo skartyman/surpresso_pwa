@@ -25,6 +25,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.serviceDashboardRead,
     PERMISSIONS.equipmentRead,
     PERMISSIONS.equipmentUpdateCommercial,
+    PERMISSIONS.salesOperate,
   ],
   [WORKFLOW_ROLES.serviceEngineer]: [
     PERMISSIONS.serviceCaseRead,
