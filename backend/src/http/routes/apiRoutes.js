@@ -139,7 +139,7 @@ export function createApiRouter(deps) {
   router.post('/admin/equipment/:id/tasks', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.createServiceTask));
   router.patch('/admin/tasks/:taskId/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateServiceTaskStatus));
   router.post('/admin/equipment/:id/commercial-status', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateCommercialStatus));
-  router.get('/admin/sales/equipment', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listSalesEquipment));
+  router.get('/admin/sales/equipment', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listSalesEquipment));
   router.get('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listProducts));
   router.post('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), upload.array('media', 1), asyncHandler(adminCatalogController.saveProduct));
   router.delete('/admin/catalog/products/:key', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deleteProduct));
