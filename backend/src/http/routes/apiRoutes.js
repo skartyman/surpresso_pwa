@@ -140,12 +140,12 @@ export function createApiRouter(deps) {
   router.patch('/admin/tasks/:taskId/status', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateServiceTaskStatus));
   router.post('/admin/equipment/:id/commercial-status', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateCommercialStatus));
   router.get('/admin/sales/equipment', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listSalesEquipment));
-  router.get('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listProducts));
-  router.post('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), upload.array('media', 1), asyncHandler(adminCatalogController.saveProduct));
-  router.delete('/admin/catalog/products/:key', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deleteProduct));
-  router.get('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listPricelists));
-  router.post('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), documentUpload.array('file', 1), asyncHandler(adminCatalogController.savePricelist));
-  router.delete('/admin/catalog/pricelists/:key', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deletePricelist));
+  router.get('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listProducts));
+  router.post('/admin/catalog/products', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), upload.array('media', 1), asyncHandler(adminCatalogController.saveProduct));
+  router.delete('/admin/catalog/products/:key', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deleteProduct));
+  router.get('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.listPricelists));
+  router.post('/admin/catalog/pricelists', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), documentUpload.array('file', 1), asyncHandler(adminCatalogController.savePricelist));
+  router.delete('/admin/catalog/pricelists/:key', asyncHandler(adminAuth), requireRole(['manager', 'sales_manager', 'owner', 'director']), asyncHandler(adminCatalogController.deletePricelist));
   router.post('/admin/equipment/:id/reserve-rent', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForRent));
   router.post('/admin/equipment/:id/reserve-sale', asyncHandler(adminAuth), requireRole(['sales_manager', 'owner']), asyncHandler(adminServiceOpsController.reserveForSale));
   router.get('/admin/equipment/:id/service-cases', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentServiceCases));

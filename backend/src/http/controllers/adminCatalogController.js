@@ -47,7 +47,7 @@ async function persistCatalogFile({ uploadsRoot, file, entityId }) {
 
 export function createAdminCatalogController(serviceOpsRepository, { uploadsRoot } = {}) {
   function assertAllowed(role) {
-    return ['sales_manager', 'owner', 'director'].includes(role);
+    return ['manager', 'sales_manager', 'owner', 'director'].includes(role);
   }
 
   return {

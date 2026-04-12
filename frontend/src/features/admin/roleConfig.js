@@ -41,7 +41,7 @@ export function getAdminSections(t) {
       { key: 'service', to: 'service', icon: 'service', label: t('nav_service'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director] },
       { key: 'employees', to: 'employees', icon: 'employees', label: t('nav_employees'), roles: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo] },
       { key: 'director', to: 'director', icon: 'dashboard', label: t('nav_director'), roles: [ROLES.director, ROLES.owner] },
-      { key: 'sales', to: 'sales', icon: 'sales', label: t('nav_sales'), roles: [ROLES.salesManager, ROLES.owner, ROLES.director] },
+      { key: 'sales', to: 'sales', icon: 'sales', label: t('nav_sales'), roles: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director] },
       { key: 'equipment', to: 'equipment', icon: 'equipment', label: t('nav_equipment'), roles: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner] },
     ],
   },
@@ -78,7 +78,7 @@ export const PAGE_PERMISSIONS = {
   service: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.owner, ROLES.director],
   employees: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner, ROLES.seo],
   director: [ROLES.director, ROLES.owner],
-  sales: [ROLES.salesManager, ROLES.owner, ROLES.director],
+  sales: [ROLES.manager, ROLES.salesManager, ROLES.owner, ROLES.director],
   equipment: [ROLES.serviceEngineer, ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner],
   reports: [ROLES.serviceHead, ROLES.salesManager, ROLES.director, ROLES.owner],
   notifications: [ROLES.serviceHead, ROLES.director, ROLES.owner],
@@ -89,6 +89,7 @@ export const PAGE_PERMISSIONS = {
 export function getDefaultAdminSection(role) {
   if (role === ROLES.serviceEngineer) return 'service';
   if (role === ROLES.serviceHead) return 'service';
+  if (role === ROLES.manager) return 'sales';
   if (role === ROLES.salesManager) return 'sales';
   if (role === ROLES.director) return 'executive';
   if (role === ROLES.seo) return 'content';
