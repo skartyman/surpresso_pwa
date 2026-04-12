@@ -1,5 +1,6 @@
 import { storeServiceMediaFile } from '../../infrastructure/repositories/serviceOpsRepository.js';
 import { uploadDriveMedia } from '../../infrastructure/drive/gasDriveClient.js';
+import { uploadR2Media } from '../../infrastructure/storage/r2Client.js';
 import { validateUploadedDocumentFiles, validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 
 const PRODUCT_REPORT_TYPE = 'catalog_product';
@@ -14,6 +15,12 @@ function mapPreset(item) {
 }
 
 async function persistCatalogFile({ uploadsRoot, file, entityId }) {
+  try {
+    return await uploadR2Media({ file, prefix: 'sales-catalog', entityId });
+  } catch (error) {
+    if (error?.code !== 'r2_not_configured') throw error;
+  }
+
   try {
     const uploaded = await uploadDriveMedia({ entityId, file });
     return {
