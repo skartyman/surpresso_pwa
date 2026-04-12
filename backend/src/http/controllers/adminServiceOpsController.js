@@ -13,6 +13,7 @@ import { buildEquipmentTimeline, normalizeEquipmentMedia } from '../utils/equipm
 import { normalizeRequestUrl } from '../../infrastructure/drive/driveUtils.js';
 import { validateUploadedMediaFiles } from '../utils/uploadedMediaValidation.js';
 import { uploadDriveMedia } from '../../infrastructure/drive/gasDriveClient.js';
+import { config } from '../../config/env.js';
 
 function can(user, permission) {
   return hasPermission(user, permission);
@@ -56,6 +57,35 @@ function filterAlertsByRole(alertState = {}, role = '') {
     return { ...alertState, alerts };
   }
   return { ...alertState, alerts: [] };
+}
+
+function parseChatIds(value = '') {
+  return String(value || '')
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildEquipmentTelegramMessage(equipment = {}, activeCase = null, actor = null) {
+  const title = [equipment.brand, equipment.model || equipment.name].filter(Boolean).join(' ') || equipment.id || 'Оборудование';
+  const lines = [
+    'Карточка оборудования Surpresso',
+    '',
+    `ID: ${equipment.id || '—'}`,
+    `Оборудование: ${title}`,
+    `Инв. №: ${equipment.internalNumber || '—'}`,
+    `Серийный: ${equipment.serial || '—'}`,
+    `Владелец: ${equipment.ownerType || '—'}`,
+    `Клиент: ${equipment.clientName || '—'}`,
+    `Телефон: ${equipment.clientPhone || '—'}`,
+    `Точка: ${equipment.clientLocation || equipment.companyLocation || '—'}`,
+    `Сервис: ${activeCase?.serviceStatus || equipment.serviceStatus || '—'}`,
+    `Коммерция: ${equipment.commercialStatus || '—'}`,
+  ];
+  if (activeCase?.id) lines.push(`Активный кейс: ${activeCase.id}`);
+  if (equipment.lastComment) lines.push(`Комментарий: ${equipment.lastComment}`);
+  if (actor?.fullName || actor?.email) lines.push(`Отправил: ${actor.fullName || actor.email}`);
+  return lines.join('\n');
 }
 
 function buildNextActions({ serviceStatus, commercialStatus, serviceActions = [], commercialActions = [] }) {
@@ -105,6 +135,7 @@ function buildNextActions({ serviceStatus, commercialStatus, serviceActions = []
 export function createAdminServiceOpsController(serviceOpsRepository, opts = {}) {
   const uploadsRoot = opts.uploadsRoot;
   const notificationCenterService = opts.notificationCenterService;
+  const botGateway = opts.botGateway;
 
   async function applyCommercialStatusChange(req, res, {
     equipmentId,
@@ -663,6 +694,28 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
           currentActions,
         },
       });
+    },
+
+    async postEquipmentToTelegram(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const payload = await serviceOpsRepository.getEquipmentDetail(req.params.id);
+      if (!payload?.equipment) return res.status(404).json({ error: 'not_found' });
+      if (!botGateway) return res.status(503).json({ error: 'telegram_unavailable' });
+
+      const activeCase = (payload.serviceCases || []).find((item) => item.isActive) || null;
+      const chatIds = [
+        ...parseChatIds(config.telegramLegacyChatIds),
+        ...parseChatIds(config.telegramServiceHeadChatIds),
+        ...parseChatIds(config.telegramManagerChatIds),
+      ];
+      const uniqueChatIds = Array.from(new Set(chatIds));
+      if (!uniqueChatIds.length) return res.status(409).json({ error: 'telegram_chat_not_configured' });
+
+      const message = buildEquipmentTelegramMessage(payload.equipment, activeCase, req.adminUser);
+      const results = await Promise.allSettled(uniqueChatIds.map((chatId) => botGateway.sendMessage(chatId, message)));
+      const sent = results.filter((item) => item.status === 'fulfilled' && item.value?.ok !== false).length;
+      if (!sent) return res.status(502).json({ error: 'telegram_send_failed', results });
+      return res.json({ ok: true, sent, total: uniqueChatIds.length });
     },
 
     async addEquipmentComment(req, res) {

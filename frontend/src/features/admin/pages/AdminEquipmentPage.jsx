@@ -558,6 +558,7 @@ function ActionPanel({
   navigateToBoard,
   basePath,
   canUploadCaseMedia = false,
+  canCreateEquipment = false,
   canCommercialOperate = false,
   canSeeCommercial = false,
   t,
@@ -609,6 +610,21 @@ function ActionPanel({
     }
   }
 
+  async function postToTelegram() {
+    if (!detail?.equipment?.id) return;
+    setActionLoading('telegram');
+    setError('');
+    setFeedback('');
+    try {
+      const response = await adminServiceApi.postEquipmentToTelegram(detail.equipment.id);
+      setFeedback(`${t('telegram_post_done')} ${response?.sent || 0}/${response?.total || 0}`);
+    } catch {
+      setError(t('telegram_post_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
   async function submitQuickMedia() {
     if (!activeCase?.id || !quickMediaFiles.length) return;
     setActionLoading('media');
@@ -639,6 +655,12 @@ function ActionPanel({
         </ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>{t('service_flow')}</ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>{t('service_board')}</ActionRailButton>
+        {canCreateEquipment ? <ActionRailButton onClick={() => navigateToBoard('equipment_intake', detail?.equipment?.id)}>{t('intake_equipment')}</ActionRailButton> : null}
+        <ActionRailButton onClick={() => openPassportLink(`/print.html?id=${encodeURIComponent(detail?.equipment?.id || '')}`)}>{t('print_client_blank')}</ActionRailButton>
+        <ActionRailButton onClick={() => openPassportLink(`/company-print.html?id=${encodeURIComponent(detail?.equipment?.id || '')}`)}>{t('print_company_blank')}</ActionRailButton>
+        <ActionRailButton disabled={Boolean(actionLoading)} onClick={postToTelegram}>
+          {actionLoading === 'telegram' ? t('sending') : t('post_to_telegram')}
+        </ActionRailButton>
         {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>{t('nav_director')}</ActionRailButton> : null}
         {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>{t('sales')}</ActionRailButton> : null}
       </ActionRail>
@@ -772,7 +794,8 @@ function TabPanel({
     const legacyLinks = [
       { key: 'client', label: t('open_client_passport'), url: passportId ? `/passport.html?id=${passportId}` : '' },
       { key: 'internal', label: t('open_legacy_internal_passport'), url: passportId ? `/equip.html?id=${passportId}` : '' },
-      { key: 'print', label: t('open_print_passport'), url: passportId ? `/print.html?id=${passportId}` : '' },
+      { key: 'print_client', label: t('print_client_blank'), url: passportId ? `/print.html?id=${passportId}` : '' },
+      { key: 'print_company', label: t('print_company_blank'), url: passportId ? `/company-print.html?id=${passportId}` : '' },
       { key: 'folder', label: t('open_drive_folder'), url: equipment.folderUrl || legacyEquipment.folderUrl || '' },
     ].filter((item) => item.url);
 
@@ -1030,6 +1053,7 @@ function TabPanel({
             onQuickMediaUploaded={onRefreshDetail}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
+            canCreateEquipment={canCreateEquipment}
             canUploadCaseMedia={canUploadCaseMedia}
             canCommercialOperate={canCommercialOperate}
             canSeeCommercial={canSeeCommercial}

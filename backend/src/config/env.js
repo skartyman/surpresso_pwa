@@ -10,6 +10,7 @@ export const config = {
   telegramDirectorChatIds: process.env.TELEGRAM_DIRECTOR_CHAT_IDS || '',
   telegramSalesManagerChatIds: process.env.TELEGRAM_SALES_MANAGER_CHAT_IDS || '',
   telegramOwnerChatIds: process.env.TELEGRAM_OWNER_CHAT_IDS || '',
+  telegramLegacyChatIds: process.env.TG_NOTIFY_CHAT_ID || process.env.TG_CHAT_ID || '',
   telegramInitSecret: process.env.TELEGRAM_INIT_SECRET || '',
   mediaUploadPath: process.env.MEDIA_UPLOAD_PATH || 'miniapp-telegram/uploads',
   r2AccountId: process.env.R2_ACCOUNT_ID || '',

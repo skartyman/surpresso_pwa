@@ -188,7 +188,7 @@ async function setupMiniAppLayer() {
     const miniAppBotGateway = new TelegramBotGateway({ token: process.env.TELEGRAM_BOT_TOKEN || TG_NOTIFY_BOT });
     const miniAppSupportController = createSupportController(miniAppBotGateway);
 
-    app.use("/api/telegram", createApiRouter({ ...miniAppDeps, uploadsRoot }));
+    app.use("/api/telegram", createApiRouter({ ...miniAppDeps, botGateway: miniAppBotGateway, uploadsRoot }));
     app.post("/api/telegram/support/notify", miniAppSupportController.notify);
     miniAppStatus = { enabled: true, storage, adminServiceModuleOk: Boolean(miniAppDeps.serviceOpsRepository) };
   } catch (error) {

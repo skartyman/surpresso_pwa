@@ -63,6 +63,7 @@ export function createApiRouter(deps) {
   const adminServiceController = createAdminServiceController(deps.serviceRepository, { uploadsRoot: deps.uploadsRoot, equipmentRepository: deps.equipmentRepository, clientRepository: deps.clientRepository });
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
     uploadsRoot: deps.uploadsRoot,
+    botGateway: deps.botGateway,
     executiveNotifier: deps.executiveNotifier,
     notificationCenterService: deps.notificationCenterService,
   });
@@ -132,6 +133,7 @@ export function createApiRouter(deps) {
   router.get('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentById));
   router.patch('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateEquipment));
   router.get('/admin/equipment/:id/detail', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentDetail));
+  router.post('/admin/equipment/:id/post-telegram', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.postEquipmentToTelegram));
   router.post('/admin/equipment/:id/media', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'owner', 'director']), upload.array('media', 6), asyncHandler(adminServiceOpsController.addEquipmentMedia));
   router.post('/admin/equipment/:id/comments', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.addEquipmentComment));
   router.post('/admin/equipment/:id/notes', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.addEquipmentNote));
