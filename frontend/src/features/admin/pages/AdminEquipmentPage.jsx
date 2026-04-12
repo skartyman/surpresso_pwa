@@ -246,10 +246,6 @@ function EquipmentListCard({
   active,
   viewMode = 'grid',
   onClick,
-  onOpenServiceCase,
-  onOpenPhotos,
-  onOpenCard,
-  onOptionalAction,
   canSeeCommercial = false,
   t,
   locale,
@@ -257,9 +253,12 @@ function EquipmentListCard({
   const hasActiveCase = Boolean(item.activeServiceCaseId);
   const warnings = item.warnings || [];
   const previewUrl = getEquipmentCardCover(item.id) || item.previewUrl || item.photoUrl || item.imageUrl || item.mediaPreviewUrl || '';
-  const quickActionLabel = hasActiveCase ? t('request_card_title') : t('open');
   const modelTitle = `${item.brand || t('no_brand')} ${item.model || ''}`.trim();
   const ownerMeta = item.clientName || (item.ownerType === 'company' ? t('company_equipment') : t('client_not_set'));
+  const primaryNumber = item.ownerType === 'company'
+    ? (item.internalNumber || item.serial || item.id || '—')
+    : (item.serial || item.internalNumber || item.id || '—');
+  const numberLabel = item.ownerType === 'company' ? t('inventory_number') : t('serial_number');
   const assignedMaster = item.assignedToUser?.fullName || item.assignedMaster || item.assignedToUserId || '—';
   const shortWarnings = warnings.slice(0, 2);
   const handleCardKeyDown = (event) => {
@@ -277,6 +276,13 @@ function EquipmentListCard({
       onClick={onClick}
       onKeyDown={handleCardKeyDown}
     >
+      <header className="equipment-ops-card__top">
+        <StatusBadge status={(canSeeCommercial ? item.commercialStatus : item.serviceStatus) || 'none'}>
+          {canSeeCommercial ? getCommercialLabel(item.commercialStatus || 'none', t) : getServiceLabel(item.serviceStatus, t)}
+        </StatusBadge>
+        <span className="equipment-ops-card__number">{primaryNumber}</span>
+      </header>
+
       <div className="equipment-ops-card__preview">
         {previewUrl ? (
           <img src={previewUrl} alt={modelTitle} loading="lazy" />
@@ -286,31 +292,19 @@ function EquipmentListCard({
             <span>{t('no_photo')}</span>
           </div>
         )}
-        <div className="equipment-ops-card__top">
-          <StatusBadge status={(canSeeCommercial ? item.commercialStatus : item.serviceStatus) || 'none'}>
-            {canSeeCommercial ? getCommercialLabel(item.commercialStatus || 'none', t) : getServiceLabel(item.serviceStatus, t)}
-          </StatusBadge>
-          <span className="equipment-ops-card__type-chip">{item.equipmentType || item.type || t('equipment_type_default')}</span>
-        </div>
-        <ActionRail compact className="equipment-ops-card__overlay-actions" onClick={(event) => event.stopPropagation()}>
-          <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOpenCard?.()}>{t('open')}</ActionRailButton>
-          <ActionRailButton className="equipment-ops-card__overlay-action" tone="brand" onClick={() => onOpenServiceCase()}>{quickActionLabel}</ActionRailButton>
-          <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOpenPhotos?.()}>{t('photo')}</ActionRailButton>
-          {onOptionalAction ? <ActionRailButton className="equipment-ops-card__overlay-action" onClick={() => onOptionalAction?.()}>{t('sales')}</ActionRailButton> : null}
-        </ActionRail>
       </div>
 
       <p className="equipment-ops-card__title">{modelTitle}</p>
       <div className="equipment-ops-card__meta">
-        <span><Icon name="equipment" /> {item.internalNumber || '—'} / {item.serial || '—'}</span>
+        <span><Icon name="equipment" /> {numberLabel}: {primaryNumber}</span>
         <span><Icon name="clients" /> {ownerMeta}</span>
         <span><Icon name="employees" /> {t('master_empty').replace('—', assignedMaster)}</span>
-        <span><Icon name="dashboard" /> {t('updated')}: {formatDate(item.updatedAt, locale)}</span>
       </div>
 
       <div className="equipment-ops-card__scan-chips">
         <em>{getServiceLabel(item.serviceStatus, t)}</em>
         {hasActiveCase ? <em>{t('active_case_short')}: {item.activeServiceCaseId}</em> : <em>{t('no_active_case_short')}</em>}
+        <em>{item.equipmentType || item.type || t('equipment_type_default')}</em>
       </div>
 
       {shortWarnings.length ? (
