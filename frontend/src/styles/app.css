@@ -2958,63 +2958,6 @@ textarea { min-height: 110px; resize: vertical; }
 .equipment-detail-grid p { margin: 0; color: var(--sa-text); display: inline-flex; gap: 8px; align-items: center; }
 .equipment-detail-section .quick-filter-row button { border: 1px solid var(--sa-line); background: var(--sa-surface-2); color: var(--sa-text); border-radius: 999px; padding: 6px 10px; }
 .equipment-detail-section .quick-filter-row button.active { background: var(--sa-brand); border-color: var(--sa-brand); color: #1f1300; }
-.equipment-workspace-overview { gap: 14px; }
-.equipment-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .85fr);
-  gap: 12px;
-}
-.equipment-workspace-info,
-.equipment-workspace-case,
-.equipment-workspace-edit {
-  display: grid;
-  gap: 12px;
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at top right, rgba(248, 190, 63, .09), transparent 34%),
-    linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,250,242,.78));
-}
-.equipment-workspace-info header,
-.equipment-workspace-case header,
-.equipment-workspace-edit header {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-}
-.equipment-workspace-info h4,
-.equipment-workspace-case h4,
-.equipment-workspace-edit h4 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.03em; }
-.equipment-workspace-info small,
-.equipment-workspace-case small,
-.equipment-workspace-edit small { color: var(--sa-muted); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
-.equipment-workspace-info__rows {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.equipment-workspace-info__rows article {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  border: 1px solid rgba(206, 184, 144, .52);
-  border-radius: 16px;
-  padding: 10px;
-  background: rgba(255,255,255,.56);
-}
-.equipment-workspace-info__rows span {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--sa-muted);
-  font-size: 12px;
-}
-.equipment-workspace-info__rows strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 15px;
-}
 .equipment-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .equipment-media-thumb { border: 1px solid var(--sa-line); border-radius: 10px; background: var(--sa-surface-2); color: var(--sa-text); overflow: hidden; text-align: left; }
 .equipment-media-thumb__open {
@@ -3849,22 +3792,6 @@ textarea { min-height: 110px; resize: vertical; }
 :root[data-admin-theme='dark'] .equipment-ops-card__type-chip { border-color: #334155; background: rgba(2, 6, 23, .8); }
 :root[data-admin-theme='dark'] .equipment-tabs button { border-color: #2a3a54; background: #0a1222; color: #cdd7e5; }
 :root[data-admin-theme='dark'] .equipment-tabs button.active { background: #1d4ed8; border-color: #1d4ed8; color: #f8fafc; }
-:root[data-admin-theme='dark'] .equipment-workspace-info,
-:root[data-admin-theme='dark'] .equipment-workspace-case,
-:root[data-admin-theme='dark'] .equipment-workspace-edit {
-  background:
-    radial-gradient(circle at top right, rgba(56, 189, 248, .1), transparent 34%),
-    linear-gradient(180deg, rgba(15, 23, 42, .94), rgba(8, 13, 23, .9));
-  border-color: #27344d;
-}
-:root[data-admin-theme='dark'] .equipment-workspace-info__rows article {
-  border-color: #27344d;
-  background: rgba(2, 6, 23, .32);
-}
-:root[data-admin-theme='dark'] .equipment-workspace-info small,
-:root[data-admin-theme='dark'] .equipment-workspace-case small,
-:root[data-admin-theme='dark'] .equipment-workspace-edit small,
-:root[data-admin-theme='dark'] .equipment-workspace-info__rows span { color: #9fb0ca; }
 :root[data-admin-theme='dark'] .equipment-ops-detail__hero {
   background:
     radial-gradient(circle at top right, rgba(246, 190, 72, 0.14), transparent 28%),
@@ -4207,12 +4134,10 @@ textarea { min-height: 110px; resize: vertical; }
 }
 @media (max-width: 560px) {
   .equipment-hub-alerts__grid { grid-template-columns: 1fr; }
-  .equipment-workspace-info__rows { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 980px) {
   .equipment-board-toolbar-shell { gap: 8px; }
-  .equipment-workspace-grid { grid-template-columns: 1fr; }
   .equipment-ops-card--list .equipment-ops-card__preview { min-height: 142px; height: 142px; }
   .equipment-board {
     gap: 10px;
