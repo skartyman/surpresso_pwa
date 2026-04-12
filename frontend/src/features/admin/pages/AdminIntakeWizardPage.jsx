@@ -21,6 +21,9 @@ export function AdminIntakeWizardPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const mode = String(searchParams.get('mode') || 'intake');
+  const initialOwner = ['client', 'company'].includes(String(searchParams.get('owner') || ''))
+    ? String(searchParams.get('owner'))
+    : 'client';
   const basePath = getBaseAdminPath(location.pathname);
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -28,7 +31,7 @@ export function AdminIntakeWizardPage() {
   const [result, setResult] = useState(null);
   const [mediaFiles, setMediaFiles] = useState([]);
   const [form, setForm] = useState({
-    ownerType: 'client',
+    ownerType: initialOwner,
     equipmentType: 'grinder',
     intakeType: 'manual_intake',
     brand: '',
@@ -45,11 +48,15 @@ export function AdminIntakeWizardPage() {
   });
 
   const isFinal = step === STEPS.length - 1;
+  const isCompany = form.ownerType === 'company';
+  const isClient = form.ownerType === 'client';
   const canNext = useMemo(() => {
-    if (step === 2) return Boolean(form.brand?.trim()) && Boolean(form.model?.trim());
-    if (step === 4) return Boolean(form.problemDescription?.trim());
+    if (step === 2 && isClient) return Boolean(form.model?.trim()) && Boolean(form.serial?.trim());
+    if (step === 2 && isCompany) return Boolean(form.internalNumber?.trim()) && (Boolean(form.brand?.trim()) || Boolean(form.model?.trim()));
+    if (step === 4 && isClient) return Boolean(form.problemDescription?.trim());
+    if (step === 4 && isCompany) return Boolean(form.problemDescription?.trim()) || Boolean(form.intakeComment?.trim());
     return true;
-  }, [step, form]);
+  }, [step, form, isClient, isCompany]);
 
   async function submit() {
     setSaving(true);
@@ -58,11 +65,13 @@ export function AdminIntakeWizardPage() {
       const payload = mode === 'create'
         ? await adminServiceApi.createEquipment({
           ...form,
+          equipmentId: form.ownerType === 'company' ? form.internalNumber?.trim() : form.serial?.trim(),
           status: 'registered',
           currentStatusRaw: 'registered',
         })
         : await adminServiceApi.intakeCreate({
         ...form,
+        equipmentId: form.ownerType === 'company' ? form.internalNumber?.trim() : form.serial?.trim(),
         serviceStatus: 'accepted',
         status: 'accepted',
         type: 'service',
@@ -101,9 +110,14 @@ export function AdminIntakeWizardPage() {
             <>
               <h4>Кто владелец техники?</h4>
               <select value={form.ownerType} onChange={(e) => setForm((p) => ({ ...p, ownerType: e.target.value }))}>
-                <option value="client">Client</option>
-                <option value="company">Company</option>
+                <option value="client">Оборудование клиента</option>
+                <option value="company">Оборудование компании</option>
               </select>
+              <p className="empty-copy">
+                {isCompany
+                  ? 'Форма компании: локация, название техники, внутренний номер, задача/комментарий.'
+                  : 'Форма клиента: клиент, телефон, точка, модель, серийный номер, проблема и состояние.'}
+              </p>
             </>
           ) : null}
 
@@ -121,11 +135,24 @@ export function AdminIntakeWizardPage() {
 
           {step === 2 ? (
             <>
-              <h4>Идентификация</h4>
-              <input value={form.brand} onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))} placeholder="Бренд" />
-              <input value={form.model} onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))} placeholder="Модель" />
-              <input value={form.serial} onChange={(e) => setForm((p) => ({ ...p, serial: e.target.value }))} placeholder="Серийный номер" />
-              <input value={form.internalNumber} onChange={(e) => setForm((p) => ({ ...p, internalNumber: e.target.value }))} placeholder="Инвентарный номер" />
+              <h4>{isCompany ? 'Идентификация оборудования компании' : 'Идентификация оборудования клиента'}</h4>
+              {isClient ? (
+                <>
+                  <input value={form.clientName} onChange={(e) => setForm((p) => ({ ...p, clientName: e.target.value }))} placeholder="Имя клиента" />
+                  <input value={form.clientPhone} onChange={(e) => setForm((p) => ({ ...p, clientPhone: e.target.value }))} placeholder="Телефон" />
+                  <input value={form.clientLocation} onChange={(e) => setForm((p) => ({ ...p, clientLocation: e.target.value }))} placeholder="Адрес / локация" />
+                  <input value={form.brand} onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))} placeholder="Бренд" />
+                  <input value={form.model} onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))} placeholder="Модель" />
+                  <input value={form.serial} onChange={(e) => setForm((p) => ({ ...p, serial: e.target.value }))} placeholder="Серийный номер" />
+                </>
+              ) : (
+                <>
+                  <input value={form.companyLocation} onChange={(e) => setForm((p) => ({ ...p, companyLocation: e.target.value }))} placeholder="Локация компании / точка" />
+                  <input value={form.brand} onChange={(e) => setForm((p) => ({ ...p, brand: e.target.value }))} placeholder="Бренд или тип техники" />
+                  <input value={form.model} onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))} placeholder="Название / модель" />
+                  <input value={form.internalNumber} onChange={(e) => setForm((p) => ({ ...p, internalNumber: e.target.value }))} placeholder="Внутренний номер" />
+                </>
+              )}
             </>
           ) : null}
 
@@ -138,9 +165,9 @@ export function AdminIntakeWizardPage() {
 
           {step === 4 ? (
             <>
-              <h4>Описание проблемы</h4>
-              <textarea value={form.problemDescription} onChange={(e) => setForm((p) => ({ ...p, problemDescription: e.target.value }))} placeholder="Что не работает / что запросил клиент" rows={4} />
-              <textarea value={form.intakeComment} onChange={(e) => setForm((p) => ({ ...p, intakeComment: e.target.value }))} placeholder="Комментарий при приеме" rows={3} />
+              <h4>{isCompany ? 'Задача / комментарий по оборудованию компании' : 'Проблема клиента'}</h4>
+              <textarea value={form.problemDescription} onChange={(e) => setForm((p) => ({ ...p, problemDescription: e.target.value }))} placeholder={isCompany ? 'Задача / проблема: после аренды, подготовка, ремонт, ТО' : 'Что не работает / что запросил клиент'} rows={4} />
+              <textarea value={form.intakeComment} onChange={(e) => setForm((p) => ({ ...p, intakeComment: e.target.value }))} placeholder="Комментарий при приёме" rows={3} />
             </>
           ) : null}
 

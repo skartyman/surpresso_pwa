@@ -2450,6 +2450,11 @@ textarea { min-height: 110px; resize: vertical; }
   display: grid;
   gap: 10px;
 }
+.equipment-board-intake-actions {
+  justify-content: flex-start;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
 .equipment-list-search input {
   border: 1px solid rgba(214, 201, 184, 0.72);
   border-radius: 16px;

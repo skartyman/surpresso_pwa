@@ -148,6 +148,22 @@ function getLegacyEquipment(legacyPassport) {
   return legacyPassport?.equipment || legacyPassport?.item || null;
 }
 
+function getEquipmentOwner(equipment = {}, legacyEquipment = {}) {
+  return String(equipment.ownerType || legacyEquipment.owner || '').trim();
+}
+
+function getPrintLinkForEquipment(equipment = {}, legacyEquipment = {}) {
+  const id = encodeURIComponent(equipment.id || legacyEquipment.id || '');
+  if (!id) return '';
+  const owner = getEquipmentOwner(equipment, legacyEquipment);
+  return owner === 'company' ? `/company-print.html?id=${id}` : `/print.html?id=${id}`;
+}
+
+function getPrintLabelForEquipment(equipment = {}, legacyEquipment = {}, t = (value) => value) {
+  const owner = getEquipmentOwner(equipment, legacyEquipment);
+  return owner === 'company' ? t('print_company_blank') : t('print_client_blank');
+}
+
 function getTimelineSummary(row, t = (value) => value) {
   if (!row) return t('history_empty');
   const comment = String(row.comment || '').trim();
@@ -558,7 +574,6 @@ function ActionPanel({
   navigateToBoard,
   basePath,
   canUploadCaseMedia = false,
-  canCreateEquipment = false,
   canCommercialOperate = false,
   canSeeCommercial = false,
   t,
@@ -655,9 +670,9 @@ function ActionPanel({
         </ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>{t('service_flow')}</ActionRailButton>
         <ActionRailButton onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>{t('service_board')}</ActionRailButton>
-        {canCreateEquipment ? <ActionRailButton onClick={() => navigateToBoard('equipment_intake', detail?.equipment?.id)}>{t('intake_equipment')}</ActionRailButton> : null}
-        <ActionRailButton onClick={() => openPassportLink(`/print.html?id=${encodeURIComponent(detail?.equipment?.id || '')}`)}>{t('print_client_blank')}</ActionRailButton>
-        <ActionRailButton onClick={() => openPassportLink(`/company-print.html?id=${encodeURIComponent(detail?.equipment?.id || '')}`)}>{t('print_company_blank')}</ActionRailButton>
+        <ActionRailButton onClick={() => openPassportLink(getPrintLinkForEquipment(detail?.equipment || {}))}>
+          {getPrintLabelForEquipment(detail?.equipment || {}, {}, t)}
+        </ActionRailButton>
         <ActionRailButton disabled={Boolean(actionLoading)} onClick={postToTelegram}>
           {actionLoading === 'telegram' ? t('sending') : t('post_to_telegram')}
         </ActionRailButton>
@@ -740,7 +755,6 @@ function TabPanel({
   onRefreshDetail,
   navigateToBoard,
   basePath,
-  canCreateEquipment = false,
   canEditEquipment = false,
   canUploadEquipmentMedia = false,
   canDeleteEquipmentMedia = false,
@@ -794,19 +808,12 @@ function TabPanel({
     const legacyLinks = [
       { key: 'client', label: t('open_client_passport'), url: passportId ? `/passport.html?id=${passportId}` : '' },
       { key: 'internal', label: t('open_legacy_internal_passport'), url: passportId ? `/equip.html?id=${passportId}` : '' },
-      { key: 'print_client', label: t('print_client_blank'), url: passportId ? `/print.html?id=${passportId}` : '' },
-      { key: 'print_company', label: t('print_company_blank'), url: passportId ? `/company-print.html?id=${passportId}` : '' },
+      { key: 'print', label: getPrintLabelForEquipment(equipment, legacyEquipment, t), url: getPrintLinkForEquipment(equipment, legacyEquipment) },
       { key: 'folder', label: t('open_drive_folder'), url: equipment.folderUrl || legacyEquipment.folderUrl || '' },
     ].filter((item) => item.url);
 
     return (
       <section className="equipment-detail-section equipment-passport-overview">
-        {canCreateEquipment ? (
-          <ActionRail compact>
-            <ActionRailButton tone="brand" onClick={() => navigateToBoard('equipment_create')}>{t('add_equipment')}</ActionRailButton>
-            <ActionRailButton onClick={() => navigateToBoard('equipment_intake')}>{t('intake_equipment')}</ActionRailButton>
-          </ActionRail>
-        ) : null}
         <div className="equipment-passport-layout">
           <article className="equipment-summary-hero equipment-summary-hero--passport">
             <div className="equipment-summary-hero__copy">
@@ -1053,7 +1060,6 @@ function TabPanel({
             onQuickMediaUploaded={onRefreshDetail}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
-            canCreateEquipment={canCreateEquipment}
             canUploadCaseMedia={canUploadCaseMedia}
             canCommercialOperate={canCommercialOperate}
             canSeeCommercial={canSeeCommercial}
@@ -1426,6 +1432,14 @@ export function AdminEquipmentPage() {
       navigate(`${basePath}/sales${equipmentKey ? `?equipmentId=${encodeURIComponent(equipmentKey)}` : ''}`);
       return;
     }
+    if (target === 'equipment_intake_client') {
+      navigate(`${basePath}/equipment/intake?owner=client`);
+      return;
+    }
+    if (target === 'equipment_intake_company') {
+      navigate(`${basePath}/equipment/intake?owner=company`);
+      return;
+    }
     if (target === 'equipment_intake') {
       navigate(`${basePath}/equipment/intake`);
       return;
@@ -1503,6 +1517,17 @@ export function AdminEquipmentPage() {
               onBoardNav={scrollToBoardColumn}
               t={t}
             />
+            {canCreateEquipment ? (
+              <ActionRail compact className="equipment-board-intake-actions">
+                <ActionRailButton tone="brand" onClick={() => navigateToBoard('equipment_intake_client')}>
+                  {t('intake_client_equipment')}
+                </ActionRailButton>
+                <ActionRailButton onClick={() => navigateToBoard('equipment_intake_company')}>
+                  {t('intake_company_equipment')}
+                </ActionRailButton>
+                <ActionRailButton onClick={() => navigateToBoard('equipment_create')}>{t('add_equipment')}</ActionRailButton>
+              </ActionRail>
+            ) : null}
           </div>
           <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
             <div ref={boardRef} className="equipment-board">
@@ -1637,7 +1662,6 @@ export function AdminEquipmentPage() {
             onRefreshDetail={() => loadDetail(detail?.equipment?.id || equipmentId)}
             navigateToBoard={navigateToBoard}
             basePath={basePath}
-            canCreateEquipment={canCreateEquipment}
             canEditEquipment={canEditEquipment}
             canUploadEquipmentMedia={canUploadEquipmentMedia}
             canDeleteEquipmentMedia={canDeleteEquipmentMedia}
