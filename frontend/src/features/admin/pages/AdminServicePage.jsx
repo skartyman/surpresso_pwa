@@ -5,6 +5,8 @@ import { adminServiceApi } from '../api/adminServiceApi';
 import { getAdminRoleProfile, ROLES } from '../roleConfig';
 import { useAdminI18n } from '../adminI18n';
 import {
+  ActionList,
+  ActionListItem,
   ActionRail,
   ActionRailButton,
   Icon,
@@ -969,14 +971,26 @@ export function AdminServicePage() {
                 </div>
               </header>
 
-              <ActionRail className="equipment-ops-detail__hero-actions">
-                <ActionRailButton tone="brand" onClick={() => setActiveTab('overview')}>{t('overview')}</ActionRailButton>
-                <ActionRailButton onClick={() => setActiveTab('media')}>{t('photos_video')}</ActionRailButton>
-                <ActionRailButton onClick={() => setActiveTab('history')}>{t('history')}</ActionRailButton>
-                <ActionRailButton onClick={() => setActiveTab('notes')}>{t('notes')}</ActionRailButton>
-                {contactPhone ? <a className="action-rail__button" href={`tel:${contactPhone}`}>{t('call_client')}</a> : null}
-                {telegramUserId ? <a className="action-rail__button" href={`tg://user?id=${telegramUserId}`}>{t('open_telegram')}</a> : null}
-              </ActionRail>
+              <div className="equipment-ops-detail__command-grid service-detail-command-grid">
+                <ActionListItem icon="dashboard" tone="brand" title={t('overview')} meta={t('request_card_title')} onClick={() => setActiveTab('overview')} />
+                <ActionListItem icon="content" title={t('photos_video')} meta={String((selectedRequest.media || []).length || 0)} onClick={() => setActiveTab('media')} />
+                <ActionListItem icon="reports" title={t('history')} meta={t('service_updated')} onClick={() => setActiveTab('history')} />
+                <ActionListItem icon="content" title={t('notes')} meta={String((selectedRequest.notes || []).length || 0)} onClick={() => setActiveTab('notes')} />
+                {contactPhone ? (
+                  <a className="action-list__item service-detail-contact-link" data-tone="default" href={`tel:${contactPhone}`}>
+                    <span className="action-list__icon"><Icon name="clients" /></span>
+                    <span className="action-list__copy"><strong>{t('call_client')}</strong><small>{contactPhone}</small></span>
+                    <span className="action-list__chevron">›</span>
+                  </a>
+                ) : null}
+                {telegramUserId ? (
+                  <a className="action-list__item service-detail-contact-link" data-tone="default" href={`tg://user?id=${telegramUserId}`}>
+                    <span className="action-list__icon"><Icon name="bell" /></span>
+                    <span className="action-list__copy"><strong>{t('open_telegram')}</strong><small>Telegram</small></span>
+                    <span className="action-list__chevron">›</span>
+                  </a>
+                ) : null}
+              </div>
               <nav className="equipment-tabs">
                 {DETAIL_TABS.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tabLabels[tab]}</button>)}
               </nav>
@@ -1010,27 +1024,23 @@ export function AdminServicePage() {
                         <option value="">{t('choose_engineer')}</option>
                         {engineers.filter((eng) => eng.isActive).map((eng) => <option key={eng.id} value={eng.id}>{eng.fullName}</option>)}
                       </select>
-                      <ActionRail compact>
-                        <ActionRailButton tone="brand" disabled={Boolean(actionLoading)} onClick={submitAssignment}>{actionLoading === 'assign' ? t('saving') : t('save_assignment')}</ActionRailButton>
-                      </ActionRail>
+                      <ActionList compact>
+                        <ActionListItem icon="employees" tone="brand" title={actionLoading === 'assign' ? t('saving') : t('save_assignment')} meta={t('assign_engineer')} disabled={Boolean(actionLoading)} onClick={submitAssignment} />
+                      </ActionList>
                     </div>
                   ) : null}
 
                   <div className="detail-section-card">
                     <h4>{t('quick_actions')}</h4>
-                    <ActionRail>
+                    <ActionList compact>
                       {canDelete ? (
-                        <ActionRailButton tone="danger" disabled={Boolean(actionLoading)} onClick={() => runAction({ kind: 'delete', label: t('delete_service_request_card') })}>
-                          {t('delete_service_request_card')}
-                        </ActionRailButton>
+                        <ActionListItem icon="settings" tone="danger" title={t('delete_service_request_card')} meta={t('request_card_title')} disabled={Boolean(actionLoading)} onClick={() => runAction({ kind: 'delete', label: t('delete_service_request_card') })} />
                       ) : null}
                       {getRoleActions(selectedRequest, user, t).map((action) => (
-                        <ActionRailButton key={`${action.kind}-${action.status || action.label}`} tone={action.kind === 'claim' ? 'brand' : 'default'} disabled={Boolean(actionLoading)} onClick={() => runAction(action)}>
-                          {action.label}
-                        </ActionRailButton>
+                        <ActionListItem key={`${action.kind}-${action.status || action.label}`} icon="service" title={action.label} meta={t('current_service_status')} tone={action.kind === 'claim' ? 'brand' : 'default'} disabled={Boolean(actionLoading)} onClick={() => runAction(action)} />
                       ))}
                       {!getRoleActions(selectedRequest, user, t).length ? <p className="empty-copy">{t('no_role_actions')}</p> : null}
-                    </ActionRail>
+                    </ActionList>
                   </div>
                 </>
               ) : null}

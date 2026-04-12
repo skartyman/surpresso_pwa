@@ -85,6 +85,43 @@ export function ActionRailButton({
   );
 }
 
+export function ActionList({ children, compact = false, className = '' }) {
+  return (
+    <div className={`action-list ${compact ? 'action-list--compact' : ''} ${className}`.trim()}>
+      {children}
+    </div>
+  );
+}
+
+export function ActionListItem({
+  icon = 'dashboard',
+  title,
+  meta,
+  children,
+  tone = 'default',
+  disabled = false,
+  onClick,
+  className = '',
+}) {
+  return (
+    <button
+      type="button"
+      className={`action-list__item ${className}`.trim()}
+      data-tone={tone}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span className="action-list__icon"><Icon name={icon} /></span>
+      <span className="action-list__copy">
+        <strong>{title}</strong>
+        {meta ? <small>{meta}</small> : null}
+      </span>
+      {children ? <span className="action-list__extra">{children}</span> : null}
+      <span className="action-list__chevron">›</span>
+    </button>
+  );
+}
+
 export function CompactMetricCard({ label, value, progress, state = 'normal' }) {
   return (
     <article className="compact-metric" data-state={state}>

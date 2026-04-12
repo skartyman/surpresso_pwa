@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import { useAuth } from '../../auth/AuthContext';
 import { adminServiceApi } from '../api/adminServiceApi';
 import { useAdminI18n } from '../adminI18n';
-import { ActionRail, ActionRailButton, Icon, StatusBadge } from '../components/AdminUi';
+import { ActionList, ActionListItem, ActionRail, ActionRailButton, Icon, StatusBadge } from '../components/AdminUi';
 import { getAdminRoleProfile, ROLES } from '../roleConfig';
 import { getEquipmentCardCover, setEquipmentCardCover } from '../utils/equipmentCardCover';
 
@@ -664,21 +664,56 @@ function ActionPanel({
         <p>{t('equipment_actions_description')}</p>
       </header>
 
-      <ActionRail>
-        <ActionRailButton tone="brand" disabled={!activeCase?.id} onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}>
-          {t('open_active_case')}
-        </ActionRailButton>
-        <ActionRailButton onClick={() => navigateToBoard('service_flow', detail?.equipment?.id)}>{t('service_flow')}</ActionRailButton>
-        <ActionRailButton onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}>{t('service_board')}</ActionRailButton>
-        <ActionRailButton onClick={() => openPassportLink(getPrintLinkForEquipment(detail?.equipment || {}))}>
-          {getPrintLabelForEquipment(detail?.equipment || {}, {}, t)}
-        </ActionRailButton>
-        <ActionRailButton disabled={Boolean(actionLoading)} onClick={postToTelegram}>
-          {actionLoading === 'telegram' ? t('sending') : t('post_to_telegram')}
-        </ActionRailButton>
-        {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detail?.equipment?.id)}>{t('nav_director')}</ActionRailButton> : null}
-        {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)}>{t('sales')}</ActionRailButton> : null}
-      </ActionRail>
+      <div className="equipment-action-panel__groups">
+        <div className="equipment-action-panel__group">
+          <h5>{t('service_label')}</h5>
+          <ActionList compact>
+            <ActionListItem
+              icon="service"
+              tone="brand"
+              title={t('open_active_case')}
+              meta={activeCase?.id || t('active_case_not_found_upload')}
+              disabled={!activeCase?.id}
+              onClick={() => activeCase?.id && navigateToBoard('service_case', activeCase.id)}
+            />
+            <ActionListItem
+              icon="service"
+              title={t('service_board')}
+              meta={t('service_flow')}
+              onClick={() => navigateToBoard('service_board', detail?.equipment?.id)}
+            />
+          </ActionList>
+        </div>
+
+        <div className="equipment-action-panel__group">
+          <h5>{t('documents')}</h5>
+          <ActionList compact>
+            <ActionListItem
+              icon="content"
+              title={getPrintLabelForEquipment(detail?.equipment || {}, {}, t)}
+              meta={t('equipment_passport')}
+              onClick={() => openPassportLink(getPrintLinkForEquipment(detail?.equipment || {}))}
+            />
+            <ActionListItem
+              icon="reports"
+              title={actionLoading === 'telegram' ? t('sending') : t('post_to_telegram')}
+              meta="Telegram"
+              disabled={Boolean(actionLoading)}
+              onClick={postToTelegram}
+            />
+          </ActionList>
+        </div>
+
+        {canSeeCommercial ? (
+          <div className="equipment-action-panel__group">
+            <h5>{t('commerce')}</h5>
+            <ActionList compact>
+              <ActionListItem icon="dashboard" title={t('nav_director')} meta={t('director_board')} onClick={() => navigateToBoard('director_board', detail?.equipment?.id)} />
+              <ActionListItem icon="sales" title={t('sales')} meta={t('sales_board')} onClick={() => navigateToBoard('sales_board', detail?.equipment?.id)} />
+            </ActionList>
+          </div>
+        ) : null}
+      </div>
 
       {canUploadCaseMedia ? (
         <div className="equipment-action-panel__media">
@@ -705,36 +740,38 @@ function ActionPanel({
 
       <div className="equipment-action-panel__service">
         <h5>{t('quick_service_actions')}</h5>
-        <ActionRail>
+        <ActionList compact>
           {serviceActions.map((action) => (
-            <ActionRailButton
+            <ActionListItem
+              icon="service"
+              title={actionLoading === `service:${action.key}:${action.targetStatus || ''}` ? t('saving') : getServiceLabel(action.targetStatus, t)}
+              meta={t('current_service_status')}
               disabled={!activeCase?.id || Boolean(actionLoading)}
               key={action.key + action.targetStatus}
               onClick={() => applyServiceAction(action)}
-            >
-              {actionLoading === `service:${action.key}:${action.targetStatus || ''}` ? t('saving') : getServiceLabel(action.targetStatus, t)}
-            </ActionRailButton>
+            />
           ))}
           {!serviceActions.length ? <span className="empty-copy">{t('no_actions')}</span> : null}
-        </ActionRail>
+        </ActionList>
       </div>
 
       {canCommercialOperate ? (
         <div className="equipment-action-panel__commercial">
           <h5>{t('quick_commercial_actions')}</h5>
-          <ActionRail>
+          <ActionList compact>
             {commercialActions.map((action) => (
-              <ActionRailButton
+              <ActionListItem
+                icon="sales"
+                title={actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? t('saving') : action.label}
+                meta={t('current_commercial_status')}
                 disabled={Boolean(actionLoading)}
                 key={action.key + action.targetStatus}
                 tone={action.key.startsWith('reserve') ? 'brand' : 'default'}
                 onClick={() => applyCommercialAction(action)}
-              >
-                {actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? t('saving') : action.label}
-              </ActionRailButton>
+              />
             ))}
             {!commercialActions.length ? <span className="empty-copy">{t('no_actions')}</span> : null}
-          </ActionRail>
+          </ActionList>
         </div>
       ) : null}
 
@@ -944,13 +981,11 @@ function TabPanel({
               </StatusBadge>
             </header>
             <p>{t('legacy_passport_hint')}</p>
-            <ActionRail compact>
+            <ActionList compact>
               {legacyLinks.map((item) => (
-                <ActionRailButton key={item.key} onClick={() => openPassportLink(item.url)}>
-                  {item.label}
-                </ActionRailButton>
+                <ActionListItem key={item.key} icon="content" title={item.label} meta={t('legacy_passport_data')} onClick={() => openPassportLink(item.url)} />
               ))}
-            </ActionRail>
+            </ActionList>
           </article>
 
           <article className="detail-section-card equipment-passport-source-card">
@@ -1004,18 +1039,14 @@ function TabPanel({
               <p className="empty-copy">{t('specs_empty')}</p>
             )}
             {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl || equipment.qrUrl || legacyEquipment.qrUrl) ? (
-              <ActionRail compact>
+              <ActionList compact>
                 {(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl) ? (
-                  <ActionRailButton onClick={() => openPassportLink(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl)}>
-                    {t('open_pdf_passport')}
-                  </ActionRailButton>
+                  <ActionListItem icon="content" title={t('open_pdf_passport')} meta={t('equipment_passport')} onClick={() => openPassportLink(equipment.passportPdfUrl || legacyEquipment.passportPdfUrl)} />
                 ) : null}
                 {(equipment.qrUrl || legacyEquipment.qrUrl) ? (
-                  <ActionRailButton onClick={() => openPassportLink(equipment.qrUrl || legacyEquipment.qrUrl)}>
-                    {t('open_qr')}
-                  </ActionRailButton>
+                  <ActionListItem icon="equipment" title={t('open_qr')} meta="QR" onClick={() => openPassportLink(equipment.qrUrl || legacyEquipment.qrUrl)} />
                 ) : null}
-              </ActionRail>
+              </ActionList>
             ) : null}
           </article>
         </section>
@@ -1518,15 +1549,20 @@ export function AdminEquipmentPage() {
               t={t}
             />
             {canCreateEquipment ? (
-              <ActionRail compact className="equipment-board-intake-actions">
-                <ActionRailButton tone="brand" onClick={() => navigateToBoard('equipment_intake_client')}>
-                  {t('intake_client_equipment')}
-                </ActionRailButton>
-                <ActionRailButton onClick={() => navigateToBoard('equipment_intake_company')}>
-                  {t('intake_company_equipment')}
-                </ActionRailButton>
-                <ActionRailButton onClick={() => navigateToBoard('equipment_create')}>{t('add_equipment')}</ActionRailButton>
-              </ActionRail>
+              <div className="equipment-board-intake-actions">
+                <button type="button" className="equipment-board-intake-action" data-tone="brand" onClick={() => navigateToBoard('equipment_intake_client')}>
+                  <Icon name="clients" />
+                  <span><strong>{t('intake_client_equipment')}</strong><small>{t('client')}</small></span>
+                </button>
+                <button type="button" className="equipment-board-intake-action" onClick={() => navigateToBoard('equipment_intake_company')}>
+                  <Icon name="equipment" />
+                  <span><strong>{t('intake_company_equipment')}</strong><small>{t('owner_type')}</small></span>
+                </button>
+                <button type="button" className="equipment-board-intake-action" onClick={() => navigateToBoard('equipment_create')}>
+                  <Icon name="settings" />
+                  <span><strong>{t('add_equipment')}</strong><small>{t('equipment')}</small></span>
+                </button>
+              </div>
             ) : null}
           </div>
           <div className="equipment-ops-list equipment-ops-list--full equipment-board-shell">
@@ -1637,15 +1673,15 @@ export function AdminEquipmentPage() {
           </header>
 
           {detailEquipment ? (
-            <ActionRail className="equipment-ops-detail__hero-actions">
-              <ActionRailButton tone="brand" onClick={() => setActiveTab('overview')}>{t('overview')}</ActionRailButton>
-              <ActionRailButton onClick={() => setActiveTab('media')}>{t('photos_video')}</ActionRailButton>
-              <ActionRailButton disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)}>{t('active_service_case')}</ActionRailButton>
-              <ActionRailButton onClick={() => navigateToBoard('service_board', detailEquipment.id)}>{t('service_board')}</ActionRailButton>
-              {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('director_board', detailEquipment.id)}>{t('director_board')}</ActionRailButton> : null}
-              {canSeeCommercial ? <ActionRailButton onClick={() => navigateToBoard('sales_board', detailEquipment.id)}>{t('sales_board')}</ActionRailButton> : null}
-              {canDeleteEquipment ? <ActionRailButton tone="danger" onClick={removeEquipmentCard}>{t('delete_equipment_card')}</ActionRailButton> : null}
-            </ActionRail>
+            <div className="equipment-ops-detail__command-grid">
+              <ActionListItem icon="dashboard" tone="brand" title={t('overview')} meta={t('equipment_passport')} onClick={() => setActiveTab('overview')} />
+              <ActionListItem icon="content" title={t('photos_video')} meta={String(mediaRows.length || 0)} onClick={() => setActiveTab('media')} />
+              <ActionListItem icon="service" title={t('active_service_case')} meta={detailActiveCase?.id || t('active_case_not_found_upload')} disabled={!detailActiveCase?.id} onClick={() => detailActiveCase?.id && navigateToBoard('service_case', detailActiveCase.id)} />
+              <ActionListItem icon="service" title={t('service_board')} meta={t('service_label')} onClick={() => navigateToBoard('service_board', detailEquipment.id)} />
+              {canSeeCommercial ? <ActionListItem icon="dashboard" title={t('director_board')} meta={t('commerce')} onClick={() => navigateToBoard('director_board', detailEquipment.id)} /> : null}
+              {canSeeCommercial ? <ActionListItem icon="sales" title={t('sales_board')} meta={t('sales')} onClick={() => navigateToBoard('sales_board', detailEquipment.id)} /> : null}
+              {canDeleteEquipment ? <ActionListItem icon="settings" tone="danger" title={t('delete_equipment_card')} meta={t('equipment')} onClick={removeEquipmentCard} /> : null}
+            </div>
           ) : null}
 
           <div className="equipment-tabs">
