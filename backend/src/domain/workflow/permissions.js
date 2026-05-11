@@ -43,6 +43,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.serviceDashboardRead,
     PERMISSIONS.equipmentRead,
     PERMISSIONS.equipmentDelete,
+    PERMISSIONS.equipmentUpdateCommercial,
   ],
   [WORKFLOW_ROLES.director]: [
     PERMISSIONS.serviceCaseRead,

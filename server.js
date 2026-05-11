@@ -7,6 +7,7 @@ import crypto from "crypto";
 import {
   answerWithGemini,
   buildSources,
+  configureManualIndexRemoteStore,
   createManualIndex,
   ensureIndexDir,
   getIndexStatus,
@@ -250,6 +251,9 @@ function sanitizeManualFileName(value) {
 }
 
 function manualPublicMeta(item) {
+  const indexStatus = String(item.indexStatus || "").trim();
+  const chunksCount = Number(item.chunksCount || 0);
+  const pagesCount = Number(item.pagesCount || 0);
   return {
     id: item.id,
     title: item.title,
@@ -260,6 +264,11 @@ function manualPublicMeta(item) {
     mimeType: item.mimeType,
     size: item.size,
     uploadedAt: item.uploadedAt,
+    indexStatus,
+    indexUpdatedAt: item.indexUpdatedAt || null,
+    chunksCount,
+    pagesCount,
+    aiAvailable: indexStatus === "indexed" && chunksCount > 0,
   };
 }
 
@@ -336,6 +345,25 @@ async function gasPost(payload) {
   if (!json.ok) throw new Error(json.error || "GAS error");
   return json;
 }
+
+configureManualIndexRemoteStore({
+  async load(manualId) {
+    if (!manualId || !GAS_WEBAPP_URL || !GAS_SECRET) return null;
+    const out = await gasPost({ action: "indexGet", manualId });
+    return {
+      index: out.index || null,
+      metadata: out.metadata || null,
+    };
+  },
+  async save(manualId, index) {
+    if (!manualId || !GAS_WEBAPP_URL || !GAS_SECRET) return null;
+    return gasPost({ action: "indexSave", manualId, index });
+  },
+  async remove(manualId) {
+    if (!manualId || !GAS_WEBAPP_URL || !GAS_SECRET) return null;
+    return gasPost({ action: "indexDelete", manualId });
+  },
+});
 
 // =======================
 // HELPERS: Telegram send
@@ -572,6 +600,7 @@ function buildCaption(card) {
     caption =
       `🟢 Прийом від клієнта\n` +
       `🆔 ID: ${card.id || ""}\n` +
+      `🔧 Статус: ${card.status || "—"}\n` +
       `👤 Ім’я: ${card.clientName || ""}\n` +
       `📞 Телефон: ${card.clientPhone || ""}\n` +
       `📍 Локація: ${card.clientLocation || ""}\n` +
@@ -584,6 +613,7 @@ function buildCaption(card) {
     caption =
       `🔴 Обладнання компанії\n` +
       `🆔 ID: ${card.id || ""}\n` +
+      `🔧 Статус: ${card.status || "—"}\n` +
       `📍 Локація: ${card.companyLocation || ""}\n` +
       `🛠 Назва: ${card.name || ""}\n` +
       `🔢 Внутрішній №: ${card.internalNumber || ""}\n` +
@@ -609,8 +639,13 @@ function buildPassportLinkFromBase(baseUrl, id, { isPublic = false } = {}) {
 function extractDriveFileId(driveUrl) {
   if (!driveUrl) return "";
   const s = String(driveUrl);
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(s.trim())) return s.trim();
   if (s.includes("uc?export=view&id=")) {
     const m = s.match(/id=([^&]+)/i);
+    return m ? m[1] : "";
+  }
+  if (s.includes("thumbnail")) {
+    const m = s.match(/[?&]id=([^&]+)/i);
     return m ? m[1] : "";
   }
   if (s.includes("/file/d/")) {
@@ -970,7 +1005,7 @@ app.post("/send-equipment", requirePwaKey, async (req, res) => {
 
     if (!payloadCard.status) {
       payloadCard.status = payloadCard.owner === "company"
-        ? "Приехало после аренды"
+        ? "Купили"
         : "Прийнято на ремонт";
     }
 
@@ -1145,6 +1180,91 @@ app.post("/api/equip/:id/specs", requirePwaKey, async (req, res) => {
 });
 
 // ✅ изменить статус + Telegram (при нужных статусах)
+app.post("/api/equip/:id/owner", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const {
+      owner = "",
+      actor = "",
+      clientName = "",
+      clientPhone = "",
+      clientLocation = "",
+      model = "",
+      serial = "",
+      companyLocation = "",
+      name = "",
+      internalNumber = "",
+      comment = "",
+      isContract = false,
+    } = req.body || {};
+
+    const newOwner = String(owner || "").trim();
+    if (!id) return res.status(400).send({ ok: false, error: "missing_id" });
+    if (!["client", "company"].includes(newOwner)) {
+      return res.status(400).send({ ok: false, error: "bad_owner" });
+    }
+
+    const before = await gasPost({ action: "get", id });
+    if (!before?.ok || !before?.equipment) {
+      return res.status(404).send({ ok: false, error: "equipment_not_found" });
+    }
+
+    const eq = before.equipment || {};
+    const merged = {
+      ...eq,
+      id,
+      owner: newOwner,
+      isContract: Boolean(isContract),
+      clientName: String(clientName || eq.clientName || "").trim(),
+      clientPhone: String(clientPhone || eq.clientPhone || "").trim(),
+      clientLocation: String(clientLocation || eq.clientLocation || eq.companyLocation || "").trim(),
+      model: String(model || eq.model || eq.name || "").trim(),
+      serial: String(serial || eq.serial || id || "").trim(),
+      companyLocation: String(companyLocation || eq.companyLocation || eq.clientLocation || "").trim(),
+      name: String(name || eq.name || eq.model || "").trim(),
+      internalNumber: String(internalNumber || eq.internalNumber || id || "").trim(),
+      comment: String(comment || "").trim(),
+      status: newOwner === "company" ? "Купили" : "Прийнято на ремонт",
+      actor: String(actor || "").trim(),
+    };
+
+    if (newOwner === "client" && (!merged.clientName || !merged.clientPhone)) {
+      return res.status(400).send({ ok: false, error: "client_fields_required" });
+    }
+    if (newOwner === "company" && (!merged.companyLocation || !merged.name || !merged.internalNumber)) {
+      return res.status(400).send({ ok: false, error: "company_fields_required" });
+    }
+
+    console.log("[owner-transfer]", {
+      id,
+      from: eq.owner || "",
+      to: newOwner,
+      internalNumber: merged.internalNumber,
+      name: merged.name,
+      companyLocation: merged.companyLocation,
+    });
+
+    const out = await gasPost({ action: "create", card: merged });
+    if (!out?.ok) {
+      console.error("[owner-transfer] GAS create failed", out);
+      return res.status(500).send({ ok: false, error: out?.error || "owner_update_failed" });
+    }
+
+    await gasPost({
+      action: "status",
+      id,
+      newStatus: merged.status,
+      comment: merged.comment || `Переведено на ${newOwner === "company" ? "оборудование компании" : "клиента"}`,
+      actor: merged.actor,
+    });
+
+    res.send({ ok: true, ...out, owner: newOwner, status: merged.status, equipment: merged });
+  } catch (e) {
+    console.error("[owner-transfer] failed", e);
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
 app.post("/api/equip/:id/status", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -1335,12 +1455,17 @@ app.post("/api/equip/:id/approval", requirePwaKey, async (req, res) => {
 app.get("/proxy-drive/:fileId", async (req, res) => {
   const { fileId } = req.params;
   try {
-    const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    const url = `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1600`;
     const response = await fetch(url);
     if (!response.ok) throw new Error("Drive error");
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      throw new Error(`Drive returned ${contentType || "non-image"}`);
+    }
+
+    res.set("Content-Type", contentType);
     res.set("Cache-Control", "public, max-age=3600");
     res.send(buffer);
   } catch (err) {
@@ -1497,7 +1622,7 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
     if (!card?.id) return res.status(400).send({ ok: false, error: "no_id" });
 
     if (!card.status) {
-      card.status = card.owner === "company" ? "Приехало после аренды" : "Прийнято на ремонт";
+      card.status = card.owner === "company" ? "Купили" : "Прийнято на ремонт";
     }
 
     const out = await gasPost({ action: "create", card });
@@ -1511,6 +1636,8 @@ app.post("/api/equip/create", requirePwaKey, async (req, res) => {
         caption: `Фото ${i + 1}`,
       });
     }
+
+    await tgSendPhotos(photos, buildCaption(card));
 
     res.send({ ok: true, registry: out, photosUploaded: photos.length });
   } catch (e) {

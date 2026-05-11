@@ -64,6 +64,7 @@ export function createApiRouter(deps) {
     uploadsRoot: deps.uploadsRoot,
     equipmentRepository: deps.equipmentRepository,
     clientRepository: deps.clientRepository,
+    serviceOpsRepository: deps.serviceOpsRepository,
     serviceRequestEvents: deps.serviceRequestEvents,
   });
   const adminServiceOpsController = createAdminServiceOpsController(deps.serviceOpsRepository, {
@@ -136,6 +137,12 @@ export function createApiRouter(deps) {
   router.delete('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.deleteEquipment));
   router.post('/admin/intake', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.intakeCreate));
   router.get('/admin/equipment/dashboard', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentDashboard));
+  router.get('/admin/clients', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.listClients));
+  router.post('/admin/clients', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.createClient));
+  router.post('/admin/clients/:id/equipment/link', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.linkClientEquipment));
+  router.patch('/admin/clients/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateClient));
+  router.delete('/admin/clients/:id', asyncHandler(adminAuth), requireRole(['service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.deleteClient));
+  router.get('/admin/clients/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.clientById));
   router.get('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentById));
   router.patch('/admin/equipment/:id', asyncHandler(adminAuth), requireRole(['manager', 'service_head', 'owner', 'director']), asyncHandler(adminServiceOpsController.updateEquipment));
   router.get('/admin/equipment/:id/detail', asyncHandler(adminAuth), requireRole(['manager', 'service_engineer', 'service_head', 'sales_manager', 'owner', 'director']), asyncHandler(adminServiceOpsController.equipmentDetail));

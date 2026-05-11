@@ -78,9 +78,78 @@ function mapEquipment(item) {
   if (!item) return null;
   return {
     ...item,
+    clientName: item.clientName || item.client?.companyName || null,
+    clientPhone: item.clientPhone || item.client?.phone || null,
+    locationName: item.location?.name || item.clientLocation || item.companyLocation || null,
+    address: item.location?.address || item.clientLocation || item.companyLocation || null,
+    networkName: item.network?.name || null,
     createdAt: item.createdAt?.toISOString?.() || item.createdAt,
     updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
   };
+}
+
+function mapPlacementHistory(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    startedAt: item.startedAt?.toISOString?.() || item.startedAt,
+    endedAt: item.endedAt?.toISOString?.() || item.endedAt || null,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    client: item.client ? {
+      id: item.client.id,
+      companyName: item.client.companyName,
+      contactName: item.client.contactName,
+      phone: item.client.phone,
+    } : null,
+    location: item.location ? {
+      id: item.location.id,
+      name: item.location.name,
+      address: item.location.address,
+      city: item.location.city,
+    } : null,
+    changedByUser: item.changedByUser ? {
+      id: item.changedByUser.id,
+      fullName: item.changedByUser.fullName,
+      role: item.changedByUser.role,
+    } : null,
+  };
+}
+
+function mapClientSummary(item) {
+  if (!item) return null;
+  const locations = (item.equipment || []).reduce((acc, equipment) => {
+    const location = equipment.location;
+    const key = location?.id || equipment.locationId || equipment.clientLocation || equipment.companyLocation || 'none';
+    if (!acc.has(key)) {
+      acc.set(key, {
+        id: location?.id || equipment.locationId || null,
+        name: location?.name || equipment.clientLocation || equipment.companyLocation || 'Без точки',
+        address: location?.address || equipment.clientLocation || equipment.companyLocation || '',
+        equipmentCount: 0,
+      });
+    }
+    acc.get(key).equipmentCount += 1;
+    return acc;
+  }, new Map());
+  return {
+    id: item.id,
+    companyName: item.companyName,
+    contactName: item.contactName,
+    phone: item.phone,
+    isActive: item.isActive,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    equipmentCount: item._count?.equipment ?? item.equipment?.length ?? 0,
+    requestCount: item._count?.serviceRequests ?? 0,
+    locations: Array.from(locations.values()),
+  };
+}
+
+function getPlacementLabel({ client, location, fallback = 'Surpresso' } = {}) {
+  const clientName = client?.companyName || '';
+  const locationName = location?.name || '';
+  if (clientName && locationName && clientName !== locationName) return `${clientName} · ${locationName}`;
+  return clientName || locationName || fallback;
 }
 
 function mapCase(item) {
@@ -745,23 +814,213 @@ export class NeonServiceOpsRepository {
   }
 
   async updateEquipmentById(id, patch = {}) {
-    const row = await this.prisma.equipment.update({
-      where: { id },
-      data: {
-        ...(patch.brand !== undefined ? { brand: patch.brand || '' } : {}),
-        ...(patch.model !== undefined ? { model: patch.model || null } : {}),
-        ...(patch.serial !== undefined ? { serial: patch.serial || null } : {}),
-        ...(patch.internalNumber !== undefined ? { internalNumber: patch.internalNumber || null } : {}),
-        ...(patch.clientName !== undefined ? { clientName: patch.clientName || null } : {}),
-        ...(patch.clientPhone !== undefined ? { clientPhone: patch.clientPhone || null } : {}),
-        ...(patch.clientLocation !== undefined ? { clientLocation: patch.clientLocation || null } : {}),
-        ...(patch.companyLocation !== undefined ? { companyLocation: patch.companyLocation || null } : {}),
-        ...(patch.ownerType !== undefined ? { ownerType: patch.ownerType || null } : {}),
-        ...(patch.equipmentType !== undefined ? { equipmentType: patch.equipmentType || null } : {}),
-        ...(patch.name !== undefined ? { name: patch.name || null } : {}),
-      },
+    const current = await this.prisma.equipment.findUnique({ where: { id } });
+    const row = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.equipment.update({
+        where: { id },
+        data: {
+          ...(patch.brand !== undefined ? { brand: patch.brand || '' } : {}),
+          ...(patch.model !== undefined ? { model: patch.model || null } : {}),
+          ...(patch.serial !== undefined ? { serial: patch.serial || null } : {}),
+          ...(patch.internalNumber !== undefined ? { internalNumber: patch.internalNumber || null } : {}),
+          ...(patch.clientName !== undefined ? { clientName: patch.clientName || null } : {}),
+          ...(patch.clientPhone !== undefined ? { clientPhone: patch.clientPhone || null } : {}),
+          ...(patch.clientLocation !== undefined ? { clientLocation: patch.clientLocation || null } : {}),
+          ...(patch.companyLocation !== undefined ? { companyLocation: patch.companyLocation || null } : {}),
+          ...(patch.ownerType !== undefined ? { ownerType: patch.ownerType || null } : {}),
+          ...(patch.equipmentType !== undefined ? { equipmentType: patch.equipmentType || null } : {}),
+          ...(patch.name !== undefined ? { name: patch.name || null } : {}),
+          ...(patch.clientId !== undefined ? { clientId: patch.clientId || null } : {}),
+          ...(patch.networkId !== undefined ? { networkId: patch.networkId || null } : {}),
+          ...(patch.locationId !== undefined ? { locationId: patch.locationId || null } : {}),
+          ...(patch.currentPlacement !== undefined ? { currentPlacement: patch.currentPlacement || null } : {}),
+        },
+        include: { client: true, location: true, network: true },
+      });
+      const placementChanged = current && (
+        current.clientId !== updated.clientId
+        || current.locationId !== updated.locationId
+        || current.ownerType !== updated.ownerType
+        || current.currentPlacement !== updated.currentPlacement
+      );
+      if (placementChanged) {
+        await this.recordEquipmentPlacement(tx, updated, {
+          changedByUserId: patch.changedByUserId || null,
+          comment: patch.comment || 'Equipment placement updated',
+        });
+      }
+      return updated;
     });
     return mapEquipment(row);
+  }
+
+  async ensureSurpressoContext(tx = this.prisma) {
+    const client = await tx.client.upsert({
+      where: { id: 'client-surpresso' },
+      update: { companyName: 'Surpresso', contactName: 'Surpresso', isActive: true },
+      create: {
+        id: 'client-surpresso',
+        telegramUserId: 'surpresso-company',
+        companyName: 'Surpresso',
+        contactName: 'Surpresso',
+        phone: '',
+        isActive: true,
+      },
+    });
+    const network = await tx.network.upsert({
+      where: { id: 'network-surpresso' },
+      update: { name: 'Surpresso', legalName: 'Surpresso', isActive: true },
+      create: {
+        id: 'network-surpresso',
+        name: 'Surpresso',
+        legalName: 'Surpresso',
+        isActive: true,
+      },
+    });
+    const location = await tx.location.upsert({
+      where: { id: 'location-surpresso-workshop' },
+      update: { networkId: network.id, name: 'Surpresso', address: 'Surpresso', isActive: true },
+      create: {
+        id: 'location-surpresso-workshop',
+        networkId: network.id,
+        code: 'SURPRESSO',
+        name: 'Surpresso',
+        address: 'Surpresso',
+        isActive: true,
+      },
+    });
+    return { client, network, location };
+  }
+
+  async ensureEquipmentClientContext(tx, payload = {}) {
+    if (payload.clientId && payload.locationId) {
+      const [client, location] = await Promise.all([
+        tx.client.findUnique({ where: { id: payload.clientId } }),
+        tx.location.findUnique({ where: { id: payload.locationId }, include: { network: true } }),
+      ]);
+      if (client && location) return { client, network: location.network, location };
+    }
+
+    if (payload.ownerType === 'client') {
+      const companyName = String(payload.clientName || payload.companyName || '').trim();
+      const phone = String(payload.clientPhone || payload.phone || '').trim();
+      const locationName = String(payload.locationName || payload.clientLocation || payload.locationAddress || '').trim();
+      if (!companyName || !locationName) throw new Error('client_location_required');
+
+      const client = await tx.client.create({
+        data: {
+          id: `client-equipment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          telegramUserId: `equipment-manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          companyName,
+          contactName: String(payload.contactName || companyName).trim(),
+          phone,
+          isActive: true,
+        },
+      });
+      const network = await tx.network.create({
+        data: {
+          id: `network-equipment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          name: companyName,
+          legalName: companyName,
+          isActive: true,
+        },
+      });
+      const location = await tx.location.create({
+        data: {
+          id: `location-equipment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          networkId: network.id,
+          name: locationName,
+          address: String(payload.locationAddress || payload.clientLocation || '').trim() || null,
+          isActive: true,
+        },
+      });
+      return { client, network, location };
+    }
+
+    return this.ensureSurpressoContext(tx);
+  }
+
+  async recordEquipmentPlacement(tx, equipment, meta = {}) {
+    const startedAt = meta.startedAt ? new Date(meta.startedAt) : new Date();
+    await tx.equipmentPlacementHistory.updateMany({
+      where: { equipmentId: equipment.id, endedAt: null },
+      data: { endedAt: startedAt },
+    });
+    await tx.equipmentPlacementHistory.create({
+      data: {
+        id: `eph-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        equipmentId: equipment.id,
+        clientId: equipment.clientId || null,
+        locationId: equipment.locationId || null,
+        serviceRequestId: meta.serviceRequestId || null,
+        ownerType: equipment.ownerType || 'company',
+        placement: equipment.currentPlacement || (equipment.ownerType === 'client' ? 'at_location' : 'workshop'),
+        label: meta.label || getPlacementLabel({ client: equipment.client, location: equipment.location, fallback: equipment.companyLocation || equipment.clientName || 'Surpresso' }),
+        startedAt,
+        changedByUserId: meta.changedByUserId || null,
+        comment: meta.comment || null,
+      },
+    });
+  }
+
+  async moveEquipmentToRequestLocation(equipmentId, { clientId, locationId, serviceRequestId, changedByUserId, comment } = {}) {
+    if (!equipmentId || !clientId || !locationId) return null;
+    return this.prisma.$transaction(async (tx) => {
+      const [client, location] = await Promise.all([
+        tx.client.findUnique({ where: { id: clientId } }),
+        tx.location.findUnique({ where: { id: locationId }, include: { network: true } }),
+      ]);
+      if (!client || !location) return null;
+      const updated = await tx.equipment.update({
+        where: { id: equipmentId },
+        data: {
+          clientId: client.id,
+          networkId: location.networkId,
+          locationId: location.id,
+          ownerType: 'client',
+          currentPlacement: 'at_location',
+          clientName: client.companyName,
+          clientPhone: client.phone,
+          clientLocation: location.address || location.name,
+          companyLocation: null,
+        },
+        include: { client: true, location: true, network: true },
+      });
+      await this.recordEquipmentPlacement(tx, updated, {
+        serviceRequestId,
+        changedByUserId,
+        comment: comment || 'Mounted to client location',
+      });
+      return mapEquipment(updated);
+    });
+  }
+
+  async moveEquipmentToSurpresso(equipmentId, { serviceRequestId, changedByUserId, comment } = {}) {
+    if (!equipmentId) return null;
+    return this.prisma.$transaction(async (tx) => {
+      const context = await this.ensureSurpressoContext(tx);
+      const updated = await tx.equipment.update({
+        where: { id: equipmentId },
+        data: {
+          clientId: context.client.id,
+          networkId: context.network.id,
+          locationId: context.location.id,
+          ownerType: 'company',
+          currentPlacement: 'workshop',
+          clientName: 'Surpresso',
+          clientPhone: '',
+          clientLocation: null,
+          companyLocation: 'Surpresso',
+        },
+        include: { client: true, location: true, network: true },
+      });
+      await this.recordEquipmentPlacement(tx, updated, {
+        serviceRequestId,
+        changedByUserId,
+        comment: comment || 'Returned to Surpresso',
+      });
+      return mapEquipment(updated);
+    });
   }
 
   async addEquipmentComment(equipmentId, payload = {}) {
@@ -831,9 +1090,15 @@ export class NeonServiceOpsRepository {
 
   async createEquipmentWithIntake(payload = {}) {
     return this.prisma.$transaction(async (tx) => {
+      const context = await this.ensureEquipmentClientContext(tx, payload);
+      const ownerType = payload.ownerType || 'company';
+      const currentPlacement = ownerType === 'client' ? 'at_location' : 'workshop';
       const equipment = await tx.equipment.create({
         data: {
           id: payload.equipmentId || `eq-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          clientId: context.client.id,
+          networkId: context.network.id,
+          locationId: context.location.id,
           type: payload.type || 'service',
           brand: payload.brand || 'Unknown',
           model: payload.model || null,
@@ -841,15 +1106,16 @@ export class NeonServiceOpsRepository {
           serial: payload.serial || null,
           internalNumber: payload.internalNumber || null,
           status: payload.status || 'accepted',
-          ownerType: payload.ownerType || null,
+          ownerType,
           equipmentType: payload.equipmentType || null,
           serviceStatus: payload.serviceStatus || 'accepted',
           commercialStatus: payload.commercialStatus || null,
           currentStatusRaw: payload.serviceStatus || 'accepted',
-          clientName: payload.clientName || null,
-          clientPhone: payload.clientPhone || null,
-          clientLocation: payload.clientLocation || null,
-          companyLocation: payload.companyLocation || null,
+          currentPlacement,
+          clientName: ownerType === 'client' ? context.client.companyName : 'Surpresso',
+          clientPhone: ownerType === 'client' ? context.client.phone : '',
+          clientLocation: ownerType === 'client' ? (context.location.address || context.location.name) : null,
+          companyLocation: ownerType === 'company' ? 'Surpresso' : null,
           lastComment: payload.problemDescription || payload.intakeComment || null,
         },
       });
@@ -888,29 +1154,55 @@ export class NeonServiceOpsRepository {
         },
       });
 
+      await this.recordEquipmentPlacement(tx, {
+        ...equipment,
+        client: context.client,
+        location: context.location,
+      }, {
+        changedByUserId: payload.changedByUserId || null,
+        comment: payload.problemDescription || payload.intakeComment || 'Initial placement',
+      });
+
       return { equipment: mapEquipment(equipment), serviceCase: mapCase(serviceCase) };
     });
   }
 
   async createEquipmentCard(payload = {}) {
-    const row = await this.prisma.equipment.create({
-      data: {
-        id: payload.equipmentId || `eq-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        type: payload.type || 'service',
-        brand: payload.brand || 'Unknown',
-        model: payload.model || null,
-        name: payload.name || null,
-        serial: payload.serial || null,
-        internalNumber: payload.internalNumber || null,
-        status: payload.status || 'registered',
-        ownerType: payload.ownerType || null,
-        equipmentType: payload.equipmentType || null,
-        serviceStatus: payload.serviceStatus || null,
-        commercialStatus: payload.commercialStatus || null,
-        currentStatusRaw: payload.currentStatusRaw || payload.serviceStatus || 'registered',
-        clientName: payload.clientName || null,
-        clientPhone: payload.clientPhone || null,
-      },
+    const row = await this.prisma.$transaction(async (tx) => {
+      const context = await this.ensureEquipmentClientContext(tx, payload);
+      const ownerType = payload.ownerType || 'company';
+      const currentPlacement = ownerType === 'client' ? 'at_location' : 'workshop';
+      const equipment = await tx.equipment.create({
+        data: {
+          id: payload.equipmentId || `eq-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          clientId: context.client.id,
+          networkId: context.network.id,
+          locationId: context.location.id,
+          type: payload.type || 'service',
+          brand: payload.brand || 'Unknown',
+          model: payload.model || null,
+          name: payload.name || null,
+          serial: payload.serial || null,
+          internalNumber: payload.internalNumber || null,
+          status: payload.status || 'registered',
+          ownerType,
+          equipmentType: payload.equipmentType || null,
+          serviceStatus: payload.serviceStatus || null,
+          commercialStatus: payload.commercialStatus || null,
+          currentStatusRaw: payload.currentStatusRaw || payload.serviceStatus || 'registered',
+          currentPlacement,
+          clientName: ownerType === 'client' ? context.client.companyName : 'Surpresso',
+          clientPhone: ownerType === 'client' ? context.client.phone : '',
+          clientLocation: ownerType === 'client' ? (context.location.address || context.location.name) : null,
+          companyLocation: ownerType === 'company' ? 'Surpresso' : null,
+        },
+        include: { client: true, location: true, network: true },
+      });
+      await this.recordEquipmentPlacement(tx, equipment, {
+        changedByUserId: payload.changedByUserId || null,
+        comment: payload.comment || 'Equipment card created',
+      });
+      return equipment;
     });
     return mapEquipment(row);
   }
@@ -988,6 +1280,7 @@ export class NeonServiceOpsRepository {
   }
 
   async listEquipment(filters = {}) {
+    const search = String(filters.search || filters.q || '').trim();
     const rows = await this.prisma.equipment.findMany({
       where: {
         ...(filters.ownerType ? { ownerType: filters.ownerType } : {}),
@@ -995,7 +1288,21 @@ export class NeonServiceOpsRepository {
         ...(filters.equipmentType ? { equipmentType: filters.equipmentType } : {}),
         ...(filters.serviceStatus ? { serviceStatus: filters.serviceStatus } : {}),
         ...(filters.commercialStatus ? { commercialStatus: filters.commercialStatus } : {}),
+        ...(search ? {
+          OR: [
+            { id: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { brand: { contains: search, mode: 'insensitive' } },
+            { model: { contains: search, mode: 'insensitive' } },
+            { serial: { contains: search, mode: 'insensitive' } },
+            { internalNumber: { contains: search, mode: 'insensitive' } },
+            { clientName: { contains: search, mode: 'insensitive' } },
+            { clientLocation: { contains: search, mode: 'insensitive' } },
+            { companyLocation: { contains: search, mode: 'insensitive' } },
+          ],
+        } : {}),
       },
+      include: { client: true, location: true, network: true },
       orderBy: { updatedAt: 'desc' },
     });
 
@@ -1056,15 +1363,251 @@ export class NeonServiceOpsRepository {
   }
 
   async getEquipmentById(id) {
-    const row = await this.prisma.equipment.findUnique({ where: { id } });
+    const row = await this.prisma.equipment.findUnique({ where: { id }, include: { client: true, location: true, network: true } });
     return mapEquipment(row);
   }
 
+  async listClients(filters = {}) {
+    const search = String(filters.search || filters.q || '').trim();
+    const rows = await this.prisma.client.findMany({
+      where: search
+        ? {
+            OR: [
+              { companyName: { contains: search, mode: 'insensitive' } },
+              { contactName: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+              { equipment: { some: { OR: [
+                { brand: { contains: search, mode: 'insensitive' } },
+                { model: { contains: search, mode: 'insensitive' } },
+                { serial: { contains: search, mode: 'insensitive' } },
+                { internalNumber: { contains: search, mode: 'insensitive' } },
+              ] } } },
+            ],
+          }
+        : undefined,
+      include: {
+        equipment: { include: { location: true }, orderBy: { updatedAt: 'desc' } },
+        _count: { select: { equipment: true, serviceRequests: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return rows.map(mapClientSummary);
+  }
+
+  async getClientDetail(id) {
+    const row = await this.prisma.client.findUnique({
+      where: { id },
+      include: {
+        equipment: { include: { location: true, network: true }, orderBy: { updatedAt: 'desc' } },
+        serviceRequests: { orderBy: { updatedAt: 'desc' }, take: 20 },
+        _count: { select: { equipment: true, serviceRequests: true } },
+      },
+    });
+    if (!row) return null;
+    return {
+      ...mapClientSummary(row),
+      equipment: row.equipment.map(mapEquipment),
+      serviceRequests: row.serviceRequests.map((request) => ({
+        id: request.id,
+        title: request.title,
+        description: request.description,
+        status: request.status,
+        urgency: request.urgency,
+        createdAt: request.createdAt?.toISOString?.() || request.createdAt,
+        updatedAt: request.updatedAt?.toISOString?.() || request.updatedAt,
+      })),
+    };
+  }
+
+  async createClientWithLocation(payload = {}) {
+    const companyName = String(payload.companyName || '').trim();
+    if (!companyName) throw new Error('company_name_required');
+    const contactName = String(payload.contactName || '').trim() || companyName;
+    const phone = String(payload.phone || '').trim();
+    const locationName = String(payload.locationName || '').trim();
+    const locationAddress = String(payload.locationAddress || '').trim();
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const client = await tx.client.create({
+        data: {
+          id: `client-admin-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          telegramUserId: `admin-client-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          companyName,
+          contactName,
+          phone,
+          isActive: true,
+        },
+      });
+      let location = null;
+      if (locationName || locationAddress) {
+        const network = await tx.network.create({
+          data: {
+            id: `network-admin-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            name: companyName,
+            legalName: companyName,
+            isActive: true,
+          },
+        });
+        location = await tx.location.create({
+          data: {
+            id: `location-admin-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            networkId: network.id,
+            name: locationName || companyName,
+            address: locationAddress || null,
+            isActive: true,
+          },
+        });
+      }
+      return { client, location };
+    });
+    return { client: mapClientSummary({ ...created.client, equipment: [], _count: { equipment: 0, serviceRequests: 0 } }), location: created.location };
+  }
+
+  async updateClientWithLocation(id, payload = {}) {
+    const companyName = payload.companyName !== undefined ? String(payload.companyName || '').trim() : undefined;
+    const contactName = payload.contactName !== undefined ? String(payload.contactName || '').trim() : undefined;
+    const phone = payload.phone !== undefined ? String(payload.phone || '').trim() : undefined;
+    const locationId = String(payload.locationId || '').trim();
+    const locationName = payload.locationName !== undefined ? String(payload.locationName || '').trim() : undefined;
+    const locationAddress = payload.locationAddress !== undefined ? String(payload.locationAddress || '').trim() : undefined;
+    if (companyName !== undefined && !companyName) throw new Error('company_name_required');
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.client.findUnique({ where: { id } });
+      if (!existing) throw new Error('client_not_found');
+      const nextCompanyName = companyName ?? existing.companyName;
+      const nextPhone = phone ?? existing.phone;
+
+      await tx.client.update({
+        where: { id },
+        data: {
+          ...(companyName !== undefined ? { companyName } : {}),
+          ...(contactName !== undefined ? { contactName: contactName || nextCompanyName } : {}),
+          ...(phone !== undefined ? { phone } : {}),
+        },
+      });
+
+      await tx.equipment.updateMany({
+        where: { clientId: id },
+        data: {
+          clientName: nextCompanyName,
+          clientPhone: nextPhone,
+        },
+      });
+
+      if (locationId) {
+        const updatedLocation = await tx.location.update({
+          where: { id: locationId },
+          data: {
+            ...(locationName !== undefined ? { name: locationName || nextCompanyName } : {}),
+            ...(locationAddress !== undefined ? { address: locationAddress || null } : {}),
+          },
+        });
+        await tx.equipment.updateMany({
+          where: { clientId: id, locationId },
+          data: {
+            clientLocation: updatedLocation.address || updatedLocation.name,
+          },
+        });
+      }
+    });
+
+    return this.getClientDetail(id);
+  }
+
+  async deleteClientById(id) {
+    const row = await this.prisma.client.findUnique({
+      where: { id },
+      include: { _count: { select: { equipment: true, serviceRequests: true } } },
+    });
+    if (!row) return null;
+    if ((row._count?.equipment || 0) > 0 || (row._count?.serviceRequests || 0) > 0) {
+      throw new Error('client_has_links');
+    }
+    await this.prisma.client.delete({ where: { id } });
+    return mapClientSummary({ ...row, equipment: [], _count: row._count });
+  }
+
+  async linkEquipmentToClient(clientId, payload = {}) {
+    const equipmentId = String(payload.equipmentId || '').trim();
+    if (!clientId) throw new Error('client_required');
+    if (!equipmentId) throw new Error('equipment_required');
+
+    return this.prisma.$transaction(async (tx) => {
+      const [client, equipment] = await Promise.all([
+        tx.client.findUnique({ where: { id: clientId } }),
+        tx.equipment.findUnique({ where: { id: equipmentId } }),
+      ]);
+      if (!client) throw new Error('client_not_found');
+      if (!equipment) throw new Error('equipment_not_found');
+
+      let location = null;
+      const locationId = String(payload.locationId || '').trim();
+      if (locationId) {
+        location = await tx.location.findUnique({ where: { id: locationId }, include: { network: true } });
+        if (!location) throw new Error('location_not_found');
+      }
+
+      if (!location) {
+        const locationName = String(payload.locationName || payload.locationAddress || client.companyName || '').trim();
+        const locationAddress = String(payload.locationAddress || '').trim();
+        const existingNetworkId = payload.networkId
+          || equipment.networkId
+          || (await tx.equipment.findFirst({ where: { clientId }, select: { networkId: true } }))?.networkId
+          || null;
+        const network = existingNetworkId
+          ? await tx.network.findUnique({ where: { id: existingNetworkId } })
+          : await tx.network.create({
+              data: {
+                id: `network-client-link-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                name: client.companyName,
+                legalName: client.companyName,
+                isActive: true,
+              },
+            });
+        if (!network) throw new Error('network_not_found');
+        location = await tx.location.create({
+          data: {
+            id: `location-client-link-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            networkId: network.id,
+            name: locationName || client.companyName,
+            address: locationAddress || null,
+            isActive: true,
+          },
+          include: { network: true },
+        });
+      }
+
+      const updated = await tx.equipment.update({
+        where: { id: equipment.id },
+        data: {
+          clientId: client.id,
+          networkId: location.networkId,
+          locationId: location.id,
+          ownerType: 'client',
+          currentPlacement: 'at_location',
+          clientName: client.companyName,
+          clientPhone: client.phone,
+          clientLocation: location.address || location.name,
+          companyLocation: null,
+        },
+        include: { client: true, location: true, network: true },
+      });
+
+      await this.recordEquipmentPlacement(tx, updated, {
+        changedByUserId: payload.changedByUserId || null,
+        comment: payload.comment || 'Equipment linked to client card',
+      });
+
+      return mapEquipment(updated);
+    });
+  }
+
   async getEquipmentDetail(id) {
-    const equipmentRow = await this.prisma.equipment.findUnique({ where: { id } });
+    const equipmentRow = await this.prisma.equipment.findUnique({ where: { id }, include: { client: true, location: true, network: true } });
     if (!equipmentRow) return null;
 
-    const [serviceCasesRows, mediaRows, historyRows, notesRows, commentsRows, equipmentNotesRows, tasksRows, serviceRequestsRows] = await Promise.all([
+    const [serviceCasesRows, mediaRows, historyRows, placementHistoryRows, notesRows, commentsRows, equipmentNotesRows, tasksRows, serviceRequestsRows] = await Promise.all([
       this.prisma.serviceCase.findMany({
         where: { equipmentId: id },
         include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
@@ -1084,6 +1627,11 @@ export class NeonServiceOpsRepository {
         where: { equipmentId: id },
         include: { changedByUser: true },
         orderBy: { changedAt: 'asc' },
+      }),
+      this.prisma.equipmentPlacementHistory.findMany({
+        where: { equipmentId: id },
+        include: { client: true, location: true, changedByUser: true },
+        orderBy: { startedAt: 'desc' },
       }),
       this.prisma.serviceCaseNote.findMany({
         where: { serviceCase: { equipmentId: id } },
@@ -1151,6 +1699,7 @@ export class NeonServiceOpsRepository {
       equipment: mapEquipment(equipmentRow),
       media: mediaRows.map(mapMedia),
       history,
+      placementHistory: placementHistoryRows.map(mapPlacementHistory),
       serviceCases,
       notes: notesRows.map((row) => ({ ...mapNote(row), serviceCaseId: row.serviceCaseId })),
       comments: commentsRows.map(mapEquipmentComment),
@@ -1275,6 +1824,9 @@ export class InMemoryServiceOpsRepository {
   async updateServiceTaskStatus() { return null; }
   async createEquipmentWithIntake() { return { equipment: null, serviceCase: null }; }
   async createEquipmentCard() { return null; }
+  async updateClientWithLocation() { return null; }
+  async deleteClientById() { return null; }
+  async linkEquipmentToClient() { return null; }
   async equipmentDashboard() {
     return {
       generatedAt: new Date().toISOString(),

@@ -142,6 +142,7 @@ model User {
   assignedServiceTasks  ServiceTask[]    @relation("ServiceTaskAssignedTo")
   createdServiceTasks   ServiceTask[]    @relation("ServiceTaskCreatedBy")
   reportPresets         ReportPreset[]
+  changedPlacementHistory EquipmentPlacementHistory[]
 }
 
 model UserSpecialization {
@@ -197,6 +198,7 @@ model Client {
   equipment       Equipment[]
   serviceRequests ServiceRequest[]
   pointUsers      PointUser[]
+  equipmentPlacementHistory EquipmentPlacementHistory[]
 }
 
 model Network {
@@ -227,6 +229,7 @@ model Location {
   equipment    Equipment[]
   pointUsers   PointUser[]
   serviceRequests ServiceRequest[]
+  equipmentPlacementHistory EquipmentPlacementHistory[]
 
   @@index([networkId])
 }
@@ -299,6 +302,7 @@ model Equipment {
   comments        EquipmentComment[]
   notes           EquipmentNote[]
   tasks           ServiceTask[]
+  placementHistory EquipmentPlacementHistory[]
 
   @@index([clientId])
   @@index([networkId])
@@ -590,6 +594,7 @@ model ServiceRequest {
   notes          ServiceRequestInternalNote[]
   assignmentHistory ServiceRequestAssignmentHistory[]
   serviceCases   ServiceCase[]
+  equipmentPlacementHistory EquipmentPlacementHistory[]
 
   @@index([clientId])
   @@index([pointUserId])
@@ -667,4 +672,33 @@ model ServiceRequestMedia {
   serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
 
   @@index([serviceRequestId])
+}
+
+model EquipmentPlacementHistory {
+  id                 String   @id
+  equipmentId        String
+  clientId           String?
+  locationId         String?
+  serviceRequestId   String?
+  ownerType          OwnerType
+  placement          EquipmentPlacement
+  label              String
+  startedAt          DateTime @default(now())
+  endedAt            DateTime?
+  changedByUserId    String?
+  comment            String?
+  createdAt          DateTime @default(now())
+
+  equipment      Equipment       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  location       Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
+  changedByUser  User?           @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId])
+  @@index([clientId])
+  @@index([locationId])
+  @@index([serviceRequestId])
+  @@index([startedAt])
+  @@index([endedAt])
 }

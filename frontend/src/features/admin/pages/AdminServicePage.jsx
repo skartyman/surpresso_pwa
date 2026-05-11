@@ -15,6 +15,15 @@ import {
 
 const BOARD_COLUMNS = ['new', 'assigned', 'taken_in_work', 'ready_for_qc', 'on_service_head_control', 'to_director', 'invoiced'];
 const DETAIL_TABS = ['overview', 'history', 'media', 'notes'];
+const WORK_TYPE_OPTIONS = [
+  { value: 'installation', label: 'Монтаж' },
+  { value: 'dismantling', label: 'Демонтаж' },
+  { value: 'visit', label: 'Выезд' },
+];
+const OWNER_TYPE_OPTIONS = [
+  { value: 'company', label: 'Оборудование компании' },
+  { value: 'client', label: 'Оборудование клиента' },
+];
 
 function getBaseAdminPath(pathname = '') {
   return pathname.startsWith('/tg/admin') ? '/tg/admin' : '/admin';
@@ -64,6 +73,29 @@ function getRequestPreview(request) {
   return rows.find((item) => !isRequestMediaVideo(item) && getRequestMediaVisualUrl(item))
     || rows.find((item) => getRequestMediaVisualUrl(item))
     || null;
+}
+
+function normalizeSearchValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getEquipmentSearchLabel(item) {
+  return [
+    item?.internalNumber ? `#${item.internalNumber}` : '',
+    item?.clientName || item?.companyName || item?.client?.companyName || '',
+    item?.locationName || item?.clientLocation || item?.address || '',
+    item?.brand || '',
+    item?.model || '',
+    item?.serial || item?.serialNumber || '',
+  ].filter(Boolean).join(' · ');
+}
+
+function getEquipmentCompanyName(item) {
+  return String(item?.clientName || item?.companyName || item?.client?.companyName || '').trim();
+}
+
+function getEquipmentLocationName(item) {
+  return String(item?.locationName || item?.clientLocation || item?.address || '').trim();
 }
 
 function splitMediaByStage(rows = []) {
@@ -346,6 +378,10 @@ export function AdminServicePage() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
+    workType: 'visit',
+    ownerType: 'company',
+    equipmentId: '',
+    equipmentSearch: '',
     clientId: '',
     locationId: '',
     venueSearch: '',
@@ -353,9 +389,9 @@ export function AdminServicePage() {
     contactName: '',
     phone: '',
     locationName: '',
+    locationAddress: '',
     category: 'coffee_machine',
     urgency: 'normal',
-    serviceMode: 'remote',
     canOperateNow: true,
     description: '',
     assignedToUserId: '',
@@ -590,13 +626,23 @@ export function AdminServicePage() {
   const mediaGroups = splitMediaByStage(selectedRequest?.media || []);
   const selectedRequestMedia = selectedRequest?.media || [];
   const detailRouteMode = Boolean(requestId);
+  const companyEquipmentOptions = useMemo(() => {
+    const query = normalizeSearchValue(createForm.equipmentSearch);
+    return equipmentOptions
+      .filter((item) => String(item.ownerType || '').toLowerCase() === 'company')
+      .filter((item) => !query || normalizeSearchValue(getEquipmentSearchLabel(item)).includes(query))
+      .slice(0, 10);
+  }, [createForm.equipmentSearch, equipmentOptions]);
   const venueOptions = useMemo(() => {
     const seen = new Set();
     return equipmentOptions.reduce((acc, item) => {
+      if (String(item.ownerType || '').toLowerCase() === 'company') return acc;
       const clientId = String(item.clientId || '').trim();
       const locationId = String(item.locationId || '').trim();
-      const companyName = String(item.clientName || item.companyName || '').trim();
-      const locationName = String(item.locationName || item.clientLocation || item.address || '').trim();
+      const companyName = getEquipmentCompanyName(item);
+      const locationName = getEquipmentLocationName(item);
+      const phone = String(item.phone || item.clientPhone || item.contactPhone || '').trim();
+      const locationAddress = String(item.address || item.locationAddress || item.clientLocation || '').trim();
       if (!clientId || !companyName) return acc;
       const key = `${clientId}:${locationId || locationName}`;
       if (seen.has(key)) return acc;
@@ -607,6 +653,8 @@ export function AdminServicePage() {
         locationId: locationId || '',
         companyName,
         locationName,
+        phone,
+        locationAddress,
         label: locationName ? `${companyName} · ${locationName}` : companyName,
       });
       return acc;
@@ -616,9 +664,11 @@ export function AdminServicePage() {
     const query = String(createForm.venueSearch || '').trim().toLowerCase();
     if (!query) return venueOptions.slice(0, 8);
     return venueOptions
-      .filter((item) => `${item.companyName} ${item.locationName}`.toLowerCase().includes(query))
+      .filter((item) => `${item.companyName} ${item.locationName} ${item.phone} ${item.locationAddress}`.toLowerCase().includes(query))
       .slice(0, 8);
   }, [createForm.venueSearch, venueOptions]);
+  const hasClientVenueMatch = filteredVenueOptions.length > 0 && createForm.venueSearch.trim().length > 0;
+  const needsInstallationTarget = createForm.workType === 'installation' && createForm.ownerType === 'company';
 
   function selectRequest(id) {
     navigate(`${basePath}/service/${id}`);
@@ -635,31 +685,77 @@ export function AdminServicePage() {
     container.scrollTo({ left: Math.max(target.offsetLeft - 12, 0), behavior: 'smooth' });
   }
 
+  function selectCreateEquipment(item) {
+    setCreateForm((prev) => ({
+      ...prev,
+      equipmentId: item.id,
+      equipmentSearch: getEquipmentSearchLabel(item),
+      ...(prev.workType === 'installation' ? {} : {
+        clientId: item.clientId || '',
+        locationId: item.locationId || '',
+        companyName: getEquipmentCompanyName(item),
+        locationName: getEquipmentLocationName(item),
+        locationAddress: item.address || item.locationAddress || '',
+      }),
+    }));
+  }
+
+  function selectCreateVenue(item) {
+    setCreateForm((prev) => ({
+      ...prev,
+      clientId: item.clientId,
+      locationId: item.locationId,
+      venueSearch: item.label,
+      companyName: item.companyName,
+      locationName: item.locationName,
+      phone: item.phone || prev.phone,
+      locationAddress: item.locationAddress || prev.locationAddress,
+    }));
+  }
+
   async function submitCreateRequest(event) {
     event.preventDefault();
     if (!createForm.description.trim()) {
       setError(t('description_required'));
       return;
     }
-    if (!createForm.clientId && !createForm.companyName.trim()) {
+    if (createForm.ownerType === 'company' && !createForm.equipmentId) {
+      setError('Выберите оборудование компании.');
+      return;
+    }
+    if (needsInstallationTarget && (!createForm.clientId || !createForm.locationId)) {
+      setError('Для монтажа выберите заведение, куда устанавливается оборудование.');
+      return;
+    }
+    if (createForm.ownerType === 'client' && !createForm.clientId && !createForm.companyName.trim()) {
       setError(t('company_name_required'));
+      return;
+    }
+    if (createForm.ownerType === 'client' && !createForm.clientId && (!createForm.phone.trim() || !createForm.locationAddress.trim())) {
+      setError('Для нового клиента заполните телефон и адрес.');
       return;
     }
     setActionLoading('create-request');
     setError('');
     try {
+      const workType = WORK_TYPE_OPTIONS.find((item) => item.value === createForm.workType);
+      const description = `${workType?.label || 'Выезд'}: ${createForm.description.trim()}`;
       const createdPayload = await adminServiceApi.createRequest({
+        equipmentId: createForm.equipmentId || null,
         clientId: createForm.clientId || null,
         locationId: createForm.locationId || null,
         companyName: createForm.companyName.trim(),
         contactName: createForm.contactName.trim(),
         phone: createForm.phone.trim(),
         locationName: createForm.locationName.trim(),
+        locationAddress: createForm.locationAddress.trim(),
+        workType: createForm.workType,
         category: createForm.category,
         urgency: createForm.urgency,
         canOperateNow: createForm.canOperateNow,
-        description: createForm.description.trim(),
-        type: createForm.serviceMode === 'visit' ? 'service_repair_visit' : 'service_repair_remote',
+        description,
+        title: workType?.label || 'Выезд',
+        type: 'service_repair_visit',
         assignedToUserId: createForm.assignedToUserId || null,
         media: createMediaFiles,
       });
@@ -669,6 +765,10 @@ export function AdminServicePage() {
       setCreateOpen(false);
       setCreateForm((prev) => ({
         ...prev,
+        workType: 'visit',
+        ownerType: 'company',
+        equipmentId: '',
+        equipmentSearch: '',
         clientId: '',
         locationId: '',
         venueSearch: '',
@@ -676,10 +776,10 @@ export function AdminServicePage() {
         contactName: '',
         phone: '',
         locationName: '',
+        locationAddress: '',
         description: '',
         assignedToUserId: '',
         urgency: 'normal',
-        serviceMode: 'remote',
         canOperateNow: true,
       }));
       setCreateMediaFiles([]);
@@ -709,7 +809,7 @@ export function AdminServicePage() {
         {canCreateRequest ? (
           <ActionRail className="service-command__actions">
             <ActionRailButton tone="brand" onClick={() => setCreateOpen((prev) => !prev)}>
-              {createOpen ? t('cancel') : t('create_service_request')}
+              {createOpen ? t('cancel') : 'Создать заявку'}
             </ActionRailButton>
           </ActionRail>
         ) : null}
@@ -717,26 +817,133 @@ export function AdminServicePage() {
           <form className="detail-section-card service-create-card" onSubmit={submitCreateRequest}>
             <div className="service-create-card__grid">
               <label>
-                <span>{t('service_request_venue_search')}</span>
-                <input
-                  type="search"
-                  value={createForm.venueSearch}
-                  placeholder={t('service_request_venue_search_placeholder')}
-                  onChange={(event) => setCreateForm((prev) => ({
-                    ...prev,
-                    venueSearch: event.target.value,
-                    clientId: '',
-                    locationId: '',
-                  }))}
-                />
-              </label>
-              <label>
-                <span>{t('request_mode')}</span>
-                <select value={createForm.serviceMode} onChange={(event) => setCreateForm((prev) => ({ ...prev, serviceMode: event.target.value }))}>
-                  <option value="remote">{t('request_mode_remote')}</option>
-                  <option value="visit">{t('request_mode_visit')}</option>
+                <span>Тип работ</span>
+                <select value={createForm.workType} onChange={(event) => setCreateForm((prev) => ({ ...prev, workType: event.target.value }))}>
+                  {WORK_TYPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
+              <label>
+                <span>Чьё оборудование</span>
+                <select
+                  value={createForm.ownerType}
+                  onChange={(event) => setCreateForm((prev) => ({
+                    ...prev,
+                    ownerType: event.target.value,
+                    equipmentId: '',
+                    equipmentSearch: '',
+                    clientId: '',
+                    locationId: '',
+                    venueSearch: '',
+                    companyName: '',
+                    locationName: '',
+                    locationAddress: '',
+                  }))}
+                >
+                  {OWNER_TYPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+            </div>
+
+            {createForm.ownerType === 'company' ? (
+              <>
+                <label>
+                  <span>Найти оборудование компании</span>
+                  <input
+                    type="search"
+                    value={createForm.equipmentSearch}
+                    placeholder="Название заведения или внутренний номер"
+                    onChange={(event) => setCreateForm((prev) => ({
+                      ...prev,
+                      equipmentSearch: event.target.value,
+                      equipmentId: '',
+                    }))}
+                  />
+                </label>
+                <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-create-card__suggestions">
+                  {companyEquipmentOptions.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={createForm.equipmentId === item.id ? 'active' : ''}
+                      onClick={() => selectCreateEquipment(item)}
+                    >
+                      {getEquipmentSearchLabel(item)}
+                    </button>
+                  ))}
+                  {!companyEquipmentOptions.length ? <span className="service-create-card__empty">Ничего не найдено</span> : null}
+                </div>
+                {needsInstallationTarget ? (
+                  <>
+                    <label>
+                      <span>Куда установить</span>
+                      <input
+                        type="search"
+                        value={createForm.venueSearch}
+                        placeholder="Начните вводить название заведения"
+                        onChange={(event) => setCreateForm((prev) => ({
+                          ...prev,
+                          venueSearch: event.target.value,
+                          clientId: '',
+                          locationId: '',
+                          companyName: event.target.value,
+                        }))}
+                      />
+                    </label>
+                    {filteredVenueOptions.length ? (
+                      <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-create-card__suggestions">
+                        {filteredVenueOptions.map((item) => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            className={createForm.clientId === item.clientId && createForm.locationId === item.locationId ? 'active' : ''}
+                            onClick={() => selectCreateVenue(item)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <label>
+                  <span>Заведение клиента</span>
+                  <input
+                    type="search"
+                    value={createForm.venueSearch}
+                    placeholder="Начните вводить название, телефон или адрес"
+                    onChange={(event) => setCreateForm((prev) => ({
+                      ...prev,
+                      venueSearch: event.target.value,
+                      clientId: '',
+                      locationId: '',
+                      companyName: event.target.value,
+                    }))}
+                  />
+                </label>
+                {filteredVenueOptions.length ? (
+                  <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-create-card__suggestions">
+                    {filteredVenueOptions.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={createForm.clientId === item.clientId && createForm.locationId === item.locationId ? 'active' : ''}
+                        onClick={() => selectCreateVenue(item)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {!hasClientVenueMatch && createForm.venueSearch.trim() ? (
+                  <p className="service-create-card__hint">Совпадений нет. После сохранения будет создан новый клиент.</p>
+                ) : null}
+              </>
+            )}
+
+            <div className="service-create-card__grid">
               <label>
                 <span>{t('urgency')}</span>
                 <select value={createForm.urgency} onChange={(event) => setCreateForm((prev) => ({ ...prev, urgency: event.target.value }))}>
@@ -772,27 +979,6 @@ export function AdminServicePage() {
                 <span>{t('can_operate_now')}</span>
               </label>
             </div>
-            {filteredVenueOptions.length ? (
-              <div className="quick-filter-row quick-filter-row--compact quick-filter-row--scrollable service-create-card__suggestions">
-                {filteredVenueOptions.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={createForm.clientId === item.clientId && createForm.locationId === item.locationId ? 'active' : ''}
-                    onClick={() => setCreateForm((prev) => ({
-                      ...prev,
-                      clientId: item.clientId,
-                      locationId: item.locationId,
-                      venueSearch: item.label,
-                      companyName: item.companyName,
-                      locationName: item.locationName,
-                    }))}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             <div className="service-create-card__grid">
               <label>
                 <span>{t('client')}</span>
@@ -810,6 +996,15 @@ export function AdminServicePage() {
                   value={createForm.locationName}
                   placeholder={t('service_request_location_placeholder')}
                   onChange={(event) => setCreateForm((prev) => ({ ...prev, locationName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Адрес</span>
+                <input
+                  type="text"
+                  value={createForm.locationAddress}
+                  placeholder="Адрес заведения"
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, locationAddress: event.target.value }))}
                 />
               </label>
               <label>

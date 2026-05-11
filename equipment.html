@@ -76,7 +76,7 @@
 
     <!-- STEP 1 -->
     <div id="step1" class="card">
-      <h2>Выберите тип оборудования</h2>
+      <h2>Прием оборудования на ремонт</h2>
 
       <div class="field select-ios">
         <label>Тип оборудования</label>
@@ -131,6 +131,23 @@
       <h2>Кому принадлежит оборудование?</h2>
       <button class="btn primary wide" onclick="selectOwner('client')">Оборудование клиента</button>
       <button class="btn ghost wide" onclick="selectOwner('company')" style="margin-top:10px;">Оборудование компании</button>
+    </div>
+
+    <!-- INTAKE WIZARD -->
+    <div id="intakeWizard" class="card intake-wizard" style="display:none;">
+      <div class="intake-progress">
+        <span id="intakeStepCounter"></span>
+        <span id="intakeOwnerLabel"></span>
+      </div>
+      <h2 id="intakeQuestionTitle"></h2>
+      <p id="intakeQuestionHint" class="intake-hint"></p>
+      <div id="intakeAnswerBox" class="intake-answer"></div>
+      <div id="intakeError" class="intake-error" style="display:none;"></div>
+      <div id="intakeStatusBox" class="intake-status" style="display:none;"></div>
+      <div class="intake-actions">
+        <button class="btn ghost" type="button" id="intakeBackBtn" onclick="intakePrev()">Назад</button>
+        <button class="btn primary" type="button" id="intakeNextBtn" onclick="intakeNext()">Далее</button>
+      </div>
     </div>
 
     <!-- CLIENT FORM -->
@@ -196,6 +213,14 @@
       <div class="field">
         <label>Дата</label>
         <input type="date" id="companyDate">
+      </div>
+
+      <div class="field">
+        <label>Статус приема</label>
+        <select id="companyStatus">
+          <option value="Купили">Купили</option>
+          <option value="Приехало после аренды">Приехало после аренды</option>
+        </select>
       </div>
 
       <div class="actions-stack">
@@ -648,7 +673,7 @@ function getOrCreateEquipId() {
     // =========================================================
     // PRINT PAGE
     // =========================================================
-    function openPrintPage() {
+    function openPrintPage(targetWindow) {
       const owner = localStorage.getItem("equip_owner");
       const type = localStorage.getItem("equip_type");
 
@@ -692,7 +717,11 @@ function getOrCreateEquipId() {
       localStorage.setItem("last_equipment_card", JSON.stringify(card));
 
       const file = (owner === "company") ? "company-print.html" : "print.html";
-      window.open(file, "_blank");
+      if (targetWindow && !targetWindow.closed) {
+        targetWindow.location.href = file;
+      } else {
+        window.open(file, "_blank");
+      }
     }
 
     // =========================================================
@@ -706,12 +735,15 @@ function getOrCreateEquipId() {
     const stepHistory = [];
 
     function showStep(id) {
-      ["step1", "step2", "form-client", "form-company"].forEach(s => {
+      ["step1", "step2", "form-client", "form-company", "intakeWizard"].forEach(s => {
         const el = document.getElementById(s);
         if (el) el.style.display = "none";
       });
 
-      document.getElementById(id).style.display = "block";
+      const camera = document.getElementById("cameraCard");
+      if (camera && id !== "intakeWizard") camera.style.display = "none";
+
+      document.getElementById(id).style.display = id === "intakeWizard" ? "flex" : "block";
       if (stepHistory.at(-1) !== id) stepHistory.push(id);
     }
 
@@ -748,10 +780,322 @@ function getOrCreateEquipId() {
       const companyTitle = document.getElementById("companyTitle");
       if (companyTitle) companyTitle.textContent = `Карточка (${mapOwner("company")}) — ${eqName}`;
 
-      if (owner === "client") showStep("form-client");
-      else showStep("form-company");
+      startIntakeWizard(owner);
+    }
 
-      document.getElementById("cameraCard").style.display = "block";
+    const intakeState = {
+      owner: "",
+      index: 0,
+      values: {},
+      submitted: false,
+      existingEquipment: null
+    };
+
+    const intakeClientSteps = [
+      { id: "clientName", label: "Имя клиента", type: "text", required: true, hint: "Запиши имя так, чтобы клиента легко нашли в базе." },
+      { id: "clientPhone", label: "Телефон", type: "tel", required: true, hint: "Можно вводить с пробелами, ноль в начале сохранится." },
+      { id: "model", label: "Модель", type: "text", required: true, hint: "Например: Jura X8, Saeco Aulika, Fiorenzato F64." },
+      { id: "serial", label: "Серийный номер", type: "text", required: true, hint: "Это главный номер для карточки клиента." },
+      { id: "clientLocation", label: "Адрес / локация", type: "text", required: false, hint: "Если неизвестно, можно пропустить." },
+      { id: "isServiceContract", label: "Договор обслуживания", type: "select", required: true, hint: "Укажи, это оборудование по договору обслуживания или нет.", options: [
+        { value: "no", text: "Нет, без договора" },
+        { value: "yes", text: "Да, по договору" }
+      ] },
+      { id: "problem", label: "Что случилось?", type: "text", required: false, hint: "Коротко: не мелет, течет, не включается." },
+      { id: "condition", label: "Видимые повреждения", type: "text", required: false, hint: "Если повреждений нет, можно пропустить." },
+      { id: "photo", label: "Фото оборудования", type: "photo", required: true, hint: "Добавь хотя бы одно фото. Без фото прием не завершится." },
+      { id: "summary", label: "Проверка перед отправкой", type: "summary", required: true, hint: "Проверь данные. После подтверждения отправим в Telegram и Trello." }
+    ];
+
+    const intakeCompanySteps = [
+      { id: "companyLocation", label: "Локация", type: "text", required: true, hint: "Кафе, склад, цех или другая точка." },
+      { id: "equipmentName", label: "Название оборудования", type: "text", required: true, hint: "Например: Grinder F64, Jura X8, La Marzocco Linea." },
+      { id: "internalNumber", label: "Внутренний номер", type: "text", required: true, hint: "Если такой номер уже есть в базе, предложим открыть карточку." },
+      { id: "task", label: "Задача / проблема", type: "text", required: true, hint: "Что нужно сделать с оборудованием." },
+      { id: "companyDate", label: "Дата приема", type: "date", required: true, hint: "По умолчанию стоит сегодняшняя дата." },
+      { id: "companyStatus", label: "Статус приема", type: "select", required: true, hint: "Выбери, откуда пришло оборудование.", options: [
+        { value: "Купили", text: "Купили" },
+        { value: "Приехало после аренды", text: "Приехало после аренды" }
+      ] },
+      { id: "comment", label: "Комментарий", type: "text", required: false, hint: "Необязательно. Можно пропустить." },
+      { id: "photo", label: "Фото оборудования", type: "photo", required: true, hint: "Добавь хотя бы одно фото. Без фото прием не завершится." },
+      { id: "summary", label: "Проверка перед отправкой", type: "summary", required: true, hint: "Проверь данные. После подтверждения отправим в Telegram и Trello." }
+    ];
+
+    function getIntakeSteps() {
+      return intakeState.owner === "company" ? intakeCompanySteps : intakeClientSteps;
+    }
+
+    function startIntakeWizard(owner) {
+      intakeState.owner = owner;
+      intakeState.index = 0;
+      intakeState.values = {};
+      intakeState.submitted = false;
+      intakeState.existingEquipment = null;
+
+      if (owner === "client") {
+        intakeState.values.receivedDate = new Date().toISOString().slice(0, 10);
+        intakeState.values.isServiceContract = "no";
+      } else {
+        intakeState.values.companyDate = new Date().toISOString().slice(0, 10);
+        intakeState.values.companyStatus = "Купили";
+      }
+
+      showStep("intakeWizard");
+      renderIntakeStep();
+    }
+
+    function setIntakeError(message) {
+      const el = document.getElementById("intakeError");
+      if (!el) return;
+      el.textContent = message || "";
+      el.style.display = message ? "block" : "none";
+    }
+
+    function setFieldValue(id, val) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = val === true || val === "yes";
+      else el.value = val || "";
+    }
+
+    function syncIntakeToForm() {
+      Object.entries(intakeState.values).forEach(([id, val]) => setFieldValue(id, val));
+      if (intakeState.owner === "client") setFieldValue("receivedDate", intakeState.values.receivedDate || new Date().toISOString().slice(0, 10));
+      if (intakeState.owner === "company") setFieldValue("companyDate", intakeState.values.companyDate || new Date().toISOString().slice(0, 10));
+      localStorage.removeItem("equip_current_id");
+      localStorage.removeItem("equip_current_key");
+    }
+
+    function renderIntakeStep() {
+      const steps = getIntakeSteps();
+      const step = steps[intakeState.index];
+      const counter = document.getElementById("intakeStepCounter");
+      const ownerLabel = document.getElementById("intakeOwnerLabel");
+      const title = document.getElementById("intakeQuestionTitle");
+      const hint = document.getElementById("intakeQuestionHint");
+      const box = document.getElementById("intakeAnswerBox");
+      const statusBox = document.getElementById("intakeStatusBox");
+      const nextBtn = document.getElementById("intakeNextBtn");
+      const backBtn = document.getElementById("intakeBackBtn");
+
+      setIntakeError("");
+      if (statusBox) {
+        statusBox.style.display = "none";
+        statusBox.innerHTML = "";
+      }
+
+      counter.textContent = `Шаг ${intakeState.index + 1} из ${steps.length}`;
+      ownerLabel.textContent = intakeState.owner === "company" ? "Оборудование компании" : "Оборудование клиента";
+      title.textContent = step.label + (step.required ? " *" : "");
+      hint.textContent = step.hint || "";
+      backBtn.style.display = intakeState.index === 0 ? "none" : "inline-flex";
+      nextBtn.disabled = false;
+      nextBtn.textContent = step.type === "summary" ? "Отправить и открыть печать" : "Далее";
+
+      if (step.type === "summary") {
+        syncIntakeToForm();
+        box.innerHTML = renderIntakeSummary();
+        document.getElementById("cameraCard").style.display = "none";
+        return;
+      }
+
+      if (step.type === "photo") {
+        box.innerHTML = `<div class="intake-photo-note">Фото уже добавлено: <b>${capturedPhotos.length}</b></div>`;
+        document.getElementById("cameraCard").style.display = "block";
+        renderCapturedPhotos();
+        return;
+      }
+
+      document.getElementById("cameraCard").style.display = "none";
+
+      if (step.type === "select") {
+        const current = intakeState.values[step.id] || step.options[0]?.value || "";
+        box.innerHTML = `
+          <select id="intakeCurrentInput" class="intake-input">
+            ${step.options.map(o => `<option value="${o.value}" ${o.value === current ? "selected" : ""}>${o.text}</option>`).join("")}
+          </select>
+        `;
+        return;
+      }
+
+      const current = intakeState.values[step.id] || "";
+      box.innerHTML = `<input id="intakeCurrentInput" class="intake-input" type="${step.type}" value="${escapeHtml(current)}" autocomplete="off">`;
+      setTimeout(() => document.getElementById("intakeCurrentInput")?.focus(), 30);
+    }
+
+    function readCurrentIntakeValue(step) {
+      if (step.type === "photo") return capturedPhotos.length ? "photo-ok" : "";
+      if (step.type === "summary") return "summary-ok";
+      return document.getElementById("intakeCurrentInput")?.value?.trim() || "";
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function findExistingCompanyEquipment(internalNumber) {
+      const q = normalizeEquipId(internalNumber);
+      if (!q) return null;
+
+      const resp = await apiFetch(`/api/equip/search?q=${encodeURIComponent(q)}`);
+      if (!resp.ok) return null;
+      const out = await resp.json().catch(() => ({}));
+      const rows = Array.isArray(out.results) ? out.results : Array.isArray(out.items) ? out.items : [];
+
+      return rows.find(item => {
+        const itemId = normalizeEquipId(item.id || item.ID || item.equipmentId || "");
+        const itemInternal = normalizeEquipId(item.internalNumber || item.internal_number || item["Внутренний номер"] || "");
+        return itemId === q || itemInternal === q;
+      }) || null;
+    }
+
+    async function intakeNext() {
+      const steps = getIntakeSteps();
+      const step = steps[intakeState.index];
+      const value = readCurrentIntakeValue(step);
+
+      if (step.required && !value) {
+        setIntakeError(step.type === "photo" ? "Добавь хотя бы одно фото." : "Это обязательное поле.");
+        return;
+      }
+
+      if (step.type !== "photo" && step.type !== "summary") {
+        intakeState.values[step.id] = value;
+      }
+
+      if (intakeState.owner === "company" && step.id === "internalNumber") {
+        setIntakeError("Проверяю внутренний номер в базе...");
+        const existing = await findExistingCompanyEquipment(value);
+        if (existing) {
+          setIntakeError("");
+          const existingId = existing.id || existing.ID || value;
+          if (confirm(`Оборудование с внутренним номером ${value} уже есть в базе. Открыть карточку оборудования?`)) {
+            openEquipmentPageById(existingId);
+          }
+          return;
+        }
+        setIntakeError("");
+      }
+
+      if (step.type === "summary") {
+        await submitIntakeWizard();
+        return;
+      }
+
+      intakeState.index += 1;
+      renderIntakeStep();
+    }
+
+    function intakePrev() {
+      if (intakeState.index <= 0) return;
+      const step = getIntakeSteps()[intakeState.index];
+      if (step && step.type !== "photo" && step.type !== "summary") {
+        intakeState.values[step.id] = readCurrentIntakeValue(step);
+      }
+      intakeState.index -= 1;
+      renderIntakeStep();
+    }
+
+    function renderIntakeSummary() {
+      const rows = [];
+      const add = (label, val) => rows.push(`<div><span>${escapeHtml(label)}</span><b>${escapeHtml(val || "-")}</b></div>`);
+
+      if (intakeState.owner === "client") {
+        add("Имя клиента", intakeState.values.clientName);
+        add("Телефон", intakeState.values.clientPhone);
+        add("Модель", intakeState.values.model);
+        add("Серийный номер", intakeState.values.serial);
+        add("Локация", intakeState.values.clientLocation);
+        add("Договор обслуживания", intakeState.values.isServiceContract === "yes" ? "Да" : "Нет");
+        add("Проблема", intakeState.values.problem);
+        add("Повреждения", intakeState.values.condition);
+      } else {
+        add("Локация", intakeState.values.companyLocation);
+        add("Оборудование", intakeState.values.equipmentName);
+        add("Внутренний номер", intakeState.values.internalNumber);
+        add("Задача", intakeState.values.task);
+        add("Дата", intakeState.values.companyDate);
+        add("Статус", intakeState.values.companyStatus);
+        add("Комментарий", intakeState.values.comment);
+      }
+
+      add("Фото", capturedPhotos.length);
+      return `<div class="intake-summary">${rows.join("")}</div>`;
+    }
+
+    function setIntakeSendingStatus(items) {
+      const box = document.getElementById("intakeStatusBox");
+      if (!box) return;
+      box.style.display = "block";
+      box.innerHTML = items.map(i => `<div class="intake-status-row ${i.done ? "done" : ""}">${i.text}</div>`).join("");
+    }
+
+    async function submitIntakeWizard() {
+      if (intakeState.submitted) {
+        openPrintPage();
+        return;
+      }
+
+      syncIntakeToForm();
+      const card = collectCardFromForm();
+      const photos = [...capturedPhotos];
+
+      if (!photos.length) {
+        setIntakeError("Добавь хотя бы одно фото.");
+        intakeState.index = getIntakeSteps().findIndex(s => s.id === "photo");
+        renderIntakeStep();
+        return;
+      }
+
+      const nextBtn = document.getElementById("intakeNextBtn");
+      const backBtn = document.getElementById("intakeBackBtn");
+      const printWindow = window.open("about:blank", "_blank");
+      if (printWindow) {
+        printWindow.document.write("<!doctype html><title>Surpresso</title><body style='font-family:Arial,sans-serif;padding:24px'>Готовим бланк для печати...</body>");
+        printWindow.document.close();
+      }
+      nextBtn.disabled = true;
+      backBtn.disabled = true;
+      setIntakeError("");
+      setIntakeSendingStatus([
+        { text: "Отправляем данные в Telegram...", done: false },
+        { text: "Создаем карточку в Trello...", done: false },
+        { text: "Готовим бланк для печати...", done: false }
+      ]);
+
+      try {
+        const resp = await apiFetch("/send-equipment", {
+          method: "POST",
+          body: JSON.stringify({ card, photos })
+        });
+
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok || !out.ok) throw new Error(out.error || "Ошибка отправки");
+
+        setIntakeSendingStatus([
+          { text: "Telegram: отправлено", done: true },
+          { text: out.trelloCardId ? "Trello: карточка создана" : "Trello: отправка завершена", done: true },
+          { text: "Бланк для печати готов", done: true }
+        ]);
+
+        intakeState.submitted = true;
+        nextBtn.disabled = false;
+        backBtn.disabled = false;
+        nextBtn.textContent = "Открыть бланк еще раз";
+        openPrintPage(printWindow);
+      } catch (err) {
+        console.error(err);
+        if (printWindow && !printWindow.closed) printWindow.close();
+        setIntakeError(err.message || "Ошибка отправки");
+        nextBtn.disabled = false;
+        backBtn.disabled = false;
+      }
     }
 
     // =========================================================
@@ -1069,6 +1413,7 @@ function getOrCreateEquipId() {
         card.task = value("task");
         card.comment = value("comment");
         card.companyDate = value("companyDate");
+        card.status = value("companyStatus") || "Купили";
       }
      
       const isContract = document.getElementById("isServiceContract");
@@ -1119,7 +1464,7 @@ async function saveToBaseOnly() {
 
   // Статус дефолт
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Приехало после аренды" : "Прийнято на ремонт";
+    card.status = (card.owner === "company") ? "Купили" : "Прийнято на ремонт";
   }
 
   const hint = document.getElementById("saveHint");
@@ -1192,6 +1537,7 @@ function collectCardFromForm() {
     internalNumber: normalizeEquipId(value("internalNumber")),
     task: value("task"),
     comment: value("comment"),
+    status: owner === "company" ? (value("companyStatus") || "Купили") : "",
 
     actor: "" // можно позже добавить поле
   };
@@ -1213,7 +1559,7 @@ async function saveToBaseOnly() {
 
   // ✅ дефолтный статус (ВАЖНО: с правильным регистром как в GAS)
   if (!card.status) {
-    card.status = (card.owner === "company") ? "Приехало после аренды" : "Прийнято на ремонт";
+    card.status = (card.owner === "company") ? "Купили" : "Прийнято на ремонт";
   }
 
   // ✅ фото берём отсюда (то, что снял камерой / выбрал из памяти)

@@ -46,6 +46,29 @@ export function buildEquipmentTimeline(detail = {}) {
     });
   });
 
+  (detail.placementHistory || []).forEach((row) => {
+    const started = row.startedAt ? new Date(row.startedAt) : null;
+    const ended = row.endedAt ? new Date(row.endedAt) : null;
+    const days = started
+      ? Math.max(1, Math.ceil(((ended || new Date()).getTime() - started.getTime()) / 86400000))
+      : null;
+    timeline.push({
+      id: `placement-${row.id}`,
+      type: 'placement_changed',
+      timestamp: row.startedAt || null,
+      actor: row.changedByUser?.fullName || 'system',
+      comment: `${row.label || 'Surpresso'}${days ? ` · ${days} дн.` : ''}${row.endedAt ? ' · завершено' : ' · сейчас'}`,
+      payload: {
+        fromStatus: row.ownerType || null,
+        toStatus: row.placement || null,
+        serviceRequestId: row.serviceRequestId || null,
+        locationId: row.locationId || null,
+        clientId: row.clientId || null,
+        endedAt: row.endedAt || null,
+      },
+    });
+  });
+
   (detail.serviceCases || []).forEach((item) => {
     if (item.assignedAt) {
       timeline.push({

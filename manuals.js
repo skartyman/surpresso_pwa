@@ -143,9 +143,13 @@ function renderManualList() {
 
   list.innerHTML = manualsState.filtered.map(manual => {
     const active = manual.id === manualsState.activeId ? ' is-active' : '';
-    const indexStatus = manualsState.aiStatusById[manual.id];
+    const indexStatus = manualsState.aiStatusById[manual.id] || {
+      status: manual.indexStatus || (manual.aiAvailable ? 'indexed' : 'not_indexed'),
+      updatedAt: manual.indexUpdatedAt || null,
+      chunksCount: manual.chunksCount || 0,
+    };
     const indexBadge = indexStatus?.status === 'indexed'
-      ? `<span class="manual-item__badge success">AI ready</span>`
+      ? `<span class="manual-item__badge success">AI доступен</span>`
       : indexStatus?.status === 'needs_ocr'
         ? `<span class="manual-item__badge warning">Нужен OCR</span>`
       : indexStatus?.status === 'failed'
@@ -412,6 +416,18 @@ async function loadManuals() {
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data = await resp.json();
   manualsState.manuals = Array.isArray(data.items) ? data.items : [];
+  for (const manual of manualsState.manuals) {
+    if (!manual?.id) continue;
+    if (manual.indexStatus || manual.aiAvailable) {
+      manualsState.aiStatusById[manual.id] = {
+        status: manual.indexStatus || (manual.aiAvailable ? 'indexed' : 'not_indexed'),
+        updatedAt: manual.indexUpdatedAt || null,
+        chunksCount: manual.chunksCount || 0,
+        pagesCount: manual.pagesCount || 0,
+        error: null,
+      };
+    }
+  }
   applyManualFilter();
   await refreshVisibleIndexStatuses();
 }

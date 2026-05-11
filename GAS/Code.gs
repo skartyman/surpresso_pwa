@@ -43,6 +43,16 @@ const DEFAULT_STATUS_CLIENT  = "Прийнято на ремонт";
 const DEFAULT_STATUS_COMPANY = "Приехало после аренды";
 const TEXT_COLS = ["clientPhone", "serial", "internalNumber", "id"];
 const SUBSCRIPTIONS_TEXT_COLS = ["equipmentId", "chatId", "userId", "username", "firstName", "lastName"];
+const EQUIPMENT_SHEET_COLUMNS = [
+  "id", "createdAt", "updatedAt",
+  "type", "owner", "isContract",
+  "clientName", "clientPhone", "clientLocation",
+  "model", "serial",
+  "companyLocation", "name", "internalNumber",
+  "status", "lastComment",
+  "folderId", "folderUrl",
+  "passportPdfId", "passportPdfUrl", "specs"
+];
 
 // ===== Telegram subscriptions =====
 const SUBSCRIPTIONS_SHEET = "subscriptions";
@@ -62,16 +72,7 @@ function setup() {
   // EQUIPMENT
   let sh = ss.getSheetByName("EQUIPMENT") || ss.insertSheet("EQUIPMENT");
   sh.clear();
-  sh.appendRow([
-    "id", "createdAt", "updatedAt",
-    "type", "owner", "isContract",
-    "clientName", "clientPhone", "clientLocation",
-    "model", "serial",
-    "companyLocation", "name", "internalNumber",
-    "status", "lastComment",
-    "folderId", "folderUrl",
-    "passportPdfId", "passportPdfUrl", "specs"
-  ]);
+  sh.appendRow(EQUIPMENT_SHEET_COLUMNS);
 
   // важные текстовые колонки
   ["id","serial","internalNumber","clientPhone"].forEach(name=>{
@@ -360,6 +361,7 @@ function assertServerKey_(incomingSecret) {
 function upsertEquipment_(card) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sh = getSheetAny_(ss, SH_EQUIPMENT);
+  ensureSheetColumns_(sh, EQUIPMENT_SHEET_COLUMNS);
 
   const id = String(card.id || "").trim();
   if (!id) return { ok: false, error: "No id" };
@@ -392,7 +394,7 @@ function upsertEquipment_(card) {
 
       status, card.comment || "",
       folder.id, folder.url,
-      "", ""
+      "", "", card.specs || ""
     ];
 
     sh.appendRow(row);

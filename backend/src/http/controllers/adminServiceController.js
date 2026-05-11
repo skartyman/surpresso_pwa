@@ -34,6 +34,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
   const uploadsRoot = options.uploadsRoot;
   const equipmentRepository = options.equipmentRepository;
   const clientRepository = options.clientRepository;
+  const serviceOpsRepository = options.serviceOpsRepository;
   const serviceRequestEvents = options.serviceRequestEvents;
   const ASSIGNMENT_ALLOWED_ROLES = ['service_head', 'manager'];
   const SERVICE_ENGINEERS_VIEW_ALLOWED_ROLES = ['service_head', 'manager', 'owner', 'director'];
@@ -194,6 +195,7 @@ export function createAdminServiceController(serviceRepository, options = {}) {
       const phone = String(req.body?.phone || '').trim();
       const locationName = String(req.body?.locationName || '').trim();
       const locationAddress = String(req.body?.locationAddress || '').trim();
+      const workType = String(req.body?.workType || '').trim().toLowerCase();
       const category = String(req.body?.category || '').trim().toLowerCase();
       const description = String(req.body?.description || '').trim();
       const title = String(req.body?.title || '').trim() || description.slice(0, 100) || 'Новая заявка';
@@ -225,10 +227,40 @@ export function createAdminServiceController(serviceRepository, options = {}) {
           return res.status(400).json({ error: 'equipment_not_found' });
         }
         if (!equipment.clientId) {
-          return res.status(400).json({ error: 'equipment_client_required' });
+          if (workType === 'dismantling') {
+            const surpressoContext = await serviceOpsRepository?.ensureSurpressoContext?.();
+            if (!surpressoContext?.client?.id || !surpressoContext?.location?.id) {
+              return res.status(400).json({ error: 'client_context_required' });
+            }
+            clientId = surpressoContext.client.id;
+            locationId = surpressoContext.location.id;
+          } else {
+          const contextCompanyName = companyName || String(equipment.clientName || equipment.companyName || '').trim();
+          const contextPhone = phone || String(equipment.clientPhone || '').trim();
+          const contextLocationName = locationName || String(equipment.locationName || equipment.clientLocation || equipment.companyLocation || '').trim();
+          const contextLocationAddress = locationAddress || String(equipment.address || equipment.clientLocation || equipment.companyLocation || '').trim();
+          if (!contextCompanyName) {
+            return res.status(400).json({ error: 'equipment_client_required' });
+          }
+          const createdContext = clientRepository?.createAdminLeadContext
+            ? await clientRepository.createAdminLeadContext({
+                companyName: contextCompanyName,
+                contactName,
+                phone: contextPhone,
+                locationName: contextLocationName,
+                locationAddress: contextLocationAddress,
+              })
+            : null;
+          if (!createdContext?.client?.id) {
+            return res.status(400).json({ error: 'client_context_required' });
+          }
+          clientId = createdContext.client.id;
+          locationId = createdContext.location?.id || locationId || null;
+          }
+        } else {
+          clientId = equipment.clientId;
+          locationId = equipment.locationId || locationId || null;
         }
-        clientId = equipment.clientId;
-        locationId = equipment.locationId || locationId || null;
       } else if (!clientId) {
         if (!companyName) {
           return res.status(400).json({ error: 'company_name_required' });
@@ -269,6 +301,23 @@ export function createAdminServiceController(serviceRepository, options = {}) {
         status: assignedToUserId ? 'assigned' : 'new',
         media: uploadedMedia,
       });
+
+      if (equipmentId && workType === 'installation' && clientId && locationId) {
+        await serviceOpsRepository?.moveEquipmentToRequestLocation?.(equipmentId, {
+          clientId,
+          locationId,
+          serviceRequestId: created.id,
+          changedByUserId: req.adminUser?.id || null,
+          comment: 'Монтаж: оборудование привязано к точке заявки',
+        });
+      }
+      if (equipmentId && workType === 'dismantling') {
+        await serviceOpsRepository?.moveEquipmentToSurpresso?.(equipmentId, {
+          serviceRequestId: created.id,
+          changedByUserId: req.adminUser?.id || null,
+          comment: 'Демонтаж: оборудование возвращено на Surpresso',
+        });
+      }
 
       emitRequestChanged('created', created);
       return res.status(201).json({ request: enrichServiceRequestMedia(req, created) });

@@ -58,6 +58,19 @@ export const adminServiceApi = {
   },
   serviceCaseHistory: async (id) => apiFetch(`/api/telegram/admin/service-cases/${id}/history`),
   equipmentDashboard: async () => apiFetch('/api/telegram/admin/equipment/dashboard'),
+  clients: async (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') params.set(key, value);
+    });
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/api/telegram/admin/clients${query}`);
+  },
+  clientById: async (id) => apiFetch(`/api/telegram/admin/clients/${id}`),
+  createClient: async (payload) => apiFetch('/api/telegram/admin/clients', { method: 'POST', body: JSON.stringify(payload) }),
+  updateClient: async (id, payload) => apiFetch(`/api/telegram/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteClient: async (id) => apiFetch(`/api/telegram/admin/clients/${id}`, { method: 'DELETE' }),
+  linkClientEquipment: async (id, payload) => apiFetch(`/api/telegram/admin/clients/${id}/equipment/link`, { method: 'POST', body: JSON.stringify(payload) }),
   equipmentList: async (filters = {}) => {
     const params = new URLSearchParams();
     Object.entries(filters || {}).forEach(([key, value]) => {

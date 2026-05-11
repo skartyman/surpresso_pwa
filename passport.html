@@ -835,7 +835,7 @@
 
       $("photos").innerHTML = photos.map((p, i) => {
         const driveUrl = String(p.url || "");
-        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl);
+        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveUrl || p.fileId);
         const cap = p.caption || `Фото ${i + 1}`;
         const displayCap = /^https?:\/\//i.test(cap) ? `Фото ${i + 1}` : cap;
         const safeCap = esc(displayCap);
@@ -893,7 +893,12 @@
       const s = String(driveUrl);
       let fileId = null;
 
-      if (s.includes("uc?export=view&id=")) {
+      if (/^[a-zA-Z0-9_-]{20,}$/.test(s.trim())) {
+        fileId = s.trim();
+      } else if (s.includes("thumbnail")) {
+        const m = s.match(/[?&]id=([^&]+)/i);
+        if (m) fileId = m[1];
+      } else if (s.includes("uc?export=view&id=")) {
         const m = s.match(/id=([^&]+)/i);
         if (m) fileId = m[1];
       } else if (s.includes("/file/d/")) {
@@ -970,7 +975,7 @@
       const photo = CURRENT_PHOTOS[index];
       if (!photo) return;
       const driveUrl = String(photo.url || "");
-      const imgUrl = String(photo.imgUrl || "") || driveToImageUrl(driveUrl);
+      const imgUrl = String(photo.imgUrl || "") || driveToImageUrl(driveUrl || photo.fileId);
       const cap = photo.caption || `Фото ${index + 1}`;
       const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 

@@ -41,10 +41,38 @@ const TECHNICAL_TERMS = [
   'чистка', 'обслуживание', 'калибровка'
 ];
 const TECHNICAL_TERM_SET = new Set(TECHNICAL_TERMS.map(term => normalizeText(term)));
+const RETRIEVAL_SYNONYMS = [
+  [['ошибка', 'помилка', 'код ошибки', 'код помилки'], ['error', 'fault', 'alarm', 'code']],
+  [['давление', 'тиск'], ['pressure', 'bar', 'pump pressure']],
+  [['помпа', 'насос'], ['pump', 'motor']],
+  [['бойлер', 'котел'], ['boiler', 'heater', 'heating element']],
+  [['температура'], ['temperature', 'thermostat', 'thermal', 'pid']],
+  [['клапан', 'соленоид'], ['valve', 'solenoid']],
+  [['датчик', 'сенсор'], ['sensor', 'probe', 'switch']],
+  [['уровень воды', 'рівень води'], ['water level', 'level probe', 'tank']],
+  [['вода'], ['water', 'inlet', 'drain']],
+  [['пар'], ['steam', 'steam wand', 'steam boiler']],
+  [['группа', 'група'], ['group', 'brew group', 'grouphead']],
+  [['кофе', 'кава'], ['coffee', 'espresso', 'brew']],
+  [['кофемолка', 'кавомолка', 'мельница'], ['grinder', 'hopper', 'burr', 'motor']],
+  [['чистка', 'очистка', 'чистити'], ['cleaning', 'clean', 'rinse', 'backflush']],
+  [['обслуживание', 'сервис', 'ремонт'], ['maintenance', 'service', 'repair']],
+  [['накипь', 'декальцинация'], ['scale', 'descaling', 'decalcification']],
+  [['настройка', 'налаштування'], ['setting', 'setup', 'configuration', 'adjustment']],
+  [['калибровка', 'калібрування'], ['calibration', 'calibrate']],
+  [['предохранитель', 'запобіжник'], ['fuse']],
+  [['питание', 'живлення'], ['power', 'voltage', 'supply']],
+  [['проводка', 'схема'], ['wiring', 'diagram', 'connector']],
+  [['дисплей', 'экран'], ['display', 'screen']],
+  [['фильтр', 'фільтр'], ['filter', 'cartridge']],
+  [['протечка', 'течь', 'витік'], ['leak', 'leakage']],
+  [['засор', 'забит'], ['clog', 'blocked', 'obstruction']],
+];
 const require = createRequire(import.meta.url);
 let cachedPdfParse = undefined;
 let cachedPdfJs = undefined;
 const manualIndexCache = new Map();
+let manualIndexRemoteStore = null;
 
 function sanitizeText(value = '', max = 400) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -91,6 +119,54 @@ function clearCachedManualIndex(manualId) {
   manualIndexCache.delete(String(manualId || ''));
 }
 
+export function configureManualIndexRemoteStore(store = null) {
+  manualIndexRemoteStore = store && typeof store === 'object' ? store : null;
+}
+
+function parseIndexDate(value) {
+  const time = Date.parse(value || '');
+  return Number.isFinite(time) ? time : 0;
+}
+
+function selectNewestIndex(localIndex = null, remoteIndex = null) {
+  if (!localIndex) return remoteIndex || null;
+  if (!remoteIndex) return localIndex || null;
+  const localTime = parseIndexDate(localIndex.updatedAt);
+  const remoteTime = parseIndexDate(remoteIndex.updatedAt);
+  return remoteTime > localTime ? remoteIndex : localIndex;
+}
+
+async function loadRemoteManualIndex(manualId) {
+  if (!manualIndexRemoteStore?.load) return null;
+  try {
+    const result = await manualIndexRemoteStore.load(String(manualId || ''));
+    return result?.index || null;
+  } catch (error) {
+    console.warn('[manuals-ai] remote index load failed', { manualId, error: error?.message || error });
+    return null;
+  }
+}
+
+async function saveRemoteManualIndex(index) {
+  if (!manualIndexRemoteStore?.save || !index?.manualId) return null;
+  try {
+    return await manualIndexRemoteStore.save(index.manualId, index);
+  } catch (error) {
+    console.warn('[manuals-ai] remote index save failed', { manualId: index.manualId, error: error?.message || error });
+    return null;
+  }
+}
+
+async function removeRemoteManualIndex(manualId) {
+  if (!manualIndexRemoteStore?.remove) return null;
+  try {
+    return await manualIndexRemoteStore.remove(String(manualId || ''));
+  } catch (error) {
+    console.warn('[manuals-ai] remote index delete failed', { manualId, error: error?.message || error });
+    return null;
+  }
+}
+
 async function loadPdfJs() {
   if (cachedPdfJs !== undefined) return cachedPdfJs;
   try {
@@ -126,6 +202,24 @@ function tokenize(value = '') {
     .split(/\s+/)
     .map(token => token.trim())
     .filter(token => token.length >= 2)));
+}
+
+function expandRetrievalQuestion(value = '') {
+  const source = sanitizeText(value, 1200);
+  const normalized = normalizeText(source);
+  const additions = [];
+
+  for (const [triggers, expansions] of RETRIEVAL_SYNONYMS) {
+    const hasTrigger = triggers.some(trigger => {
+      const normalizedTrigger = normalizeText(trigger);
+      return normalizedTrigger && normalized.includes(normalizedTrigger);
+    });
+    if (hasTrigger) additions.push(...expansions);
+  }
+
+  return additions.length
+    ? `${source} ${Array.from(new Set(additions)).join(' ')}`
+    : source;
 }
 
 function countReadableWords(value = '') {
@@ -1473,25 +1567,48 @@ export async function loadManualIndex(manualId) {
 
   try {
     const cached = getCachedManualIndex(safeManualId);
-    if (cached?.index) {
+    if (cached?.index && cached.index.status !== 'not_indexed') {
       console.log('[manuals-ai] index loaded from cache', { manualId: safeManualId, status: cached.index.status, chunksCount: Array.isArray(cached.index.chunks) ? cached.index.chunks.length : 0 });
       return cached.index;
     }
 
     await ensureIndexDir();
     const filePath = manualIndexPath(safeManualId);
-    const raw = await fs.readFile(filePath, 'utf8');
-    const index = JSON.parse(raw);
-    console.log('[manuals-ai] index loaded', { manualId: safeManualId, filePath, status: index?.status || 'unknown', chunksCount: Array.isArray(index?.chunks) ? index.chunks.length : 0 });
-    return cacheManualIndex(safeManualId, index || buildEmptyIndexState(safeManualId));
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      console.warn('[manuals-ai] index missing', { manualId: safeManualId, filePath: manualIndexPath(safeManualId) });
-      const empty = buildEmptyIndexState(safeManualId);
-      cacheManualIndex(safeManualId, empty);
-      return empty;
+    let localIndex = null;
+    try {
+      const raw = await fs.readFile(filePath, 'utf8');
+      localIndex = JSON.parse(raw);
+    } catch (readError) {
+      if (readError?.code !== 'ENOENT') throw readError;
     }
 
+    const remoteIndex = await loadRemoteManualIndex(safeManualId);
+    const index = selectNewestIndex(localIndex, remoteIndex);
+
+    if (index) {
+      if (remoteIndex && index === remoteIndex) {
+        try {
+          await fs.writeFile(filePath, JSON.stringify(remoteIndex, null, 2), 'utf8');
+        } catch (writeError) {
+          console.warn('[manuals-ai] remote index cache write failed', { manualId: safeManualId, error: writeError?.message || writeError });
+        }
+      }
+
+      console.log('[manuals-ai] index loaded', {
+        manualId: safeManualId,
+        source: index === remoteIndex ? 'drive' : 'local',
+        filePath,
+        status: index?.status || 'unknown',
+        chunksCount: Array.isArray(index?.chunks) ? index.chunks.length : 0,
+      });
+      return cacheManualIndex(safeManualId, index || buildEmptyIndexState(safeManualId));
+    }
+
+    console.warn('[manuals-ai] index missing', { manualId: safeManualId, filePath: manualIndexPath(safeManualId) });
+    const empty = buildEmptyIndexState(safeManualId);
+    cacheManualIndex(safeManualId, empty);
+    return empty;
+  } catch (error) {
     console.error('[manuals-ai] index load failed', { manualId: safeManualId, error: error?.message || error });
     const empty = buildEmptyIndexState(safeManualId, sanitizeText(error?.message || 'index_load_failed', 240));
     cacheManualIndex(safeManualId, empty);
@@ -1503,8 +1620,15 @@ async function saveManualIndex(index) {
   await ensureIndexDir();
   const filePath = manualIndexPath(index.manualId);
   await fs.writeFile(filePath, JSON.stringify(index, null, 2), 'utf8');
-  console.log('[manuals-ai] index created', { manualId: index.manualId, filePath, status: index.status, chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0 });
-  return cacheManualIndex(index.manualId, index);
+  const remote = await saveRemoteManualIndex(index);
+  console.log('[manuals-ai] index created', {
+    manualId: index.manualId,
+    filePath,
+    remoteFileId: remote?.fileId || remote?.metadata?.indexFileId || null,
+    status: index.status,
+    chunksCount: Array.isArray(index.chunks) ? index.chunks.length : 0,
+  });
+  return cacheManualIndex(index.manualId, index, remote?.metadata || null);
 }
 
 export async function removeManualIndex(manualId) {
@@ -1517,6 +1641,7 @@ export async function removeManualIndex(manualId) {
       throw error;
     }
   } finally {
+    await removeRemoteManualIndex(manualId);
     clearCachedManualIndex(manualId);
   }
 }
@@ -1872,7 +1997,7 @@ function technicalTokenBonus(tokens = [], chunkText = '') {
 
 export function scoreChunks({ question, retrievalQuestion = '', manual, chunks }) {
   const originalQuestion = sanitizeText(question, 1200);
-  const effectiveQuestion = sanitizeText(retrievalQuestion || question, 1200);
+  const effectiveQuestion = expandRetrievalQuestion(retrievalQuestion || question);
   const queryTokens = tokenize(effectiveQuestion);
   const originalTokens = tokenize(originalQuestion);
   const normalizedQuestion = normalizeText(effectiveQuestion);

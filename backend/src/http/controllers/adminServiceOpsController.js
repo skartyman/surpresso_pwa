@@ -66,6 +66,17 @@ function parseChatIds(value = '') {
     .filter(Boolean);
 }
 
+const EQUIPMENT_TELEGRAM_MOVE_STATUSES = new Set(['out_on_rent', 'out_on_replacement', 'issued_to_client']);
+
+function getCommercialStatusTelegramLabel(status = '') {
+  const labels = {
+    out_on_rent: 'Уехало на аренду',
+    out_on_replacement: 'Уехало в подмену',
+    issued_to_client: 'Выдано клиенту',
+  };
+  return labels[status] || status || 'Статус изменен';
+}
+
 function buildEquipmentTelegramMessage(equipment = {}, activeCase = null, actor = null) {
   const title = [equipment.brand, equipment.model || equipment.name].filter(Boolean).join(' ') || equipment.id || 'Оборудование';
   const lines = [
@@ -84,6 +95,52 @@ function buildEquipmentTelegramMessage(equipment = {}, activeCase = null, actor 
   ];
   if (activeCase?.id) lines.push(`Активный кейс: ${activeCase.id}`);
   if (equipment.lastComment) lines.push(`Комментарий: ${equipment.lastComment}`);
+  if (actor?.fullName || actor?.email) lines.push(`Отправил: ${actor.fullName || actor.email}`);
+  return lines.join('\n');
+}
+
+function buildEquipmentIntakeTelegramMessage(equipment = {}, serviceCase = null, actor = null) {
+  const title = [equipment.name, equipment.brand, equipment.model].filter(Boolean).join(' ') || equipment.id || 'Оборудование';
+  const isCompany = equipment.ownerType === 'company';
+  const numberLabel = isCompany ? 'Внутренний номер' : 'Серийный номер';
+  const numberValue = isCompany ? equipment.internalNumber : equipment.serial;
+  const lines = [
+    'Прием / перемещение оборудования',
+    '',
+    `ID: ${equipment.id || '—'}`,
+    `Оборудование: ${title}`,
+    `Тип: ${equipment.equipmentType || '—'}`,
+    `${numberLabel}: ${numberValue || '—'}`,
+    `Владелец: ${isCompany ? 'Surpresso' : 'клиент'}`,
+    `Клиент / арендатор: ${equipment.clientName || 'Surpresso'}`,
+    `Телефон: ${equipment.clientPhone || '—'}`,
+    `Точка: ${equipment.clientLocation || equipment.companyLocation || equipment.locationName || '—'}`,
+    `Сервисный статус: ${serviceCase?.serviceStatus || equipment.serviceStatus || '—'}`,
+  ];
+  if (serviceCase?.id) lines.push(`Сервисный кейс: ${serviceCase.id}`);
+  if (serviceCase?.problemDescription || equipment.lastComment) lines.push(`Задача: ${serviceCase?.problemDescription || equipment.lastComment}`);
+  if (serviceCase?.damageDescription) lines.push(`Состояние: ${serviceCase.damageDescription}`);
+  if (serviceCase?.intakeComment) lines.push(`Комментарий: ${serviceCase.intakeComment}`);
+  if (actor?.fullName || actor?.email) lines.push(`Принял: ${actor.fullName || actor.email}`);
+  return lines.join('\n');
+}
+
+function buildEquipmentMoveTelegramMessage(equipment = {}, activeCase = null, status = '', actor = null) {
+  const title = [equipment.name, equipment.brand, equipment.model].filter(Boolean).join(' ') || equipment.id || 'Оборудование';
+  const isCompany = equipment.ownerType === 'company' || ['out_on_rent', 'out_on_replacement'].includes(status);
+  const numberLabel = isCompany ? 'Внутренний номер' : 'Серийный номер';
+  const numberValue = isCompany ? equipment.internalNumber : equipment.serial;
+  const lines = [
+    getCommercialStatusTelegramLabel(status),
+    '',
+    `ID: ${equipment.id || '—'}`,
+    `Оборудование: ${title}`,
+    `${numberLabel}: ${numberValue || '—'}`,
+    `Клиент / точка: ${equipment.clientName || 'Surpresso'}`,
+    `Адрес / локация: ${equipment.clientLocation || equipment.companyLocation || equipment.locationName || equipment.address || '—'}`,
+    `Коммерческий статус: ${status || equipment.commercialStatus || '—'}`,
+  ];
+  if (activeCase?.id) lines.push(`Сервисный кейс: ${activeCase.id}`);
   if (actor?.fullName || actor?.email) lines.push(`Отправил: ${actor.fullName || actor.email}`);
   return lines.join('\n');
 }
@@ -137,6 +194,26 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
   const notificationCenterService = opts.notificationCenterService;
   const botGateway = opts.botGateway;
 
+  async function postEquipmentMoveToLegacyChat(req, equipmentId, commercialStatus) {
+    if (!botGateway || !EQUIPMENT_TELEGRAM_MOVE_STATUSES.has(commercialStatus)) return { ok: false, skipped: true };
+    const chatIds = Array.from(new Set(parseChatIds(config.telegramLegacyChatIds)));
+    if (!chatIds.length) return { ok: false, skipped: true, reason: 'telegram_chat_not_configured' };
+
+    const payload = await serviceOpsRepository.getEquipmentDetail(equipmentId);
+    if (!payload?.equipment) return { ok: false, skipped: true, reason: 'equipment_not_found' };
+    const activeCase = (payload.serviceCases || []).find((row) => row.isActive) || null;
+    const media = normalizeEquipmentMedia(req, payload.media || []);
+    const photo = media.find((row) => row.mediaType === 'photo' && (row.fullUrl || row.previewUrl || row.fileUrl));
+    const caption = buildEquipmentMoveTelegramMessage(payload.equipment, activeCase, commercialStatus, req.adminUser);
+    const results = await Promise.allSettled(chatIds.map((chatId) => {
+      const photoUrl = photo?.fullUrl || photo?.previewUrl || photo?.fileUrl || '';
+      if (photoUrl && typeof botGateway.sendPhoto === 'function') return botGateway.sendPhoto(chatId, photoUrl, caption.slice(0, 1000));
+      return botGateway.sendMessage(chatId, caption);
+    }));
+    const sent = results.filter((row) => row.status === 'fulfilled' && row.value?.ok !== false).length;
+    return { ok: sent > 0, sent, total: chatIds.length };
+  }
+
   async function applyCommercialStatusChange(req, res, {
     equipmentId,
     serviceStatus,
@@ -165,7 +242,8 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       serviceCaseId,
     });
     if (!item) return res.status(404).json({ error: 'not_found' });
-    return res.json({ item });
+    const telegram = await postEquipmentMoveToLegacyChat(req, equipmentId, toCommercialStatus);
+    return res.json({ item, telegram });
   }
 
   return {
@@ -623,6 +701,73 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       return res.json({ items: normalized });
     },
 
+    async listClients(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const items = await serviceOpsRepository.listClients(req.query || {});
+      return res.json({ items });
+    },
+
+    async clientById(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const item = await serviceOpsRepository.getClientDetail(req.params.id);
+      if (!item) return res.status(404).json({ error: 'not_found' });
+      return res.json({ item });
+    },
+
+    async createClient(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      try {
+        const item = await serviceOpsRepository.createClientWithLocation(req.body || {});
+        return res.status(201).json({ item });
+      } catch (error) {
+        if (error?.message === 'company_name_required') return res.status(400).json({ error: 'company_name_required' });
+        throw error;
+      }
+    },
+
+    async updateClient(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      try {
+        const item = await serviceOpsRepository.updateClientWithLocation(req.params.id, req.body || {});
+        return res.json({ item });
+      } catch (error) {
+        if (error?.message === 'company_name_required') return res.status(400).json({ error: 'company_name_required' });
+        if (error?.message === 'client_not_found') return res.status(404).json({ error: 'client_not_found' });
+        throw error;
+      }
+    },
+
+    async deleteClient(req, res) {
+      if ((req.adminUser?.role || '') !== 'service_head' && (req.adminUser?.role || '') !== 'owner' && (req.adminUser?.role || '') !== 'director') {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+      try {
+        const removed = await serviceOpsRepository.deleteClientById(req.params.id);
+        if (!removed) return res.status(404).json({ error: 'client_not_found' });
+        return res.json({ removed });
+      } catch (error) {
+        if (error?.message === 'client_has_links') return res.status(409).json({ error: 'client_has_links' });
+        throw error;
+      }
+    },
+
+    async linkClientEquipment(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
+      try {
+        const item = await serviceOpsRepository.linkEquipmentToClient(req.params.id, {
+          ...(req.body || {}),
+          changedByUserId: req.adminUser?.id || null,
+        });
+        return res.json({ item });
+      } catch (error) {
+        if (error?.message === 'equipment_required') return res.status(400).json({ error: 'equipment_required' });
+        if (error?.message === 'client_not_found') return res.status(404).json({ error: 'client_not_found' });
+        if (error?.message === 'equipment_not_found') return res.status(404).json({ error: 'equipment_not_found' });
+        if (error?.message === 'location_not_found') return res.status(404).json({ error: 'location_not_found' });
+        throw error;
+      }
+    },
+
     async equipmentById(req, res) {
       if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
       const item = await serviceOpsRepository.getEquipmentById(req.params.id);
@@ -657,6 +802,7 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!can(req.adminUser, PERMISSIONS.equipmentUpdateCommercial)) return res.status(403).json({ error: 'forbidden' });
       const created = await serviceOpsRepository.createEquipmentCard({
         ...req.body,
+        changedByUserId: req.adminUser?.id || null,
       });
       return res.status(201).json({ item: { equipment: created, serviceCase: null } });
     },
@@ -788,7 +934,18 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         intakeType: req.body?.intakeType || 'manual_intake',
         serviceStatus: req.body?.serviceStatus || 'accepted',
       });
-      return res.status(201).json({ item: created });
+      let telegram = { ok: false, sent: 0, total: 0, skipped: true };
+      if (botGateway && created?.equipment) {
+        const chatIds = parseChatIds(config.telegramLegacyChatIds);
+        const uniqueChatIds = Array.from(new Set(chatIds));
+        if (uniqueChatIds.length) {
+          const message = buildEquipmentIntakeTelegramMessage(created.equipment, created.serviceCase, req.adminUser);
+          const results = await Promise.allSettled(uniqueChatIds.map((chatId) => botGateway.sendMessage(chatId, message)));
+          const sent = results.filter((item) => item.status === 'fulfilled' && item.value?.ok !== false).length;
+          telegram = { ok: sent > 0, sent, total: uniqueChatIds.length, skipped: false };
+        }
+      }
+      return res.status(201).json({ item: { ...created, telegram } });
     },
 
     async updateCommercialStatus(req, res) {

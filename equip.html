@@ -660,11 +660,118 @@ input[type="file"]::file-selector-button:hover{
   .lbBtns{
     width:100%;
   }
-  .lbBtn{
+.lbBtn{
     flex:1 1 auto;
     padding:6px 8px;
     font-size:12px;
     text-align:center;
+  }
+}
+
+.equipmentSummaryCard{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  margin-bottom:14px;
+}
+.equipmentSummaryTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.equipmentSummaryStatus{
+  font-size:22px;
+  font-weight:900;
+  margin-top:3px;
+}
+.equipmentSummaryBadges,
+.equipmentQuickActions,
+.equipmentMenu{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.equipmentSummaryBadges{
+  justify-content:flex-end;
+}
+.equipmentInfoGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.equipmentInfoItem{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface-2);
+  padding:10px 12px;
+  min-width:0;
+}
+.equipmentInfoItem span{
+  display:block;
+  color:var(--text-3);
+  font-size:11px;
+  font-weight:800;
+  margin-bottom:4px;
+}
+.equipmentInfoItem b{
+  display:block;
+  font-size:14px;
+  overflow-wrap:anywhere;
+}
+.equipmentQuickActions{
+  padding-top:2px;
+}
+.equipmentMenu{
+  border-top:1px solid var(--border);
+  padding-top:12px;
+}
+.equipmentMenuBtn{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface);
+  color:var(--text);
+  min-height:42px;
+  padding:9px 12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.equipmentMenuBtn.is-active{
+  border-color:rgba(242,201,76,.9);
+  background:rgba(242,201,76,.18);
+  box-shadow:var(--glow);
+}
+#actionPanels.grid2{
+  display:block;
+}
+#actionPanels > .col{
+  display:contents;
+}
+.action-panel{
+  display:none;
+  margin-bottom:14px;
+}
+.action-panel.is-active{
+  display:block;
+}
+@media (max-width:760px){
+  .equipmentSummaryTop{
+    flex-direction:column;
+  }
+  .equipmentSummaryBadges{
+    justify-content:flex-start;
+  }
+  .equipmentInfoGrid{
+    grid-template-columns:1fr 1fr;
+  }
+  .equipmentMenuBtn,
+  .equipmentQuickActions .btn{
+    flex:1 1 100%;
+  }
+}
+@media (max-width:460px){
+  .equipmentInfoGrid{
+    grid-template-columns:1fr;
   }
 }
 </style>
@@ -691,14 +798,46 @@ input[type="file"]::file-selector-button:hover{
 
     <!-- MAIN -->
     <div id="main" style="display:none">
+      <div class="card equipmentSummaryCard">
+        <div class="equipmentSummaryTop">
+          <div>
+            <div class="muted">Поточний статус</div>
+            <div class="equipmentSummaryStatus" id="summaryStatus">—</div>
+            <div class="muted" id="summaryUpdated">—</div>
+          </div>
+          <div class="equipmentSummaryBadges">
+            <span class="pill" id="summaryOwner">—</span>
+            <span class="pill" id="summaryType">—</span>
+          </div>
+        </div>
 
-      <div class="grid2">
+        <div class="equipmentInfoGrid" id="summaryInfo"></div>
+
+        <div class="equipmentQuickActions">
+          <button class="btn ghost" id="btnSummaryPdf">Паспорт</button>
+          <button class="btn ghost" id="btnSummaryPrint">Бланк</button>
+          <button class="btn ghost" id="btnTransferOwner">Перевести власника</button>
+          <button class="btn primary" id="btnSummaryRefresh">Оновити</button>
+        </div>
+
+        <div class="equipmentMenu" role="tablist" aria-label="Дії з обладнанням">
+          <button class="equipmentMenuBtn is-active" type="button" data-panel="status">Изменение статуса</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="task">Новая задача</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="approval">Запит на погодження з клієнтом</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="specs">Технічні характеристики</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="invoice">Рахунок</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="photos">Фотогалерея</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="history">Історія</button>
+        </div>
+      </div>
+
+      <div class="grid2" id="actionPanels">
 
         <!-- LEFT COLUMN -->
         <div class="col">
 
           <!-- STATUS HEADER CARD -->
-          <div class="card">
+          <div class="card legacyHeaderCard" style="display:none">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Поточний стан</div>
@@ -724,7 +863,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- CHANGE STATUS CARD -->
-          <div class="card">
+          <div class="card action-panel is-active" id="panel-status">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Зміна статусу</div>
@@ -800,7 +939,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- NEW TASK CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-task">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Нова задача для готового обладнання (Trello)</div>
@@ -855,7 +994,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- APPROVAL REQUEST CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-approval">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Запит на погодження</div>
@@ -889,7 +1028,7 @@ input[type="file"]::file-selector-button:hover{
         <div class="col">
 
           <!-- INFO CARD -->
-          <div class="card">
+          <div class="card legacyInfoCard" style="display:none">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Інформація</div>
@@ -901,7 +1040,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- SPECS CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-specs">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Технічні характеристики</div>
@@ -940,7 +1079,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- INVOICE CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-invoice">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Рахунок</div>
@@ -964,7 +1103,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- PHOTOS CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-photos">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Фото (з бази)</div>
@@ -995,7 +1134,7 @@ input[type="file"]::file-selector-button:hover{
           </div>
 
           <!-- LOG CARD -->
-          <div class="card">
+          <div class="card action-panel" id="panel-history">
             <div class="cardHeader">
               <div>
                 <div class="cardTitle">Історія статусів</div>
@@ -1177,6 +1316,7 @@ input[type="file"]::file-selector-button:hover{
       "Бронь к продаже",
       "Бронь к аренде",
       "Готово к аренде",
+      "Купили",
       "Уехало на аренду",
       "Приехало после аренды",
       "Уехало на подмену",
@@ -1199,6 +1339,7 @@ input[type="file"]::file-selector-button:hover{
       $("eqId").textContent = EQUIPMENT_ID;
 
       $("btnRefresh").onclick = load;
+      $("btnSummaryRefresh").onclick = load;
       $("btnStatus").onclick = saveStatus;
 
       $("btnUploadPhotos").onclick = uploadPhotosMulti;
@@ -1230,6 +1371,12 @@ input[type="file"]::file-selector-button:hover{
       $("btnApprovalSend").onclick = sendApprovalRequest;
       $("btnPhotoAlbum").onclick = sendPhotoAlbum;
       $("btnInvoiceSend").onclick = sendInvoice;
+      $("btnSummaryPdf").onclick = () => {
+        location.href = `/passport.html?id=${encodeURIComponent(EQUIPMENT_ID)}`;
+      };
+      $("btnSummaryPrint").onclick = () => printBlank();
+      $("btnTransferOwner").onclick = transferOwner;
+      initActionMenu();
 
       load();
     }
@@ -1323,6 +1470,7 @@ input[type="file"]::file-selector-button:hover{
 
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
+      renderCompactSummary(eq, subscriptionLabel);
 
       // statuses by owner
       const statuses = buildStatusesFor(eq);
@@ -1372,6 +1520,128 @@ input[type="file"]::file-selector-button:hover{
           </tr>
         `).join("")
         : `<tr><td class="muted">Немає записів</td></tr>`;
+    }
+
+    function renderCompactSummary(eq, subscriptionLabel) {
+      $("summaryStatus").textContent = eq.status || "—";
+      $("summaryUpdated").textContent = "Оновлено: " + fmt(eq.updatedAt);
+      $("summaryOwner").textContent = eq.owner === "company" ? "Компанія" : "Клієнт";
+      $("summaryType").textContent = eq.type || "—";
+
+      const rows = [];
+      const add = (label, value) => rows.push(`
+        <div class="equipmentInfoItem">
+          <span>${esc(label)}</span>
+          <b>${esc(value || "—")}</b>
+        </div>
+      `);
+
+      if (eq.owner === "client") {
+        add("Клієнт", eq.clientName);
+        add("Телефон", eq.clientPhone);
+        add("Модель", eq.model);
+        add("Серійний", eq.serial || eq.id);
+        add("Локація", eq.clientLocation);
+        add("Договір", String(eq.isContract) === "true" ? "Так" : "Ні");
+        add("Бот", subscriptionLabel);
+      } else {
+        add("Локація", eq.companyLocation);
+        add("Назва", eq.name);
+        add("Внутрішній №", eq.internalNumber || eq.id);
+        add("Тип", eq.type);
+      }
+      add("Коментар", eq.lastComment);
+
+      $("summaryInfo").innerHTML = rows.join("");
+    }
+
+    function initActionMenu() {
+      document.querySelectorAll(".equipmentMenuBtn").forEach((btn) => {
+        btn.addEventListener("click", () => showActionPanel(btn.dataset.panel));
+      });
+      showActionPanel("status");
+    }
+
+    function showActionPanel(name) {
+      document.querySelectorAll(".equipmentMenuBtn").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.panel === name);
+      });
+      document.querySelectorAll(".action-panel").forEach((panel) => {
+        panel.classList.toggle("is-active", panel.id === `panel-${name}`);
+      });
+    }
+
+    async function transferOwner() {
+      const eq = LAST_EQUIPMENT || {};
+      const currentOwner = eq.owner || "client";
+      const nextOwner = currentOwner === "client" ? "company" : "client";
+      const label = nextOwner === "company" ? "обладнання компанії" : "обладнання клієнта";
+
+      if (!confirm(`Перевести цю картку у ${label}?`)) return;
+
+      const actor = $("actor")?.value || "";
+      const payload = { owner: nextOwner, actor };
+
+      if (nextOwner === "client") {
+        const clientName = prompt("Ім'я клієнта", eq.clientName || "");
+        if (clientName === null) return;
+        const clientPhone = prompt("Телефон клієнта", eq.clientPhone || "");
+        if (clientPhone === null) return;
+        if (!String(clientName).trim() || !String(clientPhone).trim()) {
+          return alert("Для клієнта обов'язково потрібні ім'я та телефон.");
+        }
+        payload.clientName = clientName;
+        payload.clientPhone = clientPhone;
+        payload.clientLocation = prompt("Локація клієнта", eq.clientLocation || eq.companyLocation || "") || "";
+        payload.model = prompt("Модель", eq.model || eq.name || "") || "";
+        payload.serial = prompt("Серійний номер", eq.serial || eq.id || "") || "";
+        payload.isContract = askServiceContract();
+        payload.comment = "Продано клієнту / переведено на клієнта";
+      } else {
+        const companyLocation = prompt("Локація компанії", eq.companyLocation || eq.clientLocation || "");
+        if (companyLocation === null) return;
+        const name = prompt("Назва обладнання", eq.name || eq.model || "");
+        if (name === null) return;
+        const internalNumber = prompt("Внутрішній номер", eq.internalNumber || eq.id || "");
+        if (internalNumber === null) return;
+        if (!String(companyLocation).trim() || !String(name).trim() || !String(internalNumber).trim()) {
+          return alert("Для обладнання компанії обов'язкові локація, назва та внутрішній номер.");
+        }
+        payload.companyLocation = companyLocation;
+        payload.name = name;
+        payload.internalNumber = internalNumber;
+        payload.comment = "Викуплено у клієнта / переведено на компанію";
+      }
+
+      $("infoHint").textContent = "Змінюю власника...";
+      try {
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/owner`, payload);
+        if (!out.ok) throw new Error(out.error || "Помилка зміни власника");
+        $("infoHint").textContent = "";
+        LAST_EQUIPMENT = {
+          ...(LAST_EQUIPMENT || {}),
+          ...(out.equipment || {}),
+          owner: nextOwner,
+          status: out.status || (nextOwner === "company" ? "Купили" : "Прийнято на ремонт")
+        };
+        renderCompactSummary(LAST_EQUIPMENT, "Оновлюється...");
+        $("curStatus").textContent = LAST_EQUIPMENT.status || "—";
+        $("pillOwner").textContent = "owner: " + nextOwner;
+        fillStatuses(buildStatusesFor(LAST_EQUIPMENT), LAST_EQUIPMENT.status);
+        alert(nextOwner === "company" ? "Переведено на обладнання компанії ✅" : "Переведено на клієнта ✅");
+        await load();
+      } catch (e) {
+        $("infoHint").textContent = "";
+        alert("❌ " + (e.message || "Помилка зміни власника"));
+      }
+    }
+
+    function askServiceContract() {
+      const answer = prompt(
+        "Договір обслуговування:\n1 - так, по договору\n2 - ні, без договору",
+        "2"
+      );
+      return String(answer || "2").trim() === "1";
     }
 
     function buildStatusesFor(eq) {
@@ -1554,7 +1824,7 @@ input[type="file"]::file-selector-button:hover{
 
       $("photos").innerHTML = slice.map((p) => {
         const driveViewUrl = String(p.url || "");
-        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl);
+        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl || p.fileId);
         const cap = p.caption || "";
         const ts = fmt(p.ts);
         const safeCap = esc(cap || ts || "Фото");
@@ -1593,7 +1863,12 @@ input[type="file"]::file-selector-button:hover{
       const s = String(driveUrl);
       let fileId = null;
 
-      if (s.includes("uc?export=view&id=")) {
+      if (/^[a-zA-Z0-9_-]{20,}$/.test(s.trim())) {
+        fileId = s.trim();
+      } else if (s.includes("thumbnail")) {
+        const m = s.match(/[?&]id=([^&]+)/i);
+        if (m) fileId = m[1];
+      } else if (s.includes("uc?export=view&id=")) {
         const m = s.match(/id=([^&]+)/i);
         if (m) fileId = m[1];
       } else if (s.includes("/file/d/")) {
@@ -1695,6 +1970,7 @@ input[type="file"]::file-selector-button:hover{
 
     const AUTO_RESEND_STATUSES = [
       "прийнято на ремонт",
+      "купили",
       "приехало после аренды",
       "приехало с подмены"
     ];
@@ -1711,7 +1987,7 @@ input[type="file"]::file-selector-button:hover{
       return AUTO_RESEND_STATUSES.includes(normalizeStatusValue(status));
     }
 
-    function buildSendEquipmentCard(extraComment = "") {
+    function buildSendEquipmentCard(extraComment = "", status = "") {
       if (!LAST_EQUIPMENT?.id) return null;
 
       const eq = LAST_EQUIPMENT;
@@ -1720,6 +1996,7 @@ input[type="file"]::file-selector-button:hover{
         owner: eq.owner || "client",
         type: eq.type || "",
         isContract: String(eq.isContract) === "true" || eq.isContract === true,
+        status: String(status || eq.status || "").trim(),
       };
 
       if (card.owner === "client") {
@@ -1747,8 +2024,8 @@ input[type="file"]::file-selector-button:hover{
       return card;
     }
 
-    async function sendEquipmentToTelegramAndTrello({ photos = [], comment = "" }) {
-      const card = buildSendEquipmentCard(comment);
+    async function sendEquipmentToTelegramAndTrello({ photos = [], comment = "", status = "" }) {
+      const card = buildSendEquipmentCard(comment, status);
       if (!card) throw new Error("Немає даних обладнання. Натисни Оновити.");
 
       const resp = await fetch(`${API_BASE}/send-equipment`, {
@@ -1815,7 +2092,7 @@ input[type="file"]::file-selector-button:hover{
       if (shouldAutoResend) {
         try {
           $("statusHint").textContent = "Відправляю в TG + Trello...";
-          await sendEquipmentToTelegramAndTrello({ photos, comment });
+          await sendEquipmentToTelegramAndTrello({ photos, comment, status: newStatus });
         } catch (e) {
           console.error(e);
           $("statusHint").textContent = "";

@@ -39,6 +39,7 @@ const EVENT_META = {
   processed: { labelKey: 'processed', tone: 'processed', icon: 'dashboard' },
   media_uploaded: { labelKey: 'media_uploaded', tone: 'media', icon: 'content' },
   note_added: { labelKey: 'note_added', tone: 'note', icon: 'content' },
+  placement_changed: { labelKey: 'client_location', tone: 'assignment', icon: 'clients' },
   legacy_event: { labelKey: 'legacy_event', tone: 'legacy', icon: 'bell' },
 };
 
@@ -62,6 +63,7 @@ const ALERT_TONES = {
 
 const RENT_STATUSES = new Set(['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'out_on_replacement']);
 const SALE_STATUSES = new Set(['ready_for_sale', 'reserved_for_sale', 'sold']);
+const COMPANY_OWNED_COMMERCIAL_STATUSES = new Set(['ready_for_rent', 'reserved_for_rent', 'out_on_rent', 'out_on_replacement']);
 const EQUIPMENT_BOARD_COLUMNS = [
   { key: 'service', labelKey: 'service_column', eyebrowKey: 'in_work_short', accent: 'blue' },
   { key: 'ready', labelKey: 'ready_column', eyebrowKey: 'can_release', accent: 'green' },
@@ -116,7 +118,7 @@ function getBaseAdminPath(pathname = '') {
 function getEquipmentWarnings(detail, t = (value) => value) {
   const warnings = [];
   const equipment = detail?.equipment || {};
-  const ownerType = String(equipment.ownerType || '').trim();
+  const ownerType = getEquipmentOwnerDisplay(equipment);
   const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const staleReady = activeCase?.serviceStatus === 'ready' && activeCase.updatedAt
     ? (Date.now() - new Date(activeCase.updatedAt).getTime()) > 24 * 3600000
@@ -124,6 +126,8 @@ function getEquipmentWarnings(detail, t = (value) => value) {
   if (!activeCase) warnings.push('missing_active_service_case');
   if (ownerType === 'client' && !equipment.serial) warnings.push('missing_serial_for_client');
   if (ownerType === 'company' && !equipment.internalNumber) warnings.push('missing_internal_for_company');
+  if (!equipment.clientName && !equipment.client?.companyName) warnings.push('Клиент / заведение не указан');
+  if (!equipment.locationName && !equipment.clientLocation && !equipment.companyLocation) warnings.push('Точка оборудования не указана');
   if (staleReady) warnings.push('stale_ready');
   if ((detail?.media || []).length === 0) warnings.push('missing_media');
   if (activeCase && equipment.serviceStatus && activeCase.serviceStatus !== equipment.serviceStatus) warnings.push('inconsistent_status_data');
@@ -162,6 +166,70 @@ function getPrintLinkForEquipment(equipment = {}, legacyEquipment = {}) {
 function getPrintLabelForEquipment(equipment = {}, legacyEquipment = {}, t = (value) => value) {
   const owner = getEquipmentOwner(equipment, legacyEquipment);
   return owner === 'company' ? t('print_company_blank') : t('print_client_blank');
+}
+
+function cleanEquipmentValue(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '';
+}
+
+function isCompanyEquipment(equipment = {}, legacyEquipment = {}) {
+  if (COMPANY_OWNED_COMMERCIAL_STATUSES.has(equipment.commercialStatus || legacyEquipment.commercialStatus)) return true;
+  const owner = getEquipmentOwner(equipment, legacyEquipment);
+  if (owner) return owner === 'company';
+  const tenant = cleanEquipmentValue(equipment.clientName || legacyEquipment.clientName);
+  return !tenant || tenant.toLowerCase() === 'surpresso';
+}
+
+function getEquipmentOwnerDisplay(equipment = {}, legacyEquipment = {}) {
+  return isCompanyEquipment(equipment, legacyEquipment) ? 'company' : (getEquipmentOwner(equipment, legacyEquipment) || 'client');
+}
+
+function getEquipmentTitle(equipment = {}, legacyEquipment = {}, t = (value) => value) {
+  const primaryName = cleanEquipmentValue(equipment.name || legacyEquipment.name);
+  const brand = cleanEquipmentValue(equipment.brand || legacyEquipment.brand);
+  const model = cleanEquipmentValue(equipment.model || legacyEquipment.model);
+  const titleParts = [primaryName, brand, model].filter(Boolean);
+  if (!titleParts.length) titleParts.push(t('no_brand'));
+  const uniqueParts = [];
+  titleParts.forEach((part) => {
+    if (!uniqueParts.some((existing) => existing.toLowerCase() === part.toLowerCase())) uniqueParts.push(part);
+  });
+  return uniqueParts.join(' ');
+}
+
+function getEquipmentNumber(equipment = {}, legacyEquipment = {}) {
+  const company = isCompanyEquipment(equipment, legacyEquipment);
+  return company
+    ? cleanEquipmentValue(equipment.internalNumber || legacyEquipment.internalNumber)
+    : cleanEquipmentValue(equipment.serial || legacyEquipment.serial);
+}
+
+function getEquipmentNumberLabel(equipment = {}, legacyEquipment = {}, t = (value) => value) {
+  return isCompanyEquipment(equipment, legacyEquipment) ? t('inventory_number') : t('serial_number');
+}
+
+function getEquipmentTenant(equipment = {}, legacyEquipment = {}) {
+  const tenant = cleanEquipmentValue(
+    equipment.clientName
+    || equipment.locationName
+    || equipment.clientLocation
+    || legacyEquipment.clientName
+    || legacyEquipment.clientLocation
+  );
+  if (tenant) return tenant;
+  return isCompanyEquipment(equipment, legacyEquipment) ? 'Surpresso' : '';
+}
+
+function getEquipmentLocation(equipment = {}, legacyEquipment = {}) {
+  return cleanEquipmentValue(
+    equipment.locationName
+    || equipment.address
+    || equipment.clientLocation
+    || equipment.companyLocation
+    || legacyEquipment.clientLocation
+    || legacyEquipment.companyLocation
+  );
 }
 
 function getTimelineSummary(row, t = (value) => value) {
@@ -253,12 +321,10 @@ function EquipmentListCard({
   const hasActiveCase = Boolean(item.activeServiceCaseId);
   const warnings = item.warnings || [];
   const previewUrl = getEquipmentCardCover(item.id) || item.previewUrl || item.photoUrl || item.imageUrl || item.mediaPreviewUrl || '';
-  const modelTitle = `${item.brand || t('no_brand')} ${item.model || ''}`.trim();
-  const ownerMeta = item.clientName || (item.ownerType === 'company' ? t('company_equipment') : t('client_not_set'));
-  const primaryNumber = item.ownerType === 'company'
-    ? (item.internalNumber || item.serial || item.id || '—')
-    : (item.serial || item.internalNumber || item.id || '—');
-  const numberLabel = item.ownerType === 'company' ? t('inventory_number') : t('serial_number');
+  const modelTitle = getEquipmentTitle(item, {}, t);
+  const ownerMeta = getEquipmentTenant(item) || t('client_not_set');
+  const primaryNumber = getEquipmentNumber(item) || '—';
+  const numberLabel = getEquipmentNumberLabel(item, {}, t);
   const assignedMaster = item.assignedToUser?.fullName || item.assignedMaster || item.assignedToUserId || '—';
   const shortWarnings = warnings.slice(0, 2);
   const handleCardKeyDown = (event) => {
@@ -758,7 +824,7 @@ function ActionPanel({
             {commercialActions.map((action) => (
               <ActionListItem
                 icon="sales"
-                title={actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? t('saving') : action.label}
+                title={actionLoading === `commercial:${action.key}:${action.targetStatus || ''}` ? t('saving') : getCommercialLabel(action.targetStatus || action.key, t)}
                 meta={t('current_commercial_status')}
                 disabled={Boolean(actionLoading)}
                 key={action.key + action.targetStatus}
@@ -806,7 +872,17 @@ function TabPanel({
   const [equipmentMediaPlacement, setEquipmentMediaPlacement] = useState('equipment');
   const [equipmentMediaFeedback, setEquipmentMediaFeedback] = useState('');
   const [equipmentMediaError, setEquipmentMediaError] = useState('');
-  const [editForm, setEditForm] = useState({ brand: '', model: '', serial: '', internalNumber: '' });
+  const [editForm, setEditForm] = useState({
+    name: '',
+    brand: '',
+    model: '',
+    serial: '',
+    internalNumber: '',
+    clientName: '',
+    clientPhone: '',
+    clientLocation: '',
+    companyLocation: '',
+  });
   const [busy, setBusy] = useState('');
   if (!detail) return <p className="empty-copy">{t('equipment_unit_select')}</p>;
   const equipment = detail.equipment || {};
@@ -816,6 +892,12 @@ function TabPanel({
   const warnings = getEquipmentWarnings(detail, t);
   const latestTimelineEvent = (detail.timeline || [])[0] || null;
   if (tab === 'overview') {
+    const equipmentTitle = getEquipmentTitle(equipment, legacyEquipment, t);
+    const equipmentNumber = getEquipmentNumber(equipment, legacyEquipment) || '—';
+    const equipmentNumberLabel = getEquipmentNumberLabel(equipment, legacyEquipment, t);
+    const equipmentTenant = getEquipmentTenant(equipment, legacyEquipment) || '—';
+    const equipmentLocation = getEquipmentLocation(equipment, legacyEquipment) || '—';
+    const companyEquipment = isCompanyEquipment(equipment, legacyEquipment);
     const passportStats = [
       { key: 'service', label: t('service_label'), value: getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t), meta: activeCase?.id || t('no_active_case') },
       { key: 'updated', label: t('updated'), value: formatDay(equipment.updatedAt, locale, '—'), meta: formatDate(equipment.updatedAt, locale) },
@@ -825,15 +907,14 @@ function TabPanel({
       passportStats.splice(1, 0, { key: 'commerce', label: t('commerce'), value: getCommercialLabel(equipment.commercialStatus || 'none', t), meta: equipment.ownerType || '—' });
     }
     const passportFields = [
-      { key: 'client', icon: 'clients', label: t('client'), value: equipment.clientName || '—' },
-      { key: 'owner', icon: 'equipment', label: t('owner_type'), value: equipment.ownerType || '—' },
+      { key: 'client', icon: 'clients', label: t('client'), value: equipmentTenant },
+      { key: 'owner', icon: 'equipment', label: t('owner_type'), value: getEquipmentOwnerDisplay(equipment, legacyEquipment) || '—' },
+      { key: 'name', icon: 'equipment', label: t('equipment'), value: equipment.name || legacyEquipment.name || '—' },
       { key: 'brand', icon: 'dashboard', label: t('brand'), value: equipment.brand || '—' },
       { key: 'model', icon: 'equipment', label: t('model'), value: equipment.model || '—' },
-      { key: 'inventory', icon: 'sales', label: t('inventory_number'), value: equipment.internalNumber || '—' },
-      { key: 'serial', icon: 'service', label: t('serial_number'), value: equipment.serial || '—' },
+      { key: 'primary_number', icon: companyEquipment ? 'sales' : 'service', label: equipmentNumberLabel, value: equipmentNumber },
       { key: 'client_phone', icon: 'clients', label: t('client_phone'), value: equipment.clientPhone || legacyEquipment.clientPhone || '—' },
-      { key: 'client_location', icon: 'clients', label: t('client_location'), value: equipment.clientLocation || legacyEquipment.clientLocation || '—' },
-      { key: 'company_location', icon: 'equipment', label: t('company_location'), value: equipment.companyLocation || legacyEquipment.companyLocation || '—' },
+      { key: 'location', icon: companyEquipment ? 'equipment' : 'clients', label: companyEquipment ? t('company_location') : t('client_location'), value: equipmentLocation },
       { key: 'legacy_status', icon: 'bell', label: t('legacy_status'), value: legacyEquipment.status || equipment.currentStatusRaw || '—' },
     ];
     const serviceRequests = detail.serviceRequests || [];
@@ -850,10 +931,10 @@ function TabPanel({
       <section className="equipment-detail-section equipment-passport-overview">
         <div className="equipment-passport-layout">
           <article className="equipment-summary-hero equipment-summary-hero--passport">
-            <div className="equipment-summary-hero__copy">
+              <div className="equipment-summary-hero__copy">
               <small>{t('equipment_passport')}</small>
-              <h4>{equipment.brand || '—'} {equipment.model || ''}</h4>
-              <p>{equipment.id || '—'} · {equipment.internalNumber || '—'} / {equipment.serial || '—'}</p>
+              <h4>{equipmentTitle}</h4>
+              <p>{equipment.id || '—'} · {equipmentNumberLabel}: {equipmentNumber} · {equipmentTenant}</p>
               <div className="equipment-summary-hero__statuses">
                 <StatusBadge status={activeCase?.serviceStatus || equipment.serviceStatus || 'none'}>{t('service_label')}: {getServiceLabel(activeCase?.serviceStatus || equipment.serviceStatus, t)}</StatusBadge>
                 {canSeeCommercial ? <StatusBadge status={equipment.commercialStatus || 'none'}>{t('commerce')}: {getCommercialLabel(equipment.commercialStatus || 'none', t)}</StatusBadge> : null}
@@ -1059,10 +1140,21 @@ function TabPanel({
                 <p>{t('equipment_actions_description')}</p>
               </header>
               <div className="equipment-detail-grid">
+                <input placeholder={equipment.name || t('equipment')} value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
                 <input placeholder={equipment.brand || t('brand')} value={editForm.brand} onChange={(e) => setEditForm((p) => ({ ...p, brand: e.target.value }))} />
                 <input placeholder={equipment.model || t('model')} value={editForm.model} onChange={(e) => setEditForm((p) => ({ ...p, model: e.target.value }))} />
-                <input placeholder={equipment.serial || t('serial_number')} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
-                <input placeholder={equipment.internalNumber || t('inventory_number')} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+                {companyEquipment ? (
+                  <input placeholder={equipment.internalNumber || t('inventory_number')} value={editForm.internalNumber} onChange={(e) => setEditForm((p) => ({ ...p, internalNumber: e.target.value }))} />
+                ) : (
+                  <input placeholder={equipment.serial || t('serial_number')} value={editForm.serial} onChange={(e) => setEditForm((p) => ({ ...p, serial: e.target.value }))} />
+                )}
+                <input placeholder={equipment.clientName || 'Клиент / заведение'} value={editForm.clientName} onChange={(e) => setEditForm((p) => ({ ...p, clientName: e.target.value }))} />
+                <input placeholder={equipment.clientPhone || 'Телефон клиента'} value={editForm.clientPhone} onChange={(e) => setEditForm((p) => ({ ...p, clientPhone: e.target.value }))} />
+                {companyEquipment ? (
+                  <input placeholder={equipment.companyLocation || 'Локация компании'} value={editForm.companyLocation} onChange={(e) => setEditForm((p) => ({ ...p, companyLocation: e.target.value }))} />
+                ) : (
+                  <input placeholder={equipment.clientLocation || 'Точка клиента'} value={editForm.clientLocation} onChange={(e) => setEditForm((p) => ({ ...p, clientLocation: e.target.value }))} />
+                )}
               </div>
               <ActionRail compact>
                 <ActionRailButton
@@ -1071,8 +1163,9 @@ function TabPanel({
                   onClick={async () => {
                     setBusy('edit');
                     try {
-                      await adminServiceApi.updateEquipment(equipment.id, editForm);
-                      setEditForm({ brand: '', model: '', serial: '', internalNumber: '' });
+                      const patch = Object.fromEntries(Object.entries(editForm).filter(([, value]) => String(value || '').trim()));
+                      await adminServiceApi.updateEquipment(equipment.id, patch);
+                      setEditForm({ name: '', brand: '', model: '', serial: '', internalNumber: '', clientName: '', clientPhone: '', clientLocation: '', companyLocation: '' });
                       await onRefreshDetail?.();
                     } finally { setBusy(''); }
                   }}
@@ -1324,10 +1417,33 @@ function TabPanel({
   }
 
   if (tab === 'documents') {
+    const legacyEquipment = getLegacyEquipment(legacyPassport) || {};
+    const equipment = detail.equipment || {};
+    const documentLinks = [
+      { key: 'passport_pdf', label: t('open_pdf_passport'), url: equipment.passportPdfUrl || legacyEquipment.passportPdfUrl || '' },
+      { key: 'print', label: getPrintLabelForEquipment(equipment, legacyEquipment, t), url: getPrintLinkForEquipment(equipment, legacyEquipment) },
+      { key: 'qr', label: t('open_qr'), url: equipment.qrUrl || legacyEquipment.qrUrl || '' },
+      { key: 'folder', label: t('open_drive_folder'), url: equipment.folderUrl || legacyEquipment.folderUrl || '' },
+    ].filter((item) => item.url);
+
     return (
       <section className="equipment-detail-section">
-        <p>{t('equipment_documents_description')}</p>
-        <p>{t('passport_link')}: {detail.equipment?.passportPdfUrl || '—'}</p>
+        <article className="detail-section-card">
+          <h4>{t('documents')}</h4>
+          <p>{t('equipment_documents_description')}</p>
+          <ActionList compact>
+            {documentLinks.map((item) => (
+              <ActionListItem
+                key={item.key}
+                icon={item.key === 'qr' ? 'settings' : 'content'}
+                title={item.label}
+                meta={t('equipment_passport')}
+                onClick={() => openPassportLink(item.url)}
+              />
+            ))}
+            {!documentLinks.length ? <p className="empty-copy">{t('passport_link')}: —</p> : null}
+          </ActionList>
+        </article>
       </section>
     );
   }
@@ -1336,12 +1452,36 @@ function TabPanel({
     return <p className="empty-copy">{t('read_only')}</p>;
   }
 
-  const actions = detail.currentActions?.all || [];
+  const actions = (detail.currentActions?.all || []).filter((action) => action.type === 'commercial');
+  async function applyTabCommercialAction(action) {
+    if (!detail.equipment?.id || !action?.targetStatus) return;
+    setBusy(`commercial:${action.key}:${action.targetStatus}`);
+    try {
+      if (action.key === 'reserve-rent') {
+        await adminServiceApi.reserveRent(detail.equipment.id, activeCase?.id || null);
+      } else if (action.key === 'reserve-sale') {
+        await adminServiceApi.reserveSale(detail.equipment.id, activeCase?.id || null);
+      } else {
+        await adminServiceApi.updateCommercialStatus(detail.equipment.id, action.targetStatus, '', activeCase?.id || null);
+      }
+      await onRefreshDetail?.();
+    } finally {
+      setBusy('');
+    }
+  }
   return (
     <section className="equipment-detail-section">
       <p>{t('current_commercial_status')}: {getCommercialLabel(detail.equipment?.commercialStatus || 'none', t)}</p>
       <ActionRail>
-        {actions.map((action) => <ActionRailButton key={action.key + action.targetStatus}>{action.label}</ActionRailButton>)}
+        {actions.map((action) => (
+          <ActionRailButton
+            key={action.key + action.targetStatus}
+            disabled={Boolean(busy)}
+            onClick={() => applyTabCommercialAction(action)}
+          >
+            {busy === `commercial:${action.key}:${action.targetStatus}` ? t('saving') : getCommercialLabel(action.targetStatus || action.key, t)}
+          </ActionRailButton>
+        ))}
         {!actions.length ? <span className="empty-copy">{t('no_actions')}</span> : null}
       </ActionRail>
     </section>
@@ -1542,6 +1682,12 @@ export function AdminEquipmentPage() {
   const detailActiveCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const detailPreview = (mediaRows || [])[0] || null;
   const detailServiceFlowCount = (detail?.serviceCases?.length || 0) + (detail?.serviceRequests?.length || 0);
+  const detailTitle = detailEquipment ? getEquipmentTitle(detailEquipment, getLegacyEquipment(legacyPassport) || {}, t) : '';
+  const detailNumber = detailEquipment ? getEquipmentNumber(detailEquipment, getLegacyEquipment(legacyPassport) || {}) || '—' : '';
+  const detailNumberLabel = detailEquipment ? getEquipmentNumberLabel(detailEquipment, getLegacyEquipment(legacyPassport) || {}, t) : '';
+  const detailTenant = detailEquipment ? getEquipmentTenant(detailEquipment, getLegacyEquipment(legacyPassport) || {}) || '—' : '';
+  const detailLocation = detailEquipment ? getEquipmentLocation(detailEquipment, getLegacyEquipment(legacyPassport) || {}) || '—' : '';
+  const detailCompanyEquipment = detailEquipment ? isCompanyEquipment(detailEquipment, getLegacyEquipment(legacyPassport) || {}) : false;
 
   return (
     <section className="equipment-ops-page">
@@ -1644,8 +1790,8 @@ export function AdminEquipmentPage() {
               <div className="equipment-ops-detail__hero-topline">
                 <div>
                   <small>{t('equipment_passport')}</small>
-                  <h3>{detailEquipment ? `${detailEquipment.brand || '—'} ${detailEquipment.model || ''}` : t('choose_equipment')}</h3>
-                  <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailEquipment.internalNumber || '—'} / ${detailEquipment.serial || '—'}` : t('choose_equipment_from_board')}</p>
+                  <h3>{detailEquipment ? detailTitle : t('choose_equipment')}</h3>
+                  <p>{detailEquipment ? `${detailEquipment.id || '—'} · ${detailNumberLabel}: ${detailNumber}` : t('choose_equipment_from_board')}</p>
                 </div>
                 {detailEquipment ? (
                   <div className="equipment-ops-detail__hero-statuses">
@@ -1664,15 +1810,15 @@ export function AdminEquipmentPage() {
                 <div className="equipment-ops-detail__hero-stats">
                   <article>
                     <span>{t('client')}</span>
-                    <strong>{detailEquipment.clientName || '—'}</strong>
+                    <strong>{detailTenant}</strong>
                   </article>
                   <article>
-                    <span>{t('owner_type')}</span>
-                    <strong>{detailEquipment.ownerType || '—'}</strong>
+                    <span>{detailNumberLabel}</span>
+                    <strong>{detailNumber}</strong>
                   </article>
                   <article>
-                    <span>{t('active_service_case')}</span>
-                    <strong>{detailActiveCase?.id || '—'}</strong>
+                    <span>{detailCompanyEquipment ? t('company_location') : t('client_location')}</span>
+                    <strong>{detailLocation}</strong>
                   </article>
                   <article>
                     <span>{t('updated')}</span>

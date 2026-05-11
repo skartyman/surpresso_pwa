@@ -22,6 +22,7 @@ import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { AdminSalesPage } from '../features/admin/pages/AdminSalesPage';
 import { AdminDirectorPage } from '../features/admin/pages/AdminDirectorPage';
 import { AdminEquipmentPage } from '../features/admin/pages/AdminEquipmentPage';
+import { AdminClientsPage } from '../features/admin/pages/AdminClientsPage';
 import { AdminIntakeWizardPage } from '../features/admin/pages/AdminIntakeWizardPage';
 import { AdminReportsPage } from '../features/admin/pages/AdminReportsPage';
 import { AdminNotificationCenterPage } from '../features/admin/pages/AdminNotificationCenterPage';
@@ -81,6 +82,11 @@ function AdminRoutes({ basePath }) {
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.sales} />}>
         <Route path="sales" element={<AdminSalesPage />} />
+      </Route>
+
+      <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.clients} />}>
+        <Route path="clients" element={<AdminClientsPage />} />
+        <Route path="clients/:clientId" element={<AdminClientsPage />} />
       </Route>
 
       <Route element={<RequireRole allowedRoles={PAGE_PERMISSIONS.equipment} />}>
