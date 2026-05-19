@@ -504,25 +504,25 @@ function addPhoto_(id, base64, caption) {
   const fileUrl = String(file.getUrl());
   const imgUrl  = driveImgUrl_(fileId);
 
-  // ✅ Пишем лог в PHOTOS по ИМЕНИ листа (gid не важен)
+  // ✅ Пишем лог в PHOTOS
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sh = ss.getSheetByName("PHOTOS");
+  const sh = getSheetAny_(ss, SH_PHOTOS);
   if (!sh) return { ok: true, fileId, fileUrl, imgUrl, warning: "PHOTOS_SHEET_NOT_FOUND" };
 
+  const head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
+  const colEquip = head.findIndex(h => normHeader_(h) === "equipmentid") + 1;
+  const colFile  = head.findIndex(h => normHeader_(h) === "fileid") + 1;
+
   // 1) добавили строку
+  // Если мы знаем колонки, лучше писать точно в них. 
+  // Но для простоты appendRow + setValue для ключевых полей тоже ок.
   sh.appendRow([new Date(), equipId, fileId, fileUrl, imgUrl, caption || ""]);
-
-  // 2) принудительно делаем equipmentId и fileId ТЕКСТОМ (чтобы 000 не резало)
   const lastRow = sh.getLastRow();
-  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-
-  const colEquip = head.indexOf("equipmentId") + 1;
-  const colFile  = head.indexOf("fileId") + 1;
 
   if (colEquip > 0) {
     const r = sh.getRange(lastRow, colEquip);
     r.setNumberFormat("@");
-    r.setValue(equipId); // строка, без потери 000
+    r.setValue(equipId);
   }
   if (colFile > 0) {
     const r = sh.getRange(lastRow, colFile);
@@ -531,6 +531,10 @@ function addPhoto_(id, base64, caption) {
   }
 
   return { ok: true, fileId, fileUrl, imgUrl };
+}
+
+function normHeader_(h) {
+  return String(h || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 
@@ -1081,8 +1085,8 @@ function deletePhoto_(id, fileId) {
   const data = sh.getDataRange().getValues();
   const head = data.shift();
 
-  const idxId = head.indexOf("equipmentId");
-  const idxFile = head.indexOf("fileId");
+  const idxId = head.findIndex(h => normHeader_(h) === "equipmentid");
+  const idxFile = head.findIndex(h => normHeader_(h) === "fileid");
   if (idxId < 0 || idxFile < 0) return { ok: false, error: "PHOTOS_COLUMNS_MISSING" };
 
   const key = normKey_(equipId);
@@ -1112,25 +1116,27 @@ function getPhotosById_(id) {
   const data = sh.getDataRange().getValues();
   const head = data.shift();
 
-  const idxId   = head.indexOf("equipmentId");
-  const idxFile = head.indexOf("fileId");
-  const idxUrl  = head.indexOf("fileUrl");
-  const idxImg  = head.indexOf("imgUrl");
-  const idxCap  = head.indexOf("caption");
-  const idxTs   = head.indexOf("ts");
+  const idxId   = head.findIndex(h => normHeader_(h) === "equipmentid");
+  const idxFile = head.findIndex(h => normHeader_(h) === "fileid");
+  const idxUrl  = head.findIndex(h => normHeader_(h) === "fileurl");
+  const idxImg  = head.findIndex(h => normHeader_(h) === "imgurl");
+  const idxCap  = head.findIndex(h => normHeader_(h) === "caption");
+  const idxTs   = head.findIndex(h => normHeader_(h) === "ts");
+
+  if (idxId < 0) return []; // если нет колонки ID, то и искать нечего
 
   const key = normKey_(id);
 
-return data
-  .filter(r => normKey_(r[idxId]) === key)
-  .map(r => ({
-    ts: r[idxTs],
-    url: String(r[idxUrl] || ""),
-    fileId: String(r[idxFile] || ""),     // ✅ ОБЯЗАТЕЛЬНО
-    imgUrl: String(r[idxImg] || ""),
-    caption: r[idxCap] || ""
-  }))
-  .reverse();
+  return data
+    .filter(r => normKey_(r[idxId]) === key)
+    .map(r => ({
+      ts: idxTs >= 0 ? r[idxTs] : null,
+      url: idxUrl >= 0 ? String(r[idxUrl] || "") : "",
+      fileId: idxFile >= 0 ? String(r[idxFile] || "") : "",
+      imgUrl: idxImg >= 0 ? String(r[idxImg] || "") : "",
+      caption: idxCap >= 0 ? (r[idxCap] || "") : ""
+    }))
+    .reverse();
 }
 
 // =========================
