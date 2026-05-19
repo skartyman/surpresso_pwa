@@ -2830,41 +2830,41 @@ function printBlank() {
   }
 
   async function resendToTelegram() {
-  const comment = $("resendComment").value.trim();
-  const checkboxes = document.querySelectorAll(".resend-photo-cb:checked");
-  const photos = Array.from(checkboxes).map(cb => cb.value);
+    const comment = $("resendComment").value.trim();
+    const checkboxes = document.querySelectorAll(".resend-photo-cb:checked");
+    const photos = Array.from(checkboxes).map(cb => cb.value);
 
-  if (!photos.length && !comment) {
-    return alert("Вибери хоча б одне фото або напиши коментар.");
+    if (!photos.length && !comment) {
+      return alert("Вибери хоча б одне фото або напиши коментар.");
+    }
+
+    if (photos.length > 10) {
+      if (!confirm(`Вибрано ${photos.length} фото. Telegram може видати помилку. Продовжити?`)) return;
+    }
+
+    $("btnResendGo").disabled = true;
+    $("resendHint").textContent = "Перевідправляю...";
+
+    try {
+      // ✅ Используем apiPost (уже включает заголовки авторизации)
+      await apiPost(`${API_BASE}/send-equipment`, {
+         card: LAST_EQUIPMENT,
+         photos,
+         source: "resend"
+      });
+
+      $("resendHint").textContent = "✅ Перевідправлено в Telegram + Trello";
+      $("resendComment").value = "";
+      resendSelectAllPhotos(false);
+      setTimeout(() => $("resendHint").textContent = "", 3000);
+    } catch (e) {
+      console.error(e);
+      $("resendHint").textContent = "";
+      alert("❌ Помилка: " + (e.message || "Не вдалося перевідправити"));
+    } finally {
+      $("btnResendGo").disabled = false;
+    }
   }
-
-  if (photos.length > 10) {
-    if (!confirm(`Вибрано ${photos.length} фото. Telegram може видати помилку. Продовжити?`)) return;
-  }
-
-  $("btnResendGo").disabled = true;
-  $("resendHint").textContent = "Перевідправляю...";
-
-  try {
-    await sendEquipmentToTelegramAndTrello({ 
-       photos, 
-       comment: comment || "Перевідправка даних з паспорта",
-       status: LAST_EQUIPMENT?.status || "" 
-    });
-
-    $("resendHint").textContent = "✅ Перевідправлено в Telegram + Trello";
-    $("resendComment").value = "";
-    resendSelectAllPhotos(false);
-    setTimeout(() => $("resendHint").textContent = "", 3000);
-  } catch (e) {
-    console.error(e);
-    $("resendHint").textContent = "";
-    alert("❌ Помилка: " + (e.message || "Не вдалося перевідправити"));
-  } finally {
-    $("btnResendGo").disabled = false;
-  }
-  }
-
   // ===========================
   // UTILS
 

@@ -403,22 +403,32 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
     const tgForm = new FormData();
     const media = [];
 
-    photos.forEach((base64, i) => {
+    photos.forEach((p, i) => {
+      const isBase64 = typeof p === "string" && p.startsWith("data:image/");
       const fileId = `file${i}.jpg`;
-      appendBinaryFile(tgForm, fileId, {
-        buffer: Buffer.from(
-          String(base64).replace(/^data:image\/\w+;base64,/, ""),
-          "base64"
-        ),
-        filename: fileId,
-        mime: "image/jpeg",
-      });
 
-      media.push({
-        type: "photo",
-        media: `attach://${fileId}`,
-        caption: i === photos.length - 1 ? caption : "",
-      });
+      if (isBase64) {
+        appendBinaryFile(tgForm, fileId, {
+          buffer: Buffer.from(
+            String(p).replace(/^data:image\/\w+;base64,/, ""),
+            "base64"
+          ),
+          filename: fileId,
+          mime: "image/jpeg",
+        });
+        media.push({
+          type: "photo",
+          media: `attach://${fileId}`,
+          caption: i === photos.length - 1 ? caption : "",
+        });
+      } else {
+        // Это URL
+        media.push({
+          type: "photo",
+          media: p,
+          caption: i === photos.length - 1 ? caption : "",
+        });
+      }
     });
 
     tgForm.append("chat_id", chatId);
@@ -1031,15 +1041,23 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
     }
   }
 
-  // ✅ 2) фото пишем всегда (они новые)
-  for (let i = 0; i < photos.length; i++) {
-    await gasPost({
-      action: "photo",
-      id: payloadCard.id,
-      base64: photos[i],
-      caption: `Фото ${i + 1}`,
-    });
-  }
+    // ✅ 2) фото пишем в GAS только если это новые (base64)
+    // Если пришла переотправка существующих фото (URL), в GAS их писать не надо
+    const isResend = req.body?.source === "resend";
+
+    if (!isResend) {
+      for (let i = 0; i < photos.length; i++) {
+        const p = photos[i];
+        if (typeof p === "string" && p.startsWith("data:image/")) {
+          await gasPost({
+            action: "photo",
+            id: payloadCard.id,
+            base64: p,
+            caption: `Фото ${i + 1}`,
+          });
+        }
+      }
+    }
 }
     // -----------------------
     // 2) Telegram post (при первичном приеме)
