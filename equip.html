@@ -826,6 +826,7 @@ input[type="file"]::file-selector-button:hover{
           <button class="equipmentMenuBtn" type="button" data-panel="approval">Запит на погодження з клієнтом</button>
           <button class="equipmentMenuBtn" type="button" data-panel="specs">Технічні характеристики</button>
           <button class="equipmentMenuBtn" type="button" data-panel="invoice">Рахунок</button>
+          <button class="equipmentMenuBtn" type="button" data-panel="resend">Перевідправка в Telegram</button>
           <button class="equipmentMenuBtn" type="button" data-panel="photos">Фотогалерея</button>
           <button class="equipmentMenuBtn" type="button" data-panel="history">Історія</button>
         </div>
@@ -1133,7 +1134,7 @@ input[type="file"]::file-selector-button:hover{
             <div class="photosGrid" id="photos"></div>
           </div>
 
-          <!-- LOG CARD -->
+          <!-- HISTORY LOG CARD -->
           <div class="card action-panel" id="panel-history">
             <div class="cardHeader">
               <div>
@@ -1142,6 +1143,38 @@ input[type="file"]::file-selector-button:hover{
               </div>
             </div>
             <table id="log"></table>
+          </div>
+
+          <!-- RESEND TO TELEGRAM CARD -->
+          <div class="card action-panel" id="panel-resend">
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Перевідправка в Telegram</div>
+                <div class="cardDesc">Відправ дані про обладнання повторно (якщо збилося чи треба оновити)</div>
+              </div>
+              <div class="muted" id="resendHint"></div>
+            </div>
+
+            <div class="field">
+              <label class="lbl">Коментар до відправки (опц.)</label>
+              <textarea id="resendComment" placeholder="Додай опис або причину перевідправки..."></textarea>
+            </div>
+
+            <div class="block" style="margin-top:14px">
+              <div class="blockTitle">🖼 Вибери фото для Telegram</div>
+              <div class="blockDesc">Вибери фото з уже завантажених у базу. Telegram може не прийняти занадто багато фото за раз (рекомендую до 10).</div>
+              
+              <div class="row" style="margin-bottom:10px;">
+                <button class="btn ghost small" onclick="resendSelectAllPhotos(true)">Вибрати всі</button>
+                <button class="btn ghost small" onclick="resendSelectAllPhotos(false)">Зняти вибір</button>
+              </div>
+
+              <div id="resendPhotosGrid" class="photosGrid"></div>
+            </div>
+
+            <div class="row" style="margin-top:14px">
+              <button class="btn primary wide" id="btnResendGo">📩 Перевідправити в Telegram + Trello</button>
+            </div>
           </div>
 
         </div>
@@ -1507,6 +1540,7 @@ input[type="file"]::file-selector-button:hover{
       // photos render (pagination)
       photosPage = 0;
       renderPhotos();
+      renderResendPhotos();
 
       // log render
       $("log").innerHTML = log.length
@@ -1862,6 +1896,9 @@ input[type="file"]::file-selector-button:hover{
 
       const s = String(driveUrl);
       let fileId = null;
+
+      // Если это уже прокси-урл, возвращаем как есть
+      if (s.includes("/proxy-drive/")) return s;
 
       if (/^[a-zA-Z0-9_-]{20,}$/.test(s.trim())) {
         fileId = s.trim();
@@ -2742,11 +2779,87 @@ function printBlank() {
     `&comment=${encodeURIComponent(commentForPrint)}`;
 
   window.open(url, "_blank");
-}
+  }
 
+  // ===========================
+  // ✅ RESEND TO TELEGRAM
+  // ===========================
+  $("btnResendGo").onclick = resendToTelegram;
 
-    // ===========================
-    // UTILS
+  function renderResendPhotos() {
+  const grid = $("resendPhotosGrid");
+  if (!grid) return;
+
+  if (!allPhotos.length) {
+    grid.innerHTML = '<div class="muted">Фото в базі відсутні. Спочатку додай фото в галерею.</div>';
+    return;
+  }
+
+  grid.innerHTML = allPhotos.map((p, idx) => {
+    const driveViewUrl = String(p.url || "");
+    const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl || p.fileId);
+    const safeCap = esc(p.caption || fmt(p.ts) || `Фото ${idx + 1}`);
+    const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
+
+    return `
+      <div class="ph" style="cursor:pointer" onclick="const cb = this.querySelector('input'); cb.checked = !cb.checked;">
+        <div class="phImgWrap">
+          <img src="${fresh}" loading="lazy" style="height:100px;">
+          <div style="position:absolute; top:5px; left:5px; background:rgba(255,255,255,0.8); border-radius:4px; padding:2px;">
+            <input type="checkbox" class="resend-photo-cb" value="${escapeJs(fresh)}" onclick="event.stopPropagation()">
+          </div>
+        </div>
+        <div class="phMeta" style="padding:4px 8px;">
+           <div class="cap" style="font-size:10px;">${safeCap}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+  }
+
+  function resendSelectAllPhotos(selected) {
+  document.querySelectorAll(".resend-photo-cb").forEach(cb => cb.checked = selected);
+  }
+
+  async function resendToTelegram() {
+  const comment = $("resendComment").value.trim();
+  const checkboxes = document.querySelectorAll(".resend-photo-cb:checked");
+  const photos = Array.from(checkboxes).map(cb => cb.value);
+
+  if (!photos.length && !comment) {
+    return alert("Вибери хоча б одне фото або напиши коментар.");
+  }
+
+  if (photos.length > 10) {
+    if (!confirm(`Вибрано ${photos.length} фото. Telegram може видати помилку. Продовжити?`)) return;
+  }
+
+  $("btnResendGo").disabled = true;
+  $("resendHint").textContent = "Перевідправляю...";
+
+  try {
+    await sendEquipmentToTelegramAndTrello({ 
+       photos, 
+       comment: comment || "Перевідправка даних з паспорта",
+       status: LAST_EQUIPMENT?.status || "" 
+    });
+
+    $("resendHint").textContent = "✅ Перевідправлено в Telegram + Trello";
+    $("resendComment").value = "";
+    resendSelectAllPhotos(false);
+    setTimeout(() => $("resendHint").textContent = "", 3000);
+  } catch (e) {
+    console.error(e);
+    $("resendHint").textContent = "";
+    alert("❌ Помилка: " + (e.message || "Не вдалося перевідправити"));
+  } finally {
+    $("btnResendGo").disabled = false;
+  }
+  }
+
+  // ===========================
+  // UTILS
+
     // ===========================
     function fmt(d) {
       try {

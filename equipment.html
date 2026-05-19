@@ -891,11 +891,21 @@ function getOrCreateEquipId() {
       hint.textContent = step.hint || "";
       backBtn.style.display = intakeState.index === 0 ? "none" : "inline-flex";
       nextBtn.disabled = false;
-      nextBtn.textContent = step.type === "summary" ? "Отправить и открыть печать" : "Далее";
+      nextBtn.textContent = step.type === "summary" ? "Отправить в Облако" : "Далее";
 
       if (step.type === "summary") {
         syncIntakeToForm();
         box.innerHTML = renderIntakeSummary();
+        
+        // Добавляем кнопку печати отдельно
+        const printBtn = document.createElement("button");
+        printBtn.className = "btn ghost wide";
+        printBtn.style.marginTop = "10px";
+        printBtn.style.minHeight = "48px";
+        printBtn.textContent = "🖨 Напечатать бланк";
+        printBtn.onclick = () => openPrintPage();
+        box.appendChild(printBtn);
+
         document.getElementById("cameraCard").style.display = "none";
         return;
       }
@@ -1036,9 +1046,23 @@ function getOrCreateEquipId() {
       box.innerHTML = items.map(i => `<div class="intake-status-row ${i.done ? "done" : ""}">${i.text}</div>`).join("");
     }
 
+    function showLoading(text, subtext) {
+      const overlay = document.getElementById("loadingOverlay");
+      const textEl = document.getElementById("loadingText");
+      const subtextEl = document.getElementById("loadingSubtext");
+      if (overlay) overlay.classList.remove("hidden");
+      if (textEl) textEl.textContent = text || "Отправка данных...";
+      if (subtextEl) subtextEl.textContent = subtext || "Пожалуйста, не закрывайте страницу";
+    }
+
+    function hideLoading() {
+      const overlay = document.getElementById("loadingOverlay");
+      if (overlay) overlay.classList.add("hidden");
+    }
+
     async function submitIntakeWizard() {
       if (intakeState.submitted) {
-        openPrintPage();
+        alert("Данные уже отправлены.");
         return;
       }
 
@@ -1055,44 +1079,49 @@ function getOrCreateEquipId() {
 
       const nextBtn = document.getElementById("intakeNextBtn");
       const backBtn = document.getElementById("intakeBackBtn");
-      const printWindow = window.open("about:blank", "_blank");
-      if (printWindow) {
-        printWindow.document.write("<!doctype html><title>Surpresso</title><body style='font-family:Arial,sans-serif;padding:24px'>Готовим бланк для печати...</body>");
-        printWindow.document.close();
-      }
+      
       nextBtn.disabled = true;
       backBtn.disabled = true;
       setIntakeError("");
+      
       setIntakeSendingStatus([
-        { text: "Отправляем данные в Telegram...", done: false },
-        { text: "Создаем карточку в Trello...", done: false },
-        { text: "Готовим бланк для печати...", done: false }
+        { text: "⏳ Отправляем данные в Облако (Telegram + Trello)...", done: false, loading: true }
       ]);
 
       try {
+        // Показываем оверлей, но позволяем его закрыть или просто информируем
+        // На самом деле для "параллельности" лучше просто статус в карточке
+        
         const resp = await apiFetch("/send-equipment", {
           method: "POST",
           body: JSON.stringify({ card, photos })
         });
 
-        const out = await resp.json().catch(() => ({}));
-        if (!resp.ok || !out.ok) throw new Error(out.error || "Ошибка отправки");
+        if (!resp.ok) {
+          const out = await resp.json().catch(() => ({}));
+          throw new Error(out.error || `Ошибка сервера (${resp.status})`);
+        }
+        
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "Ошибка отправки");
 
         setIntakeSendingStatus([
-          { text: "Telegram: отправлено", done: true },
-          { text: out.trelloCardId ? "Trello: карточка создана" : "Trello: отправка завершена", done: true },
-          { text: "Бланк для печати готов", done: true }
+          { text: "✅ Данные успешно отправлены в Облако", done: true }
         ]);
 
         intakeState.submitted = true;
         nextBtn.disabled = false;
         backBtn.disabled = false;
-        nextBtn.textContent = "Открыть бланк еще раз";
-        openPrintPage(printWindow);
+        nextBtn.textContent = "Готово (на главную)";
+        nextBtn.onclick = () => goHome();
       } catch (err) {
         console.error(err);
-        if (printWindow && !printWindow.closed) printWindow.close();
-        setIntakeError(err.message || "Ошибка отправки");
+        setIntakeError("⚠️ Ошибка: " + (err.message || "Не удалось отправить данные"));
+        
+        setIntakeSendingStatus([
+          { text: "❌ Ошибка отправки. Попробуйте еще раз.", done: false }
+        ]);
+        
         nextBtn.disabled = false;
         backBtn.disabled = false;
       }
@@ -1394,36 +1423,16 @@ function getOrCreateEquipId() {
       const owner = localStorage.getItem("equip_owner");
       const type = localStorage.getItem("equip_type");
 
-      let card = { owner, type };
+      let card = collectCardFromForm();
       card.id = getOrCreateEquipId();
-
-      if (owner === "client") {
-        card.clientName = value("clientName");
-        card.clientPhone = String(clientPhone.value || "").trim();
-        card.clientLocation = value("clientLocation");
-        card.model = value("model");
-        card.serial = String(document.getElementById("serial").value || "").trim();
-        card.problem = value("problem");
-        card.condition = value("condition");
-        card.receivedDate = value("receivedDate");
-      } else {
-        card.companyLocation = value("companyLocation");
-        card.name = value("equipmentName");
-        card.internalNumber = value("internalNumber");
-        card.task = value("task");
-        card.comment = value("comment");
-        card.companyDate = value("companyDate");
-        card.status = value("companyStatus") || "Купили";
-      }
-     
-      const isContract = document.getElementById("isServiceContract");
-      card.isContract = isContract ? !!isContract.checked : false;
 
       const photos = [...capturedPhotos];
 
       if (photos.length === 0) {
         if (!confirm("Нет фото! Отправить только текст?")) return;
       }
+
+      showLoading("Отправляем в Telegram + Trello...", "Это может занять до 30 секунд...");
 
       try {
         const resp = await apiFetch("/send-equipment", {
@@ -1432,8 +1441,8 @@ function getOrCreateEquipId() {
         });
 
         if (!resp.ok) {
-          const t = await resp.text().catch(() => "");
-          throw new Error("Server error: " + t.slice(0, 160));
+          const t = await resp.json().catch(() => ({}));
+          throw new Error(t.error || `Ошибка сервера (${resp.status})`);
         }
 
         alert("Отправлено в Telegram и создана карточка в Trello ✅");
@@ -1445,12 +1454,11 @@ function getOrCreateEquipId() {
         localStorage.removeItem("equip_current_id");
         localStorage.removeItem("equip_current_key");
 
-        
-        
-
       } catch (err) {
         console.error(err);
-        alert("Ошибка отправки ❌");
+        alert("Ошибка отправки ❌: " + (err.message || "Неизвестная ошибка"));
+      } finally {
+        hideLoading();
       }
     }
 document.getElementById("btnSaveToBase").onclick = saveToBaseOnly;
@@ -1650,6 +1658,12 @@ window.addEventListener("load", async () => {
 });
 
   </script>
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div id="loadingText" class="loading-text">Отправка данных...</div>
+    <div id="loadingSubtext" class="loading-subtext">Пожалуйста, не закрывайте страницу</div>
+  </div>
+
   <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="/auth.js"></script>

@@ -2419,6 +2419,50 @@ textarea,
   background: rgba(34, 139, 34, 0.08);
 }
 
+/* ============================================================
+   LOADING OVERLAY & SPINNER
+============================================================ */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  color: #fff;
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--brand-0, #f2c94c);
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  max-width: 80%;
+}
+
+.loading-subtext {
+  font-size: 14px;
+  opacity: 0.8;
+  text-align: center;
+}
+
 @media (max-width: 520px) {
   .intake-progress,
   .intake-actions,
