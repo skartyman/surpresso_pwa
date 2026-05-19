@@ -391,10 +391,51 @@ async function tgSendTextTo(botToken, chatId, text, replyMarkup) {
   }
 }
 
-async function tgSendPhotosTo(botToken, chatId, photos, caption) {
+async function resolvePhotoBuffer(p, i, origin = "") {
+  if (typeof p === "string" && p.startsWith("data:image/")) {
+    return {
+      buffer: Buffer.from(
+        p.replace(/^data:image\/\w+;base64,/, ""),
+        "base64"
+      ),
+      mime: "image/jpeg",
+      filename: `photo${i}.jpg`,
+    };
+  }
+
+  // Если это URL (прокси или прямой драйв)
+  let url = String(p || "");
+  if (url.startsWith("/")) {
+    url = (origin || "").replace(/\/+$/, "") + url;
+  }
+
+  const fileId = extractDriveFileId(url);
+  const finalUrl = fileId
+    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1600`
+    : url;
+
+  if (typeof finalUrl === "string" && finalUrl.startsWith("http")) {
+    try {
+      const resp = await fetch(finalUrl);
+      if (resp.ok) {
+        return {
+          buffer: Buffer.from(await resp.arrayBuffer()),
+          mime: resp.headers.get("content-type") || "image/jpeg",
+          filename: `photo${i}.jpg`,
+        };
+      }
+    } catch (e) {
+      console.error("resolvePhotoBuffer fetch error:", e);
+    }
+  }
+  return null;
+}
+
+async function tgSendPhotosTo(botToken, chatId, photos, caption, origin = "") {
   if (!botToken || !chatId) return;
 
-  if (!photos || photos.length === 0) {
+  const safePhotos = Array.isArray(photos) ? photos : [];
+  if (safePhotos.length === 0) {
     if (caption) await tgSendTextTo(botToken, chatId, caption);
     return;
   }
@@ -403,33 +444,23 @@ async function tgSendPhotosTo(botToken, chatId, photos, caption) {
     const tgForm = new FormData();
     const media = [];
 
-    photos.forEach((p, i) => {
-      const isBase64 = typeof p === "string" && p.startsWith("data:image/");
-      const fileId = `file${i}.jpg`;
-
-      if (isBase64) {
-        appendBinaryFile(tgForm, fileId, {
-          buffer: Buffer.from(
-            String(p).replace(/^data:image\/\w+;base64,/, ""),
-            "base64"
-          ),
-          filename: fileId,
-          mime: "image/jpeg",
-        });
+    for (let i = 0; i < safePhotos.length; i++) {
+      const payload = await resolvePhotoBuffer(safePhotos[i], i, origin);
+      if (payload) {
+        const fileId = `file${i}.jpg`;
+        appendBinaryFile(tgForm, fileId, payload);
         media.push({
           type: "photo",
           media: `attach://${fileId}`,
-          caption: i === photos.length - 1 ? caption : "",
-        });
-      } else {
-        // Это URL
-        media.push({
-          type: "photo",
-          media: p,
-          caption: i === photos.length - 1 ? caption : "",
+          caption: i === safePhotos.length - 1 ? caption : "",
         });
       }
-    });
+    }
+
+    if (media.length === 0) {
+      if (caption) await tgSendTextTo(botToken, chatId, caption);
+      return;
+    }
 
     tgForm.append("chat_id", chatId);
     tgForm.append("media", JSON.stringify(media));
@@ -576,8 +607,8 @@ async function tgNotifyAdminText(text) {
   return tgSendTextTo(TG_NOTIFY_BOT, TG_NOTIFY_CHAT_ID, text);
 }
 
-async function tgSendPhotos(photos, caption) {
-  return tgSendPhotosTo(TG_BOT, TG_CHAT, photos, caption);
+async function tgSendPhotos(photos, caption, origin = "") {
+  return tgSendPhotosTo(TG_BOT, TG_CHAT, photos, caption, origin);
 }
 
 async function tgSendVideos(videos, caption) {
@@ -588,8 +619,8 @@ async function tgNotifyTextTo(chatId, text, replyMarkup) {
   return tgSendTextTo(TG_NOTIFY_BOT, chatId, text, replyMarkup);
 }
 
-async function tgNotifyPhotosTo(chatId, photos, caption) {
-  return tgSendPhotosTo(TG_NOTIFY_BOT, chatId, photos, caption);
+async function tgNotifyPhotosTo(chatId, photos, caption, origin = "") {
+  return tgSendPhotosTo(TG_NOTIFY_BOT, chatId, photos, caption, origin);
 }
 
 async function tgNotifyVideosTo(chatId, videos, caption) {
@@ -606,8 +637,11 @@ async function tgNotifyDocumentTo(chatId, fileDataUrl, caption) {
 function buildCaption(card) {
   let caption = "";
 
+  const prefix = card.resendComment ? `🔄 ПЕРЕВІДПРАВКА: ${card.resendComment}\n\n` : "";
+
   if (card.owner === "client") {
     caption =
+      prefix +
       `🟢 Прийом від клієнта\n` +
       `🆔 ID: ${card.id || ""}\n` +
       `🔧 Статус: ${card.status || "—"}\n` +
@@ -621,6 +655,7 @@ function buildCaption(card) {
     if (card.isContract) caption += `📄 Клієнт за договором (обслуговування)\n`;
   } else {
     caption =
+      prefix +
       `🔴 Обладнання компанії\n` +
       `🆔 ID: ${card.id || ""}\n` +
       `🔧 Статус: ${card.status || "—"}\n` +
@@ -649,6 +684,15 @@ function buildPassportLinkFromBase(baseUrl, id, { isPublic = false } = {}) {
 function extractDriveFileId(driveUrl) {
   if (!driveUrl) return "";
   const s = String(driveUrl);
+
+  // Наш собственный прокси: /proxy-drive/FILE_ID
+  if (s.includes("/proxy-drive/")) {
+    const parts = s.split("/");
+    const last = parts[parts.length - 1];
+    // Чистим от query params (?k=...)
+    return last.split("?")[0].trim();
+  }
+
   if (/^[a-zA-Z0-9_-]{20,}$/.test(s.trim())) return s.trim();
   if (s.includes("uc?export=view&id=")) {
     const m = s.match(/id=([^&]+)/i);
@@ -686,7 +730,7 @@ function normalizeMenuText(text) {
     .replace(/[’ʻ`´ʼ]/g, "'");
 }
 
-async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [] }) {
+async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [], origin = "" }) {
   if (!(TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID)) {
     throw new Error("Trello is not configured");
   }
@@ -710,15 +754,13 @@ async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [
 
   const safePhotos = Array.isArray(photos) ? photos : [];
   for (let i = 0; i < safePhotos.length; i++) {
-    const buffer = Buffer.from(
-      String(safePhotos[i]).replace(/^data:image\/\w+;base64,/, ""),
-      "base64"
-    );
+    const payload = await resolvePhotoBuffer(safePhotos[i], i, origin);
+    if (!payload) continue;
 
     const attachForm = new FormData();
     attachForm.append("key", TRELLO_KEY);
     attachForm.append("token", TRELLO_TOKEN);
-    attachForm.append("file", new Blob([buffer], { type: "image/jpeg" }), `photo${i}.jpg`);
+    attachForm.append("file", new Blob([payload.buffer], { type: payload.mime || "image/jpeg" }), payload.filename);
 
     await fetch(
       `https://api.trello.com/1/cards/${cardData.id}/attachments`,
@@ -1062,7 +1104,8 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
     // -----------------------
     // 2) Telegram post (при первичном приеме)
     // -----------------------
-    await tgSendPhotos(photos, caption);
+    const origin = `${req.protocol}://${req.get("host")}`;
+    await tgSendPhotos(photos, caption, origin);
 
     // -----------------------
     // 3) Trello create card + attach photos
@@ -1089,6 +1132,7 @@ if (GAS_WEBAPP_URL && GAS_SECRET) {
         desc,
         labelId,
         photos,
+        origin,
       });
       }
 
