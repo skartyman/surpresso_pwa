@@ -1838,6 +1838,13 @@ input[type="file"]::file-selector-button:hover{
     // ===========================
     // PHOTOS: pagination + preview
     // ===========================
+    function photoPreviewUrl(photo) {
+      const imgUrl = String(photo?.imgUrl || "").trim();
+      const driveViewUrl = String(photo?.url || "").trim();
+      const fileId = String(photo?.fileId || "").trim();
+      return driveToImageUrl(imgUrl || driveViewUrl || fileId);
+    }
+
     function renderPhotos() {
       const total = allPhotos.length;
       const maxPage = Math.max(0, Math.ceil(total / PHOTOS_PAGE_SIZE) - 1);
@@ -1859,7 +1866,7 @@ input[type="file"]::file-selector-button:hover{
 
       $("photos").innerHTML = slice.map((p) => {
         const driveViewUrl = String(p.url || "");
-        const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl || p.fileId);
+        const imgUrl = photoPreviewUrl(p);
         const cap = p.caption || "";
         const ts = fmt(p.ts);
         const safeCap = esc(cap || ts || "Фото");
@@ -2798,7 +2805,7 @@ function printBlank() {
 
   grid.innerHTML = allPhotos.map((p, idx) => {
     const driveViewUrl = String(p.url || "");
-    const imgUrl = String(p.imgUrl || "") || driveToImageUrl(driveViewUrl || p.fileId);
+    const imgUrl = photoPreviewUrl(p);
     const safeCap = esc(p.caption || fmt(p.ts) || `Фото ${idx + 1}`);
     const fresh = (imgUrl && imgUrl.includes("?")) ? `${imgUrl}&t=${Date.now()}` : `${imgUrl}?t=${Date.now()}`;
 
