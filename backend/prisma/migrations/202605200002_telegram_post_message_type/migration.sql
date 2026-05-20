@@ -1,0 +1,2 @@
+ALTER TABLE "TelegramPost"
+ADD COLUMN IF NOT EXISTS "messageType" TEXT NOT NULL DEFAULT 'text';

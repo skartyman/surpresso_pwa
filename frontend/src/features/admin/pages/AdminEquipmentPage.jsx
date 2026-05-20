@@ -642,12 +642,17 @@ function ActionPanel({
   const [actionLoading, setActionLoading] = useState('');
   const [quickMediaFiles, setQuickMediaFiles] = useState([]);
   const [quickMediaCaption, setQuickMediaCaption] = useState('');
+  const [telegramText, setTelegramText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
   const activeCase = detail?.serviceCases?.find((item) => item.isActive) || null;
   const serviceActions = detail?.currentActions?.all?.filter((item) => item.type === 'service') || [];
   const commercialActions = detail?.currentActions?.all?.filter((item) => item.type === 'commercial') || [];
+
+  useEffect(() => {
+    setTelegramText(detail?.telegramPost?.text || '');
+  }, [detail?.equipment?.id, detail?.telegramPost?.id, detail?.telegramPost?.text, detail?.telegramPost?.editedAt]);
 
   async function applyCommercialAction(action) {
     if (!detail?.equipment?.id || !action) return;
@@ -696,6 +701,24 @@ function ActionPanel({
       setFeedback(`${t('telegram_post_done')} ${response?.sent || 0}/${response?.total || 0}`);
     } catch {
       setError(t('telegram_post_failed'));
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function editTelegramPost() {
+    if (!detail?.equipment?.id) return;
+    const text = telegramText.trim();
+    if (!text) return;
+    setActionLoading('telegram-edit');
+    setError('');
+    setFeedback('');
+    try {
+      const response = await adminServiceApi.editEquipmentTelegramPost(detail.equipment.id, text);
+      setFeedback(`Telegram: ${response?.edited || 0}/${response?.total || 0}`);
+      await onQuickMediaUploaded?.();
+    } catch {
+      setError('Не удалось обновить текст Telegram-поста');
     } finally {
       setActionLoading('');
     }
@@ -764,6 +787,27 @@ function ActionPanel({
               onClick={postToTelegram}
             />
           </ActionList>
+          <div className="equipment-action-panel__telegram-edit">
+            <label>
+              <span>Текст последнего Telegram-поста</span>
+              <textarea
+                value={telegramText}
+                onChange={(event) => setTelegramText(event.target.value)}
+                rows={6}
+                placeholder="Здесь будет текст последнего отправленного поста"
+              />
+            </label>
+            <ActionRail compact>
+              <ActionRailButton
+                tone="brand"
+                disabled={Boolean(actionLoading) || !telegramText.trim() || !detail?.telegramPost}
+                onClick={editTelegramPost}
+              >
+                {actionLoading === 'telegram-edit' ? t('saving') : 'Сохранить правку'}
+              </ActionRailButton>
+            </ActionRail>
+            <small>{detail?.telegramPost ? `Последний пост: ${new Date(detail.telegramPost.createdAt).toLocaleString('ru-RU')}` : 'Постов Telegram для этой карточки ещё нет'}</small>
+          </div>
         </div>
 
         {canSeeCommercial ? (

@@ -221,6 +221,30 @@ function mapTask(item) {
   };
 }
 
+function mapTelegramPost(item) {
+  if (!item) return null;
+  return {
+    ...item,
+    createdAt: item.createdAt?.toISOString?.() || item.createdAt,
+    updatedAt: item.updatedAt?.toISOString?.() || item.updatedAt,
+    editedAt: item.editedAt?.toISOString?.() || item.editedAt || null,
+    messageType: item.messageType || 'text',
+  };
+}
+
+function makeTelegramPostId() {
+  return `tpost-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function makeTelegramBroadcastKey() {
+  return `tbroadcast-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function normalizeTelegramKinds(kinds = []) {
+  const list = Array.isArray(kinds) ? kinds : [kinds];
+  return list.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
 function evaluateEquipmentWarnings({ equipment, activeCase, mediaCount = 0, nowTs = Date.now() }) {
   const warnings = [];
   const ownerType = String(equipment?.ownerType || '').trim();
@@ -1607,7 +1631,7 @@ export class NeonServiceOpsRepository {
     const equipmentRow = await this.prisma.equipment.findUnique({ where: { id }, include: { client: true, location: true, network: true } });
     if (!equipmentRow) return null;
 
-    const [serviceCasesRows, mediaRows, historyRows, placementHistoryRows, notesRows, commentsRows, equipmentNotesRows, tasksRows, serviceRequestsRows] = await Promise.all([
+    const [serviceCasesRows, mediaRows, historyRows, placementHistoryRows, notesRows, commentsRows, equipmentNotesRows, tasksRows, serviceRequestsRows, telegramPostsRows] = await Promise.all([
       this.prisma.serviceCase.findMany({
         where: { equipmentId: id },
         include: { equipment: true, assignedToUser: true, assignedByUser: true, processedByUser: true },
@@ -1663,6 +1687,14 @@ export class NeonServiceOpsRepository {
         include: { assignedToUser: true, client: true },
         orderBy: { createdAt: 'desc' },
       }),
+      this.prisma.telegramPost.findMany({
+        where: {
+          equipmentId: id,
+          kind: { in: ['equipment_post', 'equipment_intake', 'equipment_move'] },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 10,
+      }),
     ]);
 
     const activeStatuses = new Set(['accepted', 'in_progress', 'testing', 'ready']);
@@ -1717,7 +1749,68 @@ export class NeonServiceOpsRepository {
         createdAt: row.createdAt?.toISOString?.() || row.createdAt,
         updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt,
       })),
+      telegramPost: telegramPostsRows[0] ? mapTelegramPost(telegramPostsRows[0]) : null,
+      telegramPosts: telegramPostsRows.map(mapTelegramPost),
       activeServiceCaseId: serviceCases.find((row) => row.isActive)?.id || null,
+    };
+  }
+
+  async createTelegramPost(payload = {}) {
+    if (!payload.equipmentId || !payload.chatId || !payload.messageId || !String(payload.text || '').trim()) return null;
+    return this.prisma.telegramPost.create({
+      data: {
+        id: payload.id || makeTelegramPostId(),
+        equipmentId: payload.equipmentId,
+        serviceCaseId: payload.serviceCaseId || null,
+        kind: String(payload.kind || 'equipment_post').trim() || 'equipment_post',
+        messageType: String(payload.messageType || 'text').trim() || 'text',
+        broadcastKey: payload.broadcastKey || makeTelegramBroadcastKey(),
+        chatId: String(payload.chatId),
+        messageId: Number(payload.messageId),
+        text: String(payload.text || ''),
+        createdByUserId: payload.createdByUserId || null,
+        editedAt: payload.editedAt || null,
+        editCount: Number(payload.editCount || 0),
+      },
+    });
+  }
+
+  async updateTelegramPost(id, patch = {}) {
+    const current = await this.prisma.telegramPost.findUnique({ where: { id } });
+    if (!current) return null;
+    return this.prisma.telegramPost.update({
+      where: { id },
+      data: {
+        ...(patch.text !== undefined ? { text: String(patch.text || '') } : {}),
+        ...(patch.messageType !== undefined ? { messageType: String(patch.messageType || 'text') } : {}),
+        ...(patch.editedAt !== undefined ? { editedAt: patch.editedAt } : {}),
+        ...(patch.editCount !== undefined ? { editCount: Number(patch.editCount || 0) } : {}),
+      },
+    });
+  }
+
+  async findLatestTelegramPostGroup({ equipmentId, kinds = ['equipment_post', 'equipment_intake', 'equipment_move'] } = {}) {
+    const normalizedKinds = normalizeTelegramKinds(kinds);
+    if (!equipmentId || !normalizedKinds.length) return null;
+    const latest = await this.prisma.telegramPost.findFirst({
+      where: {
+        equipmentId,
+        kind: { in: normalizedKinds },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    if (!latest) return null;
+    const posts = await this.prisma.telegramPost.findMany({
+      where: { broadcastKey: latest.broadcastKey },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return {
+      broadcastKey: latest.broadcastKey,
+      kind: latest.kind,
+      messageType: latest.messageType || 'text',
+      text: latest.text,
+      createdAt: latest.createdAt?.toISOString?.() || latest.createdAt,
+      items: posts.map(mapTelegramPost),
     };
   }
 
@@ -1764,6 +1857,7 @@ export class InMemoryServiceOpsRepository {
     this.notes = [];
     this.media = [];
     this.notificationLogs = [];
+    this.telegramPosts = [];
     this.reportExportHistory = [];
     this.reportPresets = [];
   }
@@ -1851,6 +1945,57 @@ export class InMemoryServiceOpsRepository {
   async listEquipment() { return []; }
   async getEquipmentById() { return null; }
   async getEquipmentDetail() { return null; }
+  async createTelegramPost(payload = {}) {
+    if (!payload.equipmentId || !payload.chatId || !payload.messageId || !String(payload.text || '').trim()) return null;
+    const row = {
+      id: payload.id || makeTelegramPostId(),
+      equipmentId: payload.equipmentId,
+      serviceCaseId: payload.serviceCaseId || null,
+      kind: String(payload.kind || 'equipment_post').trim() || 'equipment_post',
+      messageType: String(payload.messageType || 'text').trim() || 'text',
+      broadcastKey: payload.broadcastKey || makeTelegramBroadcastKey(),
+      chatId: String(payload.chatId),
+      messageId: Number(payload.messageId),
+      text: String(payload.text || ''),
+      createdByUserId: payload.createdByUserId || null,
+      createdAt: payload.createdAt || new Date().toISOString(),
+      updatedAt: payload.updatedAt || new Date().toISOString(),
+      editedAt: payload.editedAt || null,
+      editCount: Number(payload.editCount || 0),
+    };
+    this.telegramPosts.unshift(row);
+    return row;
+  }
+  async updateTelegramPost(id, patch = {}) {
+    const idx = this.telegramPosts.findIndex((item) => item.id === id);
+    if (idx < 0) return null;
+    this.telegramPosts[idx] = {
+      ...this.telegramPosts[idx],
+      ...(patch.text !== undefined ? { text: String(patch.text || '') } : {}),
+      ...(patch.editedAt !== undefined ? { editedAt: patch.editedAt } : {}),
+      ...(patch.editCount !== undefined ? { editCount: Number(patch.editCount || 0) } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+    return this.telegramPosts[idx];
+  }
+  async findLatestTelegramPostGroup({ equipmentId, kinds = ['equipment_post', 'equipment_intake', 'equipment_move'] } = {}) {
+    const normalizedKinds = normalizeTelegramKinds(kinds);
+    const latest = this.telegramPosts.find((item) => item.equipmentId === equipmentId && normalizedKinds.includes(item.kind));
+    if (!latest) return null;
+    const items = this.telegramPosts
+      .filter((item) => item.broadcastKey === latest.broadcastKey)
+      .slice()
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map((item) => mapTelegramPost(item));
+    return {
+      broadcastKey: latest.broadcastKey,
+      kind: latest.kind,
+      messageType: latest.messageType || 'text',
+      text: latest.text,
+      createdAt: latest.createdAt,
+      items,
+    };
+  }
   async updateEquipmentCommercialStatus() { return null; }
   async listEquipmentServiceCases() { return []; }
   async createNotificationLog(payload = {}) {

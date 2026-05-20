@@ -87,6 +87,7 @@ export const adminServiceApi = {
   updateEquipment: async (id, payload) => apiFetch(`/api/telegram/admin/equipment/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   equipmentDetail: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/detail`),
   postEquipmentToTelegram: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/post-telegram`, { method: 'POST' }),
+  editEquipmentTelegramPost: async (id, text) => apiFetch(`/api/telegram/admin/equipment/${id}/post-telegram`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   addEquipmentComment: async (id, body) => apiFetch(`/api/telegram/admin/equipment/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
   addEquipmentNote: async (id, body) => apiFetch(`/api/telegram/admin/equipment/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
   listEquipmentTasks: async (id) => apiFetch(`/api/telegram/admin/equipment/${id}/tasks`),

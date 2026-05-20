@@ -3,27 +3,39 @@ export class TelegramBotGateway {
     this.token = token;
   }
 
-  async sendMessage(chatId, text) {
+  async request(method, payload) {
     if (!this.token) return { ok: false, reason: 'token_missing' };
 
-    const response = await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      body: JSON.stringify(payload),
     });
 
     return response.json();
   }
 
+  async sendMessage(chatId, text) {
+    return this.request('sendMessage', { chat_id: chatId, text });
+  }
+
   async sendPhoto(chatId, photo, caption = '') {
-    if (!this.token) return { ok: false, reason: 'token_missing' };
+    return this.request('sendPhoto', { chat_id: chatId, photo, caption });
+  }
 
-    const response = await fetch(`https://api.telegram.org/bot${this.token}/sendPhoto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, photo, caption }),
+  async editMessageText(chatId, messageId, text) {
+    return this.request('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
     });
+  }
 
-    return response.json();
+  async editMessageCaption(chatId, messageId, caption) {
+    return this.request('editMessageCaption', {
+      chat_id: chatId,
+      message_id: messageId,
+      caption,
+    });
   }
 }

@@ -145,6 +145,105 @@ function buildEquipmentMoveTelegramMessage(equipment = {}, activeCase = null, st
   return lines.join('\n');
 }
 
+function makeTelegramTextPostKinds() {
+  return ['equipment_post', 'equipment_intake', 'equipment_move'];
+}
+
+async function sendTelegramTextBroadcast({
+  botGateway,
+  serviceOpsRepository,
+  chatIds = [],
+  equipmentId,
+  serviceCaseId = null,
+  kind = 'equipment_post',
+  messageType = 'text',
+  text = '',
+  createdByUserId = null,
+}) {
+  const normalizedText = String(text || '').trim();
+  const uniqueChatIds = Array.from(new Set((chatIds || []).map((chatId) => String(chatId || '').trim()).filter(Boolean)));
+  if (!botGateway || !serviceOpsRepository || !equipmentId || !normalizedText || !uniqueChatIds.length) {
+    return { ok: false, skipped: true, sent: 0, total: uniqueChatIds.length };
+  }
+
+  const broadcastKey = `tbroadcast-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const results = await Promise.allSettled(uniqueChatIds.map(async (chatId) => {
+    const response = await botGateway.sendMessage(chatId, normalizedText);
+    if (response?.ok === false) return { ok: false, response, chatId };
+    const messageId = response?.result?.message_id;
+    if (messageId !== undefined && messageId !== null && typeof serviceOpsRepository.createTelegramPost === 'function') {
+      await serviceOpsRepository.createTelegramPost({
+        equipmentId,
+        serviceCaseId,
+        kind,
+        messageType,
+        broadcastKey,
+        chatId,
+        messageId,
+        text: normalizedText,
+        createdByUserId,
+      });
+    }
+    return { ok: true, response, chatId, messageId: response?.result?.message_id || null };
+  }));
+
+  const sent = results.filter((row) => row.status === 'fulfilled' && row.value?.ok !== false).length;
+  return {
+    ok: sent > 0,
+    skipped: false,
+    sent,
+    total: uniqueChatIds.length,
+    broadcastKey,
+  };
+}
+
+async function editLatestTelegramTextBroadcast({
+  botGateway,
+  serviceOpsRepository,
+  equipmentId,
+  text = '',
+  kinds = makeTelegramTextPostKinds(),
+}) {
+  const normalizedText = String(text || '').trim();
+  if (!botGateway || !serviceOpsRepository || !equipmentId || !normalizedText) {
+    return { ok: false, skipped: true, edited: 0, total: 0 };
+  }
+
+  const group = await serviceOpsRepository.findLatestTelegramPostGroup({ equipmentId, kinds });
+  if (!group?.items?.length) {
+    return { ok: false, skipped: true, reason: 'telegram_post_not_found', edited: 0, total: 0 };
+  }
+
+  const now = new Date();
+  const results = await Promise.allSettled(group.items.map((post) => {
+    if (String(post.messageType || group.messageType || 'text') === 'photo' && typeof botGateway.editMessageCaption === 'function') {
+      return botGateway.editMessageCaption(post.chatId, post.messageId, normalizedText);
+    }
+    return botGateway.editMessageText(post.chatId, post.messageId, normalizedText);
+  }));
+  const succeeded = [];
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value?.ok !== false) {
+      succeeded.push(group.items[index]);
+    }
+  });
+
+  await Promise.all(succeeded.map((post) => serviceOpsRepository.updateTelegramPost(post.id, {
+    text: normalizedText,
+    messageType: post.messageType || group.messageType || 'text',
+    editedAt: now,
+    editCount: Number(post.editCount || 0) + 1,
+  })));
+
+  return {
+    ok: succeeded.length > 0,
+    edited: succeeded.length,
+    total: group.items.length,
+    broadcastKey: group.broadcastKey,
+    kind: group.kind,
+  };
+}
+
 function buildNextActions({ serviceStatus, commercialStatus, serviceActions = [], commercialActions = [] }) {
   const normalizedServiceStatus = String(serviceStatus || '').trim().toLowerCase();
   const normalizedCommercialStatus = String(commercialStatus || 'none').trim().toLowerCase() || 'none';
@@ -205,9 +304,38 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
     const media = normalizeEquipmentMedia(req, payload.media || []);
     const photo = media.find((row) => row.mediaType === 'photo' && (row.fullUrl || row.previewUrl || row.fileUrl));
     const caption = buildEquipmentMoveTelegramMessage(payload.equipment, activeCase, commercialStatus, req.adminUser);
-    const results = await Promise.allSettled(chatIds.map((chatId) => {
-      const photoUrl = photo?.fullUrl || photo?.previewUrl || photo?.fileUrl || '';
-      if (photoUrl && typeof botGateway.sendPhoto === 'function') return botGateway.sendPhoto(chatId, photoUrl, caption.slice(0, 1000));
+    if (!photo) {
+      return sendTelegramTextBroadcast({
+        botGateway,
+        serviceOpsRepository,
+        chatIds,
+        equipmentId,
+        serviceCaseId: activeCase?.id || null,
+        kind: 'equipment_move',
+        messageType: 'text',
+        text: caption,
+        createdByUserId: req.adminUser?.id || null,
+      });
+    }
+    const photoUrl = photo?.fullUrl || photo?.previewUrl || photo?.fileUrl || '';
+    const results = await Promise.allSettled(chatIds.map(async (chatId) => {
+      if (photoUrl && typeof botGateway.sendPhoto === 'function') {
+        const response = await botGateway.sendPhoto(chatId, photoUrl, caption.slice(0, 1000));
+        const messageId = response?.result?.message_id;
+        if (response?.ok !== false && messageId !== undefined && messageId !== null && typeof serviceOpsRepository.createTelegramPost === 'function') {
+          await serviceOpsRepository.createTelegramPost({
+            equipmentId,
+            serviceCaseId: activeCase?.id || null,
+            kind: 'equipment_move',
+            messageType: 'photo',
+            chatId,
+            messageId,
+            text: caption,
+            createdByUserId: req.adminUser?.id || null,
+          });
+        }
+        return response;
+      }
       return botGateway.sendMessage(chatId, caption);
     }));
     const sent = results.filter((row) => row.status === 'fulfilled' && row.value?.ok !== false).length;
@@ -795,7 +923,21 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       const existing = await serviceOpsRepository.getEquipmentById(req.params.id);
       if (!existing) return res.status(404).json({ error: 'not_found' });
       const item = await serviceOpsRepository.updateEquipmentById(req.params.id, req.body || {});
-      return res.json({ item });
+      let telegram = { ok: false, skipped: true };
+      if (botGateway) {
+        const payload = await serviceOpsRepository.getEquipmentDetail(req.params.id);
+        const activeCase = (payload?.serviceCases || []).find((row) => row.isActive) || null;
+        const text = buildEquipmentTelegramMessage(payload?.equipment || item || existing, activeCase, req.adminUser);
+        const telegramKinds = payload?.telegramPost?.kind ? [payload.telegramPost.kind] : ['equipment_post'];
+        telegram = await editLatestTelegramTextBroadcast({
+          botGateway,
+          serviceOpsRepository,
+          equipmentId: req.params.id,
+          text,
+          kinds: telegramKinds,
+        });
+      }
+      return res.json({ item, telegram });
     },
 
     async createEquipment(req, res) {
@@ -858,10 +1000,40 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
       if (!uniqueChatIds.length) return res.status(409).json({ error: 'telegram_chat_not_configured' });
 
       const message = buildEquipmentTelegramMessage(payload.equipment, activeCase, req.adminUser);
-      const results = await Promise.allSettled(uniqueChatIds.map((chatId) => botGateway.sendMessage(chatId, message)));
-      const sent = results.filter((item) => item.status === 'fulfilled' && item.value?.ok !== false).length;
-      if (!sent) return res.status(502).json({ error: 'telegram_send_failed', results });
-      return res.json({ ok: true, sent, total: uniqueChatIds.length });
+      const result = await sendTelegramTextBroadcast({
+        botGateway,
+        serviceOpsRepository,
+        chatIds: uniqueChatIds,
+        equipmentId: payload.equipment.id,
+        serviceCaseId: activeCase?.id || null,
+        kind: 'equipment_post',
+        text: message,
+        createdByUserId: req.adminUser?.id || null,
+      });
+      if (!result.ok) return res.status(502).json({ error: 'telegram_send_failed', result });
+      return res.json({ ok: true, ...result });
+    },
+
+    async editEquipmentTelegramPost(req, res) {
+      if (!can(req.adminUser, PERMISSIONS.equipmentRead)) return res.status(403).json({ error: 'forbidden' });
+      const payload = await serviceOpsRepository.getEquipmentDetail(req.params.id);
+      if (!payload?.equipment) return res.status(404).json({ error: 'not_found' });
+      if (!botGateway) return res.status(503).json({ error: 'telegram_unavailable' });
+
+      const text = String(req.body?.text || '').trim();
+      if (!text) return res.status(400).json({ error: 'text_required' });
+
+      const result = await editLatestTelegramTextBroadcast({
+        botGateway,
+        serviceOpsRepository,
+        equipmentId: payload.equipment.id,
+        text,
+      });
+      if (!result.ok) {
+        if (result.reason === 'telegram_post_not_found') return res.status(404).json({ error: 'telegram_post_not_found' });
+        return res.status(502).json({ error: 'telegram_edit_failed', result });
+      }
+      return res.json({ ok: true, ...result });
     },
 
     async addEquipmentComment(req, res) {
@@ -940,9 +1112,16 @@ export function createAdminServiceOpsController(serviceOpsRepository, opts = {})
         const uniqueChatIds = Array.from(new Set(chatIds));
         if (uniqueChatIds.length) {
           const message = buildEquipmentIntakeTelegramMessage(created.equipment, created.serviceCase, req.adminUser);
-          const results = await Promise.allSettled(uniqueChatIds.map((chatId) => botGateway.sendMessage(chatId, message)));
-          const sent = results.filter((item) => item.status === 'fulfilled' && item.value?.ok !== false).length;
-          telegram = { ok: sent > 0, sent, total: uniqueChatIds.length, skipped: false };
+          telegram = await sendTelegramTextBroadcast({
+            botGateway,
+            serviceOpsRepository,
+            chatIds: uniqueChatIds,
+            equipmentId: created.equipment.id,
+            serviceCaseId: created.serviceCase?.id || null,
+            kind: 'equipment_intake',
+            text: message,
+            createdByUserId: req.adminUser?.id || null,
+          });
         }
       }
       return res.status(201).json({ item: { ...created, telegram } });
