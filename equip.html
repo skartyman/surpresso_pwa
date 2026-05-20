@@ -1040,6 +1040,60 @@ input[type="file"]::file-selector-button:hover{
             <table id="info"></table>
           </div>
 
+          <!-- EQUIPMENT DATA EDITOR -->
+          <div class="card" id="equipmentEditCard">
+            <div class="cardHeader">
+              <div>
+                <div class="cardTitle">Редагування даних</div>
+                <div class="cardDesc">Правка картки та синхронізація з Telegram</div>
+              </div>
+              <div class="muted" id="editDataHint"></div>
+            </div>
+
+            <div class="grid">
+              <div>
+                <label class="lbl" for="editClientName">Ім'я клієнта</label>
+                <input type="text" id="editClientName" />
+              </div>
+              <div>
+                <label class="lbl" for="editClientPhone">Телефон</label>
+                <input type="tel" id="editClientPhone" />
+              </div>
+              <div>
+                <label class="lbl" for="editClientLocation">Локація клієнта</label>
+                <input type="text" id="editClientLocation" />
+              </div>
+              <div>
+                <label class="lbl" for="editModel">Модель</label>
+                <input type="text" id="editModel" />
+              </div>
+              <div>
+                <label class="lbl" for="editSerial">Серійний №</label>
+                <input type="text" id="editSerial" />
+              </div>
+              <div>
+                <label class="lbl" for="editCompanyLocation">Локація компанії</label>
+                <input type="text" id="editCompanyLocation" />
+              </div>
+              <div>
+                <label class="lbl" for="editName">Назва</label>
+                <input type="text" id="editName" />
+              </div>
+              <div>
+                <label class="lbl" for="editInternalNumber">Внутрішній №</label>
+                <input type="text" id="editInternalNumber" />
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:10px; justify-content:space-between; align-items:center;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-3);">
+                <input type="checkbox" id="editIsContract" style="width:auto; margin:0;" />
+                Обслуговування за договором
+              </label>
+              <button class="btn primary" id="btnSaveEquipmentData" type="button">💾 Зберегти дані</button>
+            </div>
+          </div>
+
           <!-- SPECS CARD -->
           <div class="card action-panel" id="panel-specs">
             <div class="cardHeader">
@@ -1410,6 +1464,7 @@ input[type="file"]::file-selector-button:hover{
       };
       $("btnSummaryPrint").onclick = () => printBlank();
       $("btnTransferOwner").onclick = transferOwner;
+      $("btnSaveEquipmentData").onclick = saveEquipmentData;
       initActionMenu();
 
       load();
@@ -1505,6 +1560,7 @@ input[type="file"]::file-selector-button:hover{
       $("pillOwner").textContent = "owner: " + (eq.owner || "—");
       $("pillType").textContent = "type: " + (eq.type || "—");
       renderCompactSummary(eq, subscriptionLabel);
+      fillEquipmentEditor(eq);
 
       // statuses by owner
       const statuses = buildStatusesFor(eq);
@@ -1590,6 +1646,19 @@ input[type="file"]::file-selector-button:hover{
       $("summaryInfo").innerHTML = rows.join("");
     }
 
+    function fillEquipmentEditor(eq) {
+      if (!eq) return;
+      $("editClientName").value = eq.clientName || "";
+      $("editClientPhone").value = eq.clientPhone || "";
+      $("editClientLocation").value = eq.clientLocation || "";
+      $("editModel").value = eq.model || "";
+      $("editSerial").value = eq.serial || "";
+      $("editCompanyLocation").value = eq.companyLocation || "";
+      $("editName").value = eq.name || "";
+      $("editInternalNumber").value = eq.internalNumber || "";
+      $("editIsContract").checked = String(eq.isContract) === "true";
+    }
+
     function initActionMenu() {
       document.querySelectorAll(".equipmentMenuBtn").forEach((btn) => {
         btn.addEventListener("click", () => showActionPanel(btn.dataset.panel));
@@ -1668,6 +1737,49 @@ input[type="file"]::file-selector-button:hover{
       } catch (e) {
         $("infoHint").textContent = "";
         alert("❌ " + (e.message || "Помилка зміни власника"));
+      }
+    }
+
+    async function saveEquipmentData() {
+      const eq = LAST_EQUIPMENT || {};
+      if (!eq.id) return;
+
+      $("btnSaveEquipmentData").disabled = true;
+      $("editDataHint").textContent = "Зберігаю...";
+
+      const payload = {
+        clientName: String($("editClientName")?.value || "").trim(),
+        clientPhone: String($("editClientPhone")?.value || "").trim(),
+        clientLocation: String($("editClientLocation")?.value || "").trim(),
+        model: String($("editModel")?.value || "").trim(),
+        serial: String($("editSerial")?.value || "").trim(),
+        companyLocation: String($("editCompanyLocation")?.value || "").trim(),
+        name: String($("editName")?.value || "").trim(),
+        internalNumber: String($("editInternalNumber")?.value || "").trim(),
+        isContract: Boolean($("editIsContract")?.checked),
+      };
+
+      try {
+        const out = await apiPost(`${API_BASE}/api/equip/${encodeURIComponent(EQUIPMENT_ID)}/update`, payload);
+        if (!out.ok) throw new Error(out.error || "Помилка збереження");
+
+        const edited = Number(out.telegram?.edited || 0);
+        $("editDataHint").textContent = edited > 0
+          ? `✅ Збережено, Telegram оновлено (${edited})`
+          : "✅ Збережено";
+
+        await load();
+        setTimeout(() => {
+          if (($("editDataHint")?.textContent || "").startsWith("✅")) {
+            $("editDataHint").textContent = "";
+          }
+        }, 2000);
+      } catch (e) {
+        console.error(e);
+        $("editDataHint").textContent = "";
+        alert("вќЊ " + (e.message || "Помилка збереження"));
+      } finally {
+        $("btnSaveEquipmentData").disabled = false;
       }
     }
 

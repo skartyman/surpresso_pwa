@@ -147,6 +147,7 @@ const PASSPORT_BASE_URL =
   process.env.APP_URL ||
   "";
 let miniAppStatus = { enabled: false, storage: 'legacy-only', adminServiceModuleOk: false };
+let miniAppServiceOpsRepository = null;
 
 // Trello
 const TRELLO_KEY = process.env.TRELLO_KEY || "";
@@ -182,6 +183,7 @@ async function setupMiniAppLayer() {
     ]);
 
     const { repositories: miniAppDeps, storage } = await createMiniAppRepositories(process.env.DATABASE_URL);
+    miniAppServiceOpsRepository = miniAppDeps.serviceOpsRepository || null;
     const uploadsRoot = TELEGRAM_MINIAPP_UPLOADS_DIR;
     miniAppDeps.sessionManager = createAdminSessionManager(
       process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || "change-me-admin-secret"
@@ -198,6 +200,7 @@ async function setupMiniAppLayer() {
   } catch (error) {
     const code = error?.code || "unknown_error";
     console.error(`[miniapp] disabled due to startup error (${code}): ${error?.message || error}`);
+    miniAppServiceOpsRepository = null;
     miniAppStatus = { enabled: false, storage: 'legacy-only', adminServiceModuleOk: false };
   }
 }
@@ -589,6 +592,43 @@ async function tgSendDocumentTo(botToken, chatId, fileDataUrl, caption) {
   }
 }
 
+async function tgEditTextTo(botToken, chatId, messageId, text) {
+  if (!botToken || !chatId || !messageId) return false;
+  try {
+    const resp = await fetch(tgApiUrl(botToken, "editMessageText"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: Number(messageId),
+        text,
+        disable_web_page_preview: true,
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function tgEditCaptionTo(botToken, chatId, messageId, caption) {
+  if (!botToken || !chatId || !messageId) return false;
+  try {
+    const resp = await fetch(tgApiUrl(botToken, "editMessageCaption"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: Number(messageId),
+        caption,
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function tgSendVideosTo(botToken, chatId, videos, caption) {
   if (!botToken || !chatId) return;
   const list = Array.isArray(videos) ? videos : [];
@@ -667,6 +707,59 @@ function buildCaption(card) {
   }
 
   return caption;
+}
+
+async function syncLegacyTelegramPostForEquipment(eq = {}) {
+  const serviceOpsRepository = miniAppServiceOpsRepository;
+  const equipmentId = String(eq.id || "").trim();
+  if (!serviceOpsRepository || !equipmentId || !TG_NOTIFY_BOT) {
+    return { ok: false, skipped: true, reason: "telegram_unavailable", edited: 0, total: 0 };
+  }
+
+  const group = await serviceOpsRepository.findLatestTelegramPostGroup({
+    equipmentId,
+    kinds: ["equipment_post", "equipment_intake", "equipment_move"],
+  });
+
+  if (!group?.items?.length) {
+    return { ok: false, skipped: true, reason: "telegram_post_not_found", edited: 0, total: 0 };
+  }
+
+  const passportLink = buildPassportLinkFromBase(PASSPORT_BASE_URL, equipmentId, { isPublic: false });
+  const text = [
+    buildCaption(eq),
+    passportLink ? `🔗 Паспорт: ${passportLink}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  const results = await Promise.allSettled(group.items.map((post) => {
+    const messageType = String(post.messageType || group.messageType || "text").toLowerCase();
+    if (messageType === "photo") {
+      return tgEditCaptionTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
+    }
+    return tgEditTextTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
+  }));
+
+  const succeeded = [];
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled" && result.value !== false) {
+      succeeded.push(group.items[index]);
+    }
+  });
+
+  const now = new Date().toISOString();
+  await Promise.all(succeeded.map((post) => serviceOpsRepository.updateTelegramPost(post.id, {
+    text,
+    messageType: post.messageType || group.messageType || "text",
+    editedAt: now,
+    editCount: Number(post.editCount || 0) + 1,
+  })));
+
+  return {
+    ok: succeeded.length > 0,
+    edited: succeeded.length,
+    total: group.items.length,
+    broadcastKey: group.broadcastKey,
+  };
 }
 
 function buildPassportLink(req, id, { isPublic = false } = {}) {
@@ -1323,6 +1416,56 @@ app.post("/api/equip/:id/owner", requirePwaKey, async (req, res) => {
     res.send({ ok: true, ...out, owner: newOwner, status: merged.status, equipment: merged });
   } catch (e) {
     console.error("[owner-transfer] failed", e);
+    res.status(500).send({ ok: false, error: String(e) });
+  }
+});
+
+app.post("/api/equip/:id/update", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).send({ ok: false, error: "missing_id" });
+
+    const before = await gasPost({ action: "get", id });
+    if (!before?.ok || !before?.equipment) {
+      return res.status(404).send({ ok: false, error: "equipment_not_found" });
+    }
+
+    const eq = before.equipment || {};
+    const {
+      clientName = "",
+      clientPhone = "",
+      clientLocation = "",
+      model = "",
+      serial = "",
+      companyLocation = "",
+      name = "",
+      internalNumber = "",
+      isContract = false,
+    } = req.body || {};
+
+    const merged = {
+      ...eq,
+      id,
+      isContract: Boolean(isContract),
+      clientName: String(clientName || eq.clientName || "").trim(),
+      clientPhone: String(clientPhone || eq.clientPhone || "").trim(),
+      clientLocation: String(clientLocation || eq.clientLocation || eq.companyLocation || "").trim(),
+      model: String(model || eq.model || eq.name || "").trim(),
+      serial: String(serial || eq.serial || id || "").trim(),
+      companyLocation: String(companyLocation || eq.companyLocation || eq.clientLocation || "").trim(),
+      name: String(name || eq.name || eq.model || "").trim(),
+      internalNumber: String(internalNumber || eq.internalNumber || id || "").trim(),
+    };
+
+    const out = await gasPost({ action: "create", card: merged });
+    if (!out?.ok) {
+      return res.status(500).send({ ok: false, error: out?.error || "equipment_update_failed" });
+    }
+
+    const telegram = await syncLegacyTelegramPostForEquipment(merged);
+    res.send({ ok: true, ...out, equipment: merged, telegram });
+  } catch (e) {
+    console.error("[equipment-update] failed", e);
     res.status(500).send({ ok: false, error: String(e) });
   }
 });
