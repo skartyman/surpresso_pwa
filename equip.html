@@ -2848,7 +2848,7 @@ function printBlank() {
     try {
       // ✅ Используем apiPost (уже включает заголовки авторизации)
       await apiPost(`${API_BASE}/send-equipment`, {
-         card: LAST_EQUIPMENT,
+         card: { ...LAST_EQUIPMENT, resendComment: comment },
          photos,
          source: "resend"
       });
