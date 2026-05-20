@@ -716,10 +716,19 @@ async function syncLegacyTelegramPostForEquipment(eq = {}) {
     return { ok: false, skipped: true, reason: "telegram_unavailable", edited: 0, total: 0 };
   }
 
-  const group = await serviceOpsRepository.findLatestTelegramPostGroup({
-    equipmentId,
-    kinds: ["equipment_post", "equipment_intake", "equipment_move"],
-  });
+  let group = null;
+  try {
+    group = await serviceOpsRepository.findLatestTelegramPostGroup({
+      equipmentId,
+      kinds: ["equipment_post", "equipment_intake", "equipment_move"],
+    });
+  } catch (error) {
+    console.warn("[legacy-telegram-sync] telegram post store unavailable", {
+      equipmentId,
+      error: String(error?.message || error),
+    });
+    return { ok: false, skipped: true, reason: "telegram_post_store_unavailable", edited: 0, total: 0 };
+  }
 
   if (!group?.items?.length) {
     return { ok: false, skipped: true, reason: "telegram_post_not_found", edited: 0, total: 0 };
@@ -731,13 +740,22 @@ async function syncLegacyTelegramPostForEquipment(eq = {}) {
     passportLink ? `🔗 Паспорт: ${passportLink}` : "",
   ].filter(Boolean).join("\n\n");
 
-  const results = await Promise.allSettled(group.items.map((post) => {
-    const messageType = String(post.messageType || group.messageType || "text").toLowerCase();
-    if (messageType === "photo") {
-      return tgEditCaptionTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
-    }
-    return tgEditTextTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
-  }));
+  let results = [];
+  try {
+    results = await Promise.allSettled(group.items.map((post) => {
+      const messageType = String(post.messageType || group.messageType || "text").toLowerCase();
+      if (messageType === "photo") {
+        return tgEditCaptionTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
+      }
+      return tgEditTextTo(TG_NOTIFY_BOT, post.chatId, post.messageId, text);
+    }));
+  } catch (error) {
+    console.warn("[legacy-telegram-sync] edit failed", {
+      equipmentId,
+      error: String(error?.message || error),
+    });
+    return { ok: false, skipped: true, reason: "telegram_edit_failed", edited: 0, total: group.items.length };
+  }
 
   const succeeded = [];
   results.forEach((result, index) => {
@@ -747,12 +765,19 @@ async function syncLegacyTelegramPostForEquipment(eq = {}) {
   });
 
   const now = new Date().toISOString();
-  await Promise.all(succeeded.map((post) => serviceOpsRepository.updateTelegramPost(post.id, {
-    text,
-    messageType: post.messageType || group.messageType || "text",
-    editedAt: now,
-    editCount: Number(post.editCount || 0) + 1,
-  })));
+  try {
+    await Promise.all(succeeded.map((post) => serviceOpsRepository.updateTelegramPost(post.id, {
+      text,
+      messageType: post.messageType || group.messageType || "text",
+      editedAt: now,
+      editCount: Number(post.editCount || 0) + 1,
+    })));
+  } catch (error) {
+    console.warn("[legacy-telegram-sync] post metadata update failed", {
+      equipmentId,
+      error: String(error?.message || error),
+    });
+  }
 
   return {
     ok: succeeded.length > 0,
