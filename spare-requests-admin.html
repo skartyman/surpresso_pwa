@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Запросы запчастей — Админ</title>
+  <script>
+    (function () {
+      const version = "20260611-9";
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("v") !== version) {
+        url.searchParams.set("v", version);
+        window.location.replace(url.pathname + url.search);
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4" />
+  <script src="/theme.js"></script>
+  <style>
+    .sra-container { max-width: 960px; margin: 0 auto; padding: 16px; }
+    .sra-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .sra-header h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+    .sra-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .sra-tabs button { padding: 8px 16px; border: 1px solid var(--border, #ddd); background: var(--card-bg, #f5f5f5); cursor: pointer; border-radius: 8px 8px 0 0; font-size: 13px; }
+    .sra-tabs button.active { background: var(--accent, #007bff); color: #fff; border-color: var(--accent, #007bff); }
+    .req-card { background: var(--card-bg, #f9f9f9); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border, #eee); }
+    .req-card:hover { border-color: var(--accent, #007bff); }
+    .req-card .meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .req-card .meta .title { font-weight: 600; font-size: 15px; }
+    .req-card .meta .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-processing { background: #cce5ff; color: #004085; }
+    .badge-issued { background: #d4edda; color: #155724; }
+    .req-card .detail { font-size: 13px; color: var(--muted, #666); margin-top: 4px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
+    .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .modal .close { float: right; cursor: pointer; font-size: 24px; line-height: 1; }
+    .modal table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .modal th, .modal td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border, #eee); }
+    .modal th { font-weight: 600; font-size: 12px; color: var(--muted, #888); }
+    .modal .qty-input { width: 60px; padding: 4px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .empty { text-align: center; padding: 40px; color: var(--muted, #999); }
+  </style>
+</head>
+<body data-page="spare-requests-admin">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="">
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
+      <div class="app-title">
+        <div class="app-name"><span>Surpresso</span><span>Service</span></div>
+        <div class="app-subtitle">Запросы запчастей</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вхід в систему</h2>
+      <input id="login-user" type="text" placeholder="Логін" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Увійти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="goHome()">🏠 Домой</button>
+  </div>
+
+  <div class="app-main sra-container" id="appMain" style="display:none;">
+    <div class="sra-header">
+      <h1>Запросы запчастей</h1>
+      <span id="adminName" class="muted" style="font-size:13px;"></span>
+    </div>
+
+    <div class="sra-tabs">
+      <button class="active" data-filter="" onclick="filterRequests('')">Все</button>
+      <button data-filter="pending" onclick="filterRequests('pending')">Ожидают</button>
+      <button data-filter="processing" onclick="filterRequests('processing')">В обработке</button>
+      <button data-filter="issued" onclick="filterRequests('issued')">Выдано</button>
+    </div>
+
+    <div id="requestsList"></div>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <span class="close" onclick="closeModal()">×</span>
+      <h2 id="modalTitle">Запрос</h2>
+      <div id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
+  <script src="auth.js"></script>
+  <script>
+    const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+    const PARTS_GID = 1099059228;
+    let currentFilter = "";
+    let currentRequest = null;
+    let partsCatalogPromise = null;
+    let partsLookupByCode = new Map();
+    let partsLookupByName = new Map();
+
+    function getPwaKey() {
+      let key = localStorage.getItem("surpresso_pwa_key");
+      if (!key) {
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+        if (!key) throw new Error("NO_PWA_KEY");
+        localStorage.setItem("surpresso_pwa_key", key);
+      }
+      return key;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const key = getPwaKey();
+      const headers = { ...(options.headers || {}), "x-surpresso-key": key };
+      if (options.body && !(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
+      let resp = await fetch(url, { ...options, headers });
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const rh = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) {
+          rh["Content-Type"] = rh["Content-Type"] || "application/json";
+        }
+        resp = await fetch(url, { ...options, headers: rh });
+      }
+      return resp;
+    }
+
+    function normalizeKey(value) {
+      return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+      const src = String(text || "");
+
+      for (let i = 0; i < src.length; i += 1) {
+        const ch = src[i];
+        const next = src[i + 1];
+        if (inQuotes) {
+          if (ch === '"' && next === '"') {
+            cell += '"';
+            i += 1;
+          } else if (ch === '"') {
+            inQuotes = false;
+          } else {
+            cell += ch;
+          }
+          continue;
+        }
+        if (ch === '"') {
+          inQuotes = true;
+          continue;
+        }
+        if (ch === ',') {
+          row.push(cell);
+          cell = "";
+          continue;
+        }
+        if (ch === '\r') continue;
+        if (ch === '\n') {
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+          continue;
+        }
+        cell += ch;
+      }
+
+      row.push(cell);
+      if (row.length > 1 || String(row[0] || "").trim() !== "") rows.push(row);
+      return rows;
+    }
+
+    async function loadPartsCatalog() {
+      if (partsCatalogPromise) return partsCatalogPromise;
+      partsCatalogPromise = (async () => {
+        const url = `https://docs.google.com/spreadsheets/d/${PARTS_SHEET_ID}/export?format=csv&gid=${PARTS_GID}&v=${Date.now()}`;
+        const resp = await fetch(url, { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const rows = parseCsv(text);
+        const headers = (rows.shift() || []).map(h => normalizeKey(h));
+        const idx = {
+          code: headers.findIndex(h => h.includes("артик") || h === "код"),
+          name: headers.findIndex(h => h.includes("наимен") || h.includes("наймен") || h === "name"),
+          cell: headers.findIndex(h => h.includes("ячей") || h.includes("комір") || h === "cell"),
+        };
+
+        partsLookupByCode = new Map();
+        partsLookupByName = new Map();
+
+        for (const row of rows) {
+          const code = String(row[idx.code] || "").trim();
+          const name = String(row[idx.name] || "").trim();
+          const cell = String(row[idx.cell] || "").trim();
+          if (code) partsLookupByCode.set(normalizeKey(code), cell);
+          if (name) partsLookupByName.set(normalizeKey(name), cell);
+        }
+      })().catch(() => {
+        partsLookupByCode = new Map();
+        partsLookupByName = new Map();
+      });
+      return partsCatalogPromise;
+    }
+
+    function resolveCellDisplay(item) {
+      const current = String(item?.cell || "").trim();
+      if (current) return formatCellDisplay(current);
+      const code = normalizeKey(item?.partCode || "");
+      if (code && partsLookupByCode.has(code)) return formatCellDisplay(partsLookupByCode.get(code));
+      const name = normalizeKey(item?.partName || "");
+      if (name && partsLookupByName.has(name)) return formatCellDisplay(partsLookupByName.get(name));
+      return "—";
+    }
+
+    function formatCellDisplay(value) {
+      const s = String(value || "").trim();
+      if (!s) return "—";
+      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
+      return dateLike ? `${dateLike[1]}.2` : s;
+    }
+
+    async function loadRequests() {
+      const container = document.getElementById("requestsList");
+      container.innerHTML = "<div class='empty'>⏳ Загрузка...</div>";
+
+      try {
+        const resp = await apiFetch(`/api/spare-request/list${currentFilter ? "?status=" + currentFilter : ""}`);
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error);
+
+        const requests = out.requests || [];
+        if (!requests.length) {
+          container.innerHTML = "<div class='empty'>Нет запросов</div>";
+          return;
+        }
+
+        container.innerHTML = requests.map(r => `
+          <div class="req-card" onclick="openRequest('${r.id}')">
+            <div class="meta">
+              <span class="title">${r.id}</span>
+              <span class="badge badge-${r.status}">${statusLabel(r.status)}</span>
+            </div>
+            <div class="detail">
+              ${r.masterName} ${r.equipmentId ? "— " + r.equipmentId : ""}
+              ${r.createdAt ? " • " + fmtDate(r.createdAt) : ""}
+            </div>
+          </div>
+        `).join("");
+      } catch (e) {
+        container.innerHTML = "<div class='empty'>❌ " + (e.message || "Ошибка") + "</div>";
+      }
+    }
+
+    function statusLabel(s) {
+      return { pending: "Ожидает", processing: "В обработке", issued: "Выдано" }[s] || s;
+    }
+
+    function fmtDate(d) {
+      try { return new Date(d).toLocaleDateString("uk-UA"); } catch { return d; }
+    }
+
+    function filterRequests(filter) {
+      currentFilter = filter;
+      document.querySelectorAll(".sra-tabs button").forEach(b => b.classList.remove("active"));
+      document.querySelector(`.sra-tabs button[data-filter="${filter}"]`).classList.add("active");
+      loadRequests();
+    }
+
+    async function openRequest(id) {
+      const rid = String(id || "").trim();
+      if (!rid) return;
+      window.location.href = `/spare-request-work.html?id=${encodeURIComponent(rid)}&v=20260611-19`;
+    }
+
+    function showModal() {
+      const r = currentRequest;
+      if (!r) return;
+
+      document.getElementById("modalTitle").textContent = r.id + " — " + r.masterName;
+      const body = document.getElementById("modalBody");
+      const isIssued = r.status === "issued";
+      const canIssue = r.status === "pending" || r.status === "processing";
+
+      body.innerHTML = `
+        <div style="margin-bottom:12px; font-size:13px;">
+          <div>Майстер: <strong>${r.masterName}</strong> (${r.masterLogin})</div>
+          ${r.equipmentId ? "<div>Обладнання: <strong>" + r.equipmentId + "</strong></div>" : ""}
+          <div>Статус: <strong>${statusLabel(r.status)}</strong></div>
+          ${r.createdAt ? "<div>Створено: " + fmtDate(r.createdAt) + "</div>" : ""}
+          ${r.processedAt ? "<div>Видано: " + fmtDate(r.processedAt) + "</div>" : ""}
+          ${r.adminName ? "<div>Адмін: " + r.adminName + "</div>" : ""}
+          ${r.comment ? "<div style='margin-top:6px;'>Коментар: <em>" + r.comment + "</em></div>" : ""}
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>Номенклатура</th><th>Артикул</th><th>Комірка</th><th>Од.</th><th>Запрошено</th>${!isIssued ? "<th>Видано</th>" : "<th>Видано</th>"}</tr></thead>
+          <tbody>
+            ${r.items.map((item, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${item.partName}</td>
+                <td style="font-size:11px; color:var(--muted, #888);">${item.partCode}</td>
+                <td style="font-size:11px;">${resolveCellDisplay(item)}</td>
+                <td>${item.unit}</td>
+                <td>${item.quantityRequested}</td>
+                <td>${!isIssued && canIssue
+                  ? `<input class="qty-input" type="number" value="${item.quantityRequested}" min="0" max="${item.quantityRequested}" data-code="${item.partCode}">`
+                  : item.quantityIssued || "—"}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+
+      const actions = document.getElementById("modalActions");
+      actions.innerHTML = "";
+
+      if (canIssue) {
+        const issueBtn = document.createElement("button");
+        issueBtn.className = "btn primary";
+        issueBtn.textContent = "📦 Выдано";
+        issueBtn.onclick = issueRequest;
+        actions.appendChild(issueBtn);
+      }
+
+      if (isIssued) {
+        const exportBtn = document.createElement("button");
+        exportBtn.className = "btn";
+        exportBtn.textContent = "📥 Скачать XLS для 1С";
+        exportBtn.onclick = () => { window.location.href = `/api/spare-request/${r.id}/export-xls?k=${encodeURIComponent(getPwaKey())}`; };
+        actions.appendChild(exportBtn);
+      }
+
+      const closeBtn = document.createElement("button");
+      closeBtn.className = "btn ghost";
+      closeBtn.textContent = "Закрыть";
+      closeBtn.onclick = closeModal;
+      actions.appendChild(closeBtn);
+
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("modal").style.display = "none";
+      currentRequest = null;
+    }
+
+    async function issueRequest() {
+      const r = currentRequest;
+      if (!r) return;
+
+      const admin = window.SurpAuth?.getCurrentUser?.();
+      const adminName = admin?.name || prompt("Введи своё имя:") || "";
+      if (!adminName) return;
+
+      const inputs = document.querySelectorAll("#modalBody .qty-input");
+      const items = Array.from(inputs).map(inp => ({
+        partCode: inp.dataset.code,
+        quantityIssued: parseInt(inp.value) || 0
+      }));
+
+      try {
+        const resp = await apiFetch(`/api/spare-request/${r.id}/issue`, {
+          method: "POST",
+          body: JSON.stringify({ adminName, items })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error);
+        alert("✅ Запрос выполнен. Файл отправлен в Telegram.");
+        closeModal();
+        loadRequests();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    function goHome() { window.location.href = "/"; }
+
+    window.addEventListener("load", async () => {
+      await window.SurpAuth?.init?.();
+      const user = window.SurpAuth?.getCurrentUser?.();
+      if (!user) return;
+      const role = user.role || "";
+      if (role !== "admin" && role !== "manager") {
+        document.getElementById("appMain").innerHTML = "<div class='empty' style='padding:60px;'><h2>🚫 Доступ запрещён</h2><p style='margin:12px 0;'>У вас нет прав для просмотра этой страницы.</p><button class='btn primary' onclick=\"window.location.href='/';\">На главную</button></div>";
+        document.getElementById("appMain").style.display = "block";
+        return;
+      }
+      document.getElementById("appMain").style.display = "block";
+      document.getElementById("adminName").textContent = "👤 " + user.name;
+      loadRequests();
+    });
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import fetch from "node-fetch";
 import bodyParser from "body-parser";
 import fs from "fs/promises";
 import crypto from "crypto";
+import ExcelJS from "exceljs";
 import {
   answerWithGemini,
   buildSources,
@@ -205,6 +206,8 @@ async function setupMiniAppLayer() {
 app.get("/health", (_req, res) => {
   res.send({ ok: true, dbOk: miniAppStatus.storage !== 'legacy-only', adminServiceModuleOk: miniAppStatus.adminServiceModuleOk, miniApp: miniAppStatus });
 });
+
+
 
 function sanitizeManualText(value, max = 120) {
   return String(value || "")
@@ -631,6 +634,25 @@ async function tgNotifyDocumentTo(chatId, fileDataUrl, caption) {
   return tgSendDocumentTo(TG_NOTIFY_BOT, chatId, fileDataUrl, caption);
 }
 
+async function tgSendXlsxTo(botToken, chatId, buffer, filename, caption) {
+  if (!botToken || !chatId || !buffer) return false;
+  try {
+    const tgForm = new FormData();
+    tgForm.append("chat_id", chatId);
+    tgForm.append("document", new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename || "document.xlsx");
+    if (caption) tgForm.append("caption", caption);
+    const tgResp = await fetch(tgApiUrl(botToken, "sendDocument"), {
+      method: "POST",
+      body: tgForm,
+    });
+    console.log("TG XLSX RESPONSE:", await tgResp.text());
+    return tgResp.ok;
+  } catch (err) {
+    console.error("TG XLSX ERROR:", err);
+    return false;
+  }
+}
+
 // =======================
 // HELPERS: caption
 // =======================
@@ -769,6 +791,71 @@ async function createTrelloCardWithPhotos({ name, desc, labelId = "", photos = [
   }
 
   return cardData.id;
+}
+
+let sparePartsTrelloListCache = null;
+
+async function resolveTrelloListIdByName(targetName) {
+  const desired = String(targetName || "").trim().toLowerCase();
+  if (!desired) throw new Error("missing_trello_list_name");
+  if (sparePartsTrelloListCache?.name === desired && sparePartsTrelloListCache?.id) {
+    return sparePartsTrelloListCache.id;
+  }
+  if (!(TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID)) {
+    throw new Error("Trello is not configured");
+  }
+
+  const boardRes = await fetch(
+    `https://api.trello.com/1/lists/${encodeURIComponent(TRELLO_LIST_ID)}/board?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}&fields=id,name`
+  );
+  if (!boardRes.ok) {
+    const text = await boardRes.text();
+    throw new Error(`trello_board_http_${boardRes.status}:${text.slice(0, 200)}`);
+  }
+  const board = await boardRes.json();
+
+  const listsRes = await fetch(
+    `https://api.trello.com/1/boards/${encodeURIComponent(board.id)}/lists?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}&fields=id,name,closed`
+  );
+  if (!listsRes.ok) {
+    const text = await listsRes.text();
+    throw new Error(`trello_lists_http_${listsRes.status}:${text.slice(0, 200)}`);
+  }
+
+  const lists = await listsRes.json();
+  const found = Array.isArray(lists)
+    ? lists.find(list => String(list.name || "").trim().toLowerCase() === desired && !list.closed)
+    : null;
+
+  if (!found?.id) {
+    throw new Error(`trello_list_not_found:${targetName}`);
+  }
+
+  sparePartsTrelloListCache = {
+    name: desired,
+    id: found.id,
+  };
+
+  return sparePartsTrelloListCache.id;
+}
+
+async function createTrelloTextCard({ name, desc, listName }) {
+  const idList = await resolveTrelloListIdByName(listName || "Замовлення запчастин/витратників");
+  const response = await fetch(
+    `https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idList, name, desc: desc || "" }),
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`trello_card_http_${response.status}:${text.slice(0, 200)}`);
+  }
+  const card = await response.json();
+  if (!card?.id) throw new Error("Trello card was not created");
+  return card.id;
 }
 
 function buildMainMenuMarkup() {
@@ -2179,6 +2266,345 @@ app.post("/api/telegram/webhook", telegramWebhookHandler);
 app.post("/tg/webhook", telegramWebhookHandler);
 
 // =======================
+// CLIENT SUPPORT BOT (AI Assistant)
+// =======================
+const CLIENT_SUPPORT_TOKEN = process.env.CLIENT_SUPPORT_BOT_TOKEN || "";
+const CLIENT_SUPPORT_IGNORE_IDS = (process.env.CLIENT_SUPPORT_IGNORE_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
+
+// Working hours
+const WORK_HOURS_START = process.env.WORK_HOURS_START || "09:00";
+const WORK_HOURS_END = process.env.WORK_HOURS_END || "18:00";
+const WORK_DAYS = (process.env.WORK_DAYS || "1,2,3,4,5").split(",").map(Number); // 0=Sun,1=Mon...6=Sat
+
+function isWorkingHours() {
+  const now = new Date();
+  const kyivOffset = 2 * 60; // UTC+2
+  const localOffset = now.getTimezoneOffset();
+  const kyiv = new Date(now.getTime() + (kyivOffset + localOffset) * 60000);
+  const day = kyiv.getUTCDay();
+  const minutes = kyiv.getUTCHours() * 60 + kyiv.getUTCMinutes();
+
+  if (!WORK_DAYS.includes(day)) return false;
+
+  const [startH, startM] = WORK_HOURS_START.split(":").map(Number);
+  const [endH, endM] = WORK_HOURS_END.split(":").map(Number);
+  const startMin = startH * 60 + startM;
+  const endMin = endH * 60 + endM;
+
+  return minutes >= startMin && minutes < endMin;
+}
+
+async function tgSend(token, chatId, text, extra = {}) {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", ...extra }),
+  });
+}
+
+const AI_SYSTEM_PROMPT = `Ви — ввічливий AI-помічник сервісного центру Surpresso. Ви спілкуєтесь з клієнтами, які звертаються по ремонт кофейного обладнання. Звертайтесь до клієнта на "Ви".
+
+Ваші завдання:
+1. Привітайтесь та представтесь: "Доброго дня! Я — AI-помічник сервісного центру Surpresso. Чим можу допомогти?"
+2. Дізнайтесь короткий опис проблеми
+3. Уточніть терміновість (критично / до 3 днів / цього тижня)
+4. Запитайте адресу та контактний телефон (номер телефону необов'язковий, не наполягайте)
+5. Запитайте зручний час для виїзду майстра
+
+Ведіть діалог природньо, по-українськи. Не питайте все одразу — задавайте по 1-2 питання за раз.
+
+ВАЖЛИВО: Ви можете в будь-який момент підключити живого менеджера до діалогу. Скажіть клієнту: "Я можу передати ваш запит менеджеру, якщо потрібна жива людина." Клієнт може просто попросити "менеджера" або "людину".
+
+Якщо клієнт просить переключити на менеджера / майстра / людину, або питання занадто складне — спочатку напишіть клієнту "Добре, передаю ваш запит менеджеру. Зачекайте, будь ласка.", а потім виведіть в кінці того ж повідомлення:
+---NOTIFY_MANAGER---
+{ "name": "...", "phone": "...", "problem": "..." }
+---NOTIFY_MANAGER---
+
+Коли зберете ВСЮ необхідну інформацію для заявки, виведіть в кінці повідомлення рядок:
+---DATA---
+{ "problem": "...", "urgency": "...", "address": "...", "phone": "...", "preferredTime": "..." }
+---DATA---
+
+Проблема має бути коротким описом (1-2 речення).
+Urgency: "критично" | "до 3 днів" | "цього тижня"
+Якщо якогось поля немає — залиши порожнім.`;
+
+const clientSupportConversations = new Map();
+const managerOverrides = new Map(); // clientChatId → adminChatId
+
+function cleanReply(text) {
+  return String(text || '')
+    .replace(/---DATA---[\s\S]*?---DATA---/g, '')
+    .replace(/---NOTIFY_MANAGER---[\s\S]*?---NOTIFY_MANAGER---/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function handleClientSupport(chatId, text, from, chatType) {
+  const userId = from?.id?.toString() || chatId.toString();
+  let conv = clientSupportConversations.get(userId);
+
+  if (!conv) {
+    conv = { history: [{ role: "model", content: "OK" }] };
+    clientSupportConversations.set(userId, conv);
+  }
+
+  if (text === "/start") {
+    const name = from?.first_name || "Користувач";
+    const greeting = `👋 Привіт, ${name}! Я — помічник сервісного центру Surpresso. Допоможу швидко оформити заявку на ремонт вашого обладнання.\n\nРозкажіть, що трапилось?`;
+    conv.history = [{ role: "user", content: "Початок розмови" }, { role: "model", content: greeting }];
+    return greeting;
+  }
+
+  conv.history.push({ role: "user", content: text });
+
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  const GROQ_MODEL = process.env.GROQ_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+
+  if (!GROQ_KEY) return "На жаль, AI-помічник тимчасово недоступний.";
+
+  try {
+    let contextNote = "";
+    if (!isWorkingHours()) {
+      contextNote = "\n\nВАЖЛИВО: Зараз неробочий час (вихідний або поза 9:00-18:00). Попередь клієнта про це ввічливо, але продовжуй збирати інформацію для заявки. Черговий майстер зв'яжеться найближчим часом.";
+    }
+
+    const messages = [
+      { role: "system", content: AI_SYSTEM_PROMPT + contextNote },
+      { role: "user", content: "Користувач пише: " + text },
+    ];
+
+    if (conv.history.length > 2) {
+      messages.push(...conv.history.slice(-10).map((m) => ({
+        role: m.role === "model" ? "assistant" : "user",
+        content: m.content,
+      })));
+    }
+
+    const body = {
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1000,
+    };
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const bodyStr = JSON.stringify(body);
+    console.log("[client-support] Groq request", { model: body.model, msgLen: bodyStr.length });
+
+    const data = await res.json();
+    let reply = data?.choices?.[0]?.message?.content;
+
+    if (!res.ok) {
+      console.error("[client-support] Groq HTTP error:", res.status, JSON.stringify(data).slice(0, 300));
+      return "Вибачте, не вдалося обробити запит. Будь ласка, спробуйте ще раз або зателефонуйте нам.";
+    }
+
+    if (!reply || reply.startsWith("ERROR:") || /this model does not support/i.test(reply)) {
+      const reason = data?.error?.message || "empty";
+      console.error("[client-support] Groq empty/error:", reason, JSON.stringify(data).slice(0, 300));
+      return "Вибачте, не вдалося обробити запит. Будь ласка, спробуйте ще раз або зателефонуйте нам.";
+    }
+
+    conv.history.push({ role: "model", content: reply });
+    clientSupportConversations.set(userId, conv);
+
+    // Trello ticket
+    const dataMatch = reply.match(/---DATA---\s*(\{[\s\S]*?\})\s*---DATA---/);
+    if (dataMatch) {
+      try {
+        const info = JSON.parse(dataMatch[1]);
+        clientSupportConversations.delete(userId);
+        await createTrelloFromSupportBot(chatId, info);
+      } catch (e) {
+        console.error("[client-support] Trello JSON parse:", e.message);
+      }
+    }
+
+    // Manager notification
+    const managerMatch = reply.match(/---NOTIFY_MANAGER---\s*(\{[\s\S]*?\})\s*---NOTIFY_MANAGER---/);
+    if (managerMatch) {
+      try {
+        const info = JSON.parse(managerMatch[1]);
+        const name = info.name || from?.first_name || "Клієнт";
+        const username = from?.username ? `@${from.username}` : "—";
+        const phone = info.phone || "—";
+        const problem = info.problem || text.slice(0, 200);
+        const now = new Date().toLocaleString("uk-UA", { timeZone: "Europe/Kyiv" });
+
+        const notifyText = [
+          `🆕 **Клієнт потребує менеджера**`,
+          ``,
+          `👤 Ім'я: ${name}`,
+          `🆔 Telegram: ${username}`,
+          `📞 Телефон: ${phone}`,
+          `📋 Проблема: ${problem}`,
+          `🕐 Час: ${now}`,
+          ``,
+          `➡️ Щоб взяти діалог, напишіть мені в приват: \`/claim ${chatId}\``,
+          `➡️ Щоб завершити: \`/release ${chatId}\``,
+        ].join("\n");
+
+        const adminChatId = process.env.TG_NOTIFY_CHAT_ID || process.env.ADMIN_CHAT_ID;
+        if (adminChatId) {
+          await tgSend(CLIENT_SUPPORT_TOKEN, adminChatId, notifyText);
+        }
+      } catch (e) {
+        console.error("[client-support] Manager notify parse:", e.message);
+      }
+    }
+
+    return cleanReply(reply);
+  } catch (err) {
+    console.error("[client-support] Groq error:", err?.message || err);
+    return "На жаль, тимчасова помилка. Будь ласка, спробуйте пізніше.";
+  }
+}
+
+async function createTrelloFromSupportBot(chatId, data) {
+  const name = `Заявка: ${(data.problem || "Ремонт").slice(0, 80)}`;
+  const desc = [
+    `🚨 Терміновість: ${data.urgency || "не вказано"}`,
+    "",
+    `📋 Опис: ${data.problem || "не вказано"}`,
+    "",
+    `📍 Адреса: ${data.address || "не вказано"}`,
+    `📞 Телефон: ${data.phone || "не вказано"}`,
+    `🕐 Зручний час: ${data.preferredTime || "не вказано"}`,
+    "",
+    `👤 Джерело: Telegram-бот (клиентский поддержка)`,
+    `🆔 Chat ID: ${chatId}`,
+  ].join("\n");
+
+  try {
+    if (!(TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID)) throw new Error("Trello not configured");
+
+    const cardRes = await fetch(
+      `https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idList: TRELLO_LIST_ID, name, desc }),
+      }
+    );
+    const card = await cardRes.json();
+
+    if (card?.id) {
+      await tgSend(CLIENT_SUPPORT_TOKEN, chatId, `✅ Дякуємо! Заявку прийнято.\nНомер: **${card.idShort || card.id}**\n\nНайближчим часом з вами зв'яжеться майстер.`);
+    } else {
+      throw new Error("Card not created");
+    }
+  } catch (err) {
+    console.error("Trello card error:", err);
+    await tgSend(CLIENT_SUPPORT_TOKEN, chatId, "❌ Сталася помилка при створенні заявки. Адміністратор повідомлений.");
+  }
+}
+
+// Register client support bot webhook
+if (CLIENT_SUPPORT_TOKEN) {
+  app.post("/webhooks/client-support", async (req, res) => {
+    try {
+      const update = req.body;
+      const msg = update?.message;
+      if (!msg?.text) return res.sendStatus(200);
+
+      const chatType = msg.chat?.type || "private";
+      const fromId = msg.from?.id?.toString();
+      const chatId = msg.chat.id;
+      const text = msg.text;
+
+      const isPrivate = chatType === "private";
+      const isAdmin = fromId && CLIENT_SUPPORT_IGNORE_IDS.includes(fromId);
+
+      // Admin commands + forwarding — private OR claim/release in group
+      if (isAdmin && (isPrivate || text.startsWith('/claim ') || text.startsWith('/release '))) {
+        const claimMatch = text.match(/^\/claim\s+(-?\d+)/);
+        const releaseMatch = text.match(/^\/release\s+(-?\d+)/);
+
+        if (claimMatch) {
+          const clientChatId = Number(claimMatch[1]);
+          managerOverrides.set(clientChatId, chatId);
+          await tgSend(CLIENT_SUPPORT_TOKEN, chatId, `✅ Ви взяли діалог з клієнтом \`${clientChatId}\`. Всі повідомлення клієнта тепер приходять вам, ваші відповіді — йому.\n\nЩоб завершити: /release ${clientChatId}`);
+          await tgSend(CLIENT_SUPPORT_TOKEN, clientChatId, `👤 *Менеджер на зв'язку!* Задайте ваше питання.`);
+          return res.sendStatus(200);
+        }
+
+        if (releaseMatch) {
+          const clientChatId = Number(releaseMatch[1]);
+          managerOverrides.delete(clientChatId);
+          await tgSend(CLIENT_SUPPORT_TOKEN, chatId, `✅ Діалог з клієнтом \`${clientChatId}\` завершено. Бот знову обробляє повідомлення.`);
+          await tgSend(CLIENT_SUPPORT_TOKEN, clientChatId, `🔄 З вами знову спілкується AI-помічник. Якщо потрібна допомога — напишіть.`);
+          return res.sendStatus(200);
+        }
+
+        // Forward admin message to assigned client
+        const assignedClient = [...managerOverrides.entries()].find(([, admin]) => admin === chatId)?.[0];
+        if (assignedClient) {
+          const name = msg.from?.first_name || "Менеджер";
+          const forwarded = `👤 *${name} (менеджер):*\n${text}`;
+          await tgSend(CLIENT_SUPPORT_TOKEN, assignedClient, forwarded);
+          return res.sendStatus(200);
+        }
+
+        return res.sendStatus(200);
+      }
+
+      // Ignore admins/employees in groups
+      if (isAdmin) return res.sendStatus(200);
+
+      // If a manager is assigned to this client, forward to manager
+      const overrideAdminId = managerOverrides.get(chatId);
+      if (overrideAdminId) {
+        const name = msg.from?.first_name || "Клієнт";
+        const forwarded = `📩 *${name}:*\n${text}`;
+        await tgSend(CLIENT_SUPPORT_TOKEN, overrideAdminId, forwarded);
+        return res.sendStatus(200);
+      }
+
+      const reply = await handleClientSupport(chatId, text, msg.from, chatType);
+      if (reply) await tgSend(CLIENT_SUPPORT_TOKEN, chatId, reply);
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("[client-support] webhook error:", err?.message || err);
+      res.sendStatus(200);
+    }
+  });
+
+  console.log("[client-support-bot] enabled at POST /webhooks/client-support");
+
+  // Webhook registration is best-effort and must not delay opening the HTTP port.
+  void (async () => {
+    const publicUrl = process.env.PUBLIC_APP_URL || `https://${process.env.FLY_APP_NAME || "wpa-surpresso"}.fly.dev`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      await fetch(`https://api.telegram.org/bot${CLIENT_SUPPORT_TOKEN}/setWebhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: `${publicUrl}/webhooks/client-support` }),
+        signal: controller.signal,
+      });
+      console.log("[client-support-bot] webhook registered");
+    } catch (err) {
+      console.error("[client-support-bot] webhook registration failed:", err.message);
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+} else {
+  console.log("[client-support-bot] disabled — CLIENT_SUPPORT_BOT_TOKEN not set");
+}
+
+// =======================
 // 3) Templates proxy (как было)
 // =======================
 const generateTemplateId = () =>
@@ -2248,7 +2674,7 @@ function sendManualsApiError(res, err, fallback = "manuals_failed") {
   }
 
   if (code === "gemini_not_configured") {
-    return res.status(503).send({ ok: false, error: "gemini_not_configured", message: "GEMINI_API_KEY не настроен на сервере" });
+    return res.status(503).send({ ok: false, error: "gemini_not_configured", message: "GROQ_API_KEY не настроен на сервере" });
   }
 
   if (code === "gemini_failed") {
@@ -2647,7 +3073,202 @@ app.put("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWa
 app.delete("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handleWarehouseTemplateDelete);
 
 // =======================
+// SPARE REQUESTS
+// =======================
+app.post("/api/spare-request/create", requirePwaKey, async (req, res) => {
+  try {
+    const { masterLogin, masterName, equipmentId, comment, items } = req.body || {};
+    if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
+    if (!masterName) return res.status(400).send({ ok: false, error: "no_masterName" });
+    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
+
+    const out = await gasPost({
+      action: "spareRequestCreate",
+      masterLogin, masterName, equipmentId: equipmentId || "", comment: comment || "", items
+    });
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST CREATE ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.get("/api/spare-request/list", requirePwaKey, async (req, res) => {
+  try {
+    const status = String(req.query.status || "").trim();
+    const out = await gasPost({ action: "spareRequestList", status });
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST LIST ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.get("/api/spare-request/:id", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    const out = await gasPost({ action: "spareRequestGet", id });
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST GET ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+async function buildSpareRequestXlsx(request) {
+  const items = Array.isArray(request.items) ? request.items : [];
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Surpresso PWA";
+  wb.created = new Date();
+  const ws = wb.addWorksheet("Переміщення запасів");
+
+  const asText = (value) => String(value ?? "").trim();
+  const formatCell = (value) => {
+    const s = String(value ?? "").trim();
+    if (!s) return "";
+    const match = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
+    return match ? `${match[1]}.2` : s;
+  };
+
+  ws.getColumn(1).width = 6;
+  ws.getColumn(2).width = 40;
+  ws.getColumn(3).width = 18;
+  ws.getColumn(4).width = 14;
+  ws.getColumn(4).numFmt = '@';
+  ws.getColumn(5).width = 12;
+  ws.getColumn(6).width = 8;
+
+  const headerRow = ws.addRow(["N", "Номенклатура", "Артикул", "Комірка", "Кількість", "Од."]);
+  headerRow.font = { bold: true, size: 11 };
+  headerRow.alignment = { horizontal: "center", vertical: "middle" };
+
+  items.forEach((item, idx) => {
+    ws.addRow([
+      idx + 1,
+      asText(item.partName),
+      asText(item.partCode),
+      formatCell(item.cell),
+      item.quantityIssued || item.quantityRequested || 0,
+      asText(item.unit) || "шт.",
+    ]);
+  });
+
+  ws.addRow([]);
+  ws.addRow([`Замовлення: ${request.id}`]);
+  ws.addRow([`Майстер: ${request.masterName}`]);
+  ws.addRow([`Обладнання: ${request.equipmentId || "—"}`]);
+  ws.addRow([`Дата: ${request.processedAt ? new Date(request.processedAt).toLocaleDateString("uk-UA") : new Date().toLocaleDateString("uk-UA")}`]);
+
+  return wb.xlsx.writeBuffer();
+}
+
+function buildSpareRequestFileName(request, fallbackId = "") {
+  const cleanPart = (value, fallback = "") => {
+    const s = String(value || "").trim();
+    if (!s) return fallback;
+    return s
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9а-яА-ЯіїєґІЇЄҐ._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  };
+
+  const masterName = String(request?.masterName || "").trim();
+  const nameParts = masterName.split(/\s+/).filter(Boolean);
+  const surname = cleanPart(nameParts.length ? nameParts[nameParts.length - 1] : "", "master");
+  const equipment = cleanPart(request?.equipmentId || "", "equipment");
+  const requestId = cleanPart(request?.id || fallbackId || "", "");
+
+  return [surname, equipment, requestId].filter(Boolean).join("_") + ".xlsx";
+}
+
+app.post("/api/spare-request/:id/issue", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { adminName, items } = req.body || {};
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
+
+    const out = await gasPost({ action: "spareRequestIssue", id, adminName, items: items || [] });
+
+    if (out.ok && TG_NOTIFY_BOT) {
+      try {
+        const getOut = await gasPost({ action: "spareRequestGet", id });
+        if (getOut.ok) {
+          const buf = await buildSpareRequestXlsx(getOut.request);
+          const fileName = buildSpareRequestFileName(getOut.request, id);
+          await tgSendXlsxTo(TG_NOTIFY_BOT, "-1003970277331", buf, fileName, `📦 Выдача запчастей: ${id}`);
+        }
+      } catch (tgErr) {
+        console.error("TG SEND XLSX ERROR:", tgErr);
+      }
+    }
+
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST ISSUE ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.get("/api/spare-request/:id/export-xls", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+
+    const out = await gasPost({ action: "spareRequestGet", id });
+    if (!out.ok) return res.status(404).send(out);
+
+    const buf = await buildSpareRequestXlsx(out.request);
+    const fileName = buildSpareRequestFileName(out.request, id);
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    res.end(buf);
+  } catch (err) {
+    console.error("SPARE REQUEST EXPORT ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/spare-request/trello-card", requirePwaKey, async (req, res) => {
+  try {
+    const { name = "", desc = "" } = req.body || {};
+    const title = String(name || "").trim();
+    if (!title) return res.status(400).send({ ok: false, error: "no_name" });
+    if (!(TRELLO_KEY && TRELLO_TOKEN && TRELLO_LIST_ID)) {
+      return res.status(500).send({ ok: false, error: "trello_not_configured" });
+    }
+
+    const cardId = await createTrelloTextCard({
+      name: title,
+      desc: String(desc || "").trim(),
+      listName: "Замовлення запчастин/витратників",
+    });
+
+    res.send({ ok: true, cardId });
+  } catch (err) {
+    console.error("SPARE REQUEST TRELLO CARD ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+// =======================
 // START
 // =======================
+
+// TEMP: debug route to list Trello lists
+app.get("/api/debug/trello-lists", requirePwaKey, async (req, res) => {
+  try {
+    const b = await (await fetch(`https://api.trello.com/1/lists/${TRELLO_LIST_ID}/board?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`)).json();
+    const lists = await (await fetch(`https://api.trello.com/1/boards/${b.id}/lists?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`)).json();
+    res.json({ board: { id: b.id, name: b.name }, lists: lists.map(l => ({ id: l.id, name: l.name })) });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 await setupMiniAppLayer();
 app.listen(PORT, "0.0.0.0", () => console.log("Server started on 0.0.0.0:" + PORT));
