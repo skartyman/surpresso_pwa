@@ -3126,6 +3126,8 @@ async function buildSpareRequestXlsx(request) {
   const asText = (value) => String(value ?? "").trim();
   const formatCell = (value) => {
     const s = String(value ?? "").trim();
+    const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
+    if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
     return s;
   };
 
@@ -3171,6 +3173,8 @@ async function buildSpareReturnXlsx(ret) {
   const asText = (value) => String(value ?? "").trim();
   const formatCell = (value) => {
     const s = String(value ?? "").trim();
+    const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
+    if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
     return s;
   };
 

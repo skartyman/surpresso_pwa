@@ -2101,17 +2101,24 @@ function isLikelyDateCell_(value) {
     /\b\d{4}\b/.test(s) && /[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(s);
 }
 
+function normalizeSpareCellDisplay_(value) {
+  const s = String(value || "").trim();
+  const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
+  if (dateArtifact) return Number(dateArtifact[1]) + "." + Number(dateArtifact[2]) + ".2";
+  return s;
+}
+
 function resolveSpareRequestCell_(item) {
   const current = String(item && item.cell ? item.cell : "").trim();
 
   const catalog = loadSparePartsCatalog_();
   const codeKey = normKey_(item && item.partCode ? item.partCode : "");
-  if (codeKey && catalog.byCode[codeKey]) return String(catalog.byCode[codeKey]).trim();
+  if (codeKey && catalog.byCode[codeKey]) return normalizeSpareCellDisplay_(catalog.byCode[codeKey]);
 
   const nameKey = normKey_(item && item.partName ? item.partName : "");
-  if (nameKey && catalog.byName[nameKey]) return String(catalog.byName[nameKey]).trim();
+  if (nameKey && catalog.byName[nameKey]) return normalizeSpareCellDisplay_(catalog.byName[nameKey]);
 
-  return current && !isLikelyDateCell_(current) ? current : "";
+  return current && !isLikelyDateCell_(current) ? normalizeSpareCellDisplay_(current) : "";
 }
 
 function spareRequestCreate_(data) {
