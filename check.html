@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PWA manifest -->
- <link rel="manifest" href="/manifest.json?v=1.1.4">
+ <link rel="manifest" href="/manifest.json?v=1.1.8">
   <meta name="theme-color" content="#f2c94c" />
 
   <!-- Styles -->
-  <link rel="stylesheet" href="/style.css?v=1.1.4">
-  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <link rel="stylesheet" href="/style.css?v=1.1.8">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.8">
 
   <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -260,11 +260,53 @@
         </table>
       </div>
 
+      <div class="manual-item-actions">
+        <button type="button" class="btn ghost" onclick="openManualItemModal('part')">
+          <span aria-hidden="true">+</span> Добавить запчасть
+        </button>
+        <button type="button" class="btn ghost" onclick="openManualItemModal('service')">
+          <span aria-hidden="true">+</span> Добавить работу
+        </button>
+      </div>
+
       <div class="total-line">
         <span>Итого:</span>
         <span id="total">0.00</span>
       </div>
     </section>
+
+    <div id="manual-item-modal" class="mini-modal hidden">
+      <div class="mini-modal__backdrop" onclick="closeManualItemModal()"></div>
+
+      <form id="manual-item-form" class="mini-modal__card" role="dialog" aria-modal="true">
+        <div class="mini-modal__title" id="manual-item-title">Добавить позицию</div>
+        <div class="mini-modal__text">Позиция будет добавлена только в текущий чек.</div>
+
+        <div class="field">
+          <label for="manual-item-name" id="manual-item-name-label">Название</label>
+          <input id="manual-item-name" type="text" autocomplete="off" required />
+        </div>
+
+        <div class="field">
+          <label for="manual-item-price">Цена, грн</label>
+          <input
+            id="manual-item-price"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="0.00"
+            required
+          />
+        </div>
+
+        <div id="manual-item-error" class="manual-item-error" aria-live="polite"></div>
+
+        <div class="mini-modal__actions">
+          <button type="button" class="btn ghost" onclick="closeManualItemModal()">Отмена</button>
+          <button type="submit" class="btn primary">Добавить</button>
+        </div>
+      </form>
+    </div>
 	<section class="card">
       <h2>Комментарий</h2>
 <div class="field">
@@ -306,7 +348,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="/auth.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=1.1.8"></script>
 </body>
 </html>
 

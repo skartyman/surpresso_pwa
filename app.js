@@ -1,4 +1,4 @@
-const APP_VERSION = "1.1.7"; // ← меняешь вручную при обновлениях
+const APP_VERSION = "1.1.8"; // ← меняешь вручную при обновлениях
 const SAVED_VERSION = localStorage.getItem("surp_version");
 
 if (SAVED_VERSION && SAVED_VERSION !== APP_VERSION) {
@@ -276,6 +276,11 @@ function cleanPrice(raw) {
   return isNaN(num) ? 0 : num;
 }
 
+function formatWarehouseCell(value) {
+  const s = String(value || "").trim();
+  return s || "—";
+}
+
 // ======================
 // Normalize (унификация колонок)
 // ======================
@@ -307,7 +312,8 @@ function normalizeRows(rows) {
     const price = cleanPrice(rawPrice);
 
     const stock = pick(["залишок", "налич", "stock", "остат"]);
-    const cell  = pick(["комірка", "ячейк", "cell", "shelf"]);
+    const cellRaw = pick(["комірка", "ячейк", "cell", "shelf"]);
+    const cell = String(cellRaw || "").trim();
 
     const hasCode  = code.length > 0;
     const hasName  = name.length > 0;
@@ -334,7 +340,7 @@ function normalizeRows(rows) {
       name,
       price,
       stock: stock || "",
-      cell:  cell  || ""
+      cell:  cell
     });
   });
 
@@ -668,7 +674,7 @@ function renderSearchResults(results, opts = {}) {
     const li = document.createElement("li");
     let extraHTML = "";
     if (inputId === "parts-input" || inputId === "warehouse-input") {
-      extraHTML = `<div class="extra">📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${item.cell || "—"}</div>`;
+      extraHTML = `<div class="extra">📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${formatWarehouseCell(item.cell)}</div>`;
     }
 
     li.innerHTML = `
@@ -686,7 +692,7 @@ function renderSearchResults(results, opts = {}) {
         if (info) {
           info.innerHTML = `
             <span><span class="icon">📦</span> ${item.stock || "—"}</span>
-            <span><span class="icon">🗄</span> ${item.cell || "—"}</span>
+            <span><span class="icon">🗄</span> ${formatWarehouseCell(item.cell)}</span>
           `;
         }
       }
@@ -699,10 +705,14 @@ function addOrMergeItem({ code, name, qty, price, type }) {
   const qtyAdd = +(+qty || 0).toFixed(2);
   if (qtyAdd <= 0) return;
 
-  const ex = items.find(it =>
-    it.type === type &&
-    String(it.code) === String(code)
-  );
+  const normalizedCode = String(code || "").trim();
+  const ex = normalizedCode
+    ? items.find(it =>
+        !it.manual &&
+        it.type === type &&
+        String(it.code) === normalizedCode
+      )
+    : null;
 
   if (ex) {
     ex.qty = +(+ex.qty + qtyAdd).toFixed(2);
@@ -720,6 +730,76 @@ function addOrMergeItem({ code, name, qty, price, type }) {
   }
 
   scheduleCheckDraftSave();
+}
+
+let manualItemType = "part";
+
+function openManualItemModal(type) {
+  const modal = document.getElementById("manual-item-modal");
+  const title = document.getElementById("manual-item-title");
+  const nameLabel = document.getElementById("manual-item-name-label");
+  const nameInput = document.getElementById("manual-item-name");
+  const priceInput = document.getElementById("manual-item-price");
+  const error = document.getElementById("manual-item-error");
+  if (!modal || !title || !nameLabel || !nameInput || !priceInput) return;
+
+  manualItemType = type === "service" ? "service" : "part";
+  const isService = manualItemType === "service";
+  title.textContent = isService ? "Добавить работу" : "Добавить запчасть";
+  nameLabel.textContent = isService ? "Название работы" : "Название запчасти";
+  nameInput.placeholder = isService
+    ? "Например: диагностика гидросистемы"
+    : "Например: уплотнительное кольцо";
+  nameInput.value = "";
+  priceInput.value = "";
+  if (error) error.textContent = "";
+
+  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(() => nameInput.focus());
+}
+
+function closeManualItemModal() {
+  document.getElementById("manual-item-modal")?.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+function addManualItemFromModal(event) {
+  event.preventDefault();
+
+  const nameInput = document.getElementById("manual-item-name");
+  const priceInput = document.getElementById("manual-item-price");
+  const error = document.getElementById("manual-item-error");
+  const name = nameInput?.value.trim() || "";
+  const priceText = (priceInput?.value || "").trim().replace(",", ".");
+  const price = Number(priceText);
+
+  if (!name) {
+    if (error) error.textContent = "Введите название позиции.";
+    nameInput?.focus();
+    return;
+  }
+
+  if (!priceText || !Number.isFinite(price) || price < 0) {
+    if (error) error.textContent = "Введите корректную цену.";
+    priceInput?.focus();
+    return;
+  }
+
+  items.push({
+    id: `manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    code: "",
+    name,
+    qty: 1,
+    price: +price.toFixed(2),
+    sum: +price.toFixed(2),
+    type: manualItemType,
+    manual: true
+  });
+
+  renderTable();
+  scheduleCheckDraftSave();
+  closeManualItemModal();
 }
 
 function addItemFromInput(inputId, qtyId, sourceList) {
@@ -1047,12 +1127,14 @@ function applyCheckDraft(draft) {
 
   items = Array.isArray(draft.items)
     ? draft.items.map(it => ({
+        id: it.id || "",
         code: it.code || "",
         name: it.name || "",
         qty: Number(it.qty) || 0,
         price: Number(it.price) || 0,
         sum: Number(it.sum) || (Number(it.qty) || 0) * (Number(it.price) || 0),
-        type: it.type || "part"
+        type: it.type || "part",
+        manual: Boolean(it.manual)
       }))
     : [];
 
@@ -1361,7 +1443,7 @@ function renderWarehouseList() {
 
         <div class="meta">
           ${stockHTML}
-          <span class="cell">🗄 ${it.cell || "—"}</span>
+          <span class="cell">🗄 ${formatWarehouseCell(it.cell)}</span>
         </div>
       </div>
 
@@ -2017,7 +2099,7 @@ function renderTable() {
     tr.innerHTML = `
       <td class="drag-handle">☰</td>
       <td>${renderPartCode(it.code)}</td>
-      <td>${it.name}</td>
+      <td>${escapeHtml(it.name)}</td>
 
       <td class="editable-qty" data-index="${index}">
         <span class="qty-value">${it.qty}</span>
@@ -2520,7 +2602,7 @@ function renderRecountTable() {
   body.innerHTML = recountSession.items.map((row, idx) => `
     <tr>
       <td>${renderPartCode(row.code)}</td>
-      <td>${escapeHtml(row.cell || '—')}</td>
+      <td>${escapeHtml(formatWarehouseCell(row.cell))}</td>
       <td>${escapeHtml(row.name || '')}</td>
       <td>${escapeHtml(row.unit || 'шт')}</td>
       <td><input type="number" min="0" step="0.01" data-recount-idx="${idx}" value="${Number(row.fact || 0)}"></td>
@@ -2749,7 +2831,7 @@ function renderPartsRequestTable() {
         <td><input type="checkbox" data-pr-code="${escapeHtml(key)}" ${isChecked ? "checked" : ""}></td>
         <td>${renderPartCode(code)}</td>
         <td>${escapeHtml(p.name || "")}</td>
-        <td>${escapeHtml(p.cell || "—")}</td>
+        <td>${escapeHtml(formatWarehouseCell(p.cell))}</td>
         <td>${escapeHtml(p.stock || "—")}</td>
         <td>
           <input
@@ -2767,6 +2849,17 @@ function renderPartsRequestTable() {
 }
 
 function openPartsRequestModal() {
+  window.location.href = "/parts-request.html?v=20260611-13";
+}
+
+function closePartsRequestModal() {
+  window.location.href = "/warehouse.html";
+}
+
+function initPartsRequestPage() {
+  const body = document.getElementById("parts-request-body");
+  if (!body) return;
+
   partsRequestFilter = "";
   partsRequestSelected = new Map(
     getFilteredPartsForRequest().map(p => {
@@ -2775,20 +2868,11 @@ function openPartsRequestModal() {
       return [key, getSuggestedPartsRequestQty(p)];
     })
   );
+
   const searchEl = document.getElementById("parts-request-search");
   if (searchEl) searchEl.value = "";
 
-  const modal = document.getElementById("parts-request-modal");
-  if (!modal) return;
-
   renderPartsRequestTable();
-  modal.classList.remove("hidden");
-}
-
-function closePartsRequestModal() {
-  const modal = document.getElementById("parts-request-modal");
-  if (!modal) return;
-  modal.classList.add("hidden");
 }
 
 async function sharePartsRequestText() {
@@ -2805,7 +2889,7 @@ async function sharePartsRequestText() {
       return key === code;
     });
     const name = String(part?.name || "").trim();
-    const cell = String(part?.cell || "").trim() || "—";
+    const cell = formatWarehouseCell(part?.cell);
     const stock = part?.stock ?? "—";
     lines.push(`${code}${name ? ` | ${name}` : ""} | ячейка: ${cell} | остаток: ${stock} | заказать: ${qty}`);
   }
@@ -2983,7 +3067,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     refreshBtn.onclick = hardRefreshApp;
   }
 
-  if (!["check", "warehouse"].includes(pageType)) return;
+  if (!["check", "warehouse", "parts-request"].includes(pageType)) return;
 
   const clearBtn = document.getElementById("clear-kit-btn");
   if (clearBtn) clearBtn.onclick = clearWarehouseKit;
@@ -3076,6 +3160,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   const clearAllPartsRequestBtn = document.getElementById("parts-request-clear-all-btn");
   if (clearAllPartsRequestBtn) {
     clearAllPartsRequestBtn.addEventListener("click", clearAllPartsForRequest);
+  }
+
+  if (pageType === "parts-request") {
+    initPartsRequestPage();
+    return;
   }
 
   if (pageType === "warehouse") {
@@ -3178,6 +3267,18 @@ window.addEventListener("DOMContentLoaded", async () => {
   const addServiceBtn = document.getElementById("add-service");
   if (addServiceBtn) {
     addServiceBtn.onclick = () => addItemFromInput("services-input", "services-qty", services);
+  }
+
+  const manualItemForm = document.getElementById("manual-item-form");
+  if (manualItemForm) {
+    manualItemForm.addEventListener("submit", addManualItemFromModal);
+  }
+
+  const manualItemModal = document.getElementById("manual-item-modal");
+  if (manualItemModal) {
+    manualItemModal.addEventListener("keydown", event => {
+      if (event.key === "Escape") closeManualItemModal();
+    });
   }
 
   const newBtn = document.getElementById("new-btn");

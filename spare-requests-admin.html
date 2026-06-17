@@ -6,7 +6,7 @@
   <title>Запросы запчастей — Админ</title>
   <script>
     (function () {
-      const version = "20260611-9";
+      const version = "20260616-3";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -24,15 +24,23 @@
     .sra-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
     .sra-tabs button { padding: 8px 16px; border: 1px solid var(--border, #ddd); background: var(--card-bg, #f5f5f5); cursor: pointer; border-radius: 8px 8px 0 0; font-size: 13px; }
     .sra-tabs button.active { background: var(--accent, #007bff); color: #fff; border-color: var(--accent, #007bff); }
-    .req-card { background: var(--card-bg, #f9f9f9); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border, #eee); }
+    .req-card { background: var(--surface-2, #f9f9f9); color: var(--text, #111); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border, #eee); }
     .req-card:hover { border-color: var(--accent, #007bff); }
     .req-card .meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .req-card .meta .title { font-weight: 600; font-size: 15px; }
+    .req-card .meta .title { color: var(--text, #111); font-weight: 800; font-size: 15px; }
     .req-card .meta .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
     .badge-pending { background: #fff3cd; color: #856404; }
     .badge-processing { background: #cce5ff; color: #004085; }
     .badge-issued { background: #d4edda; color: #155724; }
-    .req-card .detail { font-size: 13px; color: var(--muted, #666); margin-top: 4px; }
+    .badge-returned { background: #dc3545; color: #fff; }
+    .badge-cancelled { background: #f8d7da; color: #721c24; }
+    .req-card .detail { font-size: 13px; color: var(--text-2, #666); margin-top: 4px; }
+    @media (max-width: 680px) {
+      .sra-container { padding: 12px; }
+      .sra-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .sra-tabs button { padding: 9px 4px; font-size: 12px; border-radius: 8px; }
+      .req-card { min-height: 72px; display: flex; flex-direction: column; justify-content: center; }
+    }
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
     .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; }
     .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
@@ -84,6 +92,8 @@
       <button data-filter="pending" onclick="filterRequests('pending')">Ожидают</button>
       <button data-filter="processing" onclick="filterRequests('processing')">В обработке</button>
       <button data-filter="issued" onclick="filterRequests('issued')">Выдано</button>
+      <button data-filter="returned" onclick="filterRequests('returned')">Возврат</button>
+      <button data-filter="cancelled" onclick="filterRequests('cancelled')">Отменено</button>
     </div>
 
     <div id="requestsList"></div>
@@ -223,21 +233,27 @@
       return partsCatalogPromise;
     }
 
+    function isLikelyDateCell(value) {
+      const s = String(value || "").trim();
+      return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s/i.test(s) ||
+        /\bGMT\b/i.test(s) ||
+        /^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/.test(s) ||
+        (/\b\d{4}\b/.test(s) && /[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(s));
+    }
+
     function resolveCellDisplay(item) {
       const current = String(item?.cell || "").trim();
-      if (current) return formatCellDisplay(current);
       const code = normalizeKey(item?.partCode || "");
       if (code && partsLookupByCode.has(code)) return formatCellDisplay(partsLookupByCode.get(code));
       const name = normalizeKey(item?.partName || "");
       if (name && partsLookupByName.has(name)) return formatCellDisplay(partsLookupByName.get(name));
+      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       return "—";
     }
 
     function formatCellDisplay(value) {
       const s = String(value || "").trim();
-      if (!s) return "—";
-      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
-      return dateLike ? `${dateLike[1]}.2` : s;
+      return s || "—";
     }
 
     async function loadRequests() {
@@ -273,7 +289,7 @@
     }
 
     function statusLabel(s) {
-      return { pending: "Ожидает", processing: "В обработке", issued: "Выдано" }[s] || s;
+      return { pending: "Ожидает", processing: "В обработке", issued: "Выдано", returned: "Возврат", cancelled: "Отменено" }[s] || s;
     }
 
     function fmtDate(d) {
@@ -290,7 +306,7 @@
     async function openRequest(id) {
       const rid = String(id || "").trim();
       if (!rid) return;
-      window.location.href = `/spare-request-work.html?id=${encodeURIComponent(rid)}&v=20260611-19`;
+      window.location.href = `/spare-request-work.html?id=${encodeURIComponent(rid)}&v=20260616-3`;
     }
 
     function showModal() {
@@ -304,13 +320,13 @@
 
       body.innerHTML = `
         <div style="margin-bottom:12px; font-size:13px;">
-          <div>Майстер: <strong>${r.masterName}</strong> (${r.masterLogin})</div>
-          ${r.equipmentId ? "<div>Обладнання: <strong>" + r.equipmentId + "</strong></div>" : ""}
+          <div>Мастер: <strong>${r.masterName}</strong> (${r.masterLogin})</div>
+          ${r.equipmentId ? "<div>Оборудование: <strong>" + r.equipmentId + "</strong></div>" : ""}
           <div>Статус: <strong>${statusLabel(r.status)}</strong></div>
-          ${r.createdAt ? "<div>Створено: " + fmtDate(r.createdAt) + "</div>" : ""}
-          ${r.processedAt ? "<div>Видано: " + fmtDate(r.processedAt) + "</div>" : ""}
-          ${r.adminName ? "<div>Адмін: " + r.adminName + "</div>" : ""}
-          ${r.comment ? "<div style='margin-top:6px;'>Коментар: <em>" + r.comment + "</em></div>" : ""}
+          ${r.createdAt ? "<div>Создано: " + fmtDate(r.createdAt) + "</div>" : ""}
+          ${r.processedAt ? "<div>Выдано: " + fmtDate(r.processedAt) + "</div>" : ""}
+          ${r.adminName ? "<div>Админ: " + r.adminName + "</div>" : ""}
+          ${r.comment ? "<div style='margin-top:6px;'>Комментарий: <em>" + r.comment + "</em></div>" : ""}
         </div>
         <table>
           <thead><tr><th>#</th><th>Номенклатура</th><th>Артикул</th><th>Комірка</th><th>Од.</th><th>Запрошено</th>${!isIssued ? "<th>Видано</th>" : "<th>Видано</th>"}</tr></thead>

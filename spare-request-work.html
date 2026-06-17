@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Запрос запчастей — Работа с запросом</title>
+  <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260611-19";
+      const version = "20260616-3";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -23,6 +23,8 @@
       flex-direction: column;
       gap: 12px;
       min-height: calc(100vh - 220px);
+      min-width: 0;
+      overflow: hidden;
     }
     .work-head {
       display: flex;
@@ -30,6 +32,16 @@
       gap: 12px;
       flex-wrap: wrap;
       align-items: flex-start;
+    }
+    .work-head > div:first-child {
+      min-width: 0;
+      flex: 1 1 240px;
+    }
+    #requestTitle {
+      max-width: 100%;
+      font-size: clamp(24px, 7vw, 36px);
+      line-height: 1.08;
+      overflow-wrap: anywhere;
     }
     .work-meta {
       display: flex;
@@ -45,6 +57,7 @@
       border-radius: 16px;
       border: 1px solid rgba(127,127,127,0.22);
       background: rgba(127,127,127,0.05);
+      min-width: 0;
     }
     .pick-current {
       display: flex;
@@ -71,63 +84,44 @@
     .pick-target-main {
       display: block;
       width: 100%;
+      overflow-wrap: anywhere;
     }
-    .pick-due {
+    .pick-stats {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+      width: 100%;
+    }
+    .pick-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 2px;
-      padding: 5px 10px;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 112px;
+      padding: 6px 10px;
       border-radius: 999px;
-      background: rgba(245,158,11,0.16);
-      color: #92400e;
       font-size: 13px;
       font-weight: 800;
-      width: fit-content;
+      border: 1px solid transparent;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.04);
     }
-    .pick-due-value {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 28px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #f59e0b;
-      color: #111827;
+    .pick-due {
+      background: rgba(234,179,8,0.18);
+      color: #7c5200;
+      border-color: rgba(234,179,8,0.48);
+    }
+    .pick-pill strong {
+      font-size: 14px;
     }
     .pick-sub {
       font-size: 13px;
       color: var(--muted);
     }
-    .pick-queue {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-content: flex-start;
-      max-height: 86px;
-      overflow: auto;
-      padding-right: 2px;
-    }
-    #pickQueue,
     #pickMissingSummary {
       grid-column: 1 / -1;
-    }
-    .pick-chip {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-      border: 1px solid rgba(127,127,127,0.22);
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 12px;
-      line-height: 1;
-      white-space: nowrap;
-    }
-    .pick-chip.current {
-      border-color: #f59e0b;
-      background: rgba(245,158,11,0.16);
-      font-weight: 700;
     }
     .work-table .qty-input:focus {
       border-color: #f59e0b;
@@ -150,6 +144,25 @@
     .stock-warn { background: rgba(234,179,8,0.18); color: #a16207; border-color: rgba(234,179,8,0.38); }
     .stock-ok { background: rgba(34,197,94,0.14); color: #166534; border-color: rgba(34,197,94,0.35); }
     .stock-unknown { background: rgba(107,114,128,0.14); color: #374151; border-color: rgba(107,114,128,0.3); }
+    .status-returned {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #dc3545;
+      color: #fff;
+      font-weight: 800;
+    }
+    body.theme-dark .stock-red { color: #fecaca; }
+    body.theme-dark .stock-low { color: #fed7aa; }
+    body.theme-dark .stock-warn { color: #fef08a; }
+    body.theme-dark .stock-ok { color: #bbf7d0; }
+    body.theme-dark .stock-unknown { color: #e5e7eb; }
+    body.theme-dark .pick-due {
+      color: #fef08a;
+      background: rgba(234,179,8,0.18);
+    }
     .pick-current .stock-badge {
       margin-left: auto;
     }
@@ -227,6 +240,25 @@
       box-sizing: border-box;
       outline: none;
     }
+    .return-qty-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .return-qty-input {
+      width: 72px;
+      min-height: 34px;
+      padding: 6px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,0.28);
+      background: var(--surface, #fff);
+      color: var(--text, #111);
+      font-size: 14px;
+      text-align: center;
+      box-sizing: border-box;
+      outline: none;
+    }
     .work-table tr.pick-current-row {
       background: rgba(245,158,11,0.08);
     }
@@ -242,11 +274,38 @@
       flex: 1 1 180px;
     }
     @media (max-width: 720px) {
+      body[data-page="spare-request-work"] .app-main {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
       .work-shell {
         min-height: calc(100vh - 180px);
+        padding: 10px;
+      }
+      .work-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+      }
+      .work-toolbar .btn {
+        min-width: 0;
+        padding-inline: 10px;
+      }
+      .pick-stats {
+        flex-wrap: nowrap;
+      }
+      .pick-pill {
+        min-width: 0;
+        flex: 1 1 0;
+      }
+      .pick-summary {
+        gap: 5px 10px;
+        font-size: 12px;
       }
       .work-table {
         font-size: 12px;
+        min-width: 470px;
       }
       .work-table th,
       .work-table td {
@@ -257,6 +316,11 @@
       }
       .pick-panel {
         grid-template-columns: 1fr;
+        padding: 10px;
+      }
+      .pick-actions .btn {
+        flex-basis: calc(50% - 4px);
+        min-width: 0;
       }
     }
   </style>
@@ -270,10 +334,10 @@
       <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
       <div class="app-title">
         <div class="app-name"><span>Surpresso</span><span>Service</span></div>
-        <div class="app-subtitle">Работа с запросом запчастей</div>
+        <div class="app-subtitle">Работа с заявкой запчастей</div>
       </div>
     </div>
-    <button class="header-menu-btn" type="button" title="Навигация" onclick="window.location.href='/spare-requests-admin.html?v=20260611-9'">☰</button>
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="window.location.href='/spare-requests-admin.html?v=20260611-12'">☰</button>
   </header>
 
   <div id="login-screen" class="login-screen hidden">
@@ -287,14 +351,14 @@
   </div>
 
   <div class="nav-bar">
-    <button class="nav-btn" onclick="window.location.href='/spare-requests-admin.html?v=20260611-9'">🏠 Назад до списку</button>
+    <button class="nav-btn" onclick="window.location.href='/spare-requests-admin.html?v=20260611-12'">🏠 Назад к списку</button>
   </div>
 
   <main class="app-main">
     <section class="card work-shell">
       <div class="work-head">
         <div>
-          <p class="eyebrow">Запрос запчастей</p>
+          <p class="eyebrow">Заявка запчастей</p>
           <h1 id="requestTitle" style="margin:0;">Загрузка...</h1>
           <div id="requestSubtitle" class="muted" style="margin-top:6px;"></div>
         </div>
@@ -310,18 +374,17 @@
         <div class="pick-current">
           <div class="pick-label">Режим набора</div>
           <div class="pick-target" id="pickTarget">Пока нет позиции</div>
-          <div class="pick-sub" id="pickTargetSub">Список идёт по ячейкам. Работай по очереди, не открывая одну и ту же ячейку подряд.</div>
+          <div class="pick-sub" id="pickTargetSub">Ячейка: —</div>
           <div class="pick-summary" id="pickSummary"></div>
         </div>
 
         <div class="pick-actions">
-          <button type="button" class="btn primary" id="pickIssueBtn">Видано</button>
+          <button type="button" class="btn primary" id="pickIssueBtn">Выдано</button>
           <button type="button" class="btn ghost" id="pickSkipBtn">Пропуск</button>
           <button type="button" class="btn ghost" id="pickMissingBtn">В заявку</button>
-          <button type="button" class="btn ghost" id="pickShareMissingBtn">Текст</button>
+          <button type="button" class="btn ghost" id="pickShareMissingBtn">Список</button>
         </div>
 
-        <div class="pick-queue" id="pickQueue"></div>
         <div class="pick-summary" id="pickMissingSummary"></div>
       </div>
 
@@ -345,7 +408,9 @@
 
       <div class="work-actions">
         <button type="button" class="btn primary" id="issue-btn">📦 Выдано</button>
-        <button type="button" class="btn ghost" onclick="window.location.href='/spare-requests-admin.html?v=20260611-9'">Закрыть</button>
+        <button type="button" class="btn primary" id="return-btn" style="display:none;">↩️ Вернуть</button>
+        <button type="button" class="btn ghost danger" id="cancel-issued-btn" style="display:none;">Отменить выдачу</button>
+        <button type="button" class="btn ghost" onclick="window.location.href='/spare-requests-admin.html?v=20260611-12'">Закрыть</button>
       </div>
     </section>
   </main>
@@ -478,20 +543,26 @@
       return partsCatalogPromise;
     }
 
+    function isLikelyDateCell(value) {
+      const s = String(value || "").trim();
+      return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s/i.test(s) ||
+        /\bGMT\b/i.test(s) ||
+        /^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/.test(s) ||
+        (/\b\d{4}\b/.test(s) && /[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(s));
+    }
+
     function formatCellDisplay(value) {
       const s = String(value || "").trim();
-      if (!s) return "—";
-      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
-      return dateLike ? `${dateLike[1]}.2` : s;
+      return s || "—";
     }
 
     function resolveCellDisplay(item) {
       const current = String(item?.cell || "").trim();
-      if (current) return formatCellDisplay(current);
       const code = normalizeKey(item?.partCode || "");
       if (code && partsLookupByCode.has(code)) return formatCellDisplay(partsLookupByCode.get(code)?.cell);
       const name = normalizeKey(item?.partName || "");
       if (name && partsLookupByName.has(name)) return formatCellDisplay(partsLookupByName.get(name)?.cell);
+      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       return "—";
     }
 
@@ -601,12 +672,11 @@
     }
 
     function renderPickPanel() {
-      const queueEl = document.getElementById("pickQueue");
       const targetEl = document.getElementById("pickTarget");
       const subEl = document.getElementById("pickTargetSub");
       const summaryEl = document.getElementById("pickSummary");
       const missingEl = document.getElementById("pickMissingSummary");
-      if (!queueEl || !targetEl || !subEl || !summaryEl || !missingEl) return;
+      if (!targetEl || !subEl || !summaryEl || !missingEl) return;
 
       const total = pickState.sorted.length;
       const doneCount = pickState.sorted.filter(item => pickState.done.has(item._index)).length;
@@ -622,38 +692,27 @@
 
       if (!current) {
         targetEl.textContent = total ? "Все позиции пройдены" : "Позиции не найдены";
-        subEl.textContent = total ? "Можно отправлять выдачу или оформить заявки на нехватку." : "Проверь список запроса.";
+        subEl.textContent = total ? "Можно отправлять выдачу или оформить заявки на нехватку." : "Проверь список заявки.";
       } else {
         const meta = resolvePartMeta(current);
         const stock = stockLabel(meta.stock);
         const tone = stockTone(meta.stock);
         targetEl.innerHTML = `
           <span class="pick-target-main">${current.partName || "Без названия"}${current.partCode ? ` • ${current.partCode}` : ""}</span>
-          <span class="pick-due">К выдаче: <span class="pick-due-value">${getRemainingQty(current)}</span></span>
-          <span class="stock-badge stock-${tone}">На складі: ${stock}</span>
+          <div class="pick-stats">
+            <span class="pick-pill pick-due">К выдаче <strong>${getRemainingQty(current)}</strong></span>
+            <span class="pick-pill stock-${tone}">На складе <strong>${stock}</strong></span>
+          </div>
         `;
         subEl.textContent = `Ячейка: ${resolveCellDisplay(current)}`;
       }
 
-      queueEl.innerHTML = pickState.sorted.map(item => {
-        const isCurrent = current && item._index === current._index;
-        const isDone = pickState.done.has(item._index);
-        const meta = resolvePartMeta(item);
-        const stock = stockLabel(meta.stock);
-        const tone = stockTone(meta.stock);
-        return `
-          <div class="pick-chip ${isCurrent ? "current" : ""} ${isDone ? "done" : ""}">
-            <span>${item.partCode || item.partName || "—"} · ${resolveCellDisplay(item)}</span>
-            <span class="stock-badge stock-${tone}">${stock}</span>
-          </div>
-        `;
-      }).join("");
-
+      missingEl.style.display = pickState.missing.length ? "" : "none";
       missingEl.innerHTML = pickState.missing.length
         ? `<div>Нехватка: <strong>${pickState.missing.length}</strong></div>` + pickState.missing.map(item =>
             `<div>• ${item.code || item.name || "—"} | ${item.qty} шт. | ${item.cell || "—"}</div>`
           ).join("")
-        : `<div>Нехватка пока не добавлялась.</div>`;
+        : "";
     }
 
     function markItemDone(index, qty) {
@@ -697,8 +756,22 @@
       renderPickPanel();
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function statusLabel(status) {
-      return ({ pending: "Ожидает", processing: "В обработке", issued: "Выдано" }[status] || status || "—");
+      return ({ pending: "Ожидает", processing: "В обработке", issued: "Выдано", returned: "Возврат", cancelled: "Отменено" }[status] || status || "—");
+    }
+
+    function statusMeta(status) {
+      const label = statusLabel(status);
+      return status === "returned" ? `<span class="status-returned">${label}</span>` : label;
     }
 
     function renderRequest() {
@@ -706,20 +779,22 @@
       if (!r) return;
 
       document.getElementById("requestTitle").textContent = `${r.id} — ${r.masterName}`;
-      document.getElementById("requestSubtitle").textContent = r.equipmentId ? `Обладнання: ${r.equipmentId}` : "";
+      document.getElementById("requestSubtitle").textContent = r.equipmentId ? `Оборудование: ${r.equipmentId}` : "";
 
       const meta = [];
-      meta.push(`Майстер: ${r.masterName} (${r.masterLogin})`);
-      meta.push(`Статус: ${statusLabel(r.status)}`);
-      if (r.createdAt) meta.push(`Створено: ${new Date(r.createdAt).toLocaleString("uk-UA")}`);
-      if (r.processedAt) meta.push(`Видано: ${new Date(r.processedAt).toLocaleString("uk-UA")}`);
-      if (r.adminName) meta.push(`Адмін: ${r.adminName}`);
-      if (r.comment) meta.push(`Коментар: ${r.comment}`);
+      meta.push(`Мастер: ${r.masterName} (${r.masterLogin})`);
+      meta.push(`Статус: ${statusMeta(r.status)}`);
+      if (r.createdAt) meta.push(`Создано: ${new Date(r.createdAt).toLocaleString("ru-RU")}`);
+      if (r.processedAt) meta.push(`Выдано: ${new Date(r.processedAt).toLocaleString("ru-RU")}`);
+      if (r.adminName) meta.push(`Админ: ${r.adminName}`);
+      if (r.comment) meta.push(`Комментарий: ${r.comment}`);
       document.getElementById("requestMeta").innerHTML = meta.map(t => `<div>${t}</div>`).join("");
 
-      const isIssued = r.status === "issued";
+      const isIssued = r.status === "issued" || r.status === "returned";
       const canIssue = r.status === "pending" || r.status === "processing";
       document.getElementById("issue-btn").style.display = canIssue ? "" : "none";
+      document.getElementById("return-btn").style.display = isIssued ? "" : "none";
+      document.getElementById("cancel-issued-btn").style.display = isIssued ? "" : "none";
 
       const downloadBtn = document.getElementById("download-btn");
       if (isIssued) {
@@ -744,15 +819,18 @@
           <td>
             <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
               <span>${item.partName || ""}</span>
-              <span class="stock-badge stock-${stockTone(resolvePartMeta(item).stock)}">На складі: ${stockLabel(resolvePartMeta(item).stock)}</span>
+              <span class="stock-badge stock-${stockTone(resolvePartMeta(item).stock)}">На складе: ${stockLabel(resolvePartMeta(item).stock)}</span>
             </div>
           </td>
           <td style="font-size:11px; color:var(--muted, #888);">${item.partCode || ""}</td>
           <td style="font-size:11px;">${resolveCellDisplay(item)}</td>
           <td>${item.unit || "шт."}</td>
           <td>${isIssued
-            ? (item.quantityIssued || "—")
-          : `<input class="qty-input" type="number" min="0" max="${item.quantityRequested || 0}" value="${item.quantityIssued || item.quantityRequested || 0}" data-code="${item.partCode || ""}" data-index="${item._index}">`
+            ? `<div class="return-qty-wrap">
+                <span>${item.quantityIssued || "—"}</span>
+                <input class="return-qty-input" type="number" min="0" max="${item.quantityIssued || 0}" value="0" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}" aria-label="Вернуть ${escapeHtml(item.partName || item.partCode || "")}">
+              </div>`
+          : `<input class="qty-input" type="number" min="0" max="${item.quantityRequested || 0}" value="${item.quantityIssued || item.quantityRequested || 0}" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}">`
           }</td>
         </tr>
       `).join("");
@@ -762,7 +840,7 @@
     async function loadRequest() {
       const id = new URLSearchParams(window.location.search).get("id") || "";
       if (!id) {
-        window.location.href = "/spare-requests-admin.html?v=20260611-9";
+        window.location.href = "/spare-requests-admin.html?v=20260611-12";
         return;
       }
 
@@ -809,6 +887,72 @@
       }
     }
 
+    async function returnIssuedParts() {
+      const r = currentRequest;
+      if (!r) return;
+
+      const admin = window.SurpAuth?.getCurrentUser?.();
+      const adminName = admin?.name || prompt("Введи своё имя:") || "";
+      if (!adminName) return;
+
+      const inputs = document.querySelectorAll("#requestBody .return-qty-input");
+      const items = Array.from(inputs)
+        .map(inp => ({
+          partCode: inp.dataset.code,
+          quantityReturned: Math.max(0, Number(inp.value || 0)),
+        }))
+        .filter(item => item.quantityReturned > 0);
+
+      if (!items.length) {
+        alert("Укажи количество, которое мастер возвращает.");
+        return;
+      }
+
+      try {
+        const resp = await apiFetch(`/api/spare-request/${r.id}/return`, {
+          method: "POST",
+          body: JSON.stringify({
+            adminName,
+            comment: `Возврат по заявке ${r.id}`,
+            items,
+          }),
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error);
+        alert("✅ Возврат оформлен.");
+        await loadRequest();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    async function cancelIssuedRequest() {
+      const r = currentRequest;
+      if (!r) return;
+
+      if (!confirm(`Отменить выдачу ${r.id} и вернуть все выданные позиции?`)) return;
+
+      const admin = window.SurpAuth?.getCurrentUser?.();
+      const adminName = admin?.name || prompt("Введи своё имя:") || "";
+      if (!adminName) return;
+
+      try {
+        const resp = await apiFetch(`/api/spare-request/${r.id}/cancel-issued`, {
+          method: "POST",
+          body: JSON.stringify({
+            adminName,
+            comment: `Отмена выдачи ${r.id}`,
+          }),
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error);
+        alert("✅ Выдача отменена, возврат оформлен.");
+        await loadRequest();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
     function shareMissingList() {
       if (!pickState.missing.length) {
         alert("Пока нет позиций для добавления в заявку.");
@@ -829,7 +973,7 @@
       navigator.clipboard?.writeText(text).then(() => {
         alert("Текст нехватки скопирован.");
       }).catch(() => {
-        prompt("Скопируй текст:", text);
+        prompt("Скопируй список:", text);
       });
     }
 
@@ -885,6 +1029,8 @@
       }
 
       document.getElementById("issue-btn").addEventListener("click", issueRequest);
+      document.getElementById("return-btn").addEventListener("click", returnIssuedParts);
+      document.getElementById("cancel-issued-btn").addEventListener("click", cancelIssuedRequest);
       document.getElementById("refresh-btn").addEventListener("click", () => loadRequest().catch(e => alert("❌ " + (e.message || "Ошибка"))));
       document.getElementById("pickIssueBtn").addEventListener("click", () => {
         const current = getCurrentPickItem();

@@ -3126,9 +3126,7 @@ async function buildSpareRequestXlsx(request) {
   const asText = (value) => String(value ?? "").trim();
   const formatCell = (value) => {
     const s = String(value ?? "").trim();
-    if (!s) return "";
-    const match = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
-    return match ? `${match[1]}.2` : s;
+    return s;
   };
 
   ws.getColumn(1).width = 6;
@@ -3163,6 +3161,52 @@ async function buildSpareRequestXlsx(request) {
   return wb.xlsx.writeBuffer();
 }
 
+async function buildSpareReturnXlsx(ret) {
+  const items = Array.isArray(ret.items) ? ret.items : [];
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Surpresso PWA";
+  wb.created = new Date();
+  const ws = wb.addWorksheet("Повернення запасів");
+
+  const asText = (value) => String(value ?? "").trim();
+  const formatCell = (value) => {
+    const s = String(value ?? "").trim();
+    return s;
+  };
+
+  ws.getColumn(1).width = 6;
+  ws.getColumn(2).width = 40;
+  ws.getColumn(3).width = 18;
+  ws.getColumn(4).width = 14;
+  ws.getColumn(4).numFmt = '@';
+  ws.getColumn(5).width = 12;
+  ws.getColumn(6).width = 8;
+
+  const headerRow = ws.addRow(["N", "Номенклатура", "Артикул", "Комірка", "Повернення", "Од."]);
+  headerRow.font = { bold: true, size: 11 };
+  headerRow.alignment = { horizontal: "center", vertical: "middle" };
+
+  items.forEach((item, idx) => {
+    ws.addRow([
+      idx + 1,
+      asText(item.partName),
+      asText(item.partCode),
+      formatCell(item.cell),
+      item.quantityReturned || 0,
+      asText(item.unit) || "шт.",
+    ]);
+  });
+
+  ws.addRow([]);
+  ws.addRow([`Возврат: ${ret.id}`]);
+  if (ret.sourceRequestId) ws.addRow([`Исходная выдача: ${ret.sourceRequestId}`]);
+  ws.addRow([`Мастер: ${ret.masterName || ""}`]);
+  ws.addRow([`Оборудование: ${ret.equipmentId || "—"}`]);
+  ws.addRow([`Дата: ${ret.processedAt ? new Date(ret.processedAt).toLocaleDateString("uk-UA") : new Date().toLocaleDateString("uk-UA")}`]);
+
+  return wb.xlsx.writeBuffer();
+}
+
 function buildSpareRequestFileName(request, fallbackId = "") {
   const cleanPart = (value, fallback = "") => {
     const s = String(value || "").trim();
@@ -3183,6 +3227,62 @@ function buildSpareRequestFileName(request, fallbackId = "") {
   return [surname, equipment, requestId].filter(Boolean).join("_") + ".xlsx";
 }
 
+function buildSpareReturnFileName(ret, fallbackId = "") {
+  const cleanPart = (value, fallback = "") => {
+    const s = String(value || "").trim();
+    if (!s) return fallback;
+    return s
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9а-яА-ЯіїєґІЇЄҐ._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  };
+
+  const masterName = String(ret?.masterName || "").trim();
+  const nameParts = masterName.split(/\s+/).filter(Boolean);
+  const surname = cleanPart(nameParts.length ? nameParts[nameParts.length - 1] : "", "master");
+  const equipment = cleanPart(ret?.equipmentId || "", "equipment");
+  const returnId = cleanPart(ret?.id || fallbackId || "", "");
+
+  return [surname, equipment, returnId, "return"].filter(Boolean).join("_") + ".xlsx";
+}
+
+function toXlsxBuffer(data) {
+  return Buffer.isBuffer(data) ? data : Buffer.from(data);
+}
+
+function buildMasterHashtag(masterName) {
+  const nameParts = String(masterName || "").trim().split(/\s+/).filter(Boolean);
+  const surname = nameParts.length ? nameParts[nameParts.length - 1] : "";
+  const tag = surname
+    .replace(/[^a-zA-Z0-9а-яА-ЯіїєґІЇЄҐ]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return tag ? `#${tag}` : "";
+}
+
+function buildAttachmentDisposition(fileName) {
+  const safeName = String(fileName || "spare-request.xlsx").trim() || "spare-request.xlsx";
+  const asciiFallback = safeName
+    .replace(/[^\x20-\x7E]+/g, "_")
+    .replace(/[\\"]/g, "_")
+    .replace(/_+/g, "_") || "spare-request.xlsx";
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safeName)}`;
+}
+
+async function notifySpareReturnXlsx(ret) {
+  if (!TG_NOTIFY_BOT || !ret) return false;
+  const buf = toXlsxBuffer(await buildSpareReturnXlsx(ret));
+  const fileName = buildSpareReturnFileName(ret, ret.id || "");
+  const chatId = process.env.SPARE_REQUEST_ISSUE_CHAT_ID || TG_NOTIFY_CHAT_ID || "-1003970277331";
+  const masterTag = buildMasterHashtag(ret.masterName);
+  const title = ret.sourceRequestId
+    ? `↩️ Возврат запчастей: ${ret.id} по ${ret.sourceRequestId}`
+    : `↩️ Возврат запчастей: ${ret.id}`;
+  const caption = [title, masterTag].filter(Boolean).join("\n");
+  return tgSendXlsxTo(TG_NOTIFY_BOT, chatId, buf, fileName, caption);
+}
+
 app.post("/api/spare-request/:id/issue", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -3196,9 +3296,13 @@ app.post("/api/spare-request/:id/issue", requirePwaKey, async (req, res) => {
       try {
         const getOut = await gasPost({ action: "spareRequestGet", id });
         if (getOut.ok) {
-          const buf = await buildSpareRequestXlsx(getOut.request);
+          const buf = toXlsxBuffer(await buildSpareRequestXlsx(getOut.request));
           const fileName = buildSpareRequestFileName(getOut.request, id);
-          await tgSendXlsxTo(TG_NOTIFY_BOT, "-1003970277331", buf, fileName, `📦 Выдача запчастей: ${id}`);
+          const chatId = process.env.SPARE_REQUEST_ISSUE_CHAT_ID || TG_NOTIFY_CHAT_ID || "-1003970277331";
+          const masterTag = buildMasterHashtag(getOut.request?.masterName);
+          const caption = [`📦 Выдача запчастей: ${id}`, masterTag].filter(Boolean).join("\n");
+          const sent = await tgSendXlsxTo(TG_NOTIFY_BOT, chatId, buf, fileName, caption);
+          if (!sent) console.error("TG SEND XLSX ERROR: Telegram returned non-ok response");
         }
       } catch (tgErr) {
         console.error("TG SEND XLSX ERROR:", tgErr);
@@ -3220,15 +3324,99 @@ app.get("/api/spare-request/:id/export-xls", requirePwaKey, async (req, res) => 
     const out = await gasPost({ action: "spareRequestGet", id });
     if (!out.ok) return res.status(404).send(out);
 
-    const buf = await buildSpareRequestXlsx(out.request);
+    const buf = toXlsxBuffer(await buildSpareRequestXlsx(out.request));
     const fileName = buildSpareRequestFileName(out.request, id);
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Disposition", buildAttachmentDisposition(fileName));
 
     res.end(buf);
   } catch (err) {
     console.error("SPARE REQUEST EXPORT ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/spare-return/create", requirePwaKey, async (req, res) => {
+  try {
+    const { masterLogin, masterName, equipmentId, sourceRequestId, comment, items } = req.body || {};
+    if (!masterLogin && !masterName) return res.status(400).send({ ok: false, error: "no_master" });
+    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
+
+    const out = await gasPost({
+      action: "spareReturnCreate",
+      masterLogin,
+      masterName,
+      equipmentId,
+      sourceRequestId,
+      comment,
+      mode: "manual",
+      items,
+    });
+
+    if (out.ok && out.return && TG_NOTIFY_BOT) {
+      try {
+        const sent = await notifySpareReturnXlsx(out.return);
+        if (!sent) console.error("TG RETURN XLSX ERROR: Telegram returned non-ok response");
+      } catch (tgErr) {
+        console.error("TG RETURN XLSX ERROR:", tgErr);
+      }
+    }
+
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE RETURN CREATE ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/spare-request/:id/return", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { adminName, comment, items } = req.body || {};
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
+    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
+
+    const out = await gasPost({ action: "spareRequestReturn", id, adminName, comment, items });
+
+    if (out.ok && out.return && TG_NOTIFY_BOT) {
+      try {
+        const sent = await notifySpareReturnXlsx(out.return);
+        if (!sent) console.error("TG RETURN XLSX ERROR: Telegram returned non-ok response");
+      } catch (tgErr) {
+        console.error("TG RETURN XLSX ERROR:", tgErr);
+      }
+    }
+
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST RETURN ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/spare-request/:id/cancel-issued", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { adminName, comment } = req.body || {};
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
+
+    const out = await gasPost({ action: "spareRequestCancelIssued", id, adminName, comment });
+
+    if (out.ok && out.return && TG_NOTIFY_BOT) {
+      try {
+        const sent = await notifySpareReturnXlsx(out.return);
+        if (!sent) console.error("TG RETURN XLSX ERROR: Telegram returned non-ok response");
+      } catch (tgErr) {
+        console.error("TG RETURN XLSX ERROR:", tgErr);
+      }
+    }
+
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST CANCEL ISSUED ERROR", err);
     res.status(500).send({ ok: false, error: String(err) });
   }
 });

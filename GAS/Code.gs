@@ -14,9 +14,15 @@ const SERVER_KEY_PROP = 'SURPRESSO_SERVER_KEY';
 // Sheets (sheetId / gid)
 const SH_EQUIPMENT = 1840737062;
 const SH_STATUS    = 925272215;
-const SH_PHOTOS    = 1128395503;
+const SH_PHOTOS    = "PHOTOS";
 const SH_MANUALS   = "MANUALS";
 const SH_WAREHOUSE_TEMPLATES = "WAREHOUSE_TEMPLATES";
+const SH_SPARE_REQUESTS = "SPARE_REQUESTS";
+const SH_SPARE_REQUEST_ITEMS = "SPARE_REQUEST_ITEMS";
+const SH_SPARE_RETURNS = "SPARE_RETURNS";
+const SH_SPARE_RETURN_ITEMS = "SPARE_RETURN_ITEMS";
+const PARTS_CATALOG_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+const PARTS_CATALOG_GID = 1099059228;
 const MANUALS_FOLDER_NAME = "manuals";
 const MANUAL_INDEX_FOLDER_NAME = "manual-index";
 
@@ -185,6 +191,15 @@ function doPost(e) {
     if (action === "indexDelete") return json_(indexDelete_(data.manualId));
     if (action === "indexStatusUpdate") return json_(indexStatusUpdate_(data.manualId, data.metadata || {}));
     if (action === "manualDelete") return json_(deleteManual_(data.id));
+
+    // ===== Spare requests =====
+    if (action === "spareRequestCreate") return json_(spareRequestCreate_(data));
+    if (action === "spareRequestList") return json_(spareRequestList_(data));
+    if (action === "spareRequestGet") return json_(spareRequestGet_(data.id));
+    if (action === "spareRequestIssue") return json_(spareRequestIssue_(data));
+    if (action === "spareReturnCreate") return json_(spareReturnCreate_(data));
+    if (action === "spareRequestReturn") return json_(spareRequestReturn_(data));
+    if (action === "spareRequestCancelIssued") return json_(spareRequestCancelIssued_(data));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -438,10 +453,13 @@ function getBundle_(id) {
   // чистим телефон от апострофа если вдруг вернулся
   if (eq.clientPhone) eq.clientPhone = stripTextPrefix_(eq.clientPhone);
 
+  const photosResult = getPhotosByIdDetailed_(id);
+
   return {
     ok: true,
     equipment: eq,
-    photos: getPhotosById_(id),
+    photos: photosResult.items,
+    photosDebug: photosResult.debug,
     log: getStatusLogById_(id),
     statuses: getStatusesForOwner_(eq.owner || "client")
   };
@@ -1111,32 +1129,209 @@ function deletePhoto_(id, fileId) {
 }
 
 function getPhotosById_(id) {
+  return getPhotosByIdDetailed_(id).items;
+}
+
+function getPhotosByIdDetailed_(id) {
+  const fallback = getPhotosFromDriveFolder_(id);
+
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sh = getSheetAny_(ss, SH_PHOTOS);
+  const sh = resolvePhotosSheet_(ss);
+  if (!sh) {
+    return {
+      items: fallback,
+      debug: {
+        sheetName: "",
+        sheetId: null,
+        totalRows: 0,
+        matchedRows: 0,
+        usedFallback: true,
+        reason: "no_sheet"
+      }
+    };
+  }
+
   const data = sh.getDataRange().getValues();
+  if (data.length < 2) {
+    return {
+      items: fallback,
+      debug: {
+        sheetName: sh.getName(),
+        sheetId: sh.getSheetId(),
+        totalRows: Math.max(0, data.length - 1),
+        matchedRows: 0,
+        usedFallback: true,
+        reason: "too_few_rows"
+      }
+    };
+  }
   const head = data.shift();
 
-  const idxId   = head.findIndex(h => normHeader_(h) === "equipmentid");
-  const idxFile = head.findIndex(h => normHeader_(h) === "fileid");
-  const idxUrl  = head.findIndex(h => normHeader_(h) === "fileurl");
-  const idxImg  = head.findIndex(h => normHeader_(h) === "imgurl");
-  const idxCap  = head.findIndex(h => normHeader_(h) === "caption");
-  const idxTs   = head.findIndex(h => normHeader_(h) === "ts");
+  // Гибкий поиск колонок
+  const colMap = {};
+  head.forEach((h, i) => {
+    colMap[normHeader_(h)] = i;
+  });
 
-  if (idxId < 0) return []; // если нет колонки ID, то и искать нечего
+  let idxId   = colMap["equipmentid"];
+  let idxFile = colMap["fileid"];
+  let idxUrl  = colMap["fileurl"];
+  let idxImg  = colMap["imgurl"];
+  let idxCap  = colMap["caption"];
+  let idxTs   = colMap["ts"];
+  let rows = data;
 
-  const key = normKey_(id);
+  // Legacy fallback: sheet without header row, fixed columns:
+  // [ts, equipmentId, fileId, fileUrl, imgUrl, caption]
+  let usedLegacyColumns = false;
+  if (idxId === undefined) {
+    idxTs = 0;
+    idxId = 1;
+    idxFile = 2;
+    idxUrl = 3;
+    idxImg = 4;
+    idxCap = 5;
+    rows = [head].concat(data);
+    usedLegacyColumns = true;
+  }
 
-  return data
-    .filter(r => normKey_(r[idxId]) === key)
+  const searchKey = normKey_(id);
+
+  const fromSheet = rows
+    .filter(row => {
+      const val = row[idxId];
+      if (val === undefined || val === null || val === "") return false;
+      return normKey_(val) === searchKey;
+    })
     .map(r => ({
-      ts: idxTs >= 0 ? r[idxTs] : null,
-      url: idxUrl >= 0 ? String(r[idxUrl] || "") : "",
-      fileId: idxFile >= 0 ? String(r[idxFile] || "") : "",
-      imgUrl: idxImg >= 0 ? String(r[idxImg] || "") : "",
-      caption: idxCap >= 0 ? (r[idxCap] || "") : ""
+      ts: idxTs !== undefined ? r[idxTs] : null,
+      url: idxUrl !== undefined ? String(r[idxUrl] || "") : "",
+      fileId: idxFile !== undefined ? String(r[idxFile] || "") : "",
+      imgUrl: idxImg !== undefined ? String(r[idxImg] || "") : "",
+      caption: idxCap !== undefined ? String(r[idxCap] || "") : ""
     }))
     .reverse();
+
+  const usedFallback = fromSheet.length === 0;
+  return {
+    items: usedFallback ? fallback : fromSheet,
+    debug: {
+      sheetName: sh.getName(),
+      sheetId: sh.getSheetId(),
+      totalRows: rows.length,
+      matchedRows: fromSheet.length,
+      usedFallback: usedFallback,
+      fallbackCount: fallback.length,
+      usedLegacyColumns: usedLegacyColumns
+    }
+  };
+}
+
+function resolvePhotosSheet_(ss) {
+  // 1) Prefer configured sheet name/id only if it actually looks like a photos sheet
+  try {
+    const preferred = getSheetAny_(ss, SH_PHOTOS);
+    if (preferred && sheetLooksLikePhotos_(preferred)) return preferred;
+  } catch (e) {}
+
+  // 2) Fallback: detect by header columns on first row
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const sh = sheets[i];
+    if (sheetLooksLikePhotos_(sh)) return sh;
+  }
+
+  return null;
+}
+
+function sheetLooksLikePhotos_(sh) {
+  if (!sh) return false;
+  const lastCol = sh.getLastColumn();
+  const lastRow = sh.getLastRow();
+  if (lastCol < 2 || lastRow < 1) return false;
+
+  const sampleRows = Math.min(lastRow, 6);
+  const sampleCols = Math.min(lastCol, 12);
+  const values = sh.getRange(1, 1, sampleRows, sampleCols).getValues();
+
+  const headerLike = values[0].map(normHeader_);
+  const hasHeaderColumns = headerLike.indexOf("equipmentid") >= 0
+    && headerLike.indexOf("fileid") >= 0
+    && (headerLike.indexOf("fileurl") >= 0 || headerLike.indexOf("imgurl") >= 0);
+  if (hasHeaderColumns) return true;
+
+  for (let r = 0; r < values.length; r++) {
+    const row = values[r];
+    const eq = String(row[1] || "").trim();
+    const fileId = String(row[2] || "").trim();
+    const fileUrl = String(row[3] || "").trim();
+    const imgUrl = String(row[4] || "").trim();
+    if (eq && fileId && (fileUrl || imgUrl)) return true;
+  }
+
+  return false;
+}
+
+function getPhotosFromDriveFolder_(id) {
+  const eq = getEquipmentById_(id);
+  if (!eq) return [];
+
+  const folderId = String(eq.folderId || "").trim();
+  let folder = null;
+  if (folderId) {
+    try {
+      folder = DriveApp.getFolderById(folderId);
+    } catch (e) {
+      folder = null;
+    }
+  }
+
+  let items = folder ? collectImageLikeFilesFromFolder_(folder) : [];
+  if (items.length) return items;
+
+  // fallback: folderId may be stale, search by folder name under the root
+  try {
+    const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+    const it = root.getFoldersByName(safeId_(String(id || "").trim()));
+    if (it.hasNext()) {
+      const namedFolder = it.next();
+      items = collectImageLikeFilesFromFolder_(namedFolder);
+      if (items.length) return items;
+    }
+  } catch (e) {}
+
+  return [];
+}
+
+function collectImageLikeFilesFromFolder_(folder) {
+  const items = [];
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    const mime = String(file.getMimeType() || "");
+    const name = String(file.getName() || "");
+    const ext = name.split(".").pop().toLowerCase();
+    const byMime = mime.startsWith("image/");
+    const byExt = ["jpg", "jpeg", "png", "webp", "heic", "heif"].indexOf(ext) >= 0;
+    if (!byMime && !byExt) continue;
+
+    const fileId = String(file.getId() || "");
+    items.push({
+      ts: file.getDateCreated(),
+      url: String(file.getUrl() || ""),
+      fileId: fileId,
+      imgUrl: driveImgUrl_(fileId),
+      caption: name
+    });
+  }
+
+  items.sort((a, b) => {
+    const aTs = a.ts ? new Date(a.ts).getTime() : 0;
+    const bTs = b.ts ? new Date(b.ts).getTime() : 0;
+    return bTs - aTs;
+  });
+
+  return items;
 }
 
 // =========================
@@ -1214,9 +1409,13 @@ function getStatusLogById_(id) {
   const idxAct = head.indexOf("actor");
 
   const key = normKey_(id);
+  Logger.log(`getPhotosById: searching for key="${key}" (original id="${id}")`);
 
   return data
-    .filter(r => normKey_(r[idxId]) === key)
+    .filter(r => {
+      const rowKey = normKey_(r[idxId]);
+      return rowKey === key;
+    })
     .map(r => ({
       ts: r[idxTs],
       oldStatus: r[idxOld],
@@ -1401,9 +1600,10 @@ function safeGetEquipmentFolder_(eq) {
 function normKey_(v) {
   // ключ поиска:
   // SP.233 == SP233 == sp-233
-  return String(v || "")
-    .trim()
-    .toUpperCase()
+  let s = String(v || "").trim();
+  if (s.startsWith("'")) s = s.slice(1);
+
+  return s.toUpperCase()
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9]/g, "");
 }
@@ -1430,6 +1630,10 @@ function asText_(v) {
     return "'" + s;
   }
   return s;
+}
+
+function debugPhotosFB5965_() {
+  return getPhotosByIdDetailed_("FB5965");
 }
 
 
@@ -1764,4 +1968,635 @@ function setSubscriptionsTextFormat_(sheet) {
       sheet.getRange(2, colIndex + 1, sheet.getMaxRows() - 1, 1).setNumberFormat("@");
     }
   });
+}
+
+// =========================
+// SPARE REQUESTS
+// =========================
+const SPARE_REQUEST_COLUMNS = [
+  "id", "masterLogin", "masterName", "equipmentId", "status",
+  "createdAt", "processedAt", "adminName", "comment"
+];
+const SPARE_REQUEST_ITEMS_COLUMNS = [
+  "id", "requestId", "partCode", "partName", "cell", "unit",
+  "quantityRequested", "quantityIssued"
+];
+const SPARE_RETURN_COLUMNS = [
+  "id", "sourceRequestId", "masterLogin", "masterName", "equipmentId",
+  "status", "createdAt", "processedAt", "adminName", "comment", "mode"
+];
+const SPARE_RETURN_ITEMS_COLUMNS = [
+  "id", "returnId", "sourceRequestId", "partCode", "partName", "cell", "unit",
+  "quantityReturned"
+];
+const SPARE_REQUEST_STATUSES = ["pending", "processing", "issued", "returned", "cancelled"];
+
+function getOrCreateSpareRequestsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SH_SPARE_REQUESTS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SH_SPARE_REQUESTS);
+    sheet.appendRow(SPARE_REQUEST_COLUMNS);
+  }
+  ["id", "masterLogin"].forEach(function(name) {
+    try {
+      const c = col_(sheet, name);
+      sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+    } catch (e) {}
+  });
+  return sheet;
+}
+
+function getOrCreateSpareRequestItemsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SH_SPARE_REQUEST_ITEMS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SH_SPARE_REQUEST_ITEMS);
+    sheet.appendRow(SPARE_REQUEST_ITEMS_COLUMNS);
+  }
+  try {
+    const c = col_(sheet, "cell");
+    sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+  } catch (e) {}
+  return sheet;
+}
+
+function getOrCreateSpareReturnsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SH_SPARE_RETURNS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SH_SPARE_RETURNS);
+    sheet.appendRow(SPARE_RETURN_COLUMNS);
+  }
+  ["id", "sourceRequestId", "masterLogin"].forEach(function(name) {
+    try {
+      const c = col_(sheet, name);
+      sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+    } catch (e) {}
+  });
+  return sheet;
+}
+
+function getOrCreateSpareReturnItemsSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SH_SPARE_RETURN_ITEMS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SH_SPARE_RETURN_ITEMS);
+    sheet.appendRow(SPARE_RETURN_ITEMS_COLUMNS);
+  }
+  try {
+    const c = col_(sheet, "cell");
+    sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+  } catch (e) {}
+  return sheet;
+}
+
+let sparePartsCatalogCache_ = null;
+
+function loadSparePartsCatalog_() {
+  if (sparePartsCatalogCache_) return sparePartsCatalogCache_;
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${PARTS_CATALOG_SHEET_ID}/export?format=csv&gid=${PARTS_CATALOG_GID}&v=${Date.now()}`;
+    const csv = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+    const rows = Utilities.parseCsv(csv);
+    const headers = rows.shift() || [];
+
+    const idx = {
+      code: headers.indexOf("code"),
+      name: headers.indexOf("name"),
+      cell: headers.indexOf("cell"),
+      codeUa: headers.indexOf("Код"),
+      nameUa: headers.indexOf("Наименование"),
+      nameUa2: headers.indexOf("Номенклатура"),
+      cellUa: headers.indexOf("Ячейка"),
+      cellUa2: headers.indexOf("Комірка"),
+    };
+
+    const byCode = {};
+    const byName = {};
+
+    rows.forEach(function(row) {
+      const code = String(row[idx.code >= 0 ? idx.code : idx.codeUa] || "").trim();
+      const name = String(row[idx.name >= 0 ? idx.name : (idx.nameUa >= 0 ? idx.nameUa : idx.nameUa2)] || "").trim();
+      const cell = String(row[idx.cell >= 0 ? idx.cell : (idx.cellUa >= 0 ? idx.cellUa : idx.cellUa2)] || "").trim();
+      if (!cell) return;
+      if (code) byCode[normKey_(code)] = cell;
+      if (name) byName[normKey_(name)] = cell;
+    });
+
+    sparePartsCatalogCache_ = { byCode: byCode, byName: byName };
+  } catch (e) {
+    sparePartsCatalogCache_ = { byCode: {}, byName: {} };
+  }
+
+  return sparePartsCatalogCache_;
+}
+
+function isLikelyDateCell_(value) {
+  const s = String(value || "").trim();
+  return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s/.test(s) ||
+    /\bGMT\b/.test(s) ||
+    /^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/.test(s) ||
+    /\b\d{4}\b/.test(s) && /[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(s);
+}
+
+function resolveSpareRequestCell_(item) {
+  const current = String(item && item.cell ? item.cell : "").trim();
+
+  const catalog = loadSparePartsCatalog_();
+  const codeKey = normKey_(item && item.partCode ? item.partCode : "");
+  if (codeKey && catalog.byCode[codeKey]) return String(catalog.byCode[codeKey]).trim();
+
+  const nameKey = normKey_(item && item.partName ? item.partName : "");
+  if (nameKey && catalog.byName[nameKey]) return String(catalog.byName[nameKey]).trim();
+
+  return current && !isLikelyDateCell_(current) ? current : "";
+}
+
+function spareRequestCreate_(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+
+  const masterLogin = String(data.masterLogin || "").trim();
+  const masterName = String(data.masterName || "").trim();
+  const equipmentId = String(data.equipmentId || "").trim();
+  const comment = String(data.comment || "").trim();
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  if (!masterLogin || !masterName) return { ok: false, error: "no_master" };
+  if (!items.length) return { ok: false, error: "no_items" };
+
+  // generate request ID
+  const existingData = reqSheet.getDataRange().getValues();
+  const reqCount = existingData.length; // minus header = number of existing requests
+  const reqId = "SR-" + String(reqCount).padStart(4, "0");
+  const now = new Date();
+
+  reqSheet.appendRow([
+    reqId, masterLogin, masterName, equipmentId, "pending",
+    now, "", "", comment
+  ]);
+
+  // write items
+  items.forEach(function(item, idx) {
+    const itemId = reqId + "-" + String(idx + 1).padStart(3, "0");
+    const partCode = String(item.partCode || "").trim();
+    const partName = String(item.partName || "").trim();
+    const cell = resolveSpareRequestCell_({
+      partCode: partCode,
+      partName: partName,
+      cell: item.cell || "",
+    });
+    itemsSheet.appendRow([
+      itemId, reqId,
+      partCode,
+      partName,
+      cell,
+      String(item.unit || "шт.").trim(),
+      Number(item.quantityRequested || 1),
+      0
+    ]);
+  });
+
+  return { ok: true, id: reqId };
+}
+
+function spareRequestList_(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const reqData = reqSheet.getDataRange().getValues();
+  const headers = reqData[0] || [];
+  const idx = {
+    id: headers.indexOf("id"),
+    masterLogin: headers.indexOf("masterLogin"),
+    masterName: headers.indexOf("masterName"),
+    equipmentId: headers.indexOf("equipmentId"),
+    status: headers.indexOf("status"),
+    createdAt: headers.indexOf("createdAt"),
+    processedAt: headers.indexOf("processedAt"),
+    adminName: headers.indexOf("adminName"),
+    comment: headers.indexOf("comment"),
+  };
+
+  const statusFilter = String(data.status || "").trim();
+  const requests = [];
+
+  for (let i = 1; i < reqData.length; i++) {
+    const row = reqData[i];
+    const status = String(row[idx.status] || "").trim();
+    if (statusFilter && status !== statusFilter) continue;
+    requests.push({
+      id: String(row[idx.id] || "").trim(),
+      masterLogin: String(row[idx.masterLogin] || "").trim(),
+      masterName: String(row[idx.masterName] || "").trim(),
+      equipmentId: String(row[idx.equipmentId] || "").trim(),
+      status: status,
+      createdAt: row[idx.createdAt] || "",
+      processedAt: row[idx.processedAt] || "",
+      adminName: String(row[idx.adminName] || "").trim(),
+      comment: String(row[idx.comment] || "").trim(),
+    });
+  }
+
+  return { ok: true, requests: requests.reverse() };
+}
+
+function spareRequestGet_(id) {
+  if (!id) return { ok: false, error: "no_id" };
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+
+  // find request
+  const reqData = reqSheet.getDataRange().getValues();
+  const reqHeaders = reqData[0] || [];
+  const ridx = {
+    id: reqHeaders.indexOf("id"),
+    masterLogin: reqHeaders.indexOf("masterLogin"),
+    masterName: reqHeaders.indexOf("masterName"),
+    equipmentId: reqHeaders.indexOf("equipmentId"),
+    status: reqHeaders.indexOf("status"),
+    createdAt: reqHeaders.indexOf("createdAt"),
+    processedAt: reqHeaders.indexOf("processedAt"),
+    adminName: reqHeaders.indexOf("adminName"),
+    comment: reqHeaders.indexOf("comment"),
+  };
+
+  let request = null;
+  for (let i = 1; i < reqData.length; i++) {
+    if (String(reqData[i][ridx.id] || "").trim() === id) {
+      request = {
+        id: String(reqData[i][ridx.id] || "").trim(),
+        masterLogin: String(reqData[i][ridx.masterLogin] || "").trim(),
+        masterName: String(reqData[i][ridx.masterName] || "").trim(),
+        equipmentId: String(reqData[i][ridx.equipmentId] || "").trim(),
+        status: String(reqData[i][ridx.status] || "").trim(),
+        createdAt: reqData[i][ridx.createdAt] || "",
+        processedAt: reqData[i][ridx.processedAt] || "",
+        adminName: String(reqData[i][ridx.adminName] || "").trim(),
+        comment: String(reqData[i][ridx.comment] || "").trim(),
+      };
+      break;
+    }
+  }
+
+  if (!request) return { ok: false, error: "not_found" };
+
+  // find items
+  const itemRange = itemsSheet.getDataRange();
+  const itemData = itemRange.getValues();
+  const itemDisplayData = itemRange.getDisplayValues();
+  const itemHeaders = itemData[0] || [];
+  const iidx = {
+    requestId: itemHeaders.indexOf("requestId"),
+    partCode: itemHeaders.indexOf("partCode"),
+    partName: itemHeaders.indexOf("partName"),
+    cell: itemHeaders.indexOf("cell"),
+    unit: itemHeaders.indexOf("unit"),
+    quantityRequested: itemHeaders.indexOf("quantityRequested"),
+    quantityIssued: itemHeaders.indexOf("quantityIssued"),
+  };
+
+  const items = [];
+  for (let i = 1; i < itemData.length; i++) {
+    if (String(itemData[i][iidx.requestId] || "").trim() === id) {
+      items.push({
+        partCode: String(itemDisplayData[i][iidx.partCode] || itemData[i][iidx.partCode] || "").trim(),
+        partName: String(itemDisplayData[i][iidx.partName] || itemData[i][iidx.partName] || "").trim(),
+        cell: resolveSpareRequestCell_({
+          partCode: itemDisplayData[i][iidx.partCode] || itemData[i][iidx.partCode] || "",
+          partName: itemDisplayData[i][iidx.partName] || itemData[i][iidx.partName] || "",
+          cell: itemDisplayData[i][iidx.cell] || itemData[i][iidx.cell] || "",
+        }),
+        unit: String(itemDisplayData[i][iidx.unit] || itemData[i][iidx.unit] || "шт.").trim(),
+        quantityRequested: Number(itemData[i][iidx.quantityRequested] || 0),
+        quantityIssued: Number(itemData[i][iidx.quantityIssued] || 0),
+      });
+    }
+  }
+
+  request.items = items;
+  return { ok: true, request };
+}
+
+function spareRequestIssue_(data) {
+  const id = String(data.id || "").trim();
+  const adminName = String(data.adminName || "").trim();
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  if (!id) return { ok: false, error: "no_id" };
+  if (!adminName) return { ok: false, error: "no_admin" };
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+
+  // update request status
+  const reqData = reqSheet.getDataRange().getValues();
+  const reqHeaders = reqData[0] || [];
+  const ridx = {
+    id: reqHeaders.indexOf("id"),
+    status: reqHeaders.indexOf("status"),
+    processedAt: reqHeaders.indexOf("processedAt"),
+    adminName: reqHeaders.indexOf("adminName"),
+  };
+
+  let reqRow = -1;
+  for (let i = 1; i < reqData.length; i++) {
+    if (String(reqData[i][ridx.id] || "").trim() === id) {
+      reqRow = i + 1;
+      break;
+    }
+  }
+
+  if (reqRow === -1) return { ok: false, error: "not_found" };
+
+  reqSheet.getRange(reqRow, ridx.status + 1).setValue("issued");
+  reqSheet.getRange(reqRow, ridx.processedAt + 1).setValue(new Date());
+  reqSheet.getRange(reqRow, ridx.adminName + 1).setValue(adminName);
+
+  // update item quantities
+  const itemData = itemsSheet.getDataRange().getValues();
+  const itemHeaders = itemData[0] || [];
+  const iidx = {
+    requestId: itemHeaders.indexOf("requestId"),
+    partCode: itemHeaders.indexOf("partCode"),
+    quantityIssued: itemHeaders.indexOf("quantityIssued"),
+  };
+
+  // build map of issue updates by partCode
+  const issueMap = {};
+  items.forEach(function(item) {
+    const code = String(item.partCode || "").trim();
+    if (code) issueMap[code] = Number(item.quantityIssued || 0);
+  });
+
+  for (let i = 1; i < itemData.length; i++) {
+    if (String(itemData[i][iidx.requestId] || "").trim() === id) {
+      const code = String(itemData[i][iidx.partCode] || "").trim();
+      if (code && issueMap[code] !== undefined) {
+        itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(issueMap[code]);
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+  return { ok: true };
+}
+
+function generateSpareReturnId_() {
+  const sheet = getOrCreateSpareReturnsSheet_();
+  const count = Math.max(0, sheet.getLastRow() - 1);
+  return "RR-" + String(count + 1).padStart(4, "0");
+}
+
+function getSpareRequestItemRows_(requestId) {
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+  const itemRange = itemsSheet.getDataRange();
+  const values = itemRange.getValues();
+  const displays = itemRange.getDisplayValues();
+  const headers = values[0] || [];
+  const idx = {
+    requestId: headers.indexOf("requestId"),
+    partCode: headers.indexOf("partCode"),
+    partName: headers.indexOf("partName"),
+    cell: headers.indexOf("cell"),
+    unit: headers.indexOf("unit"),
+    quantityRequested: headers.indexOf("quantityRequested"),
+    quantityIssued: headers.indexOf("quantityIssued"),
+  };
+
+  const rows = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][idx.requestId] || "").trim() !== requestId) continue;
+    rows.push({
+      rowNumber: i + 1,
+      partCode: String(displays[i][idx.partCode] || values[i][idx.partCode] || "").trim(),
+      partName: String(displays[i][idx.partName] || values[i][idx.partName] || "").trim(),
+      cell: resolveSpareRequestCell_({
+        partCode: displays[i][idx.partCode] || values[i][idx.partCode] || "",
+        partName: displays[i][idx.partName] || values[i][idx.partName] || "",
+        cell: displays[i][idx.cell] || values[i][idx.cell] || "",
+      }),
+      unit: String(displays[i][idx.unit] || values[i][idx.unit] || "шт.").trim(),
+      quantityRequested: Number(values[i][idx.quantityRequested] || 0),
+      quantityIssued: Number(values[i][idx.quantityIssued] || 0),
+      quantityIssuedCol: idx.quantityIssued + 1,
+    });
+  }
+  return rows;
+}
+
+function createSpareReturnRecord_(payload) {
+  const returnsSheet = getOrCreateSpareReturnsSheet_();
+  const returnItemsSheet = getOrCreateSpareReturnItemsSheet_();
+  const sourceRequestId = String(payload.sourceRequestId || "").trim();
+  const masterLogin = String(payload.masterLogin || "").trim();
+  const masterName = String(payload.masterName || "").trim();
+  const equipmentId = String(payload.equipmentId || "").trim();
+  const adminName = String(payload.adminName || "").trim();
+  const comment = String(payload.comment || "").trim();
+  const mode = String(payload.mode || "manual").trim();
+  const items = (Array.isArray(payload.items) ? payload.items : [])
+    .map(function(item) {
+      return {
+        partCode: String(item.partCode || "").trim(),
+        partName: String(item.partName || "").trim(),
+        cell: String(item.cell || "").trim(),
+        unit: String(item.unit || "шт.").trim(),
+        quantityReturned: Number(item.quantityReturned || 0),
+      };
+    })
+    .filter(function(item) {
+      return item.quantityReturned > 0 && (item.partCode || item.partName);
+    });
+
+  if (!masterLogin && !masterName) return { ok: false, error: "no_master" };
+  if (!items.length) return { ok: false, error: "no_items" };
+
+  const returnId = generateSpareReturnId_();
+  const now = new Date();
+  returnsSheet.appendRow([
+    returnId, sourceRequestId, masterLogin, masterName, equipmentId,
+    "returned", now, now, adminName, comment, mode
+  ]);
+
+  items.forEach(function(item, idx) {
+    const itemId = returnId + "-" + String(idx + 1).padStart(3, "0");
+    returnItemsSheet.appendRow([
+      itemId, returnId, sourceRequestId,
+      item.partCode,
+      item.partName,
+      item.cell,
+      item.unit,
+      item.quantityReturned
+    ]);
+  });
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    id: returnId,
+    return: {
+      id: returnId,
+      sourceRequestId: sourceRequestId,
+      masterLogin: masterLogin,
+      masterName: masterName,
+      equipmentId: equipmentId,
+      status: "returned",
+      createdAt: now,
+      processedAt: now,
+      adminName: adminName,
+      comment: comment,
+      mode: mode,
+      items: items,
+    }
+  };
+}
+
+function spareReturnCreate_(data) {
+  return createSpareReturnRecord_({
+    sourceRequestId: data.sourceRequestId || "",
+    masterLogin: data.masterLogin || "",
+    masterName: data.masterName || "",
+    equipmentId: data.equipmentId || "",
+    adminName: data.adminName || data.masterName || "",
+    comment: data.comment || "",
+    mode: data.mode || "manual",
+    items: data.items || [],
+  });
+}
+
+function spareRequestReturn_(data) {
+  const id = String(data.id || "").trim();
+  const adminName = String(data.adminName || "").trim();
+  const selected = Array.isArray(data.items) ? data.items : [];
+  if (!id) return { ok: false, error: "no_id" };
+
+  const reqOut = spareRequestGet_(id);
+  if (!reqOut.ok) return reqOut;
+  const request = reqOut.request;
+  if (request.status !== "issued" && request.status !== "returned") return { ok: false, error: "not_issued" };
+
+  const byCode = {};
+  selected.forEach(function(item) {
+    const code = String(item.partCode || "").trim();
+    if (code) byCode[code] = Number(item.quantityReturned || 0);
+  });
+
+  const itemRows = getSpareRequestItemRows_(id);
+  const returnItems = [];
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+  itemRows.forEach(function(row) {
+    const wanted = Number(byCode[row.partCode] || 0);
+    if (wanted <= 0) return;
+    const qty = Math.min(wanted, Math.max(0, row.quantityIssued || 0));
+    if (qty <= 0) return;
+    returnItems.push({
+      partCode: row.partCode,
+      partName: row.partName,
+      cell: row.cell,
+      unit: row.unit,
+      quantityReturned: qty,
+    });
+    itemsSheet.getRange(row.rowNumber, row.quantityIssuedCol).setValue(Math.max(0, Number(row.quantityIssued || 0) - qty));
+  });
+
+  const out = createSpareReturnRecord_({
+    sourceRequestId: id,
+    masterLogin: request.masterLogin,
+    masterName: request.masterName,
+    equipmentId: request.equipmentId,
+    adminName: adminName,
+    comment: data.comment || "Возврат по заявке " + id,
+    mode: "request_return",
+    items: returnItems,
+  });
+  if (!out.ok) return out;
+
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const reqData = reqSheet.getDataRange().getValues();
+  const headers = reqData[0] || [];
+  const ridx = {
+    id: headers.indexOf("id"),
+    status: headers.indexOf("status"),
+    processedAt: headers.indexOf("processedAt"),
+    adminName: headers.indexOf("adminName"),
+  };
+  for (let i = 1; i < reqData.length; i++) {
+    if (String(reqData[i][ridx.id] || "").trim() === id) {
+      reqSheet.getRange(i + 1, ridx.status + 1).setValue("returned");
+      reqSheet.getRange(i + 1, ridx.processedAt + 1).setValue(new Date());
+      reqSheet.getRange(i + 1, ridx.adminName + 1).setValue(adminName);
+      break;
+    }
+  }
+  SpreadsheetApp.flush();
+
+  return out;
+}
+
+function spareRequestCancelIssued_(data) {
+  const id = String(data.id || "").trim();
+  const adminName = String(data.adminName || "").trim();
+  if (!id) return { ok: false, error: "no_id" };
+
+  const reqOut = spareRequestGet_(id);
+  if (!reqOut.ok) return reqOut;
+  const request = reqOut.request;
+  if (request.status !== "issued" && request.status !== "returned") return { ok: false, error: "not_issued" };
+
+  const itemRows = getSpareRequestItemRows_(id);
+  const returnItems = itemRows
+    .filter(function(row) { return Number(row.quantityIssued || 0) > 0; })
+    .map(function(row) {
+      return {
+        partCode: row.partCode,
+        partName: row.partName,
+        cell: row.cell,
+        unit: row.unit,
+        quantityReturned: Number(row.quantityIssued || 0),
+      };
+    });
+
+  const out = createSpareReturnRecord_({
+    sourceRequestId: id,
+    masterLogin: request.masterLogin,
+    masterName: request.masterName,
+    equipmentId: request.equipmentId,
+    adminName: adminName,
+    comment: data.comment || "Отмена выдачи " + id,
+    mode: "cancel_issued",
+    items: returnItems,
+  });
+  if (!out.ok) return out;
+
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const reqData = reqSheet.getDataRange().getValues();
+  const headers = reqData[0] || [];
+  const ridx = {
+    id: headers.indexOf("id"),
+    status: headers.indexOf("status"),
+    processedAt: headers.indexOf("processedAt"),
+    adminName: headers.indexOf("adminName"),
+  };
+  for (let i = 1; i < reqData.length; i++) {
+    if (String(reqData[i][ridx.id] || "").trim() === id) {
+      reqSheet.getRange(i + 1, ridx.status + 1).setValue("cancelled");
+      reqSheet.getRange(i + 1, ridx.processedAt + 1).setValue(new Date());
+      reqSheet.getRange(i + 1, ridx.adminName + 1).setValue(adminName);
+      break;
+    }
+  }
+
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+  itemRows.forEach(function(row) {
+    itemsSheet.getRange(row.rowNumber, row.quantityIssuedCol).setValue(0);
+  });
+
+  SpreadsheetApp.flush();
+  return out;
 }
