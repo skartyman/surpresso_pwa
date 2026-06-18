@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260616-3";
+      const version = "20260617-7";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -259,6 +259,15 @@
       box-sizing: border-box;
       outline: none;
     }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
+    .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 500px; width: 90%; max-height: 90vh; overflow: visible; display: flex; flex-direction: column; }
+    .modal-scroll { overflow-y: auto; min-height: 0; flex-shrink: 0; }
+    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .modal .suggest { position: absolute; z-index: 10; background: var(--surface, #fff); border: 1px solid var(--border, #ddd); border-radius: 12px; max-height: 260px; overflow-y: auto; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .modal .suggest li { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border, #eee); }
+    .modal .suggest li:hover { background: var(--accent-bg, #f0f7ff); }
+    .modal .suggest li .extra { font-size: 11px; color: var(--muted, #999); margin-top: 2px; }
+    .modal .suggest-block { position: relative; }
     .work-table tr.pick-current-row {
       background: rgba(245,158,11,0.08);
     }
@@ -382,10 +391,31 @@
           <button type="button" class="btn primary" id="pickIssueBtn">Выдано</button>
           <button type="button" class="btn ghost" id="pickSkipBtn">Пропуск</button>
           <button type="button" class="btn ghost" id="pickMissingBtn">В заявку</button>
-          <button type="button" class="btn ghost" id="pickShareMissingBtn">Список</button>
+          <button type="button" class="btn ghost" id="pickReplaceBtn">Заменить</button>
         </div>
 
         <div class="pick-summary" id="pickMissingSummary"></div>
+      </div>
+
+      <div class="modal-overlay" id="replaceModal" style="display:none;">
+        <div class="modal">
+          <div class="modal-scroll">
+            <span class="close" onclick="closeReplaceModal()" style="float:right;cursor:pointer;font-size:24px;">×</span>
+            <h2 style="margin-bottom:12px;">Заменить позицию</h2>
+            <p id="replaceCurrentLabel" style="font-size:13px;margin-bottom:12px;"></p>
+          </div>
+          <div class="field" style="flex-shrink:0;">
+            <label>Поиск запчасти</label>
+            <div class="suggest-block">
+              <input id="replace-search-input" type="text" autocomplete="off" placeholder="Введи артикул или название..." />
+              <div id="replace-search-suggest" class="suggest"></div>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button type="button" class="btn primary" id="replaceConfirmBtn" disabled>Заменить</button>
+            <button type="button" class="btn ghost" onclick="closeReplaceModal()">Отмена</button>
+          </div>
+        </div>
       </div>
 
       <div class="work-table-wrap">
@@ -424,6 +454,9 @@
     let partsCatalogPromise = null;
     let partsLookupByCode = new Map();
     let partsLookupByName = new Map();
+    let partsFullList = [];
+    let replaceCurrentItem = null;
+    let replaceSelectedItem = null;
     let pickState = {
       done: new Set(),
       skipped: new Set(),
@@ -507,7 +540,7 @@
     async function loadPartsCatalog() {
       if (partsCatalogPromise) return partsCatalogPromise;
       partsCatalogPromise = (async () => {
-        const url = `https://docs.google.com/spreadsheets/d/${PARTS_SHEET_ID}/export?format=csv&gid=${PARTS_GID}&v=${Date.now()}`;
+        const url = `/api/parts-catalog?v=${Date.now()}`;
         const resp = await fetch(url, { cache: "no-store" });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
@@ -528,14 +561,18 @@
         };
         partsLookupByCode = new Map();
         partsLookupByName = new Map();
+        partsFullList = [];
+        console.log("[parts] headers idx:", idx, "rows:", rows.length);
         for (const row of rows) {
           const code = String(row[idx.code] || "").trim();
           const name = String(row[idx.name] || "").trim();
           const cell = String(row[idx.cell] || "").trim();
           const stock = idx.stock >= 0 ? row[idx.stock] : "";
-          if (code) partsLookupByCode.set(normalizeKey(code), { cell, stock: stock || "" });
-          if (name) partsLookupByName.set(normalizeKey(name), { cell, stock: stock || "" });
+          if (code) partsLookupByCode.set(normalizeKey(code), { code, name, cell, stock: stock || "" });
+          if (name) partsLookupByName.set(normalizeKey(name), { code, name, cell, stock: stock || "" });
+          if (code || name) partsFullList.push({ code, name, cell, stock: stock || "" });
         }
+        console.log("[parts] partsFullList.length:", partsFullList.length, "sample codes:", partsFullList.slice(0, 5).map(p => p.code));
       })().catch(() => {
         partsLookupByCode = new Map();
         partsLookupByName = new Map();
@@ -832,7 +869,7 @@
                 <span>${item.quantityIssued || "—"}</span>
                 <input class="return-qty-input" type="number" min="0" max="${item.quantityIssued || 0}" value="0" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}" aria-label="Вернуть ${escapeHtml(item.partName || item.partCode || "")}">
               </div>`
-          : `<input class="qty-input" type="number" min="0" max="${item.quantityRequested || 0}" value="${item.quantityIssued || item.quantityRequested || 0}" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}">`
+          : `<input class="qty-input" type="number" min="0" max="${item.quantityRequested || 0}" value="${pickState.skipped.has(item._index) ? 0 : (item.quantityIssued || item.quantityRequested || 0)}" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}">`
           }</td>
         </tr>
       `).join("");
@@ -871,7 +908,10 @@
       if (!adminName) return;
 
       const inputs = document.querySelectorAll("#requestBody .qty-input");
-      const items = Array.from(inputs).map(inp => ({
+      const items = Array.from(inputs).filter(inp => {
+        const idx = Number(inp.dataset.index);
+        return !pickState.skipped.has(idx);
+      }).map(inp => ({
         partCode: inp.dataset.code,
         quantityIssued: parseInt(inp.value) || 0
       }));
@@ -1019,6 +1059,70 @@
       }
     }
 
+    function openReplaceModal() {
+      const current = getCurrentPickItem();
+      if (!current) { alert("Нет текущей позиции для замены."); return; }
+      replaceCurrentItem = current;
+      replaceSelectedItem = null;
+      document.getElementById("replaceCurrentLabel").textContent = `Замена для: ${current.partName || ""}${current.partCode ? ` (${current.partCode})` : ""} — ${getRemainingQty(current)} шт.`;
+      document.getElementById("replace-search-input").value = "";
+      document.getElementById("replace-search-suggest").innerHTML = "";
+      document.getElementById("replaceConfirmBtn").disabled = true;
+      document.getElementById("replaceModal").style.display = "flex";
+      document.getElementById("replace-search-input").focus();
+    }
+
+    function closeReplaceModal() {
+      document.getElementById("replaceModal").style.display = "none";
+      const s = document.getElementById("replace-search-suggest");
+      s.innerHTML = "";
+      s.style.display = "none";
+      replaceCurrentItem = null;
+      replaceSelectedItem = null;
+    }
+
+    function filterPartsForReplace(query) {
+      try {
+        if (!query || !String(query).trim()) return [];
+        const q = normalizeSearchText(query);
+        if (!q) return [];
+        return partsFullList.filter(p => {
+          const codeN = normalizeSearchText(p.code);
+          const nameN = normalizeSearchText(p.name);
+          return codeN.includes(q) || nameN.includes(q);
+        }).slice(0, 20);
+      } catch (e) {
+        console.error("[replace-search] filter error:", e);
+        return [];
+      }
+    }
+
+    async function confirmReplace() {
+      if (!replaceCurrentItem || !replaceSelectedItem) return;
+      const r = currentRequest;
+      if (!r) return;
+      const qty = getRemainingQty(replaceCurrentItem);
+      try {
+        const resp = await apiFetch(`/api/spare-request/${r.id}/add-item`, {
+          method: "POST",
+          body: JSON.stringify({
+            partCode: replaceSelectedItem.code,
+            partName: replaceSelectedItem.name,
+            cell: replaceSelectedItem.cell || "",
+            unit: "шт.",
+            quantity: qty,
+          })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "add_failed");
+        pickState.skipped.add(replaceCurrentItem._index);
+        closeReplaceModal();
+        await loadRequest();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка при добавлении замены"));
+      }
+    }
+
     window.addEventListener("load", async () => {
       await window.SurpAuth?.init?.();
       const user = window.SurpAuth?.getCurrentUser?.();
@@ -1043,7 +1147,72 @@
       });
       document.getElementById("pickSkipBtn").addEventListener("click", skipCurrentItem);
       document.getElementById("pickMissingBtn").addEventListener("click", addCurrentToTrello);
-      document.getElementById("pickShareMissingBtn").addEventListener("click", shareMissingList);
+      document.getElementById("pickReplaceBtn").addEventListener("click", openReplaceModal);
+      document.getElementById("replaceConfirmBtn").addEventListener("click", confirmReplace);
+      document.getElementById("replaceModal").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("replaceModal")) closeReplaceModal();
+      });
+
+      const replaceSearchInput = document.getElementById("replace-search-input");
+      const replaceSuggest = document.getElementById("replace-search-suggest");
+      if (replaceSearchInput && replaceSuggest) {
+        function positionSuggest() {
+          replaceSuggest.style.display = "block";
+        }
+
+        replaceSearchInput.addEventListener("input", () => {
+          const q = replaceSearchInput.value.trim();
+          console.log("[replace-search] query:", JSON.stringify(q), "partsFullList.length:", partsFullList.length, "q normalized:", JSON.stringify(normalizeSearchText(q)).slice(0, 50));
+          const results = filterPartsForReplace(q);
+          console.log("[replace-search] results count:", results.length, "sample:", results.length ? JSON.stringify({code:results[0].code, name:(results[0].name||'').slice(0,40)}) : "none");
+          if (!results.length) {
+            const testQ = normalizeSearchText(q);
+            const found = partsFullList.filter(p => {
+              const cn = normalizeSearchText(p.code);
+              return cn.includes(testQ);
+            });
+            console.log("[replace-search] direct code search for", testQ, "found:", found.length, found.length ? found[0].code : "");
+          }
+          replaceSuggest.innerHTML = "";
+          if (!results.length) { replaceSuggest.style.display = "none"; return; }
+          const ul = document.createElement("ul");
+          ul.style.cssText = "list-style:none;margin:0;padding:0;";
+          results.forEach(p => {
+            const li = document.createElement("li");
+            li.style.cssText = "padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border,#eee);";
+            li.addEventListener("mouseenter", () => { li.style.background = "var(--accent-bg,#f0f7ff)"; });
+            li.addEventListener("mouseleave", () => { li.style.background = ""; });
+            li.innerHTML = `
+              <div style="font-weight:600;font-size:13px;">${p.name || ""}</div>
+              <div style="font-size:11px;color:var(--muted,#888);">${p.code || ""}</div>
+              <div style="font-size:11px;color:var(--muted,#999);margin-top:2px;">🗄 ${formatCellDisplay(p.cell)} &nbsp; | &nbsp; 📦 ${p.stock || "—"}</div>
+            `;
+            li.addEventListener("click", () => {
+              replaceSelectedItem = p;
+              replaceSearchInput.value = `${p.name || ""} (${p.code || ""})`.trim();
+              replaceSuggest.innerHTML = "";
+              replaceSuggest.style.display = "none";
+              document.getElementById("replaceConfirmBtn").disabled = false;
+            });
+            ul.appendChild(li);
+          });
+          replaceSuggest.appendChild(ul);
+          positionSuggest();
+        });
+        replaceSearchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const first = replaceSuggest.querySelector("li");
+            if (first) first.click();
+          }
+        });
+        document.addEventListener("click", (e) => {
+          if (!replaceSearchInput.contains(e.target) && !replaceSuggest.contains(e.target)) {
+            replaceSuggest.innerHTML = "";
+            replaceSuggest.style.display = "none";
+          }
+        });
+      }
 
       try {
         await loadRequest();

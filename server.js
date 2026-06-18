@@ -3162,14 +3162,17 @@ async function buildSpareRequestXlsx(request) {
   headerRow.alignment = { horizontal: "center", vertical: "middle" };
 
   items.forEach((item, idx) => {
-    ws.addRow([
+    const row = ws.addRow([
       idx + 1,
       asText(item.partName),
       asText(item.partCode),
-      formatCell(item.cell),
-      item.quantityIssued || item.quantityRequested || 0,
+      "", // placeholder — set below after format
+      (item.quantityIssued ?? item.quantityRequested) || 0,
       asText(item.unit) || "шт.",
     ]);
+    const cell4 = row.getCell(4);
+    cell4.numFmt = '@';
+    cell4.value = formatCell(item.cell);
   });
 
   ws.addRow([]);
@@ -3204,14 +3207,17 @@ async function buildSpareReturnXlsx(ret) {
   headerRow.alignment = { horizontal: "center", vertical: "middle" };
 
   items.forEach((item, idx) => {
-    ws.addRow([
+    const row = ws.addRow([
       idx + 1,
       asText(item.partName),
       asText(item.partCode),
-      formatCell(item.cell),
+      "", // placeholder — set below after format
       item.quantityReturned || 0,
       asText(item.unit) || "шт.",
     ]);
+    const cell4 = row.getCell(4);
+    cell4.numFmt = '@';
+    cell4.value = formatCell(item.cell);
   });
 
   ws.addRow([]);
@@ -3438,6 +3444,29 @@ app.post("/api/spare-request/:id/cancel-issued", requirePwaKey, async (req, res)
   }
 });
 
+app.post("/api/spare-request/:id/add-item", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { partCode, partName, cell, unit, quantity } = req.body || {};
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!partCode && !partName) return res.status(400).send({ ok: false, error: "no_part" });
+
+    const out = await gasPost({
+      action: "spareRequestAddItem",
+      id,
+      partCode: partCode || "",
+      partName: partName || "",
+      cell: cell || "",
+      unit: unit || "шт.",
+      quantity: Number(quantity) || 1,
+    });
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST ADD ITEM ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
 app.post("/api/spare-request/trello-card", requirePwaKey, async (req, res) => {
   try {
     const { name = "", desc = "" } = req.body || {};
@@ -3456,6 +3485,29 @@ app.post("/api/spare-request/trello-card", requirePwaKey, async (req, res) => {
     res.send({ ok: true, cardId });
   } catch (err) {
     console.error("SPARE REQUEST TRELLO CARD ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+// =======================
+// PARTS CATALOG PROXY
+// =======================
+const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+const PARTS_GID = 1099059228;
+
+app.get("/api/parts-catalog", async (req, res) => {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${PARTS_SHEET_ID}/export?format=csv&gid=${PARTS_GID}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      return res.status(502).send({ ok: false, error: `CSV fetch failed: ${resp.status}` });
+    }
+    const csvText = await resp.text();
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.send(csvText);
+  } catch (err) {
+    console.error("PARTS CATALOG ERROR", err);
     res.status(500).send({ ok: false, error: String(err) });
   }
 });

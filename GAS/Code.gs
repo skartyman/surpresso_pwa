@@ -194,6 +194,7 @@ function doPost(e) {
 
     // ===== Spare requests =====
     if (action === "spareRequestCreate") return json_(spareRequestCreate_(data));
+    if (action === "spareRequestAddItem") return json_(spareRequestAddItem_(data));
     if (action === "spareRequestList") return json_(spareRequestList_(data));
     if (action === "spareRequestGet") return json_(spareRequestGet_(data.id));
     if (action === "spareRequestIssue") return json_(spareRequestIssue_(data));
@@ -2208,6 +2209,72 @@ function spareRequestCreate_(data) {
   return { ok: true, id: reqId };
 }
 
+function spareRequestAddItem_(data) {
+  const id = String(data.id || "").trim();
+  const partCode = String(data.partCode || "").trim();
+  const partName = String(data.partName || "").trim();
+  const cell = String(data.cell || "").trim();
+  const unit = String(data.unit || "шт.").trim();
+  const quantity = Number(data.quantity || 1);
+  if (quantity < 1) return { ok: false, error: "invalid_quantity" };
+  if (!partCode && !partName) return { ok: false, error: "no_part" };
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const itemsSheet = getOrCreateSpareRequestItemsSheet_();
+
+  // verify request exists
+  const reqData = reqSheet.getDataRange().getValues();
+  const reqHeaders = reqData[0] || [];
+  const ridx_id = reqHeaders.indexOf("id");
+  let requestExists = false;
+  for (let i = 1; i < reqData.length; i++) {
+    if (String(reqData[i][ridx_id] || "").trim() === id) {
+      requestExists = true;
+      break;
+    }
+  }
+  if (!requestExists) return { ok: false, error: "request_not_found" };
+
+  // count existing items for this request
+  const itemRange = itemsSheet.getDataRange();
+  const itemData = itemRange.getValues();
+  const itemHeaders = itemData[0] || [];
+  const iidx_requestId = itemHeaders.indexOf("requestId");
+  let itemCount = 0;
+  for (let i = 1; i < itemData.length; i++) {
+    if (String(itemData[i][iidx_requestId] || "").trim() === id) {
+      itemCount++;
+    }
+  }
+
+  // generate new item ID
+  const newItemNum = itemCount + 1;
+  const itemId = id + "-" + String(newItemNum).padStart(3, "0");
+
+  const resolvedCell = resolveSpareRequestCell_({
+    partCode: partCode,
+    partName: partName,
+    cell: cell,
+  });
+
+  const itemRow = appendObjectRowByHeaders_(itemsSheet, {
+    id: itemId,
+    requestId: id,
+    partCode: partCode,
+    partName: partName,
+    cell: resolvedCell,
+    unit: unit,
+    quantityRequested: quantity,
+    quantityIssued: 0,
+  });
+  setTextColumnValue_(itemsSheet, itemRow, "id", itemId);
+  setTextColumnValue_(itemsSheet, itemRow, "requestId", id);
+  setTextColumnValue_(itemsSheet, itemRow, "partCode", partCode);
+
+  return { ok: true, itemId: itemId };
+}
+
 function spareRequestList_(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const reqSheet = getOrCreateSpareRequestsSheet_();
@@ -2384,6 +2451,9 @@ function spareRequestIssue_(data) {
       const code = String(itemData[i][iidx.partCode] || "").trim();
       if (code && issueMap[code] !== undefined) {
         itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(issueMap[code]);
+      } else {
+        // skipped items — set quantityIssued = 0
+        itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(0);
       }
     }
   }
