@@ -121,14 +121,59 @@ const USER_SHEET_GID = 0;
     return null;
   }
 
+  function parseCsvFallback(text, options = {}) {
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let quoted = false;
+    const source = String(text || "");
+
+    for (let i = 0; i < source.length; i += 1) {
+      const char = source[i];
+      const next = source[i + 1];
+      if (quoted) {
+        if (char === '"' && next === '"') {
+          cell += '"';
+          i += 1;
+        } else if (char === '"') {
+          quoted = false;
+        } else {
+          cell += char;
+        }
+      } else if (char === '"') {
+        quoted = true;
+      } else if (char === ",") {
+        row.push(cell);
+        cell = "";
+      } else if (char === "\n") {
+        row.push(cell.replace(/\r$/, ""));
+        rows.push(row);
+        row = [];
+        cell = "";
+      } else {
+        cell += char;
+      }
+    }
+    row.push(cell.replace(/\r$/, ""));
+    if (row.some(value => String(value).trim())) rows.push(row);
+
+    if (!options.header) return { data: rows };
+    const headers = rows.shift() || [];
+    return {
+      data: rows
+        .filter(values => !options.skipEmptyLines || values.some(value => String(value).trim()))
+        .map(values => Object.fromEntries(headers.map((header, index) => [
+          String(header || "").replace(/^\uFEFF/, ""),
+          values[index] ?? ""
+        ])))
+    };
+  }
+
   function getPapaParser() {
     const parser = window.Papa;
-    if (!parser || typeof parser.parse !== "function") {
-      const message = "PapaParse не загружен: подключите https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js до auth.js";
-      console.error(message);
-      throw new Error(message);
-    }
-    return parser;
+    return parser && typeof parser.parse === "function"
+      ? parser
+      : { parse: parseCsvFallback };
   }
 
   async function loadUsers() {

@@ -1,4 +1,5 @@
 import { hashPassword, verifyPassword } from '../../domain/security/passwordHasher.js';
+import { ADMIN_SESSION_TTL_SECONDS } from '../middleware/adminAuth.js';
 
 function sanitizeUser(user) {
   const { passwordHash, ...safeUser } = user;
@@ -23,7 +24,7 @@ export function createAdminAuthController(userRepository, sessionManager) {
       const session = sessionManager.issueSession(user);
       res.setHeader(
         'Set-Cookie',
-        `${sessionManager.cookieName}=${encodeURIComponent(session)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=43200`,
+        `${sessionManager.cookieName}=${encodeURIComponent(session)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${ADMIN_SESSION_TTL_SECONDS}`,
       );
 
       return res.json({ user: sanitizeUser(user) });

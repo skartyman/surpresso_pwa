@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 const COOKIE_NAME = 'surpresso_admin_session';
+export const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 365;
+const ADMIN_SESSION_TTL_MS = ADMIN_SESSION_TTL_SECONDS * 1000;
 
 function toBase64Url(value) {
   return Buffer.from(value).toString('base64url');
@@ -63,7 +65,7 @@ export function createAdminSessionManager(secret) {
   }
 
   function issueSession(user) {
-    return sign({ userId: user.id, role: user.role, exp: Date.now() + 1000 * 60 * 60 * 12 });
+    return sign({ userId: user.id, role: user.role, exp: Date.now() + ADMIN_SESSION_TTL_MS });
   }
 
   function readToken(req) {

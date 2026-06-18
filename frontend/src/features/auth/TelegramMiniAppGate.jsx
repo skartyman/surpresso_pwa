@@ -43,8 +43,13 @@ export function TelegramMiniAppGate({ children }) {
     });
 
     try {
-      await telegramClientApi.login({ force });
-      await telegramClientApi.me();
+      try {
+        await telegramClientApi.me();
+      } catch (error) {
+        if (error?.status !== 401) throw error;
+        await telegramClientApi.login({ force });
+        await telegramClientApi.me();
+      }
 
       if (!isMountedRef.current) return;
       setStatus('ready');

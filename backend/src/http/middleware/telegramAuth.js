@@ -3,7 +3,7 @@ import { config } from '../../config/env.js';
 import { validateTelegramInitData } from '../../infrastructure/telegram/validateInitData.js';
 
 const TELEGRAM_COOKIE_NAME = 'surpresso_tg_session';
-const TELEGRAM_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const TELEGRAM_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 365;
 
 function toBase64Url(value) {
   return Buffer.from(value).toString('base64url');
