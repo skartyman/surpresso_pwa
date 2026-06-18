@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260617-8";
+      const version = "20260617-9";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -649,9 +649,36 @@
         .toLowerCase()
         .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
-        .replace(/µf/g, "uf")
-        .replace(/мкф/g, "uf")
-        .replace(/[^a-z0-9а-яіїєґ]+/gi, "");
+        .replace(/[^0-9a-z\u0400-\u04ff]+/gi, "");
+    }
+
+    function searchPartsCatalog(query) {
+      const qRaw = String(query || "").trim().toLowerCase();
+      const qNorm = normalizeSearchText(qRaw);
+      if (!qRaw && !qNorm) return [];
+
+      return partsFullList
+        .map(p => {
+          const code = String(p.code || "").trim();
+          const name = String(p.name || "").trim();
+          const cell = String(p.cell || "").trim();
+          const stock = String(p.stock || "").trim();
+          const rawHaystack = [code, name, cell, stock].join(" ").toLowerCase();
+          const normHaystack = normalizeSearchText([code, name, cell, stock].join(" "));
+          let score = 0;
+
+          if (qRaw && (rawHaystack.includes(qRaw) || code.toLowerCase() === qRaw || name.toLowerCase() === qRaw)) score += 100;
+          if (qNorm && (normalizeSearchText(code) === qNorm || normalizeSearchText(name) === qNorm)) score += 90;
+          if (qNorm && (normalizeSearchText(code).includes(qNorm) || normalizeSearchText(name).includes(qNorm) || normalizeSearchText(cell).includes(qNorm))) score += 50;
+          if (qRaw && rawHaystack.includes(qRaw)) score += 20;
+          if (qNorm && normHaystack.includes(qNorm)) score += 10;
+
+          if (!score) return null;
+          return { ...p, _score: score };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b._score - a._score || String(a.name || "").localeCompare(String(b.name || ""), "uk"))
+        .slice(0, 20);
     }
 
     function normalizeCellKey(cell) {
@@ -1091,14 +1118,7 @@
 
     function filterPartsForReplace(query) {
       try {
-        if (!query || !String(query).trim()) return [];
-        const q = normalizeSearchText(query);
-        if (!q) return [];
-        return partsFullList.filter(p => {
-          const codeN = normalizeSearchText(p.code);
-          const nameN = normalizeSearchText(p.name);
-          return codeN.includes(q) || nameN.includes(q);
-        }).slice(0, 20);
+        return searchPartsCatalog(query);
       } catch (e) {
         console.error("[replace-search] filter error:", e);
         return [];
@@ -1106,9 +1126,17 @@
     }
 
     async function confirmReplace() {
-      if (!replaceCurrentItem || !replaceSelectedItem) return;
+      if (!replaceCurrentItem) return;
       const r = currentRequest;
       if (!r) return;
+      if (!replaceSelectedItem) {
+        const query = document.getElementById("replace-search-input")?.value || "";
+        replaceSelectedItem = searchPartsCatalog(query)[0] || null;
+        if (!replaceSelectedItem) {
+          alert("Сначала выбери запчасть из поиска.");
+          return;
+        }
+      }
       const qty = getRemainingQty(replaceCurrentItem);
       try {
         const resp = await apiFetch(`/api/spare-request/${r.id}/add-item`, {
@@ -1172,7 +1200,13 @@
           const q = replaceSearchInput.value.trim();
           const results = filterPartsForReplace(q);
           replaceSuggest.innerHTML = "";
-          if (!results.length) { replaceSuggest.style.display = "none"; return; }
+          replaceSelectedItem = null;
+          document.getElementById("replaceConfirmBtn").disabled = !results.length;
+          if (!results.length) {
+            replaceSuggest.innerHTML = `<div style="padding:10px 12px;color:var(--muted,#888);font-size:13px;">Ничего не найдено</div>`;
+            replaceSuggest.style.display = "block";
+            return;
+          }
           const ul = document.createElement("ul");
           ul.style.cssText = "list-style:none;margin:0;padding:0;";
           results.forEach(p => {
@@ -1202,6 +1236,7 @@
             e.preventDefault();
             const first = replaceSuggest.querySelector("li");
             if (first) first.click();
+            else document.getElementById("replaceConfirmBtn").click();
           }
         });
         document.addEventListener("click", (e) => {
