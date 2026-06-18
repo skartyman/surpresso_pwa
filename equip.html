@@ -1503,12 +1503,21 @@ input[type="file"]::file-selector-button:hover{
     // API wrapper
     // ===========================
     async function apiGet(url) {
-      const resp = await fetch(url, { headers: headersWithKey() });
+      let resp = await fetch(url, { headers: headersWithKey() });
+
+      if (resp.status === 401) {
+        localStorage.removeItem(PWA_KEY_STORAGE);
+        const newKey = (prompt("Ключ доступу недійсний. Введи новий PWA Key:") || "").trim();
+        if (!newKey) return await resp.json();
+        localStorage.setItem(PWA_KEY_STORAGE, newKey);
+        resp = await fetch(url, { headers: headersWithKey() });
+      }
+
       return await resp.json();
     }
 
     async function apiPost(url, payload) {
-      const resp = await fetch(url, {
+      let resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1516,6 +1525,22 @@ input[type="file"]::file-selector-button:hover{
         },
         body: JSON.stringify(payload || {})
       });
+
+      if (resp.status === 401) {
+        localStorage.removeItem(PWA_KEY_STORAGE);
+        const newKey = (prompt("Ключ доступу недійсний. Введи новий PWA Key:") || "").trim();
+        if (!newKey) return await resp.json();
+        localStorage.setItem(PWA_KEY_STORAGE, newKey);
+        resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...headersWithKey()
+          },
+          body: JSON.stringify(payload || {})
+        });
+      }
+
       return await resp.json();
     }
 
@@ -2185,7 +2210,7 @@ input[type="file"]::file-selector-button:hover{
       const card = buildSendEquipmentCard(comment, status);
       if (!card) throw new Error("Немає даних обладнання. Натисни Оновити.");
 
-      const resp = await fetch(`${API_BASE}/send-equipment`, {
+      let resp = await fetch(`${API_BASE}/send-equipment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2193,6 +2218,21 @@ input[type="file"]::file-selector-button:hover{
         },
         body: JSON.stringify({ card, photos }),
       });
+
+      if (resp.status === 401) {
+        localStorage.removeItem(PWA_KEY_STORAGE);
+        const newKey = (prompt("Ключ доступу недійсний. Введи новий PWA Key:") || "").trim();
+        if (!newKey) throw new Error("Потрібен ключ доступу");
+        localStorage.setItem(PWA_KEY_STORAGE, newKey);
+        resp = await fetch(`${API_BASE}/send-equipment`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...headersWithKey(),
+          },
+          body: JSON.stringify({ card, photos }),
+        });
+      }
 
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");

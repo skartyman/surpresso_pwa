@@ -410,6 +410,40 @@ th:nth-child(6) {
   font-size: 14px;
 }
 
+.manual-item-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.manual-item-actions .btn {
+  width: 100%;
+}
+
+.manual-item-actions .btn span {
+  font-size: 18px;
+  line-height: 1;
+  margin-right: 4px;
+}
+
+.manual-item-error {
+  min-height: 20px;
+  margin-top: 4px;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 520px) {
+  .manual-item-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* delete button geometry */
 .del-btn {
   border-radius: 999px;
@@ -952,17 +986,34 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 .warehouse-modes {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
 
 .warehouse-modes button {
-  flex: 1;
-  border-radius: 14px;
+  width: 100%;
+  border-radius: 16px;
   border: none;
-  padding: 6px;
-  font-weight: 600;
+  min-height: 58px;
+  padding: 10px;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.warehouse-page-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.warehouse-page-actions .btn {
+  width: 100%;
 }
 
 .warehouse-placeholder {
@@ -1240,6 +1291,40 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
   gap: 10px;
 }
 
+.parts-request-page .parts-request-card {
+  width: 100%;
+  max-height: none;
+  height: calc(100vh - 240px);
+}
+
+.parts-request-page .parts-request-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.parts-request-page .parts-request-top .page-actions-inline {
+  margin-left: auto;
+}
+
+.parts-request-page .parts-request-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.parts-request-page .parts-request-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.parts-request-page .parts-request-actions .btn {
+  flex: 1 1 180px;
+}
+
 .parts-request-search {
   margin-bottom: 2px;
 }
@@ -1293,6 +1378,10 @@ body.theme-dark .mini-modal__text { color: #e5e7eb; }
 }
 
 @media (max-width: 720px) {
+  .parts-request-page .parts-request-card {
+    height: calc(100vh - 180px);
+  }
+
   .parts-request-card {
     width: min(96vw, 96vw);
     max-height: 84vh;

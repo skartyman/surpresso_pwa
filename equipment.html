@@ -625,7 +625,21 @@ function resetQrTorchUI_() {
         headers["Content-Type"] = headers["Content-Type"] || "application/json";
       }
 
-      return fetch(url, { ...options, headers });
+      let resp = await fetch(url, { ...options, headers });
+
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const retryHeaders = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) {
+          retryHeaders["Content-Type"] = retryHeaders["Content-Type"] || "application/json";
+        }
+        resp = await fetch(url, { ...options, headers: retryHeaders });
+      }
+
+      return resp;
     }
 
     // =========================================================
@@ -1068,6 +1082,7 @@ function getOrCreateEquipId() {
 
       syncIntakeToForm();
       const card = collectCardFromForm();
+      card.id = card.id || getOrCreateEquipId();
       const photos = [...capturedPhotos];
 
       if (!photos.length) {
@@ -1461,47 +1476,6 @@ function getOrCreateEquipId() {
         hideLoading();
       }
     }
-document.getElementById("btnSaveToBase").onclick = saveToBaseOnly;
-
-async function saveToBaseOnly() {
-  const card = collectCardFromForm(); // твоя функция, которая собирает поля формы
-
-  if (!card.id) return alert("Немає ID обладнання");
-  if (!card.owner) return alert("Вибери власника");
-  if (!card.type) return alert("Вибери тип");
-
-  // Статус дефолт
-  if (!card.status) {
-    card.status = (card.owner === "company") ? "Купили" : "Прийнято на ремонт";
-  }
-
-  const hint = document.getElementById("saveHint");
-  hint.textContent = "Завантажую в базу...";
-
-  try {
-    const resp = await fetch("/api/equip/create", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...headersWithKey() // как у тебя уже сделано
-      },
-      body: JSON.stringify({ card })
-    });
-
-    const out = await resp.json();
-    if (!out.ok) throw new Error(out.error || "Помилка");
-
-    hint.textContent = "✅ Додано в базу";
-    setTimeout(() => hint.textContent = "", 2500);
-
-    // можно сразу открыть паспорт
-    // location.href = `equip.html?id=${encodeURIComponent(card.id)}`;
-
-  } catch (e) {
-    hint.textContent = "";
-    alert("❌ " + e.message);
-  }
-}
     // =========================================================
 // ✅ SAVE TO BASE ONLY (без TG и Trello)
 // =========================================================
