@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260617-7";
+      const version = "20260617-8";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -500,6 +500,17 @@
       return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
     }
 
+    function headerIndex(headers, patterns) {
+      for (let i = 0; i < headers.length; i += 1) {
+        const header = String(headers[i] || "").trim();
+        if (!header) continue;
+        for (const pattern of patterns) {
+          if (header.includes(pattern)) return i;
+        }
+      }
+      return -1;
+    }
+
     function parseCsv(text) {
       const rows = [];
       let row = [];
@@ -545,24 +556,21 @@
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
         const rows = parseCsv(text);
-        const headers = (rows.shift() || []).map(h => normalizeKey(h));
+        const headerRow = rows.shift() || [];
+        const headers = headerRow.map(h => normalizeKey(h));
         const idx = {
-          code: headers.findIndex(h => h.includes("артик") || h === "код"),
-          name: headers.findIndex(h => h.includes("наимен") || h.includes("наймен") || h === "name"),
-          cell: headers.findIndex(h => h.includes("ячей") || h.includes("комір") || h === "cell"),
-          stock: headers.findIndex(h =>
-            h.includes("остат") ||
-            h.includes("залиш") ||
-            h.includes("налич") ||
-            h.includes("кість") ||
-            h.includes("колич") ||
-            h === "stock"
-          ),
+          code: headerIndex(headers, ["артикул", "артик", "код", "code", "partcode", "part code"]),
+          name: headerIndex(headers, ["наймен", "наимен", "назван", "name", "partname", "part name"]),
+          cell: headerIndex(headers, ["комір", "комир", "ячей", "cell", "slot", "location"]),
+          stock: headerIndex(headers, ["залиш", "остат", "налич", "кіль", "колич", "stock", "qty", "quantity"]),
         };
+        if (idx.code < 0 && headerRow.length > 0) idx.code = 0;
+        if (idx.name < 0 && headerRow.length > 2) idx.name = 2;
+        if (idx.cell < 0 && headerRow.length > 1) idx.cell = 1;
+        if (idx.stock < 0 && headerRow.length > 4) idx.stock = 4;
         partsLookupByCode = new Map();
         partsLookupByName = new Map();
         partsFullList = [];
-        console.log("[parts] headers idx:", idx, "rows:", rows.length);
         for (const row of rows) {
           const code = String(row[idx.code] || "").trim();
           const name = String(row[idx.name] || "").trim();
@@ -572,10 +580,10 @@
           if (name) partsLookupByName.set(normalizeKey(name), { code, name, cell, stock: stock || "" });
           if (code || name) partsFullList.push({ code, name, cell, stock: stock || "" });
         }
-        console.log("[parts] partsFullList.length:", partsFullList.length, "sample codes:", partsFullList.slice(0, 5).map(p => p.code));
       })().catch(() => {
         partsLookupByCode = new Map();
         partsLookupByName = new Map();
+        partsFullList = [];
       });
       return partsCatalogPromise;
     }
@@ -1162,17 +1170,7 @@
 
         replaceSearchInput.addEventListener("input", () => {
           const q = replaceSearchInput.value.trim();
-          console.log("[replace-search] query:", JSON.stringify(q), "partsFullList.length:", partsFullList.length, "q normalized:", JSON.stringify(normalizeSearchText(q)).slice(0, 50));
           const results = filterPartsForReplace(q);
-          console.log("[replace-search] results count:", results.length, "sample:", results.length ? JSON.stringify({code:results[0].code, name:(results[0].name||'').slice(0,40)}) : "none");
-          if (!results.length) {
-            const testQ = normalizeSearchText(q);
-            const found = partsFullList.filter(p => {
-              const cn = normalizeSearchText(p.code);
-              return cn.includes(testQ);
-            });
-            console.log("[replace-search] direct code search for", testQ, "found:", found.length, found.length ? found[0].code : "");
-          }
           replaceSuggest.innerHTML = "";
           if (!results.length) { replaceSuggest.style.display = "none"; return; }
           const ul = document.createElement("ul");
