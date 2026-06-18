@@ -4,6 +4,8 @@ import { Readable } from 'node:stream';
 import { config } from '../config/env.js';
 import { createMiniAppRepositories } from '../infrastructure/repositories/createMiniAppRepositories.js';
 import { TelegramBotGateway } from '../infrastructure/telegram/botApi.js';
+import { ClientSupportBot } from '../infrastructure/telegram/clientSupportBot.js';
+import { TrelloClient } from '../infrastructure/trello/trelloClient.js';
 import { createServiceRequestNotifier } from '../infrastructure/telegram/serviceRequestNotifier.js';
 import { ExecutiveNotifier } from '../infrastructure/telegram/executiveNotifier.js';
 import { NotificationCenterService } from '../domain/notificationCenterService.js';
@@ -88,6 +90,34 @@ export async function createApp() {
 
   app.use('/api', createApiRouter({ ...deps, botGateway, serviceRequestNotifier, serviceRequestEvents, executiveNotifier, notificationCenterService, sessionManager, uploadsRoot }));
   app.use('/webhooks', createWebhookRouter(botGateway));
+
+  // Client support bot (AI assistant)
+  if (config.clientSupportBotToken && config.groqApiKey && config.trelloKey) {
+    const trelloClient = new TrelloClient({
+      key: config.trelloKey,
+      token: config.trelloToken,
+      listId: config.trelloListId,
+    });
+    const clientSupportBot = new ClientSupportBot({
+      token: config.clientSupportBotToken,
+      groqApiKey: config.groqApiKey,
+      groqModel: config.groqModel,
+      trelloClient,
+    });
+    app.post('/webhooks/client-support', async (req, res) => {
+      try {
+        await clientSupportBot.handleUpdate(req.body);
+        res.sendStatus(200);
+      } catch (err) {
+        console.error('Client support bot error:', err);
+        res.sendStatus(200);
+      }
+    });
+    console.log(`[client-support-bot] enabled`);
+  } else {
+    console.log(`[client-support-bot] disabled — missing CLIENT_SUPPORT_BOT_TOKEN, GROQ_API_KEY or TRELLO_KEY`);
+  }
+
   app.post('/api/v1/support/notify', supportController.notify);
   app.post('/api/telegram/support/notify', supportController.notify);
 

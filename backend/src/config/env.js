@@ -23,4 +23,14 @@ export const config = {
   adminSessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.TELEGRAM_INIT_SECRET || 'change-me-admin-secret',
   telegramSessionCookieDomain: process.env.TELEGRAM_SESSION_COOKIE_DOMAIN || '',
   databaseUrl: normalizeDatabaseUrl(process.env.DATABASE_URL || ''),
+  // Client support bot
+  clientSupportBotToken: process.env.CLIENT_SUPPORT_BOT_TOKEN || '',
+  clientSupportBotUsername: process.env.CLIENT_SUPPORT_BOT_USERNAME || '',
+  // Groq AI
+  groqApiKey: process.env.GROQ_API_KEY || '',
+  groqModel: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+  // Trello
+  trelloKey: process.env.TRELLO_KEY || '',
+  trelloToken: process.env.TRELLO_TOKEN || '',
+  trelloListId: process.env.TRELLO_LIST_ID || '',
 };

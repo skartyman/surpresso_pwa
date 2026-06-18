@@ -3,8 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { createRequire } from 'module';
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const DEFAULT_MODEL = process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const MANUAL_INDEX_FORMAT_VERSION = '2026-03-20-pdf-quality-v2';
 const MANUAL_INDEX_DIR = path.join(process.cwd(), 'data', 'manual-index');
 const EMPTY_ANSWER = 'В найденных фрагментах нет достаточных данных для ответа.';
@@ -2115,51 +2115,52 @@ function compactSnippet(text = '', query = '') {
   return `${prefix}${clean.slice(start, end).trim()}${suffix}`;
 }
 
-function extractGeminiText(json = {}) {
-  const candidates = Array.isArray(json.candidates) ? json.candidates : [];
-  for (const candidate of candidates) {
-    const parts = candidate?.content?.parts;
-    if (!Array.isArray(parts)) continue;
-    const text = parts.map(part => part?.text || '').join('\n').trim();
+function extractGroqText(json = {}) {
+  const choices = Array.isArray(json.choices) ? json.choices : [];
+  for (const choice of choices) {
+    const text = choice?.message?.content || '';
     if (text) return text;
   }
   return '';
 }
 
 async function callGemini({ systemText, userText, maxOutputTokens = 700, temperature = 0.1 }) {
-  if (!GEMINI_API_KEY) {
-    const error = new Error('Gemini API key is not configured');
+  if (!GROQ_API_KEY) {
+    const error = new Error('Groq API key is not configured');
     error.code = 'gemini_not_configured';
     throw error;
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(DEFAULT_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+    },
     body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: systemText }],
-      },
-      contents: [{
-        role: 'user',
-        parts: [{ text: userText }],
-      }],
-      generationConfig: {
-        temperature,
-        maxOutputTokens,
-      },
+      model: DEFAULT_MODEL,
+      messages: [
+        { role: 'system', content: systemText },
+        { role: 'user', content: userText },
+      ],
+      temperature,
+      max_tokens: maxOutputTokens,
     }),
   });
 
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = json?.error?.message || `Gemini request failed (${response.status})`;
+    const message = json?.error?.message || `Groq request failed (${response.status})`;
     const error = new Error(message);
     error.code = 'gemini_failed';
     throw error;
   }
 
-  return extractGeminiText(json);
+  const reply = extractGroqText(json);
+  if (reply && !reply.startsWith('ERROR:') && !/this model does not support/i.test(reply)) {
+    return reply;
+  }
+  return EMPTY_ANSWER;
 }
 
 export async function answerWithGemini({ question, chunks }) {
