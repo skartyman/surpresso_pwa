@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso Check • Заявка на закупку запчастей</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      const version = "20260611-13";
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("v") !== version) {
+        url.searchParams.set("v", version);
+        window.location.replace(url.pathname + url.search);
+      }
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body data-page="parts-request">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="" />
+    </div>
+
+    <div class="header-branding">
+      <div class="logo-brand">
+        <img src="icons/logo-service.png" alt="Surpresso Service" />
+      </div>
+
+      <div class="app-title">
+        <div class="app-name">
+          <span>Surpresso</span>
+          <span>Service</span>
+        </div>
+        <div class="app-subtitle">Заявка на закупку запчастей</div>
+      </div>
+    </div>
+
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="window.location.href='/warehouse.html'">☰</button>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <main class="app-main parts-request-page">
+    <section class="dashboard-hero card page-shell page-shell-check">
+      <div class="parts-request-top">
+        <div class="page-header">
+          <p class="eyebrow">Склад</p>
+          <h1>Заявка на закупку запчастей</h1>
+          <p>Показаны только позиции с ячейкой и остатком меньше 5. Поиск работает по коду, названию и ячейке.</p>
+        </div>
+
+        <div class="page-actions-inline">
+          <a class="btn ghost" href="/warehouse.html">← Назад к складу</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card parts-request-card">
+      <div class="field parts-request-search">
+        <label for="parts-request-search">Поиск по коду, названию или ячейке</label>
+        <input id="parts-request-search" type="text" placeholder="Например: клапан, 00012345 или 2.4.7" />
+      </div>
+
+      <div class="parts-request-actions">
+        <button type="button" class="btn ghost" id="parts-request-select-all-btn">Выбрать всё</button>
+        <button type="button" class="btn ghost" id="parts-request-clear-all-btn">Снять всё</button>
+        <button type="button" class="btn primary" id="share-parts-request-btn">Поделиться текстом</button>
+      </div>
+
+      <div class="parts-request-table-wrap">
+        <table class="parts-request-table">
+          <thead>
+            <tr>
+              <th>✓</th>
+              <th>Код</th>
+              <th>Название</th>
+              <th>Ячейка</th>
+              <th>Остаток</th>
+              <th>Заказать</th>
+            </tr>
+          </thead>
+          <tbody id="parts-request-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="theme-btn" class="footer-refresh" type="button" title="Тема">☀️</button>
+    <div class="footer-left">
+      <div class="ticker">
+        <div class="ticker-track" id="footer-ticker">Surpresso Service • офлайн PWA • версия 1.1.0 •</div>
+      </div>
+    </div>
+    <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
+  </footer>
+
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

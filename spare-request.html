@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Запрос запчастей</title>
+  <script>
+    (function () {
+      const version = "20260616-2";
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("v") !== version) {
+        url.searchParams.set("v", version);
+        window.location.replace(url.pathname + url.search);
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4" />
+  <script src="/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    .template-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .template-badges button { font-size: 12px; padding: 4px 12px; }
+    #partsTable td { vertical-align: middle; }
+    #partsTable .qty-cell { font-weight: 600; }
+    .suggest li .extra { font-size: 12px; }
+  </style>
+</head>
+<body data-page="spare-request">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="">
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
+      <div class="app-title">
+        <div class="app-name"><span>Surpresso</span><span>Service</span></div>
+        <div class="app-subtitle">Запрос запчастей</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вхід в систему</h2>
+      <input id="login-user" type="text" placeholder="Логін" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Увійти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
+  </div>
+
+  <div class="app-main" id="appMain" style="display:none;">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Склад</p>
+        <h1>Запрос запчастей</h1>
+        <p id="masterName" class="muted"></p>
+      </div>
+      <div class="page-actions-inline">
+        <a class="btn ghost" href="/">← Dashboard</a>
+        <a class="btn ghost" href="/warehouse.html">📦 Склад</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Обладнання / коментар</h2>
+      <div class="row">
+        <div class="field full">
+          <label>Обладнання (ID або модель)</label>
+          <input id="equipmentId" placeholder="Наприклад: SP.225 або Jura X8" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Коментар до замовлення</label>
+        <input id="comment" placeholder="Що трапилось, що треба замінити..." />
+      </div>
+    </section>
+
+    <section class="card" id="templatesCard" style="display:none;">
+      <h2>Шаблони наборів</h2>
+      <div class="template-badges" id="templateBadges"></div>
+    </section>
+
+    <section class="card">
+      <h2>Запчастини</h2>
+      <div class="row">
+        <div class="field full">
+          <label>Код / назва</label>
+          <div class="suggest-block">
+            <input id="parts-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
+            <div id="parts-suggest" class="suggest"></div>
+          </div>
+        </div>
+        <div class="field qty-field">
+          <label>Кількість</label>
+          <input id="parts-qty" type="text" value="1" inputmode="decimal" />
+        </div>
+        <button id="add-part-btn" class="btn primary" type="button" style="margin-top:22px;" onclick="addPart()">+</button>
+      </div>
+      <div id="parts-info" class="info-line"></div>
+    </section>
+
+    <section class="card">
+      <h2>Додані запчастини</h2>
+      <div id="empty-parts" class="muted" style="text-align:center;padding:20px;">Поки немає доданих запчастин.</div>
+      <div class="table-wrapper" id="tableWrapper" style="display:none;">
+        <table class="draggable-table" id="partsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Назва / Артикул</th>
+              <th>Комірка</th>
+              <th>К-сть</th>
+              <th>Од.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="partsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Сохранить как шаблон</h2>
+      <div class="row">
+        <div class="field full">
+          <label>Название шаблона *</label>
+          <input id="template-name" placeholder="Например: Jura X8 - гидроблок" />
+        </div>
+        <div class="field">
+          <label>Оборудование / модель</label>
+          <input id="template-machine" placeholder="Можно заполнить из поля выше" />
+        </div>
+        <div class="field">
+          <label>Узел / комментарий</label>
+          <input id="template-node" placeholder="Например: кофемолка" />
+        </div>
+      </div>
+      <button class="btn primary wide" id="btnSaveTemplate" type="button" onclick="saveCurrentTemplate()">Сохранить набор шаблоном</button>
+      <div id="templateStatusMsg" class="muted" style="margin-top:8px;text-align:center;"></div>
+    </section>
+
+    <section class="card actions-card">
+      <button class="btn primary wide" id="btnSubmit" onclick="submitRequest()">📤 Відправити запрос</button>
+      <div id="statusMsg" class="muted" style="margin-top:8px;text-align:center;"></div>
+    </section>
+  </div>
+
+  <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
+  <script src="/auth.js"></script>
+  <script>
+    const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+    const PARTS_GID = 1099059228;
+    const TEMPLATES_FILE_ID = "1b7msmOoFsJpQzyXpt7vsNKdxOpN_2kn3";
+    let partsCache = [];
+    let selectedParts = [];
+    let requestTemplates = [];
+
+    function genTemplateId() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return "tpl-" + Date.now() + "-" + Math.random().toString(16).slice(2, 10);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getPwaKey() {
+      let key = localStorage.getItem("surpresso_pwa_key");
+      if (!key) {
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+        if (!key) throw new Error("NO_PWA_KEY");
+        localStorage.setItem("surpresso_pwa_key", key);
+      }
+      return key;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const key = getPwaKey();
+      const headers = { ...(options.headers || {}), "x-surpresso-key": key };
+      if (options.body && !(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
+      let resp = await fetch(url, { ...options, headers });
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const rh = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) {
+          rh["Content-Type"] = rh["Content-Type"] || "application/json";
+        }
+        resp = await fetch(url, { ...options, headers: rh });
+      }
+      return resp;
+    }
+
+    async function fetchSheetCSV(sheetId, gid) {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&v=${Date.now()}`;
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return await resp.text();
+    }
+
+    function formatCell(value) {
+      const s = String(value || "").trim();
+      if (!s) return "—";
+      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
+      return dateLike ? `${dateLike[1]}.2` : s;
+    }
+
+    function cleanPrice(raw) {
+      if (!raw) return 0;
+      let v = String(raw)
+        .replace(/"/g, "")
+        .replace(/\u00A0|\u202F/g, "")
+        .replace(/\s+/g, "")
+        .replace(/грн|uah|₴/gi, "")
+        .trim();
+      v = v.replace(/[^0-9.,-]/g, "");
+      if (v.includes(",") && !v.includes(".")) v = v.replace(",", ".");
+      else if (v.includes(",") && v.includes(".")) v = v.replace(/,/g, "");
+      const num = parseFloat(v);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function normalizeRows(rows) {
+      const out = [];
+      rows.forEach(row => {
+        const lc = {};
+        for (const [k, v] of Object.entries(row || {})) {
+          if (!k) continue;
+          lc[String(k).trim().toLowerCase()] = v;
+        }
+
+        const pick = masks => {
+          for (const mask of masks) {
+            for (const [k, v] of Object.entries(lc)) {
+              if (k.includes(mask) && v !== "" && v !== undefined) return v;
+            }
+          }
+          return "";
+        };
+
+        const rawCode = pick(["артикул", "код", "art", "article"]);
+        const rawName = pick(["наименование", "найменування", "название", "описание", "name"]);
+        const rawPrice = pick(["цена", "ціна", "стоимость", "price", "грн"]);
+
+        const code = String(rawCode || "").trim();
+        const name = String(rawName || "").trim();
+        const price = cleanPrice(rawPrice);
+        const stock = pick(["залишок", "налич", "stock", "остат"]);
+        const cell = String(pick(["комірка", "ячейк", "cell", "shelf"]) || "").trim();
+
+        if (!code && !name) return;
+        if (!code && !price) return;
+        out.push({
+          code,
+          name,
+          price,
+          stock: stock || "",
+          cell,
+        });
+      });
+      return out;
+    }
+
+    function normalizeSearch(str) {
+      let s = String(str || "").toLowerCase();
+      s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+      s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+      s = s.replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
+      return s;
+    }
+
+    function tokenizeQuery(q) {
+      return String(q || "")
+        .toLowerCase()
+        .replace(/µf/g, "uf")
+        .replace(/мкф/g, "uf")
+        .split(/[\s,.;:|/\\()+\-_]+/g)
+        .map(t => t.trim())
+        .filter(Boolean)
+        .map(t => normalizeSearch(t))
+        .filter(Boolean);
+    }
+
+    function normalizeCell(cell) {
+      let s = String(cell || "").trim().toLowerCase();
+      s = s.replace(/\s+/g, "");
+      s = s.replace(/,/g, ".");
+      s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+      return s;
+    }
+
+    function looksLikeCellQuery(q) {
+      const s = String(q || "").trim();
+      if (!s) return false;
+      return /^\d+([.,\-\/]\d+)+$/.test(s);
+    }
+
+    function parseStockNum(stockRaw) {
+      if (stockRaw === null || stockRaw === undefined) return NaN;
+      const raw = String(stockRaw)
+        .replace(/\u00A0|\u202F/g, " ")
+        .trim()
+        .replace(",", ".");
+      const match = raw.match(/-?\d+(?:\.\d+)?/);
+      const n = parseFloat(match ? match[0] : raw);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function getPartsRequestStockValue(part) {
+      const stockRaw = String(part?.stock ?? "")
+        .replace(/\u00A0|\u202F/g, " ")
+        .trim()
+        .replace(",", ".");
+      if (!stockRaw || stockRaw === "—" || stockRaw === "-") return 0;
+      const stock = parseStockNum(stockRaw);
+      if (Number.isFinite(stock)) return stock;
+      const normalized = stockRaw.replace(/[^0-9.\-]/g, "");
+      if (!normalized) return 0;
+      if (/^0+(?:\.0+)?$/.test(normalized)) return 0;
+      return NaN;
+    }
+
+    function filterList(list, query, opts = {}) {
+      if (!query || !String(query).trim()) return [];
+
+      const preferStock = !!opts.preferStock;
+      const qRaw = String(query).trim();
+      const q = qRaw.toLowerCase();
+
+      if (looksLikeCellQuery(qRaw)) {
+        const qCell = normalizeCell(qRaw);
+        return list
+          .filter(item => normalizeCell(item.cell) === qCell)
+          .slice(0, 200);
+      }
+
+      const tokens = tokenizeQuery(qRaw);
+      const qNorm = normalizeSearch(qRaw);
+
+      const scored = list.map(item => {
+        const code = String(item.code || "");
+        const name = String(item.name || "");
+        const cell = String(item.cell || "");
+        const stockRaw = item.stock;
+
+        const codeN = normalizeSearch(code);
+        const nameN = normalizeSearch(name);
+        const cellN = normalizeSearch(cell);
+        const hayN = codeN + nameN + cellN;
+
+        const exactCode = qNorm && (codeN === qNorm);
+        const prefixCode = qNorm && codeN.startsWith(qNorm);
+        const inclCode = qNorm && codeN.includes(qNorm);
+
+        const exactName = qNorm && (nameN === qNorm);
+        const prefixName = qNorm && nameN.startsWith(qNorm);
+        const inclName = qNorm && nameN.includes(qNorm);
+
+        const exactCell = qNorm && (cellN === qNorm);
+        const prefixCell = qNorm && cellN.startsWith(qNorm);
+        const inclCell = qNorm && cellN.includes(qNorm);
+
+        let score = 0;
+        let passes = false;
+
+        if (exactCode) { score += 10000; passes = true; }
+        if (prefixCode) { score += 6000; passes = true; }
+        if (inclCode) { score += 2500; passes = true; }
+
+        if (exactName) { score += 5000; passes = true; }
+        if (prefixName) { score += 2400; passes = true; }
+        if (inclName) { score += 900; passes = true; }
+
+        if (exactCell) { score += 3000; passes = true; }
+        if (prefixCell) { score += 1400; passes = true; }
+        if (inclCell) { score += 600; passes = true; }
+
+        let hitCount = 0;
+        for (const token of tokens) {
+          if (!token) continue;
+          if (hayN.includes(token)) hitCount += 1;
+        }
+        score += hitCount * 250;
+
+        const stockOk = !Number.isNaN(getPartsRequestStockValue(item)) && getPartsRequestStockValue(item) > 0;
+        if (preferStock && stockOk) score += 80;
+
+        return { item, score, passes, stockOk, exactCode, prefixCode };
+      });
+
+      return scored
+        .filter(x => x.passes)
+        .sort((a, b) => {
+          if (a.exactCode !== b.exactCode) return a.exactCode ? -1 : 1;
+          if (a.prefixCode !== b.prefixCode) return a.prefixCode ? -1 : 1;
+          if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+          return b.score - a.score;
+        })
+        .map(x => x.item)
+        .slice(0, 50);
+    }
+
+    function searchParts(query) {
+      return filterList(partsCache, query, { preferStock: true }).slice(0, 15);
+    }
+
+    function renderSearchResults(results, opts = {}) {
+      const suggest = opts.suggestEl || partsSuggest;
+      const input = opts.inputEl || partsInput;
+      if (!suggest || !input) return;
+
+      const safeResults = Array.isArray(results) ? results.filter(Boolean) : [];
+      suggest.innerHTML = "";
+      if (!safeResults.length) {
+        suggest.style.display = "none";
+        return;
+      }
+
+      const ul = document.createElement("ul");
+      safeResults.forEach(item => {
+        const li = document.createElement("li");
+        li.dataset.code = item.code || "";
+        li.dataset.name = item.name || "";
+        li.dataset.cell = item.cell || "";
+        li.dataset.unit = item.unit || "шт.";
+        li.dataset.stock = item.stock || "";
+        li.innerHTML = `
+          <div class="code">${item.code || ""}</div>
+          <div class="name">${item.name || ""}</div>
+          <div class="extra">📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${formatCell(item.cell)}</div>
+        `;
+        ul.appendChild(li);
+      });
+
+      suggest.appendChild(ul);
+      suggest.style.display = "block";
+    }
+
+    async function loadParts() {
+      try {
+        const text = await fetchSheetCSV(PARTS_SHEET_ID, PARTS_GID);
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        partsCache = normalizeRows(parsed.data).map(p => ({
+          code: p.code,
+          name: p.name,
+          cell: p.cell,
+          stock: p.stock,
+          unit: "шт.",
+          price: p.price || 0,
+        })).filter(p => p.code || p.name);
+      } catch (e) {
+        console.error("Parts load error:", e);
+      }
+    }
+
+    function renderPartsTable() {
+      const tbody = document.getElementById("partsTableBody");
+      const empty = document.getElementById("empty-parts");
+      const wrapper = document.getElementById("tableWrapper");
+      if (!selectedParts.length) {
+        empty.style.display = "";
+        wrapper.style.display = "none";
+        return;
+      }
+      empty.style.display = "none";
+      wrapper.style.display = "";
+      tbody.innerHTML = selectedParts.map((p, i) =>
+        `<tr>
+          <td>${i + 1}</td>
+          <td><strong>${p.name}</strong><br><span class="muted" style="font-size:11px;">${p.code}</span></td>
+          <td style="font-size:12px;">${formatCell(p.cell)}</td>
+          <td class="qty-cell">${p.qty}</td>
+          <td style="font-size:12px;">${p.unit}</td>
+          <td><button class="btn ghost danger" style="padding:2px 8px;font-size:14px;" onclick="removePart(${i})">×</button></td>
+        </tr>`
+      ).join("");
+    }
+
+    function addPart(code, name, cell, unit, qty) {
+      if (code && name) {
+        selectedParts.push({ code, name, cell: cell || "", unit: unit || "шт.", qty: qty || 1 });
+        renderPartsTable();
+        document.getElementById("parts-input").value = "";
+        document.getElementById("parts-qty").value = "1";
+        document.getElementById("parts-info").textContent = "";
+        return;
+      }
+      const input = document.getElementById("parts-input");
+      const qtyInput = document.getElementById("parts-qty");
+      const sCode = input.dataset.selectedCode;
+      const sName = input.dataset.selectedName || input.value.split("(")[0]?.trim() || input.value.trim();
+      if (!sName && !sCode) { alert("Введи назву запчастини"); return; }
+      const quantity = parseInt(qtyInput.value || 1);
+      selectedParts.push({
+        code: sCode || "",
+        name: sName,
+        cell: input.dataset.selectedCell || "",
+        unit: input.dataset.selectedUnit || "шт.",
+        qty: quantity
+      });
+      renderPartsTable();
+      input.value = "";
+      input.dataset.selectedCode = "";
+      input.dataset.selectedName = "";
+      input.dataset.selectedCell = "";
+      input.dataset.selectedUnit = "";
+      qtyInput.value = "1";
+      document.getElementById("parts-info").textContent = "";
+    }
+
+    function removePart(idx) {
+      selectedParts.splice(idx, 1);
+      renderPartsTable();
+    }
+
+    function applyTemplate(tpl) {
+      if (!tpl || !Array.isArray(tpl.items)) return;
+      tpl.items.forEach(item => {
+        addPart(item.code || "", item.name || item.code || "", item.cell || "", item.unit || "шт.", item.qty || 1);
+      });
+    }
+
+    function renderTemplates() {
+      const card = document.getElementById("templatesCard");
+      const badges = document.getElementById("templateBadges");
+      const templates = Array.isArray(requestTemplates) ? requestTemplates : [];
+      if (!card || !badges) return;
+
+      if (!templates.length) {
+        card.style.display = "none";
+        badges.innerHTML = "";
+        return;
+      }
+
+      card.style.display = "";
+      badges.innerHTML = templates.map((t, idx) =>
+        `<button class="btn ghost" type="button" data-template-index="${idx}">📦 ${escapeHtml(t.name || "Без названия")}</button>`
+      ).join("");
+    }
+
+    async function saveCurrentTemplate() {
+      const name = document.getElementById("template-name").value.trim();
+      const machineInput = document.getElementById("template-machine");
+      const nodeInput = document.getElementById("template-node");
+      const equipmentId = document.getElementById("equipmentId").value.trim();
+      const comment = document.getElementById("comment").value.trim();
+      const machine = (machineInput.value || equipmentId).trim();
+      const node = (nodeInput.value || comment).trim();
+      const status = document.getElementById("templateStatusMsg");
+      const btn = document.getElementById("btnSaveTemplate");
+
+      if (!selectedParts.length) { alert("Добавь хотя бы одну запчасть"); return; }
+      if (!name) { alert("Введи название шаблона"); return; }
+
+      const user = window.SurpAuth?.getCurrentUser?.();
+      const payload = {
+        id: genTemplateId(),
+        name,
+        machine,
+        node,
+        createdBy: user?.name || user?.login || "unknown",
+        createdAt: new Date().toISOString(),
+        file: TEMPLATES_FILE_ID,
+        items: selectedParts.map(p => ({
+          code: p.code,
+          name: p.name,
+          cell: p.cell || "",
+          unit: p.unit || "шт.",
+          qty: p.qty || 1
+        }))
+      };
+
+      btn.disabled = true;
+      status.textContent = "⏳ Сохраняю шаблон...";
+
+      try {
+        const resp = await apiFetch("/api/warehouse-templates", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok || out.ok === false) throw new Error(out.error || out.detail || "save_failed");
+
+        status.textContent = "✅ Шаблон сохранен";
+        document.getElementById("template-name").value = "";
+        machineInput.value = "";
+        nodeInput.value = "";
+        await loadTemplates();
+      } catch (e) {
+        console.error("Template save error:", e);
+        status.textContent = "❌ Не удалось сохранить шаблон: " + (e.message || "ошибка");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const resp = await fetch("/api/warehouse-templates");
+        const data = await resp.json();
+        const templates = Array.isArray(data.items) ? data.items : [];
+        if (!templates.length) return;
+        const card = document.getElementById("templatesCard");
+        const badges = document.getElementById("templateBadges");
+        card.style.display = "";
+        badges.innerHTML = templates.map(t =>
+          `<button class="btn ghost" type="button" onclick="applyTemplate(${JSON.stringify(t).replace(/"/g, "'")})">📦 ${t.name || "Без названия"}</button>`
+        ).join("");
+      } catch (e) {
+        console.error("Templates load error:", e);
+      }
+    }
+
+    async function submitRequest() {
+      if (!selectedParts.length) { alert("Додай хоча б одну запчастину"); return; }
+      const user = window.SurpAuth?.getCurrentUser?.();
+      if (!user) { alert("Необхідно авторизуватись"); return; }
+      const equipmentId = document.getElementById("equipmentId").value.trim();
+      const comment = document.getElementById("comment").value.trim();
+
+      document.getElementById("btnSubmit").disabled = true;
+      document.getElementById("statusMsg").textContent = "⏳ Відправляю запрос...";
+
+      try {
+        const resp = await apiFetch("/api/spare-request/create", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: user.login,
+            masterName: user.name,
+            equipmentId,
+            comment,
+            items: selectedParts.map(p => ({
+              partCode: p.code,
+              partName: p.name,
+              cell: p.cell,
+              unit: p.unit,
+              quantityRequested: p.qty,
+            }))
+          })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "Помилка створення запроса");
+        document.getElementById("statusMsg").textContent = "✅ Запрос відправлено! Номер: " + out.id;
+        selectedParts = [];
+        renderPartsTable();
+      } catch (e) {
+        document.getElementById("statusMsg").textContent = "❌ " + (e.message || "Помилка");
+      } finally {
+        document.getElementById("btnSubmit").disabled = false;
+      }
+    }
+
+    let partsSuggest, partsInput;
+
+    window.addEventListener("load", async () => {
+      try {
+        await window.SurpAuth?.init?.();
+      } catch (e) {
+        console.error("Auth init error:", e);
+      }
+
+      partsSuggest = document.getElementById("parts-suggest");
+      partsInput = document.getElementById("parts-input");
+
+      const user = window.SurpAuth?.getCurrentUser?.();
+      document.getElementById("appMain").style.display = "block";
+
+      if (user) {
+        document.getElementById("masterName").textContent = "👤 " + user.name;
+      }
+
+      try {
+        await Promise.all([loadParts(), loadTemplates()]);
+      } catch (e) {
+        console.error("Data load error:", e);
+      }
+
+      if (partsInput && partsSuggest) {
+        partsInput.addEventListener("input", () => {
+          const q = partsInput.value.trim();
+          const matches = searchParts(q);
+          renderSearchResults(matches, { suggestEl: partsSuggest, inputEl: partsInput });
+        });
+
+        partsSuggest.addEventListener("click", (e) => {
+          const li = e.target.closest("li[data-code]");
+          if (!li) return;
+          partsInput.value = li.dataset.name + " (" + li.dataset.code + ")";
+          partsInput.dataset.selectedCode = li.dataset.code;
+          partsInput.dataset.selectedName = li.dataset.name;
+          partsInput.dataset.selectedCell = li.dataset.cell;
+          partsInput.dataset.selectedUnit = li.dataset.unit;
+          renderSearchResults([], { suggestEl: partsSuggest, inputEl: partsInput });
+          const stock = parseInt(li.dataset.stock);
+          const info = document.getElementById("parts-info");
+          info.textContent = li.dataset.cell ? `${formatCell(li.dataset.cell)} — залишок: ${stock}` : `залишок: ${stock}`;
+        });
+
+        document.addEventListener("click", (e) => {
+          if (!partsInput.contains(e.target) && !partsSuggest.contains(e.target)) {
+            renderSearchResults([], { suggestEl: partsSuggest, inputEl: partsInput });
+          }
+        });
+
+        partsInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (partsSuggest.querySelector("li")) {
+              partsSuggest.querySelector("li").click();
+            } else {
+              addPart();
+            }
+          }
+        });
+      }
+
+      document.getElementById("parts-qty").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addPart();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

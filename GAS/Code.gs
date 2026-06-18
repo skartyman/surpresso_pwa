@@ -1494,6 +1494,22 @@ function col_(sheet, name) {
   return idx + 1;
 }
 
+function appendObjectRowByHeaders_(sheet, data) {
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const row = headers.map(function(name) {
+    return Object.prototype.hasOwnProperty.call(data, name) ? data[name] : "";
+  });
+  sheet.appendRow(row);
+  return sheet.getLastRow();
+}
+
+function setTextColumnValue_(sheet, rowNumber, colName, value) {
+  const c = col_(sheet, colName);
+  sheet.getRange(rowNumber, c).setNumberFormat("@");
+  sheet.getRange(rowNumber, c).setValue(String(value ?? "").trim());
+}
+
 // =========================
 // DRIVE: folder per equipment
 // =========================
@@ -2102,6 +2118,12 @@ function isLikelyDateCell_(value) {
 }
 
 function normalizeSpareCellDisplay_(value) {
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
+    if (value.getFullYear() === 2006) {
+      return value.getDate() + "." + (value.getMonth() + 1) + ".2";
+    }
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "dd.MM.yyyy");
+  }
   const s = String(value || "").trim();
   const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
   if (dateArtifact) return Number(dateArtifact[1]) + "." + Number(dateArtifact[2]) + ".2";
@@ -2109,7 +2131,8 @@ function normalizeSpareCellDisplay_(value) {
 }
 
 function resolveSpareRequestCell_(item) {
-  const current = String(item && item.cell ? item.cell : "").trim();
+  const rawCurrent = item && item.cell ? item.cell : "";
+  const current = String(rawCurrent).trim();
 
   const catalog = loadSparePartsCatalog_();
   const codeKey = normKey_(item && item.partCode ? item.partCode : "");
@@ -2118,7 +2141,8 @@ function resolveSpareRequestCell_(item) {
   const nameKey = normKey_(item && item.partName ? item.partName : "");
   if (nameKey && catalog.byName[nameKey]) return normalizeSpareCellDisplay_(catalog.byName[nameKey]);
 
-  return current && !isLikelyDateCell_(current) ? normalizeSpareCellDisplay_(current) : "";
+  if (!current) return "";
+  return normalizeSpareCellDisplay_(rawCurrent);
 }
 
 function spareRequestCreate_(data) {
@@ -2141,10 +2165,19 @@ function spareRequestCreate_(data) {
   const reqId = "SR-" + String(reqCount).padStart(4, "0");
   const now = new Date();
 
-  reqSheet.appendRow([
-    reqId, masterLogin, masterName, equipmentId, "pending",
-    now, "", "", comment
-  ]);
+  const reqRow = appendObjectRowByHeaders_(reqSheet, {
+    id: reqId,
+    masterLogin: masterLogin,
+    masterName: masterName,
+    equipmentId: equipmentId,
+    status: "pending",
+    createdAt: now,
+    processedAt: "",
+    adminName: "",
+    comment: comment,
+  });
+  setTextColumnValue_(reqSheet, reqRow, "id", reqId);
+  setTextColumnValue_(reqSheet, reqRow, "masterLogin", masterLogin);
 
   // write items
   items.forEach(function(item, idx) {
@@ -2156,15 +2189,20 @@ function spareRequestCreate_(data) {
       partName: partName,
       cell: item.cell || "",
     });
-    itemsSheet.appendRow([
-      itemId, reqId,
-      partCode,
-      partName,
-      cell,
-      String(item.unit || "шт.").trim(),
-      Number(item.quantityRequested || 1),
-      0
-    ]);
+    const itemRow = appendObjectRowByHeaders_(itemsSheet, {
+      id: itemId,
+      requestId: reqId,
+      partCode: partCode,
+      partName: partName,
+      cell: cell,
+      unit: String(item.unit || "шт.").trim(),
+      quantityRequested: Number(item.quantityRequested || 1),
+      quantityIssued: 0,
+    });
+    setTextColumnValue_(itemsSheet, itemRow, "id", itemId);
+    setTextColumnValue_(itemsSheet, itemRow, "requestId", reqId);
+    setTextColumnValue_(itemsSheet, itemRow, "partCode", partCode);
+    setTextColumnValue_(itemsSheet, itemRow, "cell", cell);
   });
 
   return { ok: true, id: reqId };
@@ -2412,7 +2450,7 @@ function createSpareReturnRecord_(payload) {
       return {
         partCode: String(item.partCode || "").trim(),
         partName: String(item.partName || "").trim(),
-        cell: String(item.cell || "").trim(),
+        cell: normalizeSpareCellDisplay_(item.cell),
         unit: String(item.unit || "шт.").trim(),
         quantityReturned: Number(item.quantityReturned || 0),
       };
@@ -2426,21 +2464,40 @@ function createSpareReturnRecord_(payload) {
 
   const returnId = generateSpareReturnId_();
   const now = new Date();
-  returnsSheet.appendRow([
-    returnId, sourceRequestId, masterLogin, masterName, equipmentId,
-    "returned", now, now, adminName, comment, mode
-  ]);
+  const returnRow = appendObjectRowByHeaders_(returnsSheet, {
+    id: returnId,
+    sourceRequestId: sourceRequestId,
+    masterLogin: masterLogin,
+    masterName: masterName,
+    equipmentId: equipmentId,
+    status: "returned",
+    createdAt: now,
+    processedAt: now,
+    adminName: adminName,
+    comment: comment,
+    mode: mode,
+  });
+  setTextColumnValue_(returnsSheet, returnRow, "id", returnId);
+  setTextColumnValue_(returnsSheet, returnRow, "sourceRequestId", sourceRequestId);
+  setTextColumnValue_(returnsSheet, returnRow, "masterLogin", masterLogin);
 
   items.forEach(function(item, idx) {
     const itemId = returnId + "-" + String(idx + 1).padStart(3, "0");
-    returnItemsSheet.appendRow([
-      itemId, returnId, sourceRequestId,
-      item.partCode,
-      item.partName,
-      item.cell,
-      item.unit,
-      item.quantityReturned
-    ]);
+    const itemRow = appendObjectRowByHeaders_(returnItemsSheet, {
+      id: itemId,
+      returnId: returnId,
+      sourceRequestId: sourceRequestId,
+      partCode: item.partCode,
+      partName: item.partName,
+      cell: item.cell,
+      unit: item.unit,
+      quantityReturned: item.quantityReturned,
+    });
+    setTextColumnValue_(returnItemsSheet, itemRow, "id", itemId);
+    setTextColumnValue_(returnItemsSheet, itemRow, "returnId", returnId);
+    setTextColumnValue_(returnItemsSheet, itemRow, "sourceRequestId", sourceRequestId);
+    setTextColumnValue_(returnItemsSheet, itemRow, "partCode", item.partCode);
+    setTextColumnValue_(returnItemsSheet, itemRow, "cell", item.cell);
   });
 
   SpreadsheetApp.flush();

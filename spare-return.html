@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Возврат запчастей</title>
+  <script>
+    (function () {
+      const version = "20260616-1";
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("v") !== version) {
+        url.searchParams.set("v", version);
+        window.location.replace(url.pathname + url.search);
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4" />
+  <script src="/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    #returnTable td { vertical-align: middle; }
+    #returnTable .qty-cell { font-weight: 700; }
+    .suggest li .extra { font-size: 12px; }
+  </style>
+</head>
+<body data-page="spare-return">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="">
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
+      <div class="app-title">
+        <div class="app-name"><span>Surpresso</span><span>Service</span></div>
+        <div class="app-subtitle">Возврат запчастей</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вхід в систему</h2>
+      <input id="login-user" type="text" placeholder="Логін" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Увійти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
+  </div>
+
+  <div class="app-main" id="appMain" style="display:none;">
+    <section class="dashboard-hero card page-shell">
+      <div class="page-header">
+        <p class="eyebrow">Склад</p>
+        <h1>Возврат запчастей</h1>
+        <p id="masterName" class="muted"></p>
+      </div>
+      <div class="page-actions-inline">
+        <a class="btn ghost" href="/">← Dashboard</a>
+        <a class="btn ghost" href="/warehouse.html">📦 Склад</a>
+        <a class="btn ghost" href="/spare-request.html?v=20260611-12">🧰 Запрос</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Основание возврата</h2>
+      <div class="row">
+        <div class="field full">
+          <label>Обладнання (ID або модель)</label>
+          <input id="equipmentId" placeholder="Наприклад: SP.225 або Jura X8" />
+        </div>
+        <div class="field">
+          <label>Номер выдачи</label>
+          <input id="sourceRequestId" placeholder="Например: SR-0019" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Комментарий</label>
+        <input id="comment" placeholder="Что вернул мастер и почему" />
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Запчастини</h2>
+      <div class="row">
+        <div class="field full">
+          <label>Код / назва</label>
+          <div class="suggest-block">
+            <input id="parts-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
+            <div id="parts-suggest" class="suggest"></div>
+          </div>
+        </div>
+        <div class="field qty-field">
+          <label>Кількість</label>
+          <input id="parts-qty" type="text" value="1" inputmode="decimal" />
+        </div>
+        <button id="add-part-btn" class="btn primary" type="button" style="margin-top:22px;" onclick="addPart()">+</button>
+      </div>
+      <div id="parts-info" class="info-line"></div>
+    </section>
+
+    <section class="card">
+      <h2>К возврату</h2>
+      <div id="empty-parts" class="muted" style="text-align:center;padding:20px;">Пока нет добавленных запчастей.</div>
+      <div class="table-wrapper" id="tableWrapper" style="display:none;">
+        <table class="draggable-table" id="returnTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Назва / Артикул</th>
+              <th>Комірка</th>
+              <th>К-сть</th>
+              <th>Од.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="returnTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card actions-card">
+      <button class="btn primary wide" id="btnSubmit" onclick="submitReturn()">↩️ Оформить возврат</button>
+      <div id="statusMsg" class="muted" style="margin-top:8px;text-align:center;"></div>
+    </section>
+  </div>
+
+  <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
+  <script src="/auth.js"></script>
+  <script>
+    const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+    const PARTS_GID = 1099059228;
+    let partsCache = [];
+    let selectedParts = [];
+    let partsSuggest;
+    let partsInput;
+
+    function getPwaKey() {
+      let key = localStorage.getItem("surpresso_pwa_key");
+      if (!key) {
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+        if (!key) throw new Error("NO_PWA_KEY");
+        localStorage.setItem("surpresso_pwa_key", key);
+      }
+      return key;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const key = getPwaKey();
+      const headers = { ...(options.headers || {}), "x-surpresso-key": key };
+      if (options.body && !(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
+      let resp = await fetch(url, { ...options, headers });
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const rh = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) rh["Content-Type"] = rh["Content-Type"] || "application/json";
+        resp = await fetch(url, { ...options, headers: rh });
+      }
+      return resp;
+    }
+
+    async function fetchSheetCSV(sheetId, gid) {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&v=${Date.now()}`;
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return await resp.text();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatCell(value) {
+      const s = String(value || "").trim();
+      if (!s) return "—";
+      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
+      return dateLike ? `${dateLike[1]}.2` : s;
+    }
+
+    function cleanPrice(raw) {
+      if (!raw) return 0;
+      let v = String(raw).replace(/"/g, "").replace(/\u00A0|\u202F/g, "").replace(/\s+/g, "").replace(/грн|uah|₴/gi, "").trim();
+      v = v.replace(/[^0-9.,-]/g, "");
+      if (v.includes(",") && !v.includes(".")) v = v.replace(",", ".");
+      else if (v.includes(",") && v.includes(".")) v = v.replace(/,/g, "");
+      const num = parseFloat(v);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function normalizeRows(rows) {
+      const out = [];
+      rows.forEach(row => {
+        const lc = {};
+        for (const [k, v] of Object.entries(row || {})) {
+          if (k) lc[String(k).trim().toLowerCase()] = v;
+        }
+        const pick = masks => {
+          for (const mask of masks) {
+            for (const [k, v] of Object.entries(lc)) {
+              if (k.includes(mask) && v !== "" && v !== undefined) return v;
+            }
+          }
+          return "";
+        };
+        const code = String(pick(["артикул", "код", "art", "article"]) || "").trim();
+        const name = String(pick(["наименование", "найменування", "название", "описание", "name"]) || "").trim();
+        const stock = pick(["залишок", "налич", "stock", "остат"]);
+        const cell = String(pick(["комірка", "ячейк", "cell", "shelf"]) || "").trim();
+        if (!code && !name) return;
+        out.push({ code, name, stock: stock || "", cell, unit: "шт.", price: cleanPrice(pick(["цена", "ціна", "price"])) });
+      });
+      return out;
+    }
+
+    function normalizeSearch(str) {
+      return String(str || "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/µf/g, "uf")
+        .replace(/мкф/g, "uf")
+        .replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
+    }
+
+    function searchParts(query) {
+      const q = normalizeSearch(query);
+      if (!q) return [];
+      return partsCache
+        .map(item => {
+          const code = normalizeSearch(item.code);
+          const name = normalizeSearch(item.name);
+          const cell = normalizeSearch(item.cell);
+          let score = 0;
+          if (code === q) score += 10000;
+          if (code.startsWith(q)) score += 5000;
+          if (code.includes(q)) score += 2000;
+          if (name.startsWith(q)) score += 1200;
+          if (name.includes(q)) score += 700;
+          if (cell.includes(q)) score += 300;
+          return { item, score };
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(x => x.item)
+        .slice(0, 15);
+    }
+
+    function renderSearchResults(results) {
+      partsSuggest.innerHTML = "";
+      if (!results.length) {
+        partsSuggest.style.display = "none";
+        return;
+      }
+      const ul = document.createElement("ul");
+      results.forEach(item => {
+        const li = document.createElement("li");
+        li.dataset.code = item.code || "";
+        li.dataset.name = item.name || "";
+        li.dataset.cell = item.cell || "";
+        li.dataset.unit = item.unit || "шт.";
+        li.innerHTML = `
+          <div class="code">${escapeHtml(item.code || "")}</div>
+          <div class="name">${escapeHtml(item.name || "")}</div>
+          <div class="extra">📦 ${escapeHtml(item.stock || "—")} &nbsp; | &nbsp; 🗄 ${escapeHtml(formatCell(item.cell))}</div>
+        `;
+        ul.appendChild(li);
+      });
+      partsSuggest.appendChild(ul);
+      partsSuggest.style.display = "block";
+    }
+
+    async function loadParts() {
+      try {
+        const text = await fetchSheetCSV(PARTS_SHEET_ID, PARTS_GID);
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        partsCache = normalizeRows(parsed.data);
+      } catch (e) {
+        console.error("Parts load error:", e);
+      }
+    }
+
+    function renderPartsTable() {
+      const tbody = document.getElementById("returnTableBody");
+      const empty = document.getElementById("empty-parts");
+      const wrapper = document.getElementById("tableWrapper");
+      if (!selectedParts.length) {
+        empty.style.display = "";
+        wrapper.style.display = "none";
+        return;
+      }
+      empty.style.display = "none";
+      wrapper.style.display = "";
+      tbody.innerHTML = selectedParts.map((p, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${escapeHtml(p.name)}</strong><br><span class="muted" style="font-size:11px;">${escapeHtml(p.code)}</span></td>
+          <td style="font-size:12px;">${escapeHtml(formatCell(p.cell))}</td>
+          <td class="qty-cell">${p.qty}</td>
+          <td style="font-size:12px;">${escapeHtml(p.unit)}</td>
+          <td><button class="btn ghost danger" style="padding:2px 8px;font-size:14px;" onclick="removePart(${i})">×</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function addPart(code, name, cell, unit, qty) {
+      if (code && name) {
+        selectedParts.push({ code, name, cell: cell || "", unit: unit || "шт.", qty: qty || 1 });
+        renderPartsTable();
+        return;
+      }
+      const qtyInput = document.getElementById("parts-qty");
+      const sCode = partsInput.dataset.selectedCode || "";
+      const sName = partsInput.dataset.selectedName || partsInput.value.split("(")[0]?.trim() || partsInput.value.trim();
+      if (!sName && !sCode) { alert("Введи название запчасти"); return; }
+      selectedParts.push({
+        code: sCode,
+        name: sName,
+        cell: partsInput.dataset.selectedCell || "",
+        unit: partsInput.dataset.selectedUnit || "шт.",
+        qty: Math.max(1, parseInt(qtyInput.value || 1, 10) || 1),
+      });
+      renderPartsTable();
+      partsInput.value = "";
+      partsInput.dataset.selectedCode = "";
+      partsInput.dataset.selectedName = "";
+      partsInput.dataset.selectedCell = "";
+      partsInput.dataset.selectedUnit = "";
+      qtyInput.value = "1";
+      document.getElementById("parts-info").textContent = "";
+    }
+
+    function removePart(idx) {
+      selectedParts.splice(idx, 1);
+      renderPartsTable();
+    }
+
+    async function submitReturn() {
+      if (!selectedParts.length) { alert("Добавь хотя бы одну запчасть"); return; }
+      const user = window.SurpAuth?.getCurrentUser?.();
+      if (!user) { alert("Необходимо авторизоваться"); return; }
+      const equipmentId = document.getElementById("equipmentId").value.trim();
+      const sourceRequestId = document.getElementById("sourceRequestId").value.trim();
+      const comment = document.getElementById("comment").value.trim();
+
+      document.getElementById("btnSubmit").disabled = true;
+      document.getElementById("statusMsg").textContent = "⏳ Оформляю возврат...";
+
+      try {
+        const resp = await apiFetch("/api/spare-return/create", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: user.login,
+            masterName: user.name,
+            equipmentId,
+            sourceRequestId,
+            comment,
+            items: selectedParts.map(p => ({
+              partCode: p.code,
+              partName: p.name,
+              cell: p.cell,
+              unit: p.unit,
+              quantityReturned: p.qty,
+            })),
+          }),
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "Ошибка оформления возврата");
+        document.getElementById("statusMsg").textContent = "✅ Возврат оформлен! Номер: " + out.id;
+        selectedParts = [];
+        renderPartsTable();
+      } catch (e) {
+        document.getElementById("statusMsg").textContent = "❌ " + (e.message || "Ошибка");
+      } finally {
+        document.getElementById("btnSubmit").disabled = false;
+      }
+    }
+
+    window.addEventListener("load", async () => {
+      try {
+        await window.SurpAuth?.init?.();
+      } catch (e) {
+        console.error("Auth init error:", e);
+      }
+
+      partsSuggest = document.getElementById("parts-suggest");
+      partsInput = document.getElementById("parts-input");
+
+      const user = window.SurpAuth?.getCurrentUser?.();
+      document.getElementById("appMain").style.display = "block";
+      if (user) document.getElementById("masterName").textContent = "👤 " + user.name;
+
+      await loadParts();
+
+      partsInput.addEventListener("input", () => {
+        renderSearchResults(searchParts(partsInput.value.trim()));
+      });
+
+      partsSuggest.addEventListener("click", (e) => {
+        const li = e.target.closest("li[data-code]");
+        if (!li) return;
+        partsInput.value = li.dataset.name + " (" + li.dataset.code + ")";
+        partsInput.dataset.selectedCode = li.dataset.code;
+        partsInput.dataset.selectedName = li.dataset.name;
+        partsInput.dataset.selectedCell = li.dataset.cell;
+        partsInput.dataset.selectedUnit = li.dataset.unit;
+        renderSearchResults([]);
+        document.getElementById("parts-info").textContent = `Ячейка: ${formatCell(li.dataset.cell)}`;
+      });
+    });
+  </script>
+</body>
+</html>

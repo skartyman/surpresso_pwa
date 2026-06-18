@@ -3116,6 +3116,29 @@ app.get("/api/spare-request/:id", requirePwaKey, async (req, res) => {
   }
 });
 
+function normalizeSpareCellForXlsx(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    if (value.getFullYear() === 2006) return `${value.getDate()}.${value.getMonth() + 1}.2`;
+    return value.toLocaleDateString("uk-UA");
+  }
+
+  const s = String(value ?? "").trim();
+  const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
+  if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
+
+  const isoArtifact = s.match(/^2006-(\d{2})-(\d{2})T/);
+  if (isoArtifact) return `${Number(isoArtifact[2])}.${Number(isoArtifact[1])}.2`;
+
+  const jsDateArtifact = s.match(/^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+2006\b/i);
+  if (jsDateArtifact) {
+    const months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    const month = months[s.slice(4, 7).toLowerCase()] || "";
+    if (month) return `${Number(jsDateArtifact[1])}.${month}.2`;
+  }
+
+  return s;
+}
+
 async function buildSpareRequestXlsx(request) {
   const items = Array.isArray(request.items) ? request.items : [];
   const wb = new ExcelJS.Workbook();
@@ -3124,12 +3147,7 @@ async function buildSpareRequestXlsx(request) {
   const ws = wb.addWorksheet("Переміщення запасів");
 
   const asText = (value) => String(value ?? "").trim();
-  const formatCell = (value) => {
-    const s = String(value ?? "").trim();
-    const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
-    if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
-    return s;
-  };
+  const formatCell = normalizeSpareCellForXlsx;
 
   ws.getColumn(1).width = 6;
   ws.getColumn(2).width = 40;
@@ -3171,12 +3189,7 @@ async function buildSpareReturnXlsx(ret) {
   const ws = wb.addWorksheet("Повернення запасів");
 
   const asText = (value) => String(value ?? "").trim();
-  const formatCell = (value) => {
-    const s = String(value ?? "").trim();
-    const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
-    if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
-    return s;
-  };
+  const formatCell = normalizeSpareCellForXlsx;
 
   ws.getColumn(1).width = 6;
   ws.getColumn(2).width = 40;
