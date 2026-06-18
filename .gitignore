@@ -1,0 +1,25 @@
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+frontend/dist/
+dist/
+build/
+
+.env
+backend/.env
+.clasp.json
+
+.deploy_clean/
+.deploy_clean2/
+
+*.log
+npm-debug.log*
+static-*.log
+surpresso-local*.log
+
+tmp_*.html
+*.tmp
+
+Surpresso Equipment DB - *.csv
+_trello_lists.mjs
