@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260617-9";
+      const version = "20260617-10";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -263,10 +263,97 @@
     .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 500px; width: 90%; max-height: 90vh; overflow: visible; display: flex; flex-direction: column; }
     .modal-scroll { overflow-y: auto; min-height: 0; flex-shrink: 0; }
     .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
-    .modal .suggest { position: absolute; z-index: 10; background: var(--surface, #fff); border: 1px solid var(--border, #ddd); border-radius: 12px; max-height: 260px; overflow-y: auto; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
-    .modal .suggest li { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border, #eee); }
-    .modal .suggest li:hover { background: var(--accent-bg, #f0f7ff); }
-    .modal .suggest li .extra { font-size: 11px; color: var(--muted, #999); margin-top: 2px; }
+    .modal .suggest {
+      position: absolute;
+      z-index: 10;
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #ddd);
+      border-radius: 14px;
+      max-height: 300px;
+      overflow-y: auto;
+      width: 100%;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.14);
+      margin-top: 6px;
+    }
+    .modal .suggest-list {
+      list-style: none;
+      margin: 0;
+      padding: 6px;
+    }
+    .modal .suggest-empty {
+      padding: 12px 14px;
+      color: var(--muted, #888);
+      font-size: 13px;
+    }
+    .modal .suggest-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px 12px 11px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      margin-bottom: 6px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,250,250,0.98));
+    }
+    .modal .suggest-item:hover,
+    .modal .suggest-item.is-selected {
+      background: var(--accent-bg, #f0f7ff);
+      border-color: rgba(59,130,246,0.22);
+      box-shadow: 0 4px 16px rgba(59,130,246,0.10);
+    }
+    .modal .suggest-item:last-child {
+      margin-bottom: 0;
+    }
+    .modal .suggest-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .modal .suggest-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+      color: var(--text, #111);
+      overflow-wrap: anywhere;
+    }
+    .modal .suggest-code {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--muted, #666);
+      background: rgba(127,127,127,0.12);
+      padding: 4px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .modal .suggest-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      font-size: 12px;
+      color: var(--muted, #777);
+    }
+    .modal .suggest-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(127,127,127,0.10);
+      white-space: nowrap;
+    }
+    .modal .suggest-pill strong {
+      font-size: 12px;
+      color: var(--text, #111);
+    }
+    .modal .suggest-pill.stock-ok { background: rgba(34,197,94,0.12); }
+    .modal .suggest-pill.stock-warn { background: rgba(245,158,11,0.16); }
+    .modal .suggest-pill.stock-low { background: rgba(249,115,22,0.16); }
+    .modal .suggest-pill.stock-red { background: rgba(239,68,68,0.16); }
+    .modal .suggest-pill.stock-unknown { background: rgba(127,127,127,0.12); }
     .modal .suggest-block { position: relative; }
     .work-table tr.pick-current-row {
       background: rgba(245,158,11,0.08);
@@ -679,6 +766,46 @@
         .filter(Boolean)
         .sort((a, b) => b._score - a._score || String(a.name || "").localeCompare(String(b.name || ""), "uk"))
         .slice(0, 20);
+    }
+
+    function escapeRegExp(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightMatch(text, query) {
+      const source = String(text || "");
+      const q = String(query || "").trim();
+      if (!q) return escapeHtml(source);
+      const rx = new RegExp(escapeRegExp(q), "ig");
+      if (!rx.test(source)) return escapeHtml(source);
+      rx.lastIndex = 0;
+      let out = "";
+      let last = 0;
+      for (let m; (m = rx.exec(source));) {
+        out += escapeHtml(source.slice(last, m.index));
+        out += `<mark style="background:rgba(250,204,21,0.35);padding:0 2px;border-radius:4px;">${escapeHtml(m[0])}</mark>`;
+        last = m.index + m[0].length;
+      }
+      out += escapeHtml(source.slice(last));
+      return out;
+    }
+
+    function renderSuggestionItem(part, query) {
+      const stockClass = stockTone(part.stock);
+      const stockText = stockLabel(part.stock);
+      const code = String(part.code || "").trim();
+      const name = String(part.name || "").trim();
+      const cell = formatCellDisplay(part.cell);
+      const metaParts = [];
+      if (cell && cell !== "—") metaParts.push(`<span class="suggest-pill">🗄 <strong>${highlightMatch(cell, query)}</strong></span>`);
+      metaParts.push(`<span class="suggest-pill stock-${stockClass}">📦 <strong>${escapeHtml(stockText)}</strong></span>`);
+      return `
+        <div class="suggest-title-row">
+          <div class="suggest-title">${highlightMatch(name || code || "Без названия", query)}</div>
+          ${code ? `<div class="suggest-code">${highlightMatch(code, query)}</div>` : ""}
+        </div>
+        <div class="suggest-meta">${metaParts.join("")}</div>
+      `;
     }
 
     function normalizeCellKey(cell) {
@@ -1203,22 +1330,16 @@
           replaceSelectedItem = null;
           document.getElementById("replaceConfirmBtn").disabled = !results.length;
           if (!results.length) {
-            replaceSuggest.innerHTML = `<div style="padding:10px 12px;color:var(--muted,#888);font-size:13px;">Ничего не найдено</div>`;
+            replaceSuggest.innerHTML = `<div class="suggest-empty">Ничего не найдено</div>`;
             replaceSuggest.style.display = "block";
             return;
           }
           const ul = document.createElement("ul");
-          ul.style.cssText = "list-style:none;margin:0;padding:0;";
+          ul.className = "suggest-list";
           results.forEach(p => {
             const li = document.createElement("li");
-            li.style.cssText = "padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border,#eee);";
-            li.addEventListener("mouseenter", () => { li.style.background = "var(--accent-bg,#f0f7ff)"; });
-            li.addEventListener("mouseleave", () => { li.style.background = ""; });
-            li.innerHTML = `
-              <div style="font-weight:600;font-size:13px;">${p.name || ""}</div>
-              <div style="font-size:11px;color:var(--muted,#888);">${p.code || ""}</div>
-              <div style="font-size:11px;color:var(--muted,#999);margin-top:2px;">🗄 ${formatCellDisplay(p.cell)} &nbsp; | &nbsp; 📦 ${p.stock || "—"}</div>
-            `;
+            li.className = "suggest-item";
+            li.innerHTML = renderSuggestionItem(p, q);
             li.addEventListener("click", () => {
               replaceSelectedItem = p;
               replaceSearchInput.value = `${p.name || ""} (${p.code || ""})`.trim();
