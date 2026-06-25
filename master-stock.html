@@ -27,7 +27,8 @@
       gap: 8px;
     }
     .ms-group-date { font-weight: 400; font-size: 12px; color: var(--muted, #888); }
-    .ms-table { width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid var(--border, #e0e0e0); border-radius: 0 0 12px 12px; overflow: hidden; }
+    .ms-table-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border, #e0e0e0); border-top: none; border-radius: 0 0 12px 12px; }
+    .ms-table { width: 100%; border-collapse: collapse; font-size: 13px; border: none; }
     .ms-table th, .ms-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border, #eee); }
     .ms-table th { font-size: 11px; font-weight: 700; color: var(--muted, #888); background: var(--surface-2, #fafafa); }
     .ms-table tr:last-child td { border-bottom: none; }
@@ -43,7 +44,7 @@
     .ms-cell { font-size: 11px; color: var(--muted, #777); }
     @media (max-width: 680px) {
       .ms-container { padding: 8px; }
-      .ms-table { font-size: 12px; }
+      .ms-table { font-size: 12px; min-width: 520px; }
       .ms-table th, .ms-table td { padding: 6px 4px; }
       .ms-table .actions-cell .btn { padding: 3px 8px; font-size: 11px; }
     }
@@ -218,6 +219,7 @@
         html += '<span>' + headerText + '</span>';
         html += '<span class="ms-group-date">' + escapeHtml(dateStr) + ' &middot; ' + items.length + ' позиций</span>';
         html += '</div>';
+        html += '<div class="ms-table-wrapper">';
         html += '<table class="ms-table">';
         html += '<thead><tr><th><input type="checkbox" onchange="toggleGroup(this, \'' + escapeHtml(requestId) + '\')"></th><th>Артикул</th><th>Название</th><th>Ячейка</th><th>Од.</th><th>К-сть</th><th>Действия</th></tr></thead>';
         html += '<tbody>';
@@ -238,7 +240,7 @@
           html += '</tr>';
         });
 
-        html += '</tbody></table></div>';
+        html += '</tbody></table></div></div>';
       });
 
       content.innerHTML = html;
