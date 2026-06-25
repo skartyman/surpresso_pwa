@@ -2683,12 +2683,9 @@ function spareRequestIssue_(data) {
   for (let i = 1; i < itemData.length; i++) {
     if (String(itemData[i][iidx.requestId] || "").trim() === id) {
       const code = String(itemData[i][iidx.partCode] || "").trim();
-      if (code && issueMap[code] !== undefined) {
-        itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(issueMap[code]);
-      } else {
-        // skipped items — set quantityIssued = 0
-        itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(0);
-      }
+      const qty = (code && issueMap[code] !== undefined) ? issueMap[code] : 0;
+      itemsSheet.getRange(i + 1, iidx.quantityIssued + 1).setValue(qty);
+      itemData[i][iidx.quantityIssued] = qty; // Sync in-memory array for master stock write
     }
   }
 
