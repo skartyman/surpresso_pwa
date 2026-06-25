@@ -21,6 +21,8 @@ const SH_SPARE_REQUESTS = "SPARE_REQUESTS";
 const SH_SPARE_REQUEST_ITEMS = "SPARE_REQUEST_ITEMS";
 const SH_SPARE_RETURNS = "SPARE_RETURNS";
 const SH_SPARE_RETURN_ITEMS = "SPARE_RETURN_ITEMS";
+const SH_MASTER_STOCK = "MASTER_STOCK";
+const MASTER_STOCK_COLUMNS = ["id", "masterLogin", "masterName", "requestId", "partCode", "partName", "cell", "unit", "quantityIssued", "quantityAvailable", "issuedAt", "status"];
 const PARTS_CATALOG_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
 const PARTS_CATALOG_GID = 1099059228;
 const MANUALS_FOLDER_NAME = "manuals";
@@ -201,6 +203,11 @@ function doPost(e) {
     if (action === "spareReturnCreate") return json_(spareReturnCreate_(data));
     if (action === "spareRequestReturn") return json_(spareRequestReturn_(data));
     if (action === "spareRequestCancelIssued") return json_(spareRequestCancelIssued_(data));
+
+    // ===== Master stock =====
+    if (action === "masterStockList") return json_(masterStockList_(data));
+    if (action === "masterStockDeduct") return json_(masterStockDeduct_(data));
+    if (action === "masterStockReturn") return json_(masterStockReturn_(data));
 
     return json_({ ok: false, error: "Unknown action" });
 
@@ -2008,6 +2015,228 @@ const SPARE_RETURN_ITEMS_COLUMNS = [
 ];
 const SPARE_REQUEST_STATUSES = ["pending", "processing", "issued", "returned", "cancelled"];
 
+function getOrCreateMasterStockSheet_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(SH_MASTER_STOCK);
+  if (!sheet) {
+    sheet = ss.insertSheet(SH_MASTER_STOCK);
+    sheet.appendRow(MASTER_STOCK_COLUMNS);
+  }
+  ["id", "masterLogin", "requestId", "partCode"].forEach(function(name) {
+    try {
+      const c = col_(sheet, name);
+      sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+    } catch (e) {}
+  });
+  return sheet;
+}
+
+function masterStockList_(data) {
+  const masterLogin = String(data.masterLogin || "").trim();
+  if (!masterLogin) return { ok: false, error: "no_masterLogin" };
+
+  const sheet = getOrCreateMasterStockSheet_();
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  if (values.length < 2) return { ok: true, items: [] };
+
+  const headers = values[0] || [];
+  const idx = {};
+  MASTER_STOCK_COLUMNS.forEach(function(col) {
+    idx[col] = headers.indexOf(col);
+  });
+
+  // Build lookup for request equipmentId and comment
+  const reqSheet = getOrCreateSpareRequestsSheet_();
+  const reqData = reqSheet.getDataRange().getValues();
+  const reqHeaders = reqData[0] || [];
+  const ridx_id = reqHeaders.indexOf("id");
+  const ridx_equip = reqHeaders.indexOf("equipmentId");
+  const ridx_comment = reqHeaders.indexOf("comment");
+  const reqLookup = {};
+  for (let r = 1; r < reqData.length; r++) {
+    const rId = String(reqData[r][ridx_id] || "").trim();
+    if (rId) {
+      reqLookup[rId] = {
+        equipmentId: String(reqData[r][ridx_equip] || "").trim(),
+        comment: String(reqData[r][ridx_comment] || "").trim()
+      };
+    }
+  }
+
+  const items = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    const login = String(row[idx.masterLogin] || "").trim();
+    const status = String(row[idx.status] || "").trim();
+    if (login !== masterLogin) continue;
+    if (status === "returned") continue;
+    if (Number(row[idx.quantityAvailable] || 0) <= 0) continue;
+
+    const rId = String(row[idx.requestId] || "").trim();
+    const reqInfo = reqLookup[rId] || { equipmentId: "", comment: "" };
+
+    items.push({
+      id: String(row[idx.id] || "").trim(),
+      masterLogin: login,
+      masterName: String(row[idx.masterName] || "").trim(),
+      requestId: rId,
+      equipmentId: reqInfo.equipmentId,
+      requestComment: reqInfo.comment,
+      partCode: String(row[idx.partCode] || "").trim(),
+      partName: String(row[idx.partName] || "").trim(),
+      cell: String(row[idx.cell] || "").trim(),
+      unit: String(row[idx.unit] || "шт.").trim(),
+      quantityIssued: Number(row[idx.quantityIssued] || 0),
+      quantityAvailable: Number(row[idx.quantityAvailable] || 0),
+      issuedAt: row[idx.issuedAt] || "",
+      status: status || "active",
+    });
+  }
+
+  return { ok: true, items };
+}
+
+function masterStockDeduct_(data) {
+  const masterLogin = String(data.masterLogin || "").trim();
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (!masterLogin) return { ok: false, error: "no_masterLogin" };
+  if (!items.length) return { ok: false, error: "no_items" };
+
+  const sheet = getOrCreateMasterStockSheet_();
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  if (values.length < 2) return { ok: false, error: "empty" };
+
+  const headers = values[0] || [];
+  const idx = {
+    masterLogin: headers.indexOf("masterLogin"),
+    requestId: headers.indexOf("requestId"),
+    partCode: headers.indexOf("partCode"),
+    quantityAvailable: headers.indexOf("quantityAvailable"),
+    status: headers.indexOf("status"),
+  };
+
+  const deductions = [];
+  items.forEach(function(ded) {
+    const reqId = String(ded.requestId || "").trim();
+    const code = String(ded.partCode || "").trim();
+    const qty = Number(ded.quantity || 0);
+    if (reqId && code && qty > 0) {
+      deductions.push({ requestId: reqId, partCode: code, quantity: qty });
+    }
+  });
+
+  if (!deductions.length) return { ok: false, error: "no_valid_items" };
+
+  // Build lookup: requestId+partCode -> total deduction
+  const dedMap = {};
+  deductions.forEach(function(d) {
+    const key = d.requestId + "|||" + d.partCode;
+    dedMap[key] = (dedMap[key] || 0) + d.quantity;
+  });
+
+  // Apply deductions row by row
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    const login = String(row[idx.masterLogin] || "").trim();
+    if (login !== masterLogin) continue;
+    const code = String(row[idx.partCode] || "").trim();
+    const reqId = String(row[idx.requestId] || "").trim();
+    const key = reqId + "|||" + code;
+    if (!dedMap[key]) continue;
+
+    const currentAvail = Number(row[idx.quantityAvailable] || 0);
+    const toDeduct = Math.min(currentAvail, dedMap[key]);
+    if (toDeduct <= 0) continue;
+
+    const newAvail = currentAvail - toDeduct;
+    sheet.getRange(i + 1, idx.quantityAvailable + 1).setValue(newAvail);
+    sheet.getRange(i + 1, idx.status + 1).setValue(newAvail <= 0 ? "returned" : "partial");
+
+    dedMap[key] -= toDeduct;
+  }
+
+  SpreadsheetApp.flush();
+  return { ok: true };
+}
+
+function masterStockReturn_(data) {
+  const masterLogin = String(data.masterLogin || "").trim();
+  const masterName = String(data.masterName || "").trim();
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (!masterLogin) return { ok: false, error: "no_masterLogin" };
+  if (!items.length) return { ok: false, error: "no_items" };
+
+  // Deduct from master stock
+  const dedResult = masterStockDeduct_(data);
+  if (!dedResult.ok) return dedResult;
+
+  // Create a return record
+  const returnId = generateSpareReturnId_();
+  const returnsSheet = getOrCreateSpareReturnsSheet_();
+  const returnItem = {
+    id: returnId,
+    sourceRequestId: items[0] ? String(items[0].requestId || "").trim() : "",
+    masterLogin: masterLogin,
+    masterName: masterName,
+    equipmentId: String(data.equipmentId || "").trim(),
+    status: "returned",
+    createdAt: new Date(),
+    processedAt: new Date(),
+    adminName: String(data.adminName || "").trim(),
+    comment: String(data.comment || "Возврат со склада мастера").trim(),
+    mode: "master_stock_return",
+  };
+  appendObjectRowByHeaders_(returnsSheet, returnItem);
+
+  // Write return items
+  const retItemsSheet = getOrCreateSpareReturnItemsSheet_();
+  const returnItems = [];
+  items.forEach(function(item) {
+    const qty = Number(item.quantity || 0);
+    if (qty <= 0) return;
+    const retItem = {
+      id: returnId + "-" + String(retItemsSheet.getLastRow()),
+      returnId: returnId,
+      sourceRequestId: String(item.requestId || "").trim(),
+      partCode: String(item.partCode || "").trim(),
+      partName: String(item.partName || "").trim(),
+      cell: String(item.cell || "").trim(),
+      unit: String(item.unit || "шт.").trim(),
+      quantityReturned: qty,
+    };
+    appendObjectRowByHeaders_(retItemsSheet, retItem);
+    returnItems.push({
+      partCode: retItem.partCode,
+      partName: retItem.partName,
+      cell: retItem.cell,
+      unit: retItem.unit,
+      quantityReturned: qty,
+    });
+  });
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    id: returnId,
+    return: {
+      id: returnId,
+      sourceRequestId: returnItem.sourceRequestId,
+      masterLogin: masterLogin,
+      masterName: masterName,
+      equipmentId: returnItem.equipmentId,
+      status: "returned",
+      createdAt: returnItem.createdAt,
+      processedAt: returnItem.processedAt,
+      adminName: returnItem.adminName,
+      comment: returnItem.comment,
+      mode: returnItem.mode,
+      items: returnItems,
+    }
+  };
+}
+
 function getOrCreateSpareRequestsSheet_() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(SH_SPARE_REQUESTS);
@@ -2414,6 +2643,8 @@ function spareRequestIssue_(data) {
     status: reqHeaders.indexOf("status"),
     processedAt: reqHeaders.indexOf("processedAt"),
     adminName: reqHeaders.indexOf("adminName"),
+    masterLogin: reqHeaders.indexOf("masterLogin"),
+    masterName: reqHeaders.indexOf("masterName"),
   };
 
   let reqRow = -1;
@@ -2436,6 +2667,9 @@ function spareRequestIssue_(data) {
   const iidx = {
     requestId: itemHeaders.indexOf("requestId"),
     partCode: itemHeaders.indexOf("partCode"),
+    partName: itemHeaders.indexOf("partName"),
+    cell: itemHeaders.indexOf("cell"),
+    unit: itemHeaders.indexOf("unit"),
     quantityIssued: itemHeaders.indexOf("quantityIssued"),
   };
 
@@ -2459,6 +2693,47 @@ function spareRequestIssue_(data) {
   }
 
   SpreadsheetApp.flush();
+
+  // Write issued items to master stock
+  const masterLogin = reqData[reqRow - 1][ridx.masterLogin];
+  const masterName = reqData[reqRow - 1][ridx.masterName];
+  if (masterLogin) {
+    try {
+      const stockSheet = getOrCreateMasterStockSheet_();
+      const stockCount = Math.max(0, stockSheet.getLastRow() - 1);
+      var stockIdx = 1;
+      for (var si = 1; si < itemData.length; si++) {
+        if (String(itemData[si][iidx.requestId] || "").trim() === id) {
+          const code = String(itemData[si][iidx.partCode] || "").trim();
+          const name = String(itemData[si][iidx.partName] || "").trim();
+          const cellRaw = itemData[si][iidx.cell] || "";
+          const unit = String(itemData[si][iidx.unit] || "шт.").trim();
+          const qtyIssued = Number(itemData[si][iidx.quantityIssued] || 0);
+          if (code && qtyIssued > 0) {
+            const stockId = "MS-" + String(stockCount + stockIdx).padStart(4, "0");
+            appendObjectRowByHeaders_(stockSheet, {
+              id: stockId,
+              masterLogin: String(masterLogin || "").trim(),
+              masterName: String(masterName || "").trim(),
+              requestId: id,
+              partCode: code,
+              partName: name,
+              cell: String(cellRaw || "").trim(),
+              unit: unit,
+              quantityIssued: qtyIssued,
+              quantityAvailable: qtyIssued,
+              issuedAt: new Date(),
+              status: "active",
+            });
+            stockIdx++;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("MASTER_STOCK write error: " + e);
+    }
+  }
+
   return { ok: true };
 }
 

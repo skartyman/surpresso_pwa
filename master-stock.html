@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso • Мой склад</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <style>
+    .ms-container { max-width: 960px; margin: 0 auto; padding: 12px; }
+    .ms-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .ms-header h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+    .ms-group { margin-bottom: 16px; }
+    .ms-group-header {
+      background: var(--surface-2, #f5f5f5);
+      padding: 10px 14px;
+      border-radius: 12px 12px 0 0;
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid var(--border, #e0e0e0);
+      border-bottom: none;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ms-group-date { font-weight: 400; font-size: 12px; color: var(--muted, #888); }
+    .ms-table { width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid var(--border, #e0e0e0); border-radius: 0 0 12px 12px; overflow: hidden; }
+    .ms-table th, .ms-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border, #eee); }
+    .ms-table th { font-size: 11px; font-weight: 700; color: var(--muted, #888); background: var(--surface-2, #fafafa); }
+    .ms-table tr:last-child td { border-bottom: none; }
+    .ms-table .qty-cell { font-weight: 700; }
+    .ms-table .actions-cell { white-space: nowrap; }
+    .ms-table .actions-cell .btn { padding: 4px 10px; font-size: 12px; margin: 0 2px; }
+    .ms-empty { text-align: center; padding: 60px 20px; color: var(--muted, #999); }
+    .ms-empty h2 { font-size: 1.2rem; margin: 0 0 8px; }
+    .ms-totals { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-bottom: 16px; padding: 12px; background: var(--surface-2, #f9f9f9); border-radius: 12px; }
+    .ms-totals strong { font-size: 16px; }
+    .ms-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .ms-actions .btn { flex: 1 1 180px; }
+    .ms-cell { font-size: 11px; color: var(--muted, #777); }
+    @media (max-width: 680px) {
+      .ms-container { padding: 8px; }
+      .ms-table { font-size: 12px; }
+      .ms-table th, .ms-table td { padding: 6px 4px; }
+      .ms-table .actions-cell .btn { padding: 3px 8px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body data-page="master-stock">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="">
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
+      <div class="app-title">
+        <div class="app-name"><span>Surpresso</span><span>Service</span></div>
+        <div class="app-subtitle">Мой склад</div>
+      </div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вхід в систему</h2>
+      <input id="login-user" type="text" placeholder="Логін" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Увійти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
+    <button class="nav-btn" onclick="window.location.href='/warehouse.html'">📦 Склад</button>
+    <button class="nav-btn" onclick="window.location.href='/check'">🧾 Чек</button>
+  </div>
+
+  <main class="app-main ms-container" id="appMain" style="display:none;">
+    <div class="ms-header">
+      <h1>Мой склад</h1>
+      <span id="masterName" class="muted" style="font-size:13px;"></span>
+    </div>
+
+    <div id="msContent">
+      <div class="ms-empty" id="msLoading">
+        <h2>⏳ Загрузка...</h2>
+      </div>
+    </div>
+  </main>
+
+  <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
+  <script src="/auth.js"></script>
+  <script>
+    const PENDING_ITEMS_KEY = "surp_pending_items_v1";
+
+    function getPwaKey() {
+      let key = localStorage.getItem("surpresso_pwa_key");
+      if (!key) {
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+        if (!key) throw new Error("NO_PWA_KEY");
+        localStorage.setItem("surpresso_pwa_key", key);
+      }
+      return key;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const key = getPwaKey();
+      const headers = { ...(options.headers || {}), "x-surpresso-key": key };
+      if (options.body && !(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
+      let resp = await fetch(url, { ...options, headers });
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const rh = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) rh["Content-Type"] = rh["Content-Type"] || "application/json";
+        resp = await fetch(url, { ...options, headers: rh });
+      }
+      return resp;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatDate(d) {
+      try { return new Date(d).toLocaleString("ru-RU", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(d); }
+    }
+
+    function fmtCell(cell) {
+      const s = String(cell || "").trim();
+      if (!s) return "—";
+      const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
+      if (m) return Number(m[1]) + "." + Number(m[2]) + ".2";
+      return s;
+    }
+
+    let masterStock = [];
+    let user = null;
+
+    async function loadStock() {
+      const content = document.getElementById("msContent");
+      content.innerHTML = '<div class="ms-empty"><h2>⏳ Загрузка...</h2></div>';
+
+      try {
+        const resp = await apiFetch("/api/master-stock/" + encodeURIComponent(user.login));
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "load_failed");
+        masterStock = Array.isArray(out.items) ? out.items : [];
+        renderStock();
+      } catch (e) {
+        content.innerHTML = '<div class="ms-empty"><h2>❌ Ошибка загрузки</h2><p>' + escapeHtml(e.message || "") + '</p></div>';
+      }
+    }
+
+    function renderStock() {
+      const content = document.getElementById("msContent");
+      if (!masterStock.length) {
+        content.innerHTML = '<div class="ms-empty"><h2>📭 Нет запчастей</h2><p>Выданные запчасти пока отсутствуют. После оформления выдачи они появятся здесь.</p><div class="ms-actions" style="justify-content:center;margin-top:16px;"><button class="btn primary" onclick="loadStock()">🔄 Обновить</button><button class="btn ghost" onclick="window.location.href=\'/spare-request.html\'">🧰 Запросить запчасти</button></div></div>';
+        return;
+      }
+
+      // Group by requestId
+      const groups = {};
+      masterStock.forEach(function(item) {
+        const key = item.requestId || "без заявки";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+      });
+
+      const keys = Object.keys(groups).sort();
+      let totalItems = 0;
+      let totalQty = 0;
+
+      let html = '<div class="ms-totals">';
+      html += '<span>Всего позиций: <strong>' + masterStock.length + '</strong></span>';
+      masterStock.forEach(function(i) { totalQty += Number(i.quantityAvailable || 0); });
+      html += '<span>Доступно: <strong>' + totalQty + '</strong> шт.</span>';
+      html += '</div>';
+
+      html += '<div class="ms-actions">';
+      html += '<button class="btn primary" onclick="addAllToCheck()">📦 Перенести все в чек</button>';
+      html += '<button class="btn ghost" onclick="returnSelected()">↩️ Вернуть выбранное</button>';
+      html += '<button class="btn ghost" onclick="loadStock()">🔄 Обновить</button>';
+      html += '</div>';
+
+      keys.forEach(function(requestId) {
+        const items = groups[requestId];
+        const first = items[0];
+        const dateStr = first && first.issuedAt ? formatDate(first.issuedAt) : "";
+        const equipment = first && first.equipmentId ? first.equipmentId : "";
+        const reqComment = first && first.requestComment ? first.requestComment : "";
+
+        html += '<div class="ms-group" data-request="' + escapeHtml(requestId) + '">';
+        html += '<div class="ms-group-header">';
+        
+        let headerText = '📋 ' + escapeHtml(requestId);
+        if (equipment) {
+          headerText += ' &middot; <strong>' + escapeHtml(equipment) + '</strong>';
+        }
+        if (reqComment) {
+          headerText += ' <span style="font-weight:400; opacity:0.85;">(' + escapeHtml(reqComment) + ')</span>';
+        }
+        
+        html += '<span>' + headerText + '</span>';
+        html += '<span class="ms-group-date">' + escapeHtml(dateStr) + ' &middot; ' + items.length + ' позиций</span>';
+        html += '</div>';
+        html += '<table class="ms-table">';
+        html += '<thead><tr><th><input type="checkbox" onchange="toggleGroup(this, \'' + escapeHtml(requestId) + '\')"></th><th>Артикул</th><th>Название</th><th>Ячейка</th><th>Од.</th><th>К-сть</th><th>Действия</th></tr></thead>';
+        html += '<tbody>';
+
+        items.forEach(function(item) {
+          totalItems++;
+          html += '<tr data-code="' + escapeHtml(item.partCode) + '" data-request="' + escapeHtml(item.requestId) + '" data-qty="' + Number(item.quantityAvailable) + '">';
+          html += '<td><input type="checkbox" class="ms-item-cb" data-code="' + escapeHtml(item.partCode) + '" data-request="' + escapeHtml(item.requestId) + '" data-qty="' + Number(item.quantityAvailable) + '"></td>';
+          html += '<td style="font-size:11px;color:var(--muted,#888);">' + escapeHtml(item.partCode) + '</td>';
+          html += '<td><strong>' + escapeHtml(item.partName) + '</strong></td>';
+          html += '<td class="ms-cell">' + fmtCell(item.cell) + '</td>';
+          html += '<td>' + escapeHtml(item.unit) + '</td>';
+          html += '<td class="qty-cell">' + Number(item.quantityAvailable) + '</td>';
+          html += '<td class="actions-cell">';
+          html += '<button class="btn primary" onclick="addToCheck(\'' + escapeHtml(item.partCode) + '\',\'' + escapeHtml(item.requestId) + '\',\'' + escapeHtml(item.partName) + '\',\'' + escapeHtml(item.cell) + '\',\'' + escapeHtml(item.unit) + '\',' + Number(item.quantityAvailable) + ')">➕ В чек</button>';
+          html += '<button class="btn ghost" onclick="returnItem(\'' + escapeHtml(item.partCode) + '\',\'' + escapeHtml(item.requestId) + '\',\'' + escapeHtml(item.partName) + '\',' + Number(item.quantityAvailable) + ')">↩️</button>';
+          html += '</td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+      });
+
+      content.innerHTML = html;
+    }
+
+    function toggleGroup(cb, requestId) {
+      const checked = cb.checked;
+      document.querySelectorAll('.ms-group[data-request="' + CSS.escape(requestId) + '"] .ms-item-cb').forEach(function(el) {
+        el.checked = checked;
+      });
+    }
+
+    function getSelectedItems() {
+      const items = [];
+      document.querySelectorAll(".ms-item-cb:checked").forEach(function(cb) {
+        items.push({
+          partCode: cb.dataset.code,
+          requestId: cb.dataset.request,
+          quantity: Number(cb.dataset.qty),
+        });
+      });
+      return items;
+    }
+
+    function addPendingToCheck(items) {
+      const pending = items.map(function(item) {
+        return { code: item.partCode, name: item.partName || "", qty: item.quantity, type: "part" };
+      });
+      try {
+        const existing = JSON.parse(localStorage.getItem(PENDING_ITEMS_KEY) || "[]");
+        const merged = existing.concat(pending);
+        localStorage.setItem(PENDING_ITEMS_KEY, JSON.stringify(merged));
+      } catch (e) {
+        console.warn("save pending failed", e);
+      }
+    }
+
+    async function addToCheck(code, requestId, name, cell, unit, qty) {
+      const qtyToAdd = Math.max(1, Number(prompt("Сколько добавить в чек?", String(qty)) || 0));
+      if (qtyToAdd <= 0) return;
+
+      try {
+        const resp = await apiFetch("/api/master-stock/deduct", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: user.login,
+            items: [{ requestId: requestId, partCode: code, quantity: qtyToAdd }]
+          })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "deduct_failed");
+
+        addPendingToCheck([{ partCode: code, partName: name, quantity: qtyToAdd }]);
+
+        if (confirm("✅ Запчасть добавлена в чек. Перейти к оформлению чека?")) {
+          window.location.href = "/check";
+        } else {
+          await loadStock();
+        }
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    async function addAllToCheck() {
+      const items = masterStock.filter(function(i) { return Number(i.quantityAvailable) > 0; });
+      if (!items.length) { alert("Нет доступных запчастей"); return; }
+
+      if (!confirm("Перенести все " + items.length + " позиций в чек?")) return;
+
+      const dedItems = items.map(function(i) {
+        return { requestId: i.requestId, partCode: i.partCode, quantity: Number(i.quantityAvailable) };
+      });
+
+      try {
+        const resp = await apiFetch("/api/master-stock/deduct", {
+          method: "POST",
+          body: JSON.stringify({ masterLogin: user.login, items: dedItems })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "deduct_failed");
+
+        addPendingToCheck(items.map(function(i) {
+          return { partCode: i.partCode, partName: i.partName, quantity: Number(i.quantityAvailable) };
+        }));
+
+        window.location.href = "/check";
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    async function returnItem(code, requestId, name, qty) {
+      const qtyToReturn = Math.max(1, Number(prompt("Сколько вернуть на склад?", String(qty)) || 0));
+      if (qtyToReturn <= 0) return;
+
+      if (!confirm("Вернуть " + qtyToReturn + " шт. \"" + name + "\" на склад?")) return;
+
+      const match = masterStock.find(function(i) { return i.partCode === code && i.requestId === requestId; });
+      const equipmentId = match ? match.equipmentId : "";
+      const cell = match ? match.cell : "";
+      const unit = match ? match.unit : "шт.";
+
+      try {
+        const resp = await apiFetch("/api/master-stock/return", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: user.login,
+            masterName: user.name,
+            equipmentId: equipmentId,
+            items: [{
+              requestId: requestId,
+              partCode: code,
+              partName: name,
+              cell: cell,
+              unit: unit,
+              quantity: qtyToReturn
+            }]
+          })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "return_failed");
+
+        alert("✅ Возврат оформлен");
+        await loadStock();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    async function returnSelected() {
+      const selected = getSelectedItems();
+      if (!selected.length) { alert("Выберите позиции для возврата"); return; }
+      if (!confirm("Вернуть выбранные (" + selected.length + ") позиции на склад?")) return;
+
+      // Map selected items to full details from masterStock
+      const itemsToReturn = selected.map(function(sel) {
+        const match = masterStock.find(function(i) { return i.partCode === sel.partCode && i.requestId === sel.requestId; });
+        return {
+          requestId: sel.requestId,
+          partCode: sel.partCode,
+          partName: match ? match.partName : "",
+          cell: match ? match.cell : "",
+          unit: match ? match.unit : "шт.",
+          quantity: sel.quantity
+        };
+      });
+
+      // Gather unique equipment IDs
+      const uniqueEquips = [];
+      selected.forEach(function(sel) {
+        const match = masterStock.find(function(i) { return i.partCode === sel.partCode && i.requestId === sel.requestId; });
+        if (match && match.equipmentId && !uniqueEquips.includes(match.equipmentId)) {
+          uniqueEquips.push(match.equipmentId);
+        }
+      });
+      const combinedEquipmentId = uniqueEquips.join(", ");
+
+      try {
+        const resp = await apiFetch("/api/master-stock/return", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: user.login,
+            masterName: user.name,
+            equipmentId: combinedEquipmentId,
+            items: itemsToReturn,
+            comment: "Возврат выбранных позиций со склада мастера"
+          })
+        });
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "return_failed");
+
+        alert("✅ Возврат оформлен");
+        await loadStock();
+      } catch (e) {
+        alert("❌ " + (e.message || "Ошибка"));
+      }
+    }
+
+    window.addEventListener("load", async function() {
+      try {
+        await window.SurpAuth.init();
+        user = window.SurpAuth.getCurrentUser();
+        if (!user) return;
+
+        document.getElementById("appMain").style.display = "block";
+        document.getElementById("masterName").textContent = "👤 " + user.name;
+
+        await loadStock();
+      } catch (e) {
+        console.error("Master stock init error:", e);
+      }
+    });
+  </script>
+</body>
+</html>

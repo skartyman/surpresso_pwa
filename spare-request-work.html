@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260617-10";
+      const version = "20260617-12";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -263,29 +263,27 @@
     .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 500px; width: 90%; max-height: 90vh; overflow: visible; display: flex; flex-direction: column; }
     .modal-scroll { overflow-y: auto; min-height: 0; flex-shrink: 0; }
     .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
-    .modal .suggest {
-      position: absolute;
-      z-index: 10;
+    .suggest-global {
+      display: none;
+      position: fixed;
+      z-index: 2147483647;
       background: var(--surface, #fff);
       border: 1px solid var(--border, #ddd);
       border-radius: 14px;
-      max-height: 300px;
       overflow-y: auto;
-      width: 100%;
       box-shadow: 0 12px 24px rgba(0,0,0,0.14);
-      margin-top: 6px;
     }
-    .modal .suggest-list {
+    .suggest-global .suggest-list {
       list-style: none;
       margin: 0;
       padding: 6px;
     }
-    .modal .suggest-empty {
+    .suggest-global .suggest-empty {
       padding: 12px 14px;
       color: var(--muted, #888);
       font-size: 13px;
     }
-    .modal .suggest-item {
+    .suggest-global .suggest-item {
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -296,29 +294,29 @@
       margin-bottom: 6px;
       background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,250,250,0.98));
     }
-    .modal .suggest-item:hover,
-    .modal .suggest-item.is-selected {
+    .suggest-global .suggest-item:hover,
+    .suggest-global .suggest-item.is-selected {
       background: var(--accent-bg, #f0f7ff);
       border-color: rgba(59,130,246,0.22);
       box-shadow: 0 4px 16px rgba(59,130,246,0.10);
     }
-    .modal .suggest-item:last-child {
+    .suggest-global .suggest-item:last-child {
       margin-bottom: 0;
     }
-    .modal .suggest-title-row {
+    .suggest-global .suggest-title-row {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
     }
-    .modal .suggest-title {
+    .suggest-global .suggest-title {
       font-size: 14px;
       font-weight: 700;
       line-height: 1.25;
       color: var(--text, #111);
       overflow-wrap: anywhere;
     }
-    .modal .suggest-code {
+    .suggest-global .suggest-code {
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.02em;
@@ -329,14 +327,14 @@
       white-space: nowrap;
       flex: 0 0 auto;
     }
-    .modal .suggest-meta {
+    .suggest-global .suggest-meta {
       display: flex;
       flex-wrap: wrap;
       gap: 6px 10px;
       font-size: 12px;
       color: var(--muted, #777);
     }
-    .modal .suggest-pill {
+    .suggest-global .suggest-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -345,15 +343,15 @@
       background: rgba(127,127,127,0.10);
       white-space: nowrap;
     }
-    .modal .suggest-pill strong {
+    .suggest-global .suggest-pill strong {
       font-size: 12px;
       color: var(--text, #111);
     }
-    .modal .suggest-pill.stock-ok { background: rgba(34,197,94,0.12); }
-    .modal .suggest-pill.stock-warn { background: rgba(245,158,11,0.16); }
-    .modal .suggest-pill.stock-low { background: rgba(249,115,22,0.16); }
-    .modal .suggest-pill.stock-red { background: rgba(239,68,68,0.16); }
-    .modal .suggest-pill.stock-unknown { background: rgba(127,127,127,0.12); }
+    .suggest-global .suggest-pill.stock-ok { background: rgba(34,197,94,0.12); }
+    .suggest-global .suggest-pill.stock-warn { background: rgba(245,158,11,0.16); }
+    .suggest-global .suggest-pill.stock-low { background: rgba(249,115,22,0.16); }
+    .suggest-global .suggest-pill.stock-red { background: rgba(239,68,68,0.16); }
+    .suggest-global .suggest-pill.stock-unknown { background: rgba(127,127,127,0.12); }
     .modal .suggest-block { position: relative; }
     .work-table tr.pick-current-row {
       background: rgba(245,158,11,0.08);
@@ -495,7 +493,6 @@
             <label>Поиск запчасти</label>
             <div class="suggest-block">
               <input id="replace-search-input" type="text" autocomplete="off" placeholder="Введи артикул или название..." />
-              <div id="replace-search-suggest" class="suggest"></div>
             </div>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;">
@@ -504,6 +501,7 @@
           </div>
         </div>
       </div>
+      <div id="replace-search-suggest" class="suggest-global"></div>
 
       <div class="work-table-wrap">
         <table class="work-table">
@@ -1051,6 +1049,7 @@
       if (!out.ok) throw new Error(out.error || "load_failed");
       currentRequest = out.request;
       await loadPartsCatalog();
+      console.log("[catalog] loaded:", partsFullList.length);
       pickState = {
         done: new Set(),
         skipped: new Set(),
@@ -1265,6 +1264,7 @@
         }
       }
       const qty = getRemainingQty(replaceCurrentItem);
+      const skipIdx = replaceCurrentItem._index;
       try {
         const resp = await apiFetch(`/api/spare-request/${r.id}/add-item`, {
           method: "POST",
@@ -1278,7 +1278,7 @@
         });
         const out = await resp.json();
         if (!out.ok) throw new Error(out.error || "add_failed");
-        pickState.skipped.add(replaceCurrentItem._index);
+        pickState.skipped.add(skipIdx);
         closeReplaceModal();
         await loadRequest();
       } catch (e) {
@@ -1320,12 +1320,24 @@
       const replaceSuggest = document.getElementById("replace-search-suggest");
       if (replaceSearchInput && replaceSuggest) {
         function positionSuggest() {
-          replaceSuggest.style.display = "block";
+          const rect = replaceSearchInput.getBoundingClientRect();
+          const top = rect.bottom + 6;
+          const maxH = Math.min(300, window.innerHeight - top - 12);
+          Object.assign(replaceSuggest.style, {
+            position: "fixed",
+            top: top + "px",
+            left: rect.left + "px",
+            width: rect.width + "px",
+            maxHeight: Math.max(60, maxH) + "px",
+            zIndex: "2147483647",
+            display: "block"
+          });
         }
 
         replaceSearchInput.addEventListener("input", () => {
           const q = replaceSearchInput.value.trim();
           const results = filterPartsForReplace(q);
+          console.log("[replace] query:", JSON.stringify(q), "results:", results.length);
           replaceSuggest.innerHTML = "";
           replaceSelectedItem = null;
           document.getElementById("replaceConfirmBtn").disabled = !results.length;

@@ -3393,6 +3393,67 @@ app.post("/api/spare-return/create", requirePwaKey, async (req, res) => {
   }
 });
 
+// ===== Master Stock API =====
+
+app.get("/api/master-stock/:masterLogin", requirePwaKey, async (req, res) => {
+  try {
+    const masterLogin = String(req.params.masterLogin || "").trim();
+    if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
+
+    const out = await gasPost({ action: "masterStockList", masterLogin });
+    res.send(out);
+  } catch (err) {
+    console.error("MASTER STOCK LIST ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/master-stock/deduct", requirePwaKey, async (req, res) => {
+  try {
+    const { masterLogin, items } = req.body || {};
+    if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
+    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
+
+    const out = await gasPost({ action: "masterStockDeduct", masterLogin, items });
+    res.send(out);
+  } catch (err) {
+    console.error("MASTER STOCK DEDUCT ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/master-stock/return", requirePwaKey, async (req, res) => {
+  try {
+    const { masterLogin, masterName, items, equipmentId, adminName, comment } = req.body || {};
+    if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
+    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
+
+    const out = await gasPost({
+      action: "masterStockReturn",
+      masterLogin,
+      masterName: masterName || "",
+      items,
+      equipmentId: equipmentId || "",
+      adminName: adminName || "",
+      comment: comment || "",
+    });
+    
+    if (out.ok && out.return && TG_NOTIFY_BOT) {
+      try {
+        const sent = await notifySpareReturnXlsx(out.return);
+        if (!sent) console.error("TG MASTER RETURN XLSX ERROR: Telegram returned non-ok response");
+      } catch (tgErr) {
+        console.error("TG MASTER RETURN XLSX ERROR:", tgErr);
+      }
+    }
+
+    res.send(out);
+  } catch (err) {
+    console.error("MASTER STOCK RETURN ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
 app.post("/api/spare-request/:id/return", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
