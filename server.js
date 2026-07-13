@@ -3611,8 +3611,8 @@ app.get("/api/debug/trello-lists", requirePwaKey, async (req, res) => {
 // TEMP: one-time migration endpoint - will be removed after migration
 app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) => {
   try {
-    const { spareRequestList: srl, spareRequestGet: srg, spareRequestCreate: src, spareRequestAddItem: sri } = await import("./backend/src/warehouse/warehouseRoutes.js");
-    const { masterStockList: msl, masterStockDeduct: msd } = await import("./backend/src/warehouse/warehouseRoutes.js");
+    const { getWarehousePrisma } = await import("./backend/src/warehouse/warehousePrisma.js");
+    const prisma = getWarehousePrisma();
 
     const log = [];
     const push = (msg) => { log.push(msg); console.log(msg); };
@@ -3625,31 +3625,26 @@ app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) 
 
     let migratedReqs = 0;
     for (const req of requests) {
-      const { getWarehousePrisma } = await import("./backend/src/warehouse/warehousePrisma.js");
-      const prisma = getWarehousePrisma();
       const exists = await prisma.spareRequest.findUnique({ where: { id: req.id } });
       if (exists) { push(`  SKIP ${req.id} (exists)`); continue; }
 
-      await src({ masterLogin: req.masterLogin, masterName: req.masterName, equipmentId: req.equipmentId, comment: req.comment, items: [] });
-
-      // Now update status/createdAt if different from defaults
-      await prisma.spareRequest.update({
-        where: { id: req.id },
-        data: {
-          status: req.status || "pending",
-          createdAt: req.createdAt ? new Date(req.createdAt) : undefined,
-          processedAt: req.processedAt ? new Date(req.processedAt) : null,
-          adminName: req.adminName || "",
-        },
-      });
-
-      // Fetch and migrate items
       try {
+        await prisma.spareRequest.create({
+          data: {
+            id: req.id,
+            masterLogin: req.masterLogin || "",
+            masterName: req.masterName || "",
+            equipmentId: req.equipmentId || "",
+            status: req.status || "pending",
+            createdAt: req.createdAt ? new Date(req.createdAt) : new Date(),
+            processedAt: req.processedAt ? new Date(req.processedAt) : null,
+            adminName: req.adminName || "",
+            comment: req.comment || "",
+          },
+        });
+
         const getOut = await gasPost({ action: "spareRequestGet", id: req.id });
         if (getOut.ok && getOut.request && Array.isArray(getOut.request.items)) {
-          // Delete the empty items we created, re-add from GAS
-          await prisma.spareRequestItem.deleteMany({ where: { requestId: req.id } });
-
           for (let idx = 0; idx < getOut.request.items.length; idx++) {
             const item = getOut.request.items[idx];
             const itemId = req.id + "-" + String(idx + 1).padStart(3, "0");
@@ -3667,12 +3662,11 @@ app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) 
             });
           }
         }
+        migratedReqs++;
+        push(`  OK ${req.id}`);
       } catch (e) {
-        push(`  ERROR items for ${req.id}: ${e.message}`);
+        push(`  ERROR ${req.id}: ${e.message}`);
       }
-
-      migratedReqs++;
-      push(`  OK ${req.id}`);
     }
     push(`Migrated ${migratedReqs} requests`);
 
@@ -3685,8 +3679,6 @@ app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) 
       try {
         const stockOut = await gasPost({ action: "masterStockList", masterLogin: login });
         const items = stockOut.items || [];
-        const { getWarehousePrisma } = await import("./backend/src/warehouse/warehousePrisma.js");
-        const prisma = getWarehousePrisma();
 
         for (const item of items) {
           const exists = await prisma.masterStock.findUnique({ where: { id: item.id } });
@@ -3710,13 +3702,63 @@ app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) 
           });
           migratedStock++;
         }
+        push(`  Stock ${login}: ${items.length} items`);
       } catch (e) {
-        push(`  ERROR stock for ${login}: ${e.message}`);
+        push(`  ERROR stock ${login}: ${e.message}`);
       }
     }
     push(`Migrated ${migratedStock} master stock items`);
-    push("Migration complete!");
 
+    // 3. Migrate Returns
+    push("--- Migrating Returns ---");
+    let migratedReturns = 0;
+    for (const req of requests) {
+      try {
+        const retOut = await gasPost({ action: "spareReturnList", spareRequestId: req.id });
+        const returns = retOut.returns || retOut.data || [];
+        for (const ret of returns) {
+          const exists = await prisma.spareReturn.findUnique({ where: { id: ret.id } });
+          if (exists) continue;
+
+          await prisma.spareReturn.create({
+            data: {
+              id: ret.id,
+              requestId: req.id,
+              masterLogin: ret.masterLogin || req.masterLogin,
+              masterName: ret.masterName || req.masterName,
+              status: ret.status || "completed",
+              createdAt: ret.createdAt ? new Date(ret.createdAt) : new Date(),
+              processedAt: ret.processedAt ? new Date(ret.processedAt) : null,
+              adminName: ret.adminName || "",
+              comment: ret.comment || "",
+            },
+          });
+
+          const retItems = ret.items || [];
+          for (let idx = 0; idx < retItems.length; idx++) {
+            const ri = retItems[idx];
+            const retItemId = ret.id + "-" + String(idx + 1).padStart(3, "0");
+            await prisma.spareReturnItem.create({
+              data: {
+                id: retItemId,
+                returnId: ret.id,
+                partCode: String(ri.partCode || "").trim(),
+                partName: String(ri.partName || "").trim(),
+                cell: String(ri.cell || "").trim(),
+                unit: String(ri.unit || "шт.").trim(),
+                quantityReturned: Number(ri.quantityReturned || ri.quantity || 0),
+              },
+            });
+          }
+          migratedReturns++;
+        }
+      } catch (e) {
+        push(`  ERROR returns ${req.id}: ${e.message}`);
+      }
+    }
+    push(`Migrated ${migratedReturns} returns`);
+
+    push("Migration complete!");
     res.send({ ok: true, log });
   } catch (err) {
     console.error("MIGRATION ERROR", err);
