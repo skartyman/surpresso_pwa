@@ -3608,5 +3608,121 @@ app.get("/api/debug/trello-lists", requirePwaKey, async (req, res) => {
   }
 });
 
+// TEMP: one-time migration endpoint - will be removed after migration
+app.post("/api/_migration/spare-parts-to-neon", requirePwaKey, async (req, res) => {
+  try {
+    const { spareRequestList: srl, spareRequestGet: srg, spareRequestCreate: src, spareRequestAddItem: sri } = await import("./backend/src/warehouse/warehouseRoutes.js");
+    const { masterStockList: msl, masterStockDeduct: msd } = await import("./backend/src/warehouse/warehouseRoutes.js");
+
+    const log = [];
+    const push = (msg) => { log.push(msg); console.log(msg); };
+
+    // 1. Migrate Spare Requests
+    push("--- Migrating Spare Requests ---");
+    const reqListOut = await gasPost({ action: "spareRequestList", status: "" });
+    const requests = reqListOut.requests || [];
+    push(`Found ${requests.length} requests in GAS`);
+
+    let migratedReqs = 0;
+    for (const req of requests) {
+      const { getWarehousePrisma } = await import("./backend/src/warehouse/warehousePrisma.js");
+      const prisma = getWarehousePrisma();
+      const exists = await prisma.spareRequest.findUnique({ where: { id: req.id } });
+      if (exists) { push(`  SKIP ${req.id} (exists)`); continue; }
+
+      await src({ masterLogin: req.masterLogin, masterName: req.masterName, equipmentId: req.equipmentId, comment: req.comment, items: [] });
+
+      // Now update status/createdAt if different from defaults
+      await prisma.spareRequest.update({
+        where: { id: req.id },
+        data: {
+          status: req.status || "pending",
+          createdAt: req.createdAt ? new Date(req.createdAt) : undefined,
+          processedAt: req.processedAt ? new Date(req.processedAt) : null,
+          adminName: req.adminName || "",
+        },
+      });
+
+      // Fetch and migrate items
+      try {
+        const getOut = await gasPost({ action: "spareRequestGet", id: req.id });
+        if (getOut.ok && getOut.request && Array.isArray(getOut.request.items)) {
+          // Delete the empty items we created, re-add from GAS
+          await prisma.spareRequestItem.deleteMany({ where: { requestId: req.id } });
+
+          for (let idx = 0; idx < getOut.request.items.length; idx++) {
+            const item = getOut.request.items[idx];
+            const itemId = req.id + "-" + String(idx + 1).padStart(3, "0");
+            await prisma.spareRequestItem.create({
+              data: {
+                id: itemId,
+                requestId: req.id,
+                partCode: String(item.partCode || "").trim(),
+                partName: String(item.partName || "").trim(),
+                cell: String(item.cell || "").trim(),
+                unit: String(item.unit || "шт.").trim(),
+                quantityRequested: Number(item.quantityRequested || 0),
+                quantityIssued: Number(item.quantityIssued || 0),
+              },
+            });
+          }
+        }
+      } catch (e) {
+        push(`  ERROR items for ${req.id}: ${e.message}`);
+      }
+
+      migratedReqs++;
+      push(`  OK ${req.id}`);
+    }
+    push(`Migrated ${migratedReqs} requests`);
+
+    // 2. Migrate Master Stock
+    push("--- Migrating Master Stock ---");
+    const masterLogins = [...new Set(requests.map(r => r.masterLogin).filter(Boolean))];
+    let migratedStock = 0;
+
+    for (const login of masterLogins) {
+      try {
+        const stockOut = await gasPost({ action: "masterStockList", masterLogin: login });
+        const items = stockOut.items || [];
+        const { getWarehousePrisma } = await import("./backend/src/warehouse/warehousePrisma.js");
+        const prisma = getWarehousePrisma();
+
+        for (const item of items) {
+          const exists = await prisma.masterStock.findUnique({ where: { id: item.id } });
+          if (exists) continue;
+
+          await prisma.masterStock.create({
+            data: {
+              id: item.id,
+              masterLogin: item.masterLogin || login,
+              masterName: item.masterName || "",
+              requestId: item.requestId || "",
+              partCode: item.partCode || "",
+              partName: item.partName || "",
+              cell: item.cell || "",
+              unit: item.unit || "шт.",
+              quantityIssued: Number(item.quantityIssued || 0),
+              quantityAvailable: Number(item.quantityAvailable || 0),
+              issuedAt: item.issuedAt ? new Date(item.issuedAt) : new Date(),
+              status: item.status || "active",
+            },
+          });
+          migratedStock++;
+        }
+      } catch (e) {
+        push(`  ERROR stock for ${login}: ${e.message}`);
+      }
+    }
+    push(`Migrated ${migratedStock} master stock items`);
+    push("Migration complete!");
+
+    res.send({ ok: true, log });
+  } catch (err) {
+    console.error("MIGRATION ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
 await setupMiniAppLayer();
 app.listen(PORT, "0.0.0.0", () => console.log("Server started on 0.0.0.0:" + PORT));
