@@ -19,6 +19,20 @@ import {
   uniqueTopChunks,
 } from "./manuals-ai.js";
 
+import {
+  masterStockList,
+  masterStockDeduct,
+  masterStockReturn,
+  spareRequestCreate,
+  spareRequestList,
+  spareRequestGet,
+  spareRequestIssue,
+  spareRequestReturn,
+  spareRequestCancelIssued,
+  spareRequestAddItem,
+  spareReturnCreate,
+} from "./backend/src/warehouse/warehouseRoutes.js";
+
 // =======================
 // APP
 // =======================
@@ -3078,14 +3092,8 @@ app.delete("/api/warehouse-templates/:id", requireWarehouseTemplateSecret, handl
 app.post("/api/spare-request/create", requirePwaKey, async (req, res) => {
   try {
     const { masterLogin, masterName, equipmentId, comment, items } = req.body || {};
-    if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
-    if (!masterName) return res.status(400).send({ ok: false, error: "no_masterName" });
-    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
-
-    const out = await gasPost({
-      action: "spareRequestCreate",
-      masterLogin, masterName, equipmentId: equipmentId || "", comment: comment || "", items
-    });
+    const out = await spareRequestCreate({ masterLogin, masterName, equipmentId, comment, items });
+    res.send(out);
 
     if (out.ok) {
       notifySpareRequestCreated({
@@ -3096,8 +3104,6 @@ app.post("/api/spare-request/create", requirePwaKey, async (req, res) => {
         items,
       }).catch(e => console.error("NOTIFY SPARE REQUEST CREATED ERROR:", e));
     }
-
-    res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST CREATE ERROR", err);
     res.status(500).send({ ok: false, error: String(err) });
@@ -3107,7 +3113,7 @@ app.post("/api/spare-request/create", requirePwaKey, async (req, res) => {
 app.get("/api/spare-request/list", requirePwaKey, async (req, res) => {
   try {
     const status = String(req.query.status || "").trim();
-    const out = await gasPost({ action: "spareRequestList", status });
+    const out = await spareRequestList(status);
     res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST LIST ERROR", err);
@@ -3119,7 +3125,7 @@ app.get("/api/spare-request/:id", requirePwaKey, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
-    const out = await gasPost({ action: "spareRequestGet", id });
+    const out = await spareRequestGet(id);
     res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST GET ERROR", err);
@@ -3345,11 +3351,11 @@ app.post("/api/spare-request/:id/issue", requirePwaKey, async (req, res) => {
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
     if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
 
-    const out = await gasPost({ action: "spareRequestIssue", id, adminName, items: items || [] });
+    const out = await spareRequestIssue(id, adminName, items);
 
     if (out.ok && TG_NOTIFY_BOT) {
       try {
-        const getOut = await gasPost({ action: "spareRequestGet", id });
+        const getOut = await spareRequestGet(id);
         if (getOut.ok) {
           const buf = toXlsxBuffer(await buildSpareRequestXlsx(getOut.request));
           const fileName = buildSpareRequestFileName(getOut.request, id);
@@ -3376,7 +3382,7 @@ app.get("/api/spare-request/:id/export-xls", requirePwaKey, async (req, res) => 
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
 
-    const out = await gasPost({ action: "spareRequestGet", id });
+    const out = await spareRequestGet(id);
     if (!out.ok) return res.status(404).send(out);
 
     const buf = toXlsxBuffer(await buildSpareRequestXlsx(out.request));
@@ -3398,8 +3404,7 @@ app.post("/api/spare-return/create", requirePwaKey, async (req, res) => {
     if (!masterLogin && !masterName) return res.status(400).send({ ok: false, error: "no_master" });
     if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
 
-    const out = await gasPost({
-      action: "spareReturnCreate",
+    const out = await spareReturnCreate({
       masterLogin,
       masterName,
       equipmentId,
@@ -3407,6 +3412,7 @@ app.post("/api/spare-return/create", requirePwaKey, async (req, res) => {
       comment,
       mode: "manual",
       items,
+      adminName: req.body.adminName || masterName || "",
     });
 
     if (out.ok && out.return && TG_NOTIFY_BOT) {
@@ -3431,8 +3437,7 @@ app.get("/api/master-stock/:masterLogin", requirePwaKey, async (req, res) => {
   try {
     const masterLogin = String(req.params.masterLogin || "").trim();
     if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
-
-    const out = await gasPost({ action: "masterStockList", masterLogin });
+    const out = await masterStockList(masterLogin);
     res.send(out);
   } catch (err) {
     console.error("MASTER STOCK LIST ERROR", err);
@@ -3446,7 +3451,7 @@ app.post("/api/master-stock/deduct", requirePwaKey, async (req, res) => {
     if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
     if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
 
-    const out = await gasPost({ action: "masterStockDeduct", masterLogin, items });
+    const out = await masterStockDeduct(masterLogin, items);
     res.send(out);
   } catch (err) {
     console.error("MASTER STOCK DEDUCT ERROR", err);
@@ -3460,15 +3465,7 @@ app.post("/api/master-stock/return", requirePwaKey, async (req, res) => {
     if (!masterLogin) return res.status(400).send({ ok: false, error: "no_masterLogin" });
     if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
 
-    const out = await gasPost({
-      action: "masterStockReturn",
-      masterLogin,
-      masterName: masterName || "",
-      items,
-      equipmentId: equipmentId || "",
-      adminName: adminName || "",
-      comment: comment || "",
-    });
+    const out = await masterStockReturn({ masterLogin, masterName, items, equipmentId, adminName, comment });
     
     if (out.ok && out.return && TG_NOTIFY_BOT) {
       try {
@@ -3492,9 +3489,8 @@ app.post("/api/spare-request/:id/return", requirePwaKey, async (req, res) => {
     const { adminName, comment, items } = req.body || {};
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
     if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
-    if (!Array.isArray(items) || !items.length) return res.status(400).send({ ok: false, error: "no_items" });
 
-    const out = await gasPost({ action: "spareRequestReturn", id, adminName, comment, items });
+    const out = await spareRequestReturn(id, adminName, comment, items);
 
     if (out.ok && out.return && TG_NOTIFY_BOT) {
       try {
@@ -3519,7 +3515,7 @@ app.post("/api/spare-request/:id/cancel-issued", requirePwaKey, async (req, res)
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
     if (!adminName) return res.status(400).send({ ok: false, error: "no_adminName" });
 
-    const out = await gasPost({ action: "spareRequestCancelIssued", id, adminName, comment });
+    const out = await spareRequestCancelIssued(id, adminName, comment);
 
     if (out.ok && out.return && TG_NOTIFY_BOT) {
       try {
@@ -3544,15 +3540,7 @@ app.post("/api/spare-request/:id/add-item", requirePwaKey, async (req, res) => {
     if (!id) return res.status(400).send({ ok: false, error: "no_id" });
     if (!partCode && !partName) return res.status(400).send({ ok: false, error: "no_part" });
 
-    const out = await gasPost({
-      action: "spareRequestAddItem",
-      id,
-      partCode: partCode || "",
-      partName: partName || "",
-      cell: cell || "",
-      unit: unit || "шт.",
-      quantity: Number(quantity) || 1,
-    });
+    const out = await spareRequestAddItem(id, { partCode, partName, cell, unit, quantity });
     res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST ADD ITEM ERROR", err);

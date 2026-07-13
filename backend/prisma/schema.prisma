@@ -723,3 +723,102 @@ model EquipmentPlacementHistory {
   @@index([startedAt])
   @@index([endedAt])
 }
+
+// =========================
+// WAREHOUSE / SPARE PARTS
+// =========================
+
+model MasterStock {
+  id                 String   @id
+  masterLogin        String
+  masterName         String
+  requestId          String
+  partCode           String
+  partName           String
+  cell               String
+  unit               String   @default("шт.")
+  quantityIssued     Float    @default(0)
+  quantityAvailable  Float    @default(0)
+  issuedAt           DateTime @default(now())
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([masterLogin])
+  @@index([requestId])
+  @@index([partCode])
+  @@index([status])
+}
+
+model SpareRequest {
+  id           String   @id
+  masterLogin  String
+  masterName   String
+  equipmentId  String?
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+  processedAt  DateTime?
+  adminName    String?
+  comment      String?
+
+  items        SpareRequestItem[]
+  returns      SpareReturn[]
+
+  @@index([masterLogin])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SpareRequestItem {
+  id                 String   @id
+  requestId          String
+  partCode           String
+  partName           String
+  cell               String
+  unit               String   @default("шт.")
+  quantityRequested  Float    @default(0)
+  quantityIssued     Float    @default(0)
+
+  request            SpareRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([partCode])
+}
+
+model SpareReturn {
+  id               String   @id
+  sourceRequestId  String?
+  masterLogin      String
+  masterName       String
+  equipmentId      String?
+  status           String   @default("returned")
+  createdAt        DateTime @default(now())
+  processedAt      DateTime?
+  adminName        String?
+  comment          String?
+  mode             String?
+
+  items            SpareReturnItem[]
+  request          SpareRequest?    @relation(fields: [sourceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([masterLogin])
+  @@index([sourceRequestId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SpareReturnItem {
+  id                String   @id
+  returnId          String
+  sourceRequestId   String?
+  partCode          String
+  partName          String
+  cell              String
+  unit              String   @default("шт.")
+  quantityReturned  Float    @default(0)
+
+  return            SpareReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId])
+  @@index([sourceRequestId])
+}

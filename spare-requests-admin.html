@@ -243,11 +243,11 @@
 
     function resolveCellDisplay(item) {
       const current = String(item?.cell || "").trim();
+      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       const code = normalizeKey(item?.partCode || "");
       if (code && partsLookupByCode.has(code)) return formatCellDisplay(partsLookupByCode.get(code));
       const name = normalizeKey(item?.partName || "");
       if (name && partsLookupByName.has(name)) return formatCellDisplay(partsLookupByName.get(name));
-      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       return "—";
     }
 

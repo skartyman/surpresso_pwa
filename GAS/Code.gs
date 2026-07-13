@@ -2022,7 +2022,7 @@ function getOrCreateMasterStockSheet_() {
     sheet = ss.insertSheet(SH_MASTER_STOCK);
     sheet.appendRow(MASTER_STOCK_COLUMNS);
   }
-  ["id", "masterLogin", "requestId", "partCode"].forEach(function(name) {
+  ["id", "masterLogin", "requestId", "partCode", "cell"].forEach(function(name) {
     try {
       const c = col_(sheet, name);
       sheet.getRange(2, c, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
@@ -2038,6 +2038,7 @@ function masterStockList_(data) {
   const sheet = getOrCreateMasterStockSheet_();
   const range = sheet.getDataRange();
   const values = range.getValues();
+  const displays = range.getDisplayValues();
   if (values.length < 2) return { ok: true, items: [] };
 
   const headers = values[0] || [];
@@ -2083,9 +2084,9 @@ function masterStockList_(data) {
       requestId: rId,
       equipmentId: reqInfo.equipmentId,
       requestComment: reqInfo.comment,
-      partCode: String(row[idx.partCode] || "").trim(),
-      partName: String(row[idx.partName] || "").trim(),
-      cell: String(row[idx.cell] || "").trim(),
+      partCode: String(displays[i][idx.partCode] || row[idx.partCode] || "").trim(),
+      partName: String(displays[i][idx.partName] || row[idx.partName] || "").trim(),
+      cell: normalizeSpareCellDisplay_(row[idx.cell] || displays[i][idx.cell] || ""),
       unit: String(row[idx.unit] || "шт.").trim(),
       quantityIssued: Number(row[idx.quantityIssued] || 0),
       quantityAvailable: Number(row[idx.quantityAvailable] || 0),
@@ -2352,17 +2353,28 @@ function normalizeSpareCellDisplay_(value) {
     if (value.getFullYear() === 2006) {
       return value.getDate() + "." + (value.getMonth() + 1) + ".2";
     }
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), "dd.MM.yyyy");
+    return value.getDate() + "." + (value.getMonth() + 1) + "." + String(value.getFullYear()).slice(-1);
   }
   const s = String(value || "").trim();
   const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
   if (dateArtifact) return Number(dateArtifact[1]) + "." + Number(dateArtifact[2]) + ".2";
+  const datedCell = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]200([1-9])$/);
+  if (datedCell) return Number(datedCell[1]) + "." + Number(datedCell[2]) + "." + Number(datedCell[3]);
+  const jsDate = s.match(/^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}/i);
+  if (jsDate) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getDate() + "." + (d.getMonth() + 1) + "." + String(d.getFullYear()).slice(-1);
+    }
+  }
   return s;
 }
 
 function resolveSpareRequestCell_(item) {
   const rawCurrent = item && item.cell ? item.cell : "";
   const current = String(rawCurrent).trim();
+
+  if (current) return normalizeSpareCellDisplay_(rawCurrent);
 
   const catalog = loadSparePartsCatalog_();
   const codeKey = normKey_(item && item.partCode ? item.partCode : "");
@@ -2371,8 +2383,7 @@ function resolveSpareRequestCell_(item) {
   const nameKey = normKey_(item && item.partName ? item.partName : "");
   if (nameKey && catalog.byName[nameKey]) return normalizeSpareCellDisplay_(catalog.byName[nameKey]);
 
-  if (!current) return "";
-  return normalizeSpareCellDisplay_(rawCurrent);
+  return "";
 }
 
 function spareRequestCreate_(data) {
@@ -2500,6 +2511,7 @@ function spareRequestAddItem_(data) {
   setTextColumnValue_(itemsSheet, itemRow, "id", itemId);
   setTextColumnValue_(itemsSheet, itemRow, "requestId", id);
   setTextColumnValue_(itemsSheet, itemRow, "partCode", partCode);
+  setTextColumnValue_(itemsSheet, itemRow, "cell", resolvedCell);
 
   return { ok: true, itemId: itemId };
 }
@@ -2708,20 +2720,26 @@ function spareRequestIssue_(data) {
           const qtyIssued = Number(itemData[si][iidx.quantityIssued] || 0);
           if (code && qtyIssued > 0) {
             const stockId = "MS-" + String(stockCount + stockIdx).padStart(4, "0");
-            appendObjectRowByHeaders_(stockSheet, {
+            const normalizedCell = normalizeSpareCellDisplay_(cellRaw);
+            const stockRow = appendObjectRowByHeaders_(stockSheet, {
               id: stockId,
               masterLogin: String(masterLogin || "").trim(),
               masterName: String(masterName || "").trim(),
               requestId: id,
               partCode: code,
               partName: name,
-              cell: String(cellRaw || "").trim(),
+              cell: normalizedCell,
               unit: unit,
               quantityIssued: qtyIssued,
               quantityAvailable: qtyIssued,
               issuedAt: new Date(),
               status: "active",
             });
+            setTextColumnValue_(stockSheet, stockRow, "id", stockId);
+            setTextColumnValue_(stockSheet, stockRow, "masterLogin", masterLogin);
+            setTextColumnValue_(stockSheet, stockRow, "requestId", id);
+            setTextColumnValue_(stockSheet, stockRow, "partCode", code);
+            setTextColumnValue_(stockSheet, stockRow, "cell", normalizedCell);
             stockIdx++;
           }
         }

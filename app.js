@@ -277,9 +277,21 @@ function cleanPrice(raw) {
 }
 
 function formatWarehouseCell(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return value.getDate() + "." + (value.getMonth() + 1) + "." + String(value.getFullYear()).slice(-1);
+  }
   const s = String(value || "").trim();
   const dateArtifact = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
   if (dateArtifact) return `${Number(dateArtifact[1])}.${Number(dateArtifact[2])}.2`;
+  const datedCell = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]200([1-9])$/);
+  if (datedCell) return `${Number(datedCell[1])}.${Number(datedCell[2])}.${Number(datedCell[3])}`;
+  const jsDate = s.match(/^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}/i);
+  if (jsDate) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getDate() + "." + (d.getMonth() + 1) + "." + String(d.getFullYear()).slice(-1);
+    }
+  }
   return s || "—";
 }
 

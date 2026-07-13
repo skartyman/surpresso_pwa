@@ -484,7 +484,7 @@
           <td>${i + 1}</td>
           <td><strong>${p.name}</strong><br><span class="muted" style="font-size:11px;">${p.code}</span></td>
           <td style="font-size:12px;">${formatCell(p.cell)}</td>
-          <td class="qty-cell">${p.qty}</td>
+          <td class="qty-cell"><input type="number" min="1" value="${p.qty}" style="width:50px;text-align:center;border:1px solid var(--border,#ccc);border-radius:6px;padding:2px 4px;" onchange="updatePartQty(${i}, this.value)"></td>
           <td style="font-size:12px;">${p.unit}</td>
           <td><button class="btn ghost danger" style="padding:2px 8px;font-size:14px;" onclick="removePart(${i})">×</button></td>
         </tr>`
@@ -526,6 +526,11 @@
     function removePart(idx) {
       selectedParts.splice(idx, 1);
       renderPartsTable();
+    }
+
+    function updatePartQty(idx, value) {
+      const qty = Math.max(1, parseInt(value) || 1);
+      if (selectedParts[idx]) selectedParts[idx].qty = qty;
     }
 
     function applyTemplate(tpl) {
