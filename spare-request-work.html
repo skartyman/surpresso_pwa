@@ -6,7 +6,7 @@
   <title>Заявка запчастей — Работа с заявкой</title>
   <script>
     (function () {
-      const version = "20260617-12";
+      const version = "20260629-2";
       const url = new URL(window.location.href);
       if (url.searchParams.get("v") !== version) {
         url.searchParams.set("v", version);
@@ -359,6 +359,10 @@
     .work-table tr.pick-done-row {
       opacity: 0.65;
     }
+    .work-table tr.pick-selected-row {
+      background: rgba(59,130,246,0.12);
+      box-shadow: inset 0 0 0 2px rgba(59,130,246,0.35);
+    }
     .work-actions {
       display: flex;
       gap: 8px;
@@ -477,6 +481,7 @@
           <button type="button" class="btn ghost" id="pickSkipBtn">Пропуск</button>
           <button type="button" class="btn ghost" id="pickMissingBtn">В заявку</button>
           <button type="button" class="btn ghost" id="pickReplaceBtn">Заменить</button>
+          <button type="button" class="btn ghost" id="pickAddBtn">➕ Добавить</button>
         </div>
 
         <div class="pick-summary" id="pickMissingSummary"></div>
@@ -496,7 +501,7 @@
             </div>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;">
-            <button type="button" class="btn primary" id="replaceConfirmBtn" disabled>Заменить</button>
+            <button type="button" class="btn primary" id="replaceConfirmBtn" disabled></button>
             <button type="button" class="btn ghost" onclick="closeReplaceModal()">Отмена</button>
           </div>
         </div>
@@ -542,6 +547,8 @@
     let partsFullList = [];
     let replaceCurrentItem = null;
     let replaceSelectedItem = null;
+    let selectedRowIndex = null;
+    let savedQtyValues = {};
     let pickState = {
       done: new Set(),
       skipped: new Set(),
@@ -690,20 +697,27 @@
 
     function resolveCellDisplay(item) {
       const current = String(item?.cell || "").trim();
+      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       const code = normalizeKey(item?.partCode || "");
       if (code && partsLookupByCode.has(code)) return formatCellDisplay(partsLookupByCode.get(code)?.cell);
       const name = normalizeKey(item?.partName || "");
       if (name && partsLookupByName.has(name)) return formatCellDisplay(partsLookupByName.get(name)?.cell);
-      if (current && !isLikelyDateCell(current)) return formatCellDisplay(current);
       return "—";
     }
 
     function resolvePartMeta(item) {
+      const itemCell = String(item?.cell || "").trim();
       const byCode = normalizeKey(item?.partCode || "");
-      if (byCode && partsLookupByCode.has(byCode)) return partsLookupByCode.get(byCode);
+      if (byCode && partsLookupByCode.has(byCode)) {
+        const catalogPart = partsLookupByCode.get(byCode);
+        return { cell: itemCell || catalogPart.cell, stock: catalogPart.stock || "" };
+      }
       const byName = normalizeKey(item?.partName || "");
-      if (byName && partsLookupByName.has(byName)) return partsLookupByName.get(byName);
-      return { cell: String(item?.cell || "").trim(), stock: "" };
+      if (byName && partsLookupByName.has(byName)) {
+        const catalogPart = partsLookupByName.get(byName);
+        return { cell: itemCell || catalogPart.cell, stock: catalogPart.stock || "" };
+      }
+      return { cell: itemCell, stock: "" };
     }
 
     function parseStockValue(raw) {
@@ -759,10 +773,15 @@
           if (qNorm && normHaystack.includes(qNorm)) score += 10;
 
           if (!score) return null;
-          return { ...p, _score: score };
+          const stockVal = parseStockValue(stock);
+          const hasStock = Number.isFinite(stockVal) && stockVal > 0;
+          return { ...p, _score: score, _hasStock: hasStock };
         })
         .filter(Boolean)
-        .sort((a, b) => b._score - a._score || String(a.name || "").localeCompare(String(b.name || ""), "uk"))
+        .sort((a, b) => {
+          if (a._hasStock !== b._hasStock) return a._hasStock ? -1 : 1;
+          return b._score - a._score || String(a.name || "").localeCompare(String(b.name || ""), "uk");
+        })
         .slice(0, 20);
     }
 
@@ -924,9 +943,7 @@
       const safeQty = Math.max(0, Number(qty || 0));
       original.quantityIssued = safeQty;
       pickState.done.add(index);
-
-      const input = document.querySelector(`#requestBody .qty-input[data-index="${CSS.escape(String(index))}"]`);
-      if (input) input.value = safeQty;
+      savedQtyValues[String(index)] = String(safeQty);
 
       renderRequest();
       renderPickPanel();
@@ -964,6 +981,56 @@
         .replace(/'/g, "&#39;");
     }
 
+    function activateQtyEdit(el, evt) {
+      if (evt) evt.stopPropagation();
+      const idx = Number(el.dataset.index);
+      const code = el.dataset.code;
+      const currentVal = el.textContent.trim();
+      const item = currentRequest && currentRequest.items ? currentRequest.items[idx] : null;
+      const maxQty = item ? (item.quantityRequested || 999) : 999;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.max = String(maxQty);
+      input.value = currentVal;
+      input.className = "qty-input";
+      input.dataset.index = String(idx);
+      input.dataset.code = code;
+      input.style.cssText = "width:50px;text-align:center;border:1px solid var(--accent,#f2c94c);border-radius:6px;padding:2px 4px;font-size:13px;";
+      el.replaceWith(input);
+      input.focus();
+      input.select();
+      const save = () => {
+        const val = Math.max(0, parseInt(input.value) || 0);
+        savedQtyValues[String(idx)] = String(val);
+        if (currentRequest && currentRequest.items && currentRequest.items[idx]) {
+          currentRequest.items[idx].quantityIssued = val;
+        }
+        const span = document.createElement("span");
+        span.className = "qty-display";
+        span.dataset.index = String(idx);
+        span.dataset.code = code;
+        span.onclick = function(e) { activateQtyEdit(this, e); };
+        span.style.cssText = "cursor:pointer;padding:4px 8px;border-radius:6px;border:1px dashed var(--border,#ccc);display:inline-block;min-width:32px;text-align:center;";
+        span.textContent = String(val);
+        input.replaceWith(span);
+      };
+      input.addEventListener("blur", save);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); save(); }
+        if (e.key === "Escape") {
+          const span = document.createElement("span");
+          span.className = "qty-display";
+          span.dataset.index = String(idx);
+          span.dataset.code = code;
+          span.onclick = function(e) { activateQtyEdit(this, e); };
+          span.style.cssText = "cursor:pointer;padding:4px 8px;border-radius:6px;border:1px dashed var(--border,#ccc);display:inline-block;min-width:32px;text-align:center;";
+          span.textContent = currentVal;
+          input.replaceWith(span);
+        }
+      });
+    }
+
     function statusLabel(status) {
       return ({ pending: "Ожидает", processing: "В обработке", issued: "Выдано", returned: "Возврат", cancelled: "Отменено" }[status] || status || "—");
     }
@@ -976,6 +1043,10 @@
     function renderRequest() {
       const r = currentRequest;
       if (!r) return;
+
+      document.querySelectorAll("#requestBody .qty-display").forEach(el => {
+        savedQtyValues[el.dataset.index] = el.textContent.trim();
+      });
 
       document.getElementById("requestTitle").textContent = `${r.id} — ${r.masterName}`;
       document.getElementById("requestSubtitle").textContent = r.equipmentId ? `Оборудование: ${r.equipmentId}` : "";
@@ -1013,7 +1084,7 @@
       }
 
       body.innerHTML = items.map((item, idx) => `
-        <tr class="${pickState.done.has(item._index) || pickState.skipped.has(item._index) ? "pick-done-row" : ""} ${getCurrentPickItem()?._index === item._index ? "pick-current-row" : ""}">
+        <tr class="${pickState.done.has(item._index) || pickState.skipped.has(item._index) ? "pick-done-row" : ""} ${getCurrentPickItem()?._index === item._index ? "pick-current-row" : ""} ${selectedRowIndex === item._index ? "pick-selected-row" : ""}" onclick="selectTableRow(${item._index})" style="cursor:pointer;">
           <td>${idx + 1}</td>
           <td>
             <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
@@ -1029,11 +1100,29 @@
                 <span>${item.quantityIssued || "—"}</span>
                 <input class="return-qty-input" type="number" min="0" max="${item.quantityIssued || 0}" value="0" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}" aria-label="Вернуть ${escapeHtml(item.partName || item.partCode || "")}">
               </div>`
-          : `<input class="qty-input" type="number" min="0" max="${item.quantityRequested || 0}" value="${pickState.skipped.has(item._index) ? 0 : (item.quantityIssued || item.quantityRequested || 0)}" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}">`
+          : `<span class="qty-display" data-index="${item._index}" data-code="${escapeHtml(item.partCode || "")}" onclick="activateQtyEdit(this, event)" style="cursor:pointer;padding:4px 8px;border-radius:6px;border:1px dashed var(--border,#ccc);display:inline-block;min-width:32px;text-align:center;">${pickState.skipped.has(item._index) ? 0 : (item.quantityIssued || item.quantityRequested || 0)}</span>`
           }</td>
         </tr>
       `).join("");
+      document.querySelectorAll("#requestBody .qty-display").forEach(el => {
+        if (savedQtyValues[el.dataset.index] !== undefined) {
+          el.textContent = savedQtyValues[el.dataset.index];
+        }
+      });
       renderPickPanel();
+    }
+
+    function selectTableRow(index) {
+      selectedRowIndex = selectedRowIndex === index ? null : index;
+      renderRequest();
+    }
+
+    function getSelectedItemForTrello() {
+      if (selectedRowIndex !== null) {
+        const items = getSortedItems();
+        return items.find(it => it._index === selectedRowIndex) || null;
+      }
+      return getCurrentPickItem();
     }
 
     async function loadRequest() {
@@ -1050,6 +1139,7 @@
       currentRequest = out.request;
       await loadPartsCatalog();
       console.log("[catalog] loaded:", partsFullList.length);
+      savedQtyValues = {};
       pickState = {
         done: new Set(),
         skipped: new Set(),
@@ -1068,14 +1158,13 @@
       const adminName = admin?.name || prompt("Введи своё имя:") || "";
       if (!adminName) return;
 
-      const inputs = document.querySelectorAll("#requestBody .qty-input");
-      const items = Array.from(inputs).filter(inp => {
-        const idx = Number(inp.dataset.index);
-        return !pickState.skipped.has(idx);
-      }).map(inp => ({
-        partCode: inp.dataset.code,
-        quantityIssued: parseInt(inp.value) || 0
-      }));
+      const items = (r.items || [])
+        .map((item, idx) => ({ item, idx }))
+        .filter(({ idx }) => !pickState.skipped.has(idx))
+        .map(({ item, idx }) => ({
+          partCode: item.partCode,
+          quantityIssued: parseInt(savedQtyValues[String(idx)] || String(item.quantityIssued || "")) || parseInt(item.quantityRequested) || 0
+        }));
 
       try {
         const resp = await apiFetch(`/api/spare-request/${r.id}/issue`, {
@@ -1181,12 +1270,16 @@
     }
 
     async function addCurrentToTrello() {
-      const current = getCurrentPickItem();
-      if (!current) return;
+      const current = getSelectedItemForTrello();
+      if (!current) {
+        openAddModal();
+        return;
+      }
 
+      const remaining = getRemainingQty(current);
       const qty = Math.max(1, Number(prompt(
         `Сколько добавить в заявку по позиции "${current.partName || current.partCode || "—"}"?`,
-        String(getRemainingQty(current) || 1)
+        String(remaining || 1)
       ) || 0));
 
       const code = String(current.partCode || "").trim() || String(current.partName || "").trim();
@@ -1213,6 +1306,7 @@
         pickState.trello.push({ code, qty, title: cardName });
         pickState.done.add(current._index);
         pickState.skipped.add(current._index);
+        selectedRowIndex = null;
         renderRequest();
         renderPickPanel();
       } catch (e) {
@@ -1229,6 +1323,19 @@
       document.getElementById("replace-search-input").value = "";
       document.getElementById("replace-search-suggest").innerHTML = "";
       document.getElementById("replaceConfirmBtn").disabled = true;
+      document.getElementById("replaceConfirmBtn").textContent = "Заменить";
+      document.getElementById("replaceModal").style.display = "flex";
+      document.getElementById("replace-search-input").focus();
+    }
+
+    function openAddModal() {
+      replaceCurrentItem = null;
+      replaceSelectedItem = null;
+      document.getElementById("replaceCurrentLabel").textContent = "Добавить позицию в заявку";
+      document.getElementById("replace-search-input").value = "";
+      document.getElementById("replace-search-suggest").innerHTML = "";
+      document.getElementById("replaceConfirmBtn").disabled = true;
+      document.getElementById("replaceConfirmBtn").textContent = "Добавить";
       document.getElementById("replaceModal").style.display = "flex";
       document.getElementById("replace-search-input").focus();
     }
@@ -1252,7 +1359,6 @@
     }
 
     async function confirmReplace() {
-      if (!replaceCurrentItem) return;
       const r = currentRequest;
       if (!r) return;
       if (!replaceSelectedItem) {
@@ -1263,8 +1369,9 @@
           return;
         }
       }
-      const qty = getRemainingQty(replaceCurrentItem);
-      const skipIdx = replaceCurrentItem._index;
+      const isReplace = !!replaceCurrentItem;
+      const qty = isReplace ? getRemainingQty(replaceCurrentItem) : 1;
+      const skipIdx = isReplace ? replaceCurrentItem._index : -1;
       try {
         const resp = await apiFetch(`/api/spare-request/${r.id}/add-item`, {
           method: "POST",
@@ -1278,11 +1385,11 @@
         });
         const out = await resp.json();
         if (!out.ok) throw new Error(out.error || "add_failed");
-        pickState.skipped.add(skipIdx);
+        if (isReplace) pickState.skipped.add(skipIdx);
         closeReplaceModal();
         await loadRequest();
       } catch (e) {
-        alert("❌ " + (e.message || "Ошибка при добавлении замены"));
+        alert("❌ " + (e.message || "Ошибка при добавлении запчасти"));
       }
     }
 
@@ -1304,13 +1411,24 @@
       document.getElementById("pickIssueBtn").addEventListener("click", () => {
         const current = getCurrentPickItem();
         if (!current) return;
-        const input = document.querySelector(`#requestBody .qty-input[data-index="${CSS.escape(String(current._index))}"]`);
-        const qty = Math.max(1, Number(input?.value || current.quantityRequested || 1));
+        const display = document.querySelector(`#requestBody .qty-display[data-index="${CSS.escape(String(current._index))}"]`);
+        const qty = Math.max(1, Number(display?.textContent || current.quantityRequested || 1));
         markItemDone(current._index, qty);
       });
       document.getElementById("pickSkipBtn").addEventListener("click", skipCurrentItem);
       document.getElementById("pickMissingBtn").addEventListener("click", addCurrentToTrello);
       document.getElementById("pickReplaceBtn").addEventListener("click", openReplaceModal);
+      document.getElementById("pickAddBtn").addEventListener("click", openAddModal);
+      document.getElementById("requestBody").addEventListener("change", (e) => {
+        if (e.target.classList.contains("qty-input")) {
+          const idx = Number(e.target.dataset.index);
+          const val = Math.max(0, parseInt(e.target.value) || 0);
+          savedQtyValues[e.target.dataset.index] = String(val);
+          if (currentRequest && currentRequest.items && currentRequest.items[idx]) {
+            currentRequest.items[idx].quantityIssued = val;
+          }
+        }
+      });
       document.getElementById("replaceConfirmBtn").addEventListener("click", confirmReplace);
       document.getElementById("replaceModal").addEventListener("click", (e) => {
         if (e.target === document.getElementById("replaceModal")) closeReplaceModal();
@@ -1339,8 +1457,14 @@
           const results = filterPartsForReplace(q);
           console.log("[replace] query:", JSON.stringify(q), "results:", results.length);
           replaceSuggest.innerHTML = "";
-          replaceSelectedItem = null;
-          document.getElementById("replaceConfirmBtn").disabled = !results.length;
+          const prevSelected = replaceSelectedItem;
+          if (prevSelected) {
+            const prevLabel = `${prevSelected.name || ""} (${prevSelected.code || ""})`.trim();
+            if (replaceSearchInput.value.trim() !== prevLabel) {
+              replaceSelectedItem = null;
+            }
+          }
+          document.getElementById("replaceConfirmBtn").disabled = !(replaceSelectedItem || results.length);
           if (!results.length) {
             replaceSuggest.innerHTML = `<div class="suggest-empty">Ничего не найдено</div>`;
             replaceSuggest.style.display = "block";

@@ -3086,6 +3086,17 @@ app.post("/api/spare-request/create", requirePwaKey, async (req, res) => {
       action: "spareRequestCreate",
       masterLogin, masterName, equipmentId: equipmentId || "", comment: comment || "", items
     });
+
+    if (out.ok) {
+      notifySpareRequestCreated({
+        id: out.id,
+        masterName,
+        equipmentId: equipmentId || "",
+        comment: comment || "",
+        items,
+      }).catch(e => console.error("NOTIFY SPARE REQUEST CREATED ERROR:", e));
+    }
+
     res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST CREATE ERROR", err);
@@ -3167,7 +3178,7 @@ async function buildSpareRequestXlsx(request) {
       asText(item.partName),
       asText(item.partCode),
       "", // placeholder — set below after format
-      (item.quantityIssued ?? item.quantityRequested) || 0,
+      (item.quantityIssued || item.quantityRequested) || 0,
       asText(item.unit) || "шт.",
     ]);
     const cell4 = row.getCell(4);
@@ -3291,6 +3302,27 @@ function buildAttachmentDisposition(fileName) {
     .replace(/[\\"]/g, "_")
     .replace(/_+/g, "_") || "spare-request.xlsx";
   return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safeName)}`;
+}
+
+async function notifySpareRequestCreated(request) {
+  if (!TG_NOTIFY_BOT || !request) return false;
+  try {
+    const chatId = process.env.TG_SPARE_REQUEST_NOTIFY_CHAT_ID || process.env.SPARE_REQUEST_ISSUE_CHAT_ID || TG_NOTIFY_CHAT_ID || "-1003970277331";
+    const id = request.id || "";
+    const master = request.masterName || "";
+    const equipment = request.equipmentId || "";
+    const comment = request.comment || "";
+    const itemsCount = Array.isArray(request.items) ? request.items.length : 0;
+    const lines = [`🆕 Новий запрос запчастин: ${id}`];
+    if (master) lines.push(`👨‍🔧 Майстер: ${master}`);
+    if (equipment) lines.push(`🔧 Обладнання: #${equipment}`);
+    if (comment) lines.push(`📝 Коментар: ${comment}`);
+    lines.push(`📋 Запчастин: ${itemsCount} шт.`);
+    return tgSendTextTo(TG_NOTIFY_BOT, chatId, lines.join("\n"));
+  } catch (e) {
+    console.error("NOTIFY SPARE REQUEST CREATED ERROR:", e);
+    return false;
+  }
 }
 
 async function notifySpareReturnXlsx(ret) {
