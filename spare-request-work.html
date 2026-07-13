@@ -918,7 +918,7 @@
         targetEl.innerHTML = `
           <span class="pick-target-main">${current.partName || "Без названия"}${current.partCode ? ` • ${current.partCode}` : ""}</span>
           <div class="pick-stats">
-            <span class="pick-pill pick-due">К выдаче <input id="pickQtyInput" type="number" min="0" max="${getRemainingQty(current)}" value="${savedQtyValues[String(current._index)] || getRemainingQty(current)}" style="width:48px;text-align:center;border:none;background:transparent;font-weight:700;font-size:14px;" /></span>
+            <span class="pick-pill pick-due">К выдаче <input id="pickQtyInput" type="number" min="0" max="${getRemainingQty(current)}" value="${savedQtyValues[String(current._index)] || getRemainingQty(current)}" oninput="syncPickQtyToTable(this)" style="width:48px;text-align:center;border:none;background:transparent;font-weight:700;font-size:14px;" /></span>
             <span class="pick-pill stock-${tone}">На складе <strong>${stock}</strong></span>
           </div>
         `;
@@ -947,6 +947,15 @@
 
       renderRequest();
       renderPickPanel();
+    }
+
+    function syncPickQtyToTable(input) {
+      const current = getCurrentPickItem();
+      if (!current) return;
+      const val = Math.max(0, parseInt(input.value) || 0);
+      savedQtyValues[String(current._index)] = String(val);
+      const display = document.querySelector(`#requestBody .qty-display[data-index="${CSS.escape(String(current._index))}"]`);
+      if (display) display.textContent = String(val);
     }
 
     function skipCurrentItem() {
