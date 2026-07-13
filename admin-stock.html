@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Surpresso • Склад мастеров</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/manifest.json?v=1.1.4">
+  <meta name="theme-color" content="#f2c94c" />
+  <link rel="stylesheet" href="/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <style>
+    .as-container { max-width: 960px; margin: 0 auto; padding: 12px; }
+    .as-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .as-header h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+    .as-select-wrap { margin-bottom: 16px; }
+    .as-select-wrap label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--muted, #888); }
+    .as-select {
+      width: 100%; padding: 10px 14px; border-radius: 12px; font-size: 14px;
+      border: 1px solid var(--border, #e0e0e0); background: var(--card-bg, #fff); color: var(--text, #111);
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center;
+    }
+    .as-select:focus { outline: none; border-color: var(--accent, #007bff); box-shadow: 0 0 0 3px rgba(0,123,255,0.15); }
+    .as-panel { display: grid; gap: 16px; }
+    .as-section { background: var(--card-bg, #fff); border: 1px solid var(--border, #eee); border-radius: 14px; padding: 16px; }
+    .as-section h3 { margin: 0 0 12px; font-size: 15px; }
+    .as-totals { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-bottom: 12px; padding: 12px; background: var(--surface-2, #f9f9f9); border-radius: 12px; }
+    .as-totals strong { font-size: 16px; }
+    .as-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .as-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+    .as-table th, .as-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border, #eee); }
+    .as-table th { font-size: 11px; font-weight: 700; color: var(--muted, #888); background: var(--surface-2, #fafafa); }
+    .as-table tr:last-child td { border-bottom: none; }
+    .as-table .qty-cell { font-weight: 700; }
+    .as-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .as-form-row .field { flex: 1 1 140px; min-width: 100px; }
+    .as-form-row .field label { display: block; font-size: 11px; font-weight: 700; color: var(--muted, #888); margin-bottom: 4px; }
+    .as-form-row .field input, .as-form-row .field select {
+      width: 100%; padding: 8px 10px; border-radius: 10px; font-size: 13px;
+      border: 1px solid var(--border, #e0e0e0); background: var(--card-bg, #fff); color: var(--text, #111);
+    }
+    .as-form-row .field input:focus, .as-form-row .field select:focus {
+      outline: none; border-color: var(--accent, #007bff); box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
+    }
+    .as-form-actions { flex: 0 0 auto; display: flex; gap: 6px; align-items: flex-end; padding-bottom: 1px; }
+    .as-empty { text-align: center; padding: 60px 20px; color: var(--muted, #999); }
+    .as-empty h2 { font-size: 1.2rem; margin: 0 0 8px; }
+    .as-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted, #888); margin-bottom: 12px; }
+    .as-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+    .as-legend .l-add::before { background: #2e7d32; }
+    .as-legend .l-deduct::before { background: #c62828; }
+    .as-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 12px; font-size: 14px; font-weight: 600;
+      color: #fff; z-index: 9999; opacity: 0; transition: opacity 0.3s ease;
+      pointer-events: none; max-width: 90vw; text-align: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .as-toast.show { opacity: 1; }
+    .as-toast.success { background: #2e7d32; }
+    .as-toast.error { background: #c62828; }
+    .as-toast.warn { background: #ef6c00; }
+    @media (max-width: 680px) {
+      .as-container { padding: 8px; }
+      .as-form-row { flex-direction: column; }
+      .as-form-row .field { flex: 1 1 100%; }
+      .as-form-actions { justify-content: stretch; }
+      .as-form-actions .btn { flex: 1; }
+    }
+  </style>
+</head>
+<body data-page="admin-stock">
+  <header class="app-header">
+    <div class="header-decor" aria-hidden="true">
+      <img src="icons/branch-blossom.png" class="header-branch" alt="">
+    </div>
+    <div class="header-branding">
+      <div class="logo-brand"><img src="icons/logo-service.png" alt="Surpresso Service"></div>
+      <div class="app-title">
+        <div class="app-name"><span>Surpresso</span><span>Service</span></div>
+        <div class="app-subtitle">Склад мастеров</div>
+      </div>
+    </div>
+    <button class="header-menu-btn" type="button" title="Навигация" onclick="window.location.href='/'">☰</button>
+  </header>
+
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-box">
+      <h2>Вход в систему</h2>
+      <input id="login-user" type="text" placeholder="Логин" class="login-input">
+      <input id="login-pass" type="password" placeholder="Пароль" class="login-input">
+      <button id="login-btn" class="btn primary wide" type="button">Войти</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
+    <button class="nav-btn" onclick="window.location.href='/warehouse.html'">📦 Склад</button>
+    <button class="nav-btn" onclick="window.location.href='/master-stock.html'">💼 Мой склад</button>
+  </div>
+
+  <main class="app-main as-container" id="appMain" style="display:none;">
+    <div class="as-header">
+      <h1>Склад мастеров</h1>
+      <span id="adminName" class="muted" style="font-size:13px;"></span>
+    </div>
+
+    <div class="as-select-wrap">
+      <label for="masterSelect">Мастер</label>
+      <select id="masterSelect" class="as-select">
+        <option value="">— Выберите мастера —</option>
+      </select>
+    </div>
+
+    <div id="asContent">
+      <div class="as-empty">
+        <h2>👤 Выберите мастера</h2>
+        <p>Выберите мастера из списка выше для просмотра и управления его складом.</p>
+      </div>
+    </div>
+
+    <!-- Add part form (hidden until master selected) -->
+    <div id="addForm" class="as-section" style="display:none;">
+      <h3>➕ Добавить запчасть</h3>
+      <div class="as-form-row">
+        <div class="field">
+          <label>Артикул *</label>
+          <input id="addCode" placeholder="Код запчасти" />
+        </div>
+        <div class="field">
+          <label>Название *</label>
+          <input id="addName" placeholder="Название запчасти" />
+        </div>
+        <div class="field">
+          <label>Ячейка</label>
+          <input id="addCell" placeholder="Ячейка" />
+        </div>
+        <div class="field">
+          <label>Ед.</label>
+          <input id="addUnit" value="шт." placeholder="шт." />
+        </div>
+        <div class="field">
+          <label>Кол-во *</label>
+          <input id="addQty" type="number" value="1" min="1" />
+        </div>
+        <div class="as-form-actions">
+          <button class="btn primary" type="button" onclick="manualAdd()">➕ Добавить</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Комментарий</label>
+        <input id="addComment" placeholder="Причина добавления (отобразится в журнале)" />
+      </div>
+    </div>
+
+    <!-- Deduct part form (hidden until master selected) -->
+    <div id="deductForm" class="as-section" style="display:none;">
+      <h3>➖ Списать запчасть</h3>
+      <div class="as-form-row">
+        <div class="field">
+          <label>Артикул *</label>
+          <input id="deductCode" placeholder="Код запчасти" />
+        </div>
+        <div class="field">
+          <label>Кол-во *</label>
+          <input id="deductQty" type="number" value="1" min="1" />
+        </div>
+        <div class="as-form-actions">
+          <button class="btn ghost" type="button" onclick="manualDeduct()" style="color:#c62828;">➖ Списать</button>
+        </div>
+      </div>
+      <div class="as-legend">
+        <span class="l-add">Добавление</span>
+        <span class="l-deduct">Списание</span>
+      </div>
+    </div>
+  </main>
+
+  <div id="asToast" class="as-toast"></div>
+  <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
+  <script src="/auth.js"></script>
+  <script>
+    let currentMaster = null;
+    let masterStock = [];
+    let adminUser = null;
+
+    function getPwaKey() {
+      let key = localStorage.getItem("surpresso_pwa_key");
+      if (!key) {
+        key = (prompt("Введи ключ доступа (PWA Key):") || "").trim();
+        if (!key) throw new Error("NO_PWA_KEY");
+        localStorage.setItem("surpresso_pwa_key", key);
+      }
+      return key;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const key = getPwaKey();
+      const headers = { ...(options.headers || {}), "x-surpresso-key": key };
+      if (options.body && !(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
+      let resp = await fetch(url, { ...options, headers });
+      if (resp.status === 401) {
+        localStorage.removeItem("surpresso_pwa_key");
+        const newKey = (prompt("Ключ доступа недействителен. Введи новый PWA Key:") || "").trim();
+        if (!newKey) return resp;
+        localStorage.setItem("surpresso_pwa_key", newKey);
+        const rh = { ...(options.headers || {}), "x-surpresso-key": newKey };
+        if (options.body && !(options.body instanceof FormData)) rh["Content-Type"] = rh["Content-Type"] || "application/json";
+        resp = await fetch(url, { ...options, headers: rh });
+      }
+      return resp;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatDate(d) {
+      try { return new Date(d).toLocaleString("ru-RU", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(d); }
+    }
+
+    let toastTimer = null;
+    function showToast(text, type) {
+      type = type || "success";
+      const el = document.getElementById("asToast");
+      if (!el) return;
+      clearTimeout(toastTimer);
+      el.className = "as-toast " + type;
+      el.textContent = text;
+      el.classList.add("show");
+      toastTimer = setTimeout(function() { el.classList.remove("show"); }, 2500);
+    }
+
+    function populateMasters() {
+      const select = document.getElementById("masterSelect");
+      const users = (window.SurpAuth?.getUsers?.() || []);
+      const masters = users.filter(function(u) {
+        var r = String(u.role || "").toLowerCase();
+        return r === "master" || r === "мастер";
+      });
+
+      masters.sort(function(a, b) {
+        return String(a.name || a.login).localeCompare(String(b.name || b.login), "ru");
+      });
+
+      masters.forEach(function(m) {
+        var opt = document.createElement("option");
+        opt.value = m.login;
+        opt.textContent = (m.name || m.login) + " (" + m.login + ")";
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadMasterStock() {
+      var content = document.getElementById("asContent");
+      content.innerHTML = '<div class="as-empty"><h2>⏳ Загрузка...</h2></div>';
+
+      try {
+        var resp = await apiFetch("/api/master-stock/" + encodeURIComponent(currentMaster.login));
+        var out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "load_failed");
+        masterStock = Array.isArray(out.items) ? out.items : [];
+        renderStock();
+      } catch (e) {
+        content.innerHTML = '<div class="as-empty"><h2>❌ Ошибка загрузки</h2><p>' + escapeHtml(e.message || "") + '</p></div>';
+      }
+    }
+
+    function renderStock() {
+      var content = document.getElementById("asContent");
+
+      if (!masterStock.length) {
+        content.innerHTML = '<div class="as-empty"><h2>📭 Нет запчастей</h2><p>У этого мастера нет выданных запчастей.</p></div>';
+        return;
+      }
+
+      var totalItems = masterStock.length;
+      var totalQty = 0;
+      masterStock.forEach(function(i) { totalQty += Number(i.quantityAvailable || 0); });
+
+      var html = '<div class="as-totals">';
+      html += '<span>Позиций: <strong>' + totalItems + '</strong></span>';
+      html += '<span>Доступно: <strong>' + totalQty + '</strong> шт.</span>';
+      html += '</div>';
+
+      html += '<div class="as-table-wrap">';
+      html += '<table class="as-table">';
+      html += '<thead><tr><th>Артикул</th><th>Название</th><th>Ячейка</th><th>Ед.</th><th>Кол-во</th><th>Заявка</th><th>Дата</th></tr></thead>';
+      html += '<tbody>';
+
+      masterStock.forEach(function(item) {
+        html += '<tr>';
+        html += '<td style="font-size:11px;color:var(--muted,#888);">' + escapeHtml(item.partCode) + '</td>';
+        html += '<td><strong>' + escapeHtml(item.partName) + '</strong></td>';
+        html += '<td style="font-size:11px;">' + escapeHtml(item.cell || "—") + '</td>';
+        html += '<td>' + escapeHtml(item.unit || "шт.") + '</td>';
+        html += '<td class="qty-cell">' + Number(item.quantityAvailable) + '</td>';
+        html += '<td style="font-size:11px;">' + escapeHtml(item.requestId || "—") + '</td>';
+        html += '<td style="font-size:11px;">' + (item.issuedAt ? formatDate(item.issuedAt) : "—") + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      content.innerHTML = html;
+    }
+
+    async function manualAdd() {
+      if (!currentMaster) return;
+      var code = (document.getElementById("addCode").value || "").trim();
+      var name = (document.getElementById("addName").value || "").trim();
+      var cell = (document.getElementById("addCell").value || "").trim();
+      var unit = (document.getElementById("addUnit").value || "шт.").trim();
+      var qty = parseInt(document.getElementById("addQty").value) || 0;
+      var comment = (document.getElementById("addComment").value || "").trim();
+
+      if (!code) { showToast("Укажите артикул", "warn"); return; }
+      if (!name) { showToast("Укажите название", "warn"); return; }
+      if (qty < 1) { showToast("Количество должно быть ≥ 1", "warn"); return; }
+
+      var adminName = adminUser?.name || adminUser?.login || "admin";
+      var syntheticRequestId = "admin-adjust-" + Date.now();
+
+      try {
+        var resp = await apiFetch("/api/master-stock/return", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: currentMaster.login,
+            masterName: currentMaster.name || currentMaster.login,
+            equipmentId: "",
+            adminName: adminName,
+            comment: comment || "Ручное добавление (" + adminName + ")",
+            items: [{
+              requestId: syntheticRequestId,
+              partCode: code,
+              partName: name,
+              cell: cell,
+              unit: unit,
+              quantity: qty
+            }]
+          })
+        });
+        var out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "add_failed");
+
+        showToast("✅ Добавлено: " + name + " × " + qty, "success");
+        document.getElementById("addCode").value = "";
+        document.getElementById("addName").value = "";
+        document.getElementById("addCell").value = "";
+        document.getElementById("addUnit").value = "шт.";
+        document.getElementById("addQty").value = "1";
+        document.getElementById("addComment").value = "";
+        await loadMasterStock();
+      } catch (e) {
+        showToast("❌ " + (e.message || "Ошибка"), "error");
+      }
+    }
+
+    async function manualDeduct() {
+      if (!currentMaster) return;
+      var code = (document.getElementById("deductCode").value || "").trim();
+      var qty = parseInt(document.getElementById("deductQty").value) || 0;
+
+      if (!code) { showToast("Укажите артикул", "warn"); return; }
+      if (qty < 1) { showToast("Количество должно быть ≥ 1", "warn"); return; }
+
+      var match = masterStock.find(function(i) { return i.partCode === code; });
+      if (!match) { showToast("Артикул не найден на складе мастера", "warn"); return; }
+      if (qty > Number(match.quantityAvailable || 0)) {
+        showToast("Недостаточно на складе (доступно: " + match.quantityAvailable + ")", "warn");
+        return;
+      }
+
+      var syntheticRequestId = match.requestId || ("admin-adjust-" + Date.now());
+
+      try {
+        var resp = await apiFetch("/api/master-stock/deduct", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: currentMaster.login,
+            items: [{
+              requestId: syntheticRequestId,
+              partCode: code,
+              quantity: qty
+            }]
+          })
+        });
+        var out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "deduct_failed");
+
+        showToast("✅ Списано: " + (match.partName || code) + " × " + qty, "success");
+        document.getElementById("deductCode").value = "";
+        document.getElementById("deductQty").value = "1";
+        await loadMasterStock();
+      } catch (e) {
+        showToast("❌ " + (e.message || "Ошибка"), "error");
+      }
+    }
+
+    document.getElementById("masterSelect").addEventListener("change", async function() {
+      var login = this.value;
+      if (!login) {
+        currentMaster = null;
+        document.getElementById("addForm").style.display = "none";
+        document.getElementById("deductForm").style.display = "none";
+        document.getElementById("asContent").innerHTML = '<div class="as-empty"><h2>👤 Выберите мастера</h2><p>Выберите мастера из списка выше для просмотра и управления его складом.</p></div>';
+        return;
+      }
+
+      var users = window.SurpAuth?.getUsers?.() || [];
+      currentMaster = users.find(function(u) { return u.login === login; }) || null;
+      if (!currentMaster) return;
+
+      document.getElementById("addForm").style.display = "";
+      document.getElementById("deductForm").style.display = "";
+      await loadMasterStock();
+    });
+
+    window.addEventListener("load", async function() {
+      try {
+        await window.SurpAuth.init();
+        adminUser = window.SurpAuth.getCurrentUser();
+        if (!adminUser) return;
+
+        var role = String(adminUser.role || "").toLowerCase();
+        if (role !== "admin" && role !== "manager" && role !== "admin" && role !== "менеджер") {
+          document.getElementById("appMain").innerHTML = '<div class="as-empty" style="padding:60px;"><h2>🚫 Доступ запрещён</h2><p style="margin:12px 0;">У вас нет прав для просмотра этой страницы.</p><button class="btn primary" onclick="window.location.href=\'/\';">На главную</button></div>';
+          document.getElementById("appMain").style.display = "block";
+          return;
+        }
+
+        document.getElementById("appMain").style.display = "block";
+        document.getElementById("adminName").textContent = "👤 " + (adminUser.name || adminUser.login);
+        populateMasters();
+      } catch (e) {
+        console.error("Admin stock init error:", e);
+      }
+    });
+  </script>
+</body>
+</html>

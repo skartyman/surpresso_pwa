@@ -78,6 +78,15 @@
           </div>
         </a>
 
+        <a class="section-card accent-admin-stock admin-only-card" href="/admin-stock.html" style="display:none;">
+          <div class="section-overlay"></div>
+          <div class="section-content">
+            <h3>Склад мастеров</h3>
+            <p>Просмотр и корректировка остатков у мастеров.</p>
+            <span class="status-badge">Управление</span>
+          </div>
+        </a>
+
         <button class="section-card accent-equipment" type="button" onclick="openEquipmentPage()">
           <div class="section-overlay"></div>
           <div class="section-content">
@@ -139,5 +148,17 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="/auth.js"></script>
   <script src="app.js"></script>
+  <script>
+    (async function() {
+      try {
+        await window.SurpAuth?.init?.();
+        var user = window.SurpAuth?.getCurrentUser?.();
+        var role = String(user?.role || "").toLowerCase();
+        if (role === "admin" || role === "manager" || role === "менеджер") {
+          document.querySelectorAll(".admin-only-card").forEach(function(el) { el.style.display = ""; });
+        }
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
 </body>
 </html>

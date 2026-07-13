@@ -42,6 +42,19 @@
     .ms-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .ms-actions .btn { flex: 1 1 180px; }
     .ms-cell { font-size: 11px; color: var(--muted, #777); }
+    .ms-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 12px; font-size: 14px; font-weight: 600;
+      color: #fff; z-index: 9999; opacity: 0; transition: opacity 0.3s ease;
+      pointer-events: none; max-width: 90vw; text-align: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .ms-toast.show { opacity: 1; }
+    .ms-toast.success { background: #2e7d32; }
+    .ms-toast.error { background: #c62828; }
+    .ms-toast.info { background: #1565c0; }
+    .ms-toast.warn { background: #ef6c00; }
+    .ms-row-removing { opacity: 0.4; transition: opacity 0.3s ease; }
     @media (max-width: 680px) {
       .ms-container { padding: 8px; }
       .ms-table { font-size: 12px; min-width: 520px; }
@@ -79,6 +92,7 @@
     <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
     <button class="nav-btn" onclick="window.location.href='/warehouse.html'">📦 Склад</button>
     <button class="nav-btn" onclick="window.location.href='/check'">🧾 Чек</button>
+    <button id="nav-admin-stock" class="nav-btn" style="display:none" onclick="window.location.href='/admin-stock.html'">👥 Склад мастеров</button>
   </div>
 
   <main class="app-main ms-container" id="appMain" style="display:none;">
@@ -94,6 +108,7 @@
     </div>
   </main>
 
+  <div id="msToast" class="ms-toast"></div>
   <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
   <script src="/auth.js"></script>
   <script>
@@ -142,10 +157,22 @@
     }
 
     function fmtCell(cell) {
+      if (cell instanceof Date && !isNaN(cell.getTime())) {
+        return cell.getDate() + "." + (cell.getMonth() + 1) + "." + String(cell.getFullYear()).slice(-1);
+      }
       const s = String(cell || "").trim();
       if (!s) return "—";
       const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]2006$/);
       if (m) return Number(m[1]) + "." + Number(m[2]) + ".2";
+      const datedCell = s.match(/^(\d{1,2})[./-](\d{1,2})[./-]200([1-9])$/);
+      if (datedCell) return Number(datedCell[1]) + "." + Number(datedCell[2]) + "." + Number(datedCell[3]);
+      const jsDate = s.match(/^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{4}/i);
+      if (jsDate) {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          return d.getDate() + "." + (d.getMonth() + 1) + "." + String(d.getFullYear()).slice(-1);
+        }
+      }
       return s;
     }
 
@@ -193,7 +220,7 @@
       html += '</div>';
 
       html += '<div class="ms-actions">';
-      html += '<button class="btn primary" onclick="addAllToCheck()">📦 Перенести все в чек</button>';
+      html += '<button class="btn primary" onclick="addSelectedToCheck()">☑️ Додати виділене в чек</button>';
       html += '<button class="btn ghost" onclick="returnSelected()">↩️ Вернуть выбранное</button>';
       html += '<button class="btn ghost" onclick="loadStock()">🔄 Обновить</button>';
       html += '</div>';
@@ -278,41 +305,63 @@
       }
     }
 
-    async function addToCheck(code, requestId, name, cell, unit, qty) {
-      const qtyToAdd = Math.max(1, Number(prompt("Сколько добавить в чек?", String(qty)) || 0));
-      if (qtyToAdd <= 0) return;
+    let toastTimer = null;
+    function showToast(text, type) {
+      type = type || "success";
+      const el = document.getElementById("msToast");
+      if (!el) return;
+      clearTimeout(toastTimer);
+      el.className = "ms-toast " + type;
+      el.textContent = text;
+      el.classList.add("show");
+      toastTimer = setTimeout(function() { el.classList.remove("show"); }, 2500);
+    }
 
+    function removeRowFromDom(code, requestId) {
+      const selector = 'tr[data-code="' + CSS.escape(code) + '"][data-request="' + CSS.escape(requestId) + '"]';
+      const row = document.querySelector(selector);
+      if (!row) return;
+      row.classList.add("ms-row-removing");
+      setTimeout(function() {
+        const tbody = row.closest("tbody");
+        row.remove();
+        if (tbody && !tbody.querySelector("tr")) {
+          const group = tbody.closest(".ms-group");
+          if (group) group.remove();
+          const content = document.getElementById("msContent");
+          if (content && !content.querySelector(".ms-group")) {
+            renderStock();
+          }
+        }
+      }, 300);
+    }
+
+    async function addToCheck(code, requestId, name, cell, unit, qty) {
       try {
         const resp = await apiFetch("/api/master-stock/deduct", {
           method: "POST",
           body: JSON.stringify({
             masterLogin: user.login,
-            items: [{ requestId: requestId, partCode: code, quantity: qtyToAdd }]
+            items: [{ requestId: requestId, partCode: code, quantity: qty }]
           })
         });
         const out = await resp.json();
         if (!out.ok) throw new Error(out.error || "deduct_failed");
 
-        addPendingToCheck([{ partCode: code, partName: name, quantity: qtyToAdd }]);
-
-        if (confirm("✅ Запчасть добавлена в чек. Перейти к оформлению чека?")) {
-          window.location.href = "/check";
-        } else {
-          await loadStock();
-        }
+        addPendingToCheck([{ partCode: code, partName: name, quantity: qty }]);
+        removeRowFromDom(code, requestId);
+        showToast("✅ Додано в чек: " + name, "success");
       } catch (e) {
-        alert("❌ " + (e.message || "Ошибка"));
+        showToast("❌ " + (e.message || "Помилка"), "error");
       }
     }
 
-    async function addAllToCheck() {
-      const items = masterStock.filter(function(i) { return Number(i.quantityAvailable) > 0; });
-      if (!items.length) { alert("Нет доступных запчастей"); return; }
+    async function addSelectedToCheck() {
+      const selected = getSelectedItems();
+      if (!selected.length) { showToast("⚠️ Виділіть позиції", "warn"); return; }
 
-      if (!confirm("Перенести все " + items.length + " позиций в чек?")) return;
-
-      const dedItems = items.map(function(i) {
-        return { requestId: i.requestId, partCode: i.partCode, quantity: Number(i.quantityAvailable) };
+      const dedItems = selected.map(function(s) {
+        return { requestId: s.requestId, partCode: s.partCode, quantity: s.quantity };
       });
 
       try {
@@ -323,13 +372,15 @@
         const out = await resp.json();
         if (!out.ok) throw new Error(out.error || "deduct_failed");
 
-        addPendingToCheck(items.map(function(i) {
-          return { partCode: i.partCode, partName: i.partName, quantity: Number(i.quantityAvailable) };
+        addPendingToCheck(selected.map(function(s) {
+          var match = masterStock.find(function(i) { return i.partCode === s.partCode && i.requestId === s.requestId; });
+          return { partCode: s.partCode, partName: match ? match.partName : "", quantity: s.quantity };
         }));
 
-        window.location.href = "/check";
+        selected.forEach(function(s) { removeRowFromDom(s.partCode, s.requestId); });
+        showToast("✅ Додано в чек: " + selected.length + " позицій", "success");
       } catch (e) {
-        alert("❌ " + (e.message || "Ошибка"));
+        showToast("❌ " + (e.message || "Помилка"), "error");
       }
     }
 
@@ -425,6 +476,11 @@
         await window.SurpAuth.init();
         user = window.SurpAuth.getCurrentUser();
         if (!user) return;
+
+        var role = String(user.role || "").toLowerCase();
+        if (role === "admin" || role === "manager" || role === "менеджер") {
+          document.getElementById("nav-admin-stock").style.display = "";
+        }
 
         document.getElementById("appMain").style.display = "block";
         document.getElementById("masterName").textContent = "👤 " + user.name;
