@@ -918,7 +918,7 @@
         targetEl.innerHTML = `
           <span class="pick-target-main">${current.partName || "Без названия"}${current.partCode ? ` • ${current.partCode}` : ""}</span>
           <div class="pick-stats">
-            <span class="pick-pill pick-due">К выдаче <strong>${getRemainingQty(current)}</strong></span>
+            <span class="pick-pill pick-due">К выдаче <input id="pickQtyInput" type="number" min="0" max="${getRemainingQty(current)}" value="${savedQtyValues[String(current._index)] || getRemainingQty(current)}" style="width:48px;text-align:center;border:none;background:transparent;font-weight:700;font-size:14px;" /></span>
             <span class="pick-pill stock-${tone}">На складе <strong>${stock}</strong></span>
           </div>
         `;
@@ -1408,9 +1408,8 @@
       document.getElementById("pickIssueBtn").addEventListener("click", () => {
         const current = getCurrentPickItem();
         if (!current) return;
-        const savedVal = savedQtyValues[String(current._index)];
-        const display = document.querySelector(`#requestBody .qty-display[data-index="${CSS.escape(String(current._index))}"]`);
-        const qty = Math.max(1, Number(savedVal || display?.textContent || current.quantityRequested || 1));
+        const qtyInput = document.getElementById("pickQtyInput");
+        const qty = Math.max(1, Number(qtyInput?.value || current.quantityRequested || 1));
         markItemDone(current._index, qty);
       });
       document.getElementById("pickSkipBtn").addEventListener("click", skipCurrentItem);
