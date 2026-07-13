@@ -441,7 +441,16 @@
 
         document.getElementById("appMain").style.display = "block";
         document.getElementById("adminName").textContent = "👤 " + (adminUser.name || adminUser.login);
+
         populateMasters();
+
+        document.addEventListener("surp-auth-users-updated", function() {
+          var select = document.getElementById("masterSelect");
+          var prev = select.value;
+          select.innerHTML = '<option value="">— Выберите мастера —</option>';
+          populateMasters();
+          if (prev) select.value = prev;
+        });
       } catch (e) {
         console.error("Admin stock init error:", e);
       }
