@@ -220,7 +220,7 @@
       html += '</div>';
 
       html += '<div class="ms-actions">';
-      html += '<button class="btn primary" onclick="addSelectedToCheck()">☑️ Додати виділене в чек</button>';
+      html += '<button class="btn primary" id="batchCheckBtn" onclick="addSelectedToCheck()">☑️ Додати виділене в чек</button>';
       html += '<button class="btn ghost" onclick="returnSelected()">↩️ Вернуть выбранное</button>';
       html += '<button class="btn ghost" onclick="loadStock()">🔄 Обновить</button>';
       html += '</div>';
@@ -336,7 +336,17 @@
       }, 300);
     }
 
+    var inFlightDeduct = {};
+
     async function addToCheck(code, requestId, name, cell, unit, qty) {
+      var key = code + "::" + requestId;
+      if (inFlightDeduct[key]) return;
+
+      var row = document.querySelector('tr[data-code="' + CSS.escape(code) + '"][data-request="' + CSS.escape(requestId) + '"]');
+      var btn = row ? row.querySelector(".btn.primary") : null;
+      if (btn) { btn.disabled = true; btn.textContent = "⏳ Додається..."; }
+      inFlightDeduct[key] = true;
+
       try {
         const resp = await apiFetch("/api/master-stock/deduct", {
           method: "POST",
@@ -352,7 +362,10 @@
         removeRowFromDom(code, requestId);
         showToast("✅ Додано в чек: " + name, "success");
       } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = "➕ В чек"; }
         showToast("❌ " + (e.message || "Помилка"), "error");
+      } finally {
+        delete inFlightDeduct[key];
       }
     }
 
@@ -360,7 +373,10 @@
       const selected = getSelectedItems();
       if (!selected.length) { showToast("⚠️ Виділіть позиції", "warn"); return; }
 
-      const dedItems = selected.map(function(s) {
+      var batchBtn = document.getElementById("batchCheckBtn");
+      if (batchBtn) { batchBtn.disabled = true; batchBtn.textContent = "⏳ Додається..."; }
+
+      var dedItems = selected.map(function(s) {
         return { requestId: s.requestId, partCode: s.partCode, quantity: s.quantity };
       });
 
@@ -381,6 +397,8 @@
         showToast("✅ Додано в чек: " + selected.length + " позицій", "success");
       } catch (e) {
         showToast("❌ " + (e.message || "Помилка"), "error");
+      } finally {
+        if (batchBtn) { batchBtn.disabled = false; batchBtn.textContent = "☑️ Додати виділене в чек"; }
       }
     }
 
