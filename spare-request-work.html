@@ -1104,7 +1104,7 @@
           <td>${isIssued
             ? `<div class="return-qty-wrap">
                 <span>${item.quantityIssued || "—"}</span>
-                <input class="return-qty-input" type="number" min="0" max="${item.quantityIssued || 0}" value="0" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}" aria-label="Вернуть ${escapeHtml(item.partName || item.partCode || "")}">
+                <input class="return-qty-input" type="number" min="0" max="${item.quantityIssued || 0}" value="0" data-id="${escapeHtml(item.id || "")}" data-code="${escapeHtml(item.partCode || "")}" data-index="${item._index}" aria-label="Вернуть ${escapeHtml(item.partName || item.partCode || "")}">
               </div>`
           : `<span class="qty-display" data-index="${item._index}" data-code="${escapeHtml(item.partCode || "")}" onclick="activateQtyEdit(this, event)" style="cursor:pointer;padding:4px 8px;border-radius:6px;border:1px dashed var(--border,#ccc);display:inline-block;min-width:32px;text-align:center;">${pickState.skipped.has(item._index) ? 0 : (item.quantityIssued || item.quantityRequested || 0)}</span>`
           }</td>
@@ -1197,6 +1197,7 @@
       const inputs = document.querySelectorAll("#requestBody .return-qty-input");
       const items = Array.from(inputs)
         .map(inp => ({
+          itemId: inp.dataset.id || "",
           partCode: inp.dataset.code,
           quantityReturned: Math.max(0, Number(inp.value || 0)),
         }))

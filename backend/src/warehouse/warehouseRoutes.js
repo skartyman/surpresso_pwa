@@ -285,10 +285,14 @@ export async function spareRequestReturn(id, adminName, comment, items) {
   if (request.status !== 'issued' && request.status !== 'returned') return { ok: false, error: 'not_issued' };
 
   const selected = Array.isArray(items) ? items : [];
+  const byId = {};
   const byCode = {};
   selected.forEach(item => {
+    const itemId = String(item.itemId || '').trim();
     const code = String(item.partCode || '').trim();
-    if (code) byCode[code] = Number(item.quantityReturned || 0);
+    const qty = Number(item.quantityReturned || 0);
+    if (itemId) byId[itemId] = qty;
+    else if (code) byCode[code] = qty;
   });
 
   const reqItems = await p().spareRequestItem.findMany({ where: { requestId: id } });
@@ -296,7 +300,7 @@ export async function spareRequestReturn(id, adminName, comment, items) {
   const updates = [];
 
   for (const row of reqItems) {
-    const wanted = byCode[row.partCode] || 0;
+    const wanted = byId[row.id] !== undefined ? byId[row.id] : (byCode[row.partCode] || 0);
     if (wanted <= 0) continue;
     const qty = Math.min(wanted, Math.max(0, row.quantityIssued || 0));
     if (qty <= 0) continue;
@@ -312,6 +316,10 @@ export async function spareRequestReturn(id, adminName, comment, items) {
   }
 
   if (updates.length) await p().$transaction(updates);
+
+  if (!returnItems.length) {
+    return { ok: false, error: 'no_items_to_return' };
+  }
 
   const returnCount = await p().spareReturn.count();
   const returnId = generateId('RR-', returnCount);
