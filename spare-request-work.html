@@ -1003,9 +1003,6 @@
       const save = () => {
         const val = Math.max(0, parseInt(input.value) || 0);
         savedQtyValues[String(idx)] = String(val);
-        if (currentRequest && currentRequest.items && currentRequest.items[idx]) {
-          currentRequest.items[idx].quantityIssued = val;
-        }
         const span = document.createElement("span");
         span.className = "qty-display";
         span.dataset.index = String(idx);
@@ -1411,8 +1408,9 @@
       document.getElementById("pickIssueBtn").addEventListener("click", () => {
         const current = getCurrentPickItem();
         if (!current) return;
+        const savedVal = savedQtyValues[String(current._index)];
         const display = document.querySelector(`#requestBody .qty-display[data-index="${CSS.escape(String(current._index))}"]`);
-        const qty = Math.max(1, Number(display?.textContent || current.quantityRequested || 1));
+        const qty = Math.max(1, Number(savedVal || display?.textContent || current.quantityRequested || 1));
         markItemDone(current._index, qty);
       });
       document.getElementById("pickSkipBtn").addEventListener("click", skipCurrentItem);
@@ -1424,9 +1422,6 @@
           const idx = Number(e.target.dataset.index);
           const val = Math.max(0, parseInt(e.target.value) || 0);
           savedQtyValues[e.target.dataset.index] = String(val);
-          if (currentRequest && currentRequest.items && currentRequest.items[idx]) {
-            currentRequest.items[idx].quantityIssued = val;
-          }
         }
       });
       document.getElementById("replaceConfirmBtn").addEventListener("click", confirmReplace);
