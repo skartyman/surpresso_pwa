@@ -180,7 +180,7 @@
 
   <div id="asToast" class="as-toast"></div>
   <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
-  <script src="/auth.js"></script>
+  <script src="/auth.js?v=20260713-1"></script>
   <script>
     let currentMaster = null;
     let masterStock = [];
@@ -243,19 +243,21 @@
     function populateMasters() {
       const select = document.getElementById("masterSelect");
       const users = (window.SurpAuth?.getUsers?.() || []);
-      const masters = users.filter(function(u) {
-        var r = String(u.role || "").toLowerCase();
-        return r === "master" || r === "мастер";
+      var myLogin = String(adminUser?.login || "").toLowerCase();
+
+      var others = users.filter(function(u) {
+        return u.login && String(u.login).toLowerCase() !== myLogin;
       });
 
-      masters.sort(function(a, b) {
+      others.sort(function(a, b) {
         return String(a.name || a.login).localeCompare(String(b.name || b.login), "ru");
       });
 
-      masters.forEach(function(m) {
+      others.forEach(function(m) {
         var opt = document.createElement("option");
         opt.value = m.login;
-        opt.textContent = (m.name || m.login) + " (" + m.login + ")";
+        var role = m.role ? " [" + m.role + "]" : "";
+        opt.textContent = (m.name || m.login) + " (" + m.login + ")" + role;
         select.appendChild(opt);
       });
     }
