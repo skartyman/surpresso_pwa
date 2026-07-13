@@ -1,4 +1,5 @@
 import { getWarehousePrisma } from './warehousePrisma.js';
+import crypto from 'crypto';
 
 function p() {
   return getWarehousePrisma();
@@ -6,6 +7,10 @@ function p() {
 
 function generateId(prefix, count) {
   return prefix + String(count + 1).padStart(4, '0');
+}
+
+function stockId() {
+  return 'MS-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 }
 
 // =========================
@@ -228,8 +233,8 @@ export async function spareRequestIssue(id, adminName, items) {
 
   const issueMap = {};
   (Array.isArray(items) ? items : []).forEach(item => {
-    const code = String(item.partCode || '').trim();
-    if (code) issueMap[code] = Number(item.quantityIssued || 0);
+    const key = String(item.itemId || item.partCode || '').trim();
+    if (key) issueMap[key] = Number(item.quantityIssued || 0);
   });
 
   await p().spareRequest.update({
@@ -238,20 +243,18 @@ export async function spareRequestIssue(id, adminName, items) {
   });
 
   const reqItems = await p().spareRequestItem.findMany({ where: { requestId: id } });
-  const stockCount = await p().masterStock.count();
   const stockWrites = [];
-  let stockIdx = 1;
 
   for (const item of reqItems) {
-    const qty = (issueMap[item.partCode] !== undefined) ? issueMap[item.partCode] : 0;
+    const key = String(item.id || item.partCode || '');
+    const qty = (issueMap[key] !== undefined) ? issueMap[key] : 0;
     await p().spareRequestItem.update({ where: { id: item.id }, data: { quantityIssued: qty } });
 
     if (qty > 0 && request.masterLogin) {
-      const stockId = generateId('MS-', stockCount + stockIdx);
       stockWrites.push(
         p().masterStock.create({
           data: {
-            id: stockId,
+            id: stockId(),
             masterLogin: request.masterLogin,
             masterName: request.masterName,
             requestId: id,
@@ -266,7 +269,6 @@ export async function spareRequestIssue(id, adminName, items) {
           },
         })
       );
-      stockIdx++;
     }
   }
 
@@ -426,6 +428,17 @@ export async function spareRequestAddItem(id, { partCode, partName, cell, unit, 
   });
 
   return { ok: true, itemId };
+}
+
+export async function spareRequestRemoveItem(requestId, itemId) {
+  if (!requestId) return { ok: false, error: 'no_requestId' };
+  if (!itemId) return { ok: false, error: 'no_itemId' };
+
+  const item = await p().spareRequestItem.findUnique({ where: { id: itemId } });
+  if (!item || item.requestId !== requestId) return { ok: false, error: 'item_not_found' };
+
+  await p().spareRequestItem.delete({ where: { id: itemId } });
+  return { ok: true };
 }
 
 // =========================

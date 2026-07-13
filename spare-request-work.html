@@ -1168,6 +1168,7 @@
         .map((item, idx) => ({ item, idx }))
         .filter(({ idx }) => !pickState.skipped.has(idx))
         .map(({ item, idx }) => ({
+          itemId: item.id,
           partCode: item.partCode,
           quantityIssued: parseInt(savedQtyValues[String(idx)] || String(item.quantityIssued || "")) || parseInt(item.quantityRequested) || 0
         }));
@@ -1377,7 +1378,6 @@
       }
       const isReplace = !!replaceCurrentItem;
       const qty = isReplace ? getRemainingQty(replaceCurrentItem) : 1;
-      const skipIdx = isReplace ? replaceCurrentItem._index : -1;
       try {
         const resp = await apiFetch(`/api/spare-request/${r.id}/add-item`, {
           method: "POST",
@@ -1391,7 +1391,12 @@
         });
         const out = await resp.json();
         if (!out.ok) throw new Error(out.error || "add_failed");
-        if (isReplace) pickState.skipped.add(skipIdx);
+        if (isReplace && replaceCurrentItem.id) {
+          await apiFetch(`/api/spare-request/${r.id}/remove-item`, {
+            method: "POST",
+            body: JSON.stringify({ itemId: replaceCurrentItem.id })
+          });
+        }
         closeReplaceModal();
         await loadRequest();
       } catch (e) {

@@ -30,6 +30,7 @@ import {
   spareRequestReturn,
   spareRequestCancelIssued,
   spareRequestAddItem,
+  spareRequestRemoveItem,
   spareReturnCreate,
 } from "./backend/src/warehouse/warehouseRoutes.js";
 
@@ -3544,6 +3545,21 @@ app.post("/api/spare-request/:id/add-item", requirePwaKey, async (req, res) => {
     res.send(out);
   } catch (err) {
     console.error("SPARE REQUEST ADD ITEM ERROR", err);
+    res.status(500).send({ ok: false, error: String(err) });
+  }
+});
+
+app.post("/api/spare-request/:id/remove-item", requirePwaKey, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const { itemId } = req.body || {};
+    if (!id) return res.status(400).send({ ok: false, error: "no_id" });
+    if (!itemId) return res.status(400).send({ ok: false, error: "no_itemId" });
+
+    const out = await spareRequestRemoveItem(id, itemId);
+    res.send(out);
+  } catch (err) {
+    console.error("SPARE REQUEST REMOVE ITEM ERROR", err);
     res.status(500).send({ ok: false, error: String(err) });
   }
 });
