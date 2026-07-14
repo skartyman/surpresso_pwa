@@ -111,10 +111,17 @@ export async function masterStockReturn({ masterLogin, masterName, items, equipm
   const now = new Date();
   const firstReqId = items[0] ? String(items[0].requestId || '').trim() : '';
 
+  // Validate sourceRequestId exists in SpareRequest, otherwise null
+  let validSourceRequestId = null;
+  if (firstReqId && !firstReqId.startsWith('admin-adjust-')) {
+    const exists = await p().spareRequest.findUnique({ where: { id: firstReqId }, select: { id: true } });
+    if (exists) validSourceRequestId = firstReqId;
+  }
+
   await p().spareReturn.create({
     data: {
       id: returnId,
-      sourceRequestId: firstReqId || null,
+      sourceRequestId: validSourceRequestId,
       masterLogin,
       masterName: masterName || '',
       equipmentId: equipmentId || '',
@@ -139,7 +146,7 @@ export async function masterStockReturn({ masterLogin, masterName, items, equipm
       unit: String(item.unit || 'шт.').trim(),
       quantityReturned: qty,
     };
-    await p().spareReturnItem.create({ data: { id: itemId, returnId, sourceRequestId: firstReqId || null, ...ri } });
+    await p().spareReturnItem.create({ data: { id: itemId, returnId, sourceRequestId: validSourceRequestId, ...ri } });
     returnItems.push(ri);
   }
 
@@ -148,7 +155,7 @@ export async function masterStockReturn({ masterLogin, masterName, items, equipm
     id: returnId,
     return: {
       id: returnId,
-      sourceRequestId: firstReqId,
+      sourceRequestId: validSourceRequestId,
       masterLogin,
       masterName: masterName || '',
       equipmentId: equipmentId || '',
