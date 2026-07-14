@@ -20,21 +20,21 @@
   <style>
     .sra-container { max-width: 960px; margin: 0 auto; padding: 16px; }
     .sra-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-    .sra-header h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+    .sra-header h1 { margin: 0; font-size: 1.3rem; flex: 1; color: var(--text); }
     .sra-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-    .sra-tabs button { padding: 8px 16px; border: 1px solid var(--border, #ddd); background: var(--card-bg, #f5f5f5); cursor: pointer; border-radius: 8px 8px 0 0; font-size: 13px; }
-    .sra-tabs button.active { background: var(--accent, #007bff); color: #fff; border-color: var(--accent, #007bff); }
-    .req-card { background: var(--surface-2, #f9f9f9); color: var(--text, #111); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border, #eee); }
-    .req-card:hover { border-color: var(--accent, #007bff); }
+    .sra-tabs button { padding: 8px 16px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; border-radius: 8px 8px 0 0; font-size: 13px; }
+    .sra-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .req-card { background: var(--g-card); color: var(--text); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border); box-shadow: var(--shadow-md); }
+    .req-card:hover { border-color: var(--accent); }
     .req-card .meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .req-card .meta .title { color: var(--text, #111); font-weight: 800; font-size: 15px; }
+    .req-card .meta .title { color: var(--text); font-weight: 800; font-size: 15px; }
     .req-card .meta .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
     .badge-pending { background: #fff3cd; color: #856404; }
     .badge-processing { background: #cce5ff; color: #004085; }
     .badge-issued { background: #d4edda; color: #155724; }
     .badge-returned { background: #dc3545; color: #fff; }
     .badge-cancelled { background: #f8d7da; color: #721c24; }
-    .req-card .detail { font-size: 13px; color: var(--text-2, #666); margin-top: 4px; }
+    .req-card .detail { font-size: 13px; color: var(--text-2); margin-top: 4px; }
     @media (max-width: 680px) {
       .sra-container { padding: 12px; }
       .sra-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
@@ -42,15 +42,16 @@
       .req-card { min-height: 72px; display: flex; flex-direction: column; justify-content: center; }
     }
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
-    .modal { background: var(--bg, #fff); border-radius: 16px; padding: 20px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; }
-    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; }
-    .modal .close { float: right; cursor: pointer; font-size: 24px; line-height: 1; }
+    body.theme-light .modal-overlay { background: rgba(2,6,23,0.35); }
+    .modal { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 16px; padding: 20px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); color: var(--text); }
+    .modal h2 { margin: 0 0 12px; font-size: 1.1rem; color: var(--text); }
+    .modal .close { float: right; cursor: pointer; font-size: 24px; line-height: 1; color: var(--text-3); }
     .modal table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .modal th, .modal td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border, #eee); }
-    .modal th { font-weight: 600; font-size: 12px; color: var(--muted, #888); }
-    .modal .qty-input { width: 60px; padding: 4px; }
+    .modal th, .modal td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text); }
+    .modal th { font-weight: 600; font-size: 12px; color: var(--text-3); }
+    .modal .qty-input { width: 60px; padding: 4px; background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-    .empty { text-align: center; padding: 40px; color: var(--muted, #999); }
+    .empty { text-align: center; padding: 40px; color: var(--text-3); }
   </style>
 </head>
 <body data-page="spare-requests-admin">
