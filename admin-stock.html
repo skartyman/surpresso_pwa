@@ -556,33 +556,43 @@
 
       var adminName = adminUser?.name || adminUser?.login || "admin";
       var comment = (document.getElementById("addComment").value || "").trim();
-      var syntheticRequestId = "admin-adjust-" + Date.now();
 
       document.getElementById("btnAddSubmit").disabled = true;
 
       try {
-        var resp = await apiFetch("/api/master-stock/return", {
+        // Step 1: Create SpareRequest
+        var createResp = await apiFetch("/api/spare-request/create", {
           method: "POST",
           body: JSON.stringify({
             masterLogin: currentMaster.login,
             masterName: currentMaster.name || currentMaster.login,
             equipmentId: "",
-            adminName: adminName,
             comment: comment || "Ручное добавление (" + adminName + ")",
             items: selectedParts.map(p => ({
-              requestId: syntheticRequestId,
               partCode: p.code,
               partName: p.name,
               cell: p.cell,
               unit: p.unit,
-              quantity: p.qty
+              quantityRequested: p.qty
             }))
           })
         });
-        var out = await resp.json();
-        if (!out.ok) throw new Error(out.error || "add_failed");
+        var createOut = await createResp.json();
+        if (!createOut.ok) throw new Error(createOut.error || "create_failed");
+        var reqId = createOut.id;
 
-        showToast("✅ Добавлено: " + selectedParts.length + " позиций", "success");
+        // Step 2: Immediately issue all items
+        var issueItems = selectedParts.map(function(p, idx) {
+          return { itemId: reqId + "-" + String(idx + 1).padStart(3, "0"), quantityIssued: p.qty };
+        });
+        var issueResp = await apiFetch("/api/spare-request/" + reqId + "/issue", {
+          method: "POST",
+          body: JSON.stringify({ adminName: adminName, items: issueItems })
+        });
+        var issueOut = await issueResp.json();
+        if (!issueOut.ok) throw new Error(issueOut.error || "issue_failed");
+
+        showToast("✅ Добавлено: " + selectedParts.length + " позиций (запрос " + reqId + ")", "success");
         selectedParts = [];
         renderAddTable();
         document.getElementById("addComment").value = "";
