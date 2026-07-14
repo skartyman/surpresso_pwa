@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#f2c94c" />
   <link rel="stylesheet" href="/style.css?v=1.1.4">
   <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     .as-container { max-width: 960px; margin: 0 auto; padding: 12px; }
     .as-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -25,7 +26,7 @@
     .as-select option { background: #fff; color: #111; }
     .as-select:focus { outline: none; border-color: var(--accent, #007bff); box-shadow: 0 0 0 3px rgba(0,123,255,0.15); }
     .as-panel { display: grid; gap: 16px; }
-    .as-section { background: var(--card-bg, #fff); border: 1px solid var(--border, #eee); border-radius: 14px; padding: 16px; }
+    .as-section { background: var(--card-bg, #fff); border: 1px solid var(--border, #eee); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
     .as-section h3 { margin: 0 0 12px; font-size: 15px; }
     .as-totals { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-bottom: 12px; padding: 12px; background: var(--surface-2, #f9f9f9); border-radius: 12px; }
     .as-totals strong { font-size: 16px; }
@@ -35,24 +36,10 @@
     .as-table th { font-size: 11px; font-weight: 700; color: var(--muted, #888); background: var(--surface-2, #fafafa); }
     .as-table tr:last-child td { border-bottom: none; }
     .as-table .qty-cell { font-weight: 700; }
-    .as-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-    .as-form-row .field { flex: 1 1 140px; min-width: 100px; }
-    .as-form-row .field label { display: block; font-size: 11px; font-weight: 700; color: var(--muted, #888); margin-bottom: 4px; }
-    .as-form-row .field input, .as-form-row .field select {
-      width: 100%; padding: 8px 10px; border-radius: 10px; font-size: 13px;
-      border: 1px solid var(--border, #e0e0e0); background: var(--card-bg, #fff); color: var(--text, #111);
-      color-scheme: light dark;
-    }
-    .as-form-row .field input:focus, .as-form-row .field select:focus {
-      outline: none; border-color: var(--accent, #007bff); box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
-    }
-    .as-form-actions { flex: 0 0 auto; display: flex; gap: 6px; align-items: flex-end; padding-bottom: 1px; }
     .as-empty { text-align: center; padding: 60px 20px; color: var(--muted, #999); }
     .as-empty h2 { font-size: 1.2rem; margin: 0 0 8px; }
-    .as-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted, #888); margin-bottom: 12px; }
-    .as-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-    .as-legend .l-add::before { background: #2e7d32; }
-    .as-legend .l-deduct::before { background: #c62828; }
+    .as-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .as-actions .btn { flex: 1 1 160px; }
     .as-toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       padding: 10px 20px; border-radius: 12px; font-size: 14px; font-weight: 600;
@@ -64,12 +51,16 @@
     .as-toast.success { background: #2e7d32; }
     .as-toast.error { background: #c62828; }
     .as-toast.warn { background: #ef6c00; }
+    .template-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .template-badges button { font-size: 12px; padding: 4px 12px; }
+    .as-add-table td { vertical-align: middle; }
+    .as-add-table .qty-cell input { width: 50px; text-align: center; border: 1px solid var(--border, #ccc); border-radius: 6px; padding: 2px 4px; }
+    .suggest li .extra { font-size: 12px; }
+    .ms-row-removing { opacity: 0.4; transition: opacity 0.3s ease; }
     @media (max-width: 680px) {
       .as-container { padding: 8px; }
-      .as-form-row { flex-direction: column; }
-      .as-form-row .field { flex: 1 1 100%; }
-      .as-form-actions { justify-content: stretch; }
-      .as-form-actions .btn { flex: 1; }
+      .as-actions { flex-direction: column; }
+      .as-actions .btn { flex: 1 1 100%; }
     }
   </style>
 </head>
@@ -102,6 +93,7 @@
     <button class="nav-btn" onclick="window.location.href='/'">🏠 Домой</button>
     <button class="nav-btn" onclick="window.location.href='/warehouse.html'">📦 Склад</button>
     <button class="nav-btn" onclick="window.location.href='/master-stock.html'">💼 Мой склад</button>
+    <button class="nav-btn" onclick="window.location.href='/check'">🧾 Чек</button>
   </div>
 
   <main class="app-main as-container" id="appMain" style="display:none;">
@@ -124,59 +116,59 @@
       </div>
     </div>
 
-    <!-- Add part form (hidden until master selected) -->
+    <!-- Templates -->
+    <div id="templatesCard" class="as-section" style="display:none;">
+      <h3>📦 Шаблоны наборов</h3>
+      <div class="template-badges" id="templateBadges"></div>
+    </div>
+
+    <!-- Add part form (search-based) -->
     <div id="addForm" class="as-section" style="display:none;">
       <h3>➕ Добавить запчасть</h3>
-      <div class="as-form-row">
-        <div class="field">
-          <label>Артикул *</label>
-          <input id="addCode" placeholder="Код запчасти" />
+      <div class="field" style="margin-bottom:10px;">
+        <label>Поиск запчасти</label>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div class="suggest-block" style="flex:1;">
+            <input id="parts-input" type="text" autocomplete="off" placeholder="Начните вводить артикул или название" />
+            <div id="parts-suggest" class="suggest"></div>
+          </div>
+          <div style="width:70px;">
+            <label style="font-size:11px;">Кол-во</label>
+            <input id="parts-qty" type="number" value="1" min="1" style="width:100%;padding:8px 10px;border-radius:10px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--card-bg,#fff);color:var(--text,#111);box-sizing:border-box;" />
+          </div>
+          <button class="btn primary" type="button" onclick="addPartFromSearch()" style="margin-bottom:0;">+</button>
         </div>
-        <div class="field">
-          <label>Название *</label>
-          <input id="addName" placeholder="Название запчасти" />
-        </div>
-        <div class="field">
-          <label>Ячейка</label>
-          <input id="addCell" placeholder="Ячейка" />
-        </div>
-        <div class="field">
-          <label>Ед.</label>
-          <input id="addUnit" value="шт." placeholder="шт." />
-        </div>
-        <div class="field">
-          <label>Кол-во *</label>
-          <input id="addQty" type="number" value="1" min="1" />
-        </div>
-        <div class="as-form-actions">
-          <button class="btn primary" type="button" onclick="manualAdd()">➕ Добавить</button>
-        </div>
+      </div>
+      <div id="parts-info" class="info-line" style="font-size:12px;color:var(--muted,#888);margin-bottom:10px;"></div>
+      <div class="as-table-wrap" id="addTableWrap" style="display:none;">
+        <table class="as-table as-add-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Артикул / Название</th>
+              <th>Ячейка</th>
+              <th>Кол-во</th>
+              <th>Ед.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="addTableBody"></tbody>
+        </table>
       </div>
       <div class="field" style="margin-top:10px;">
         <label>Комментарий</label>
         <input id="addComment" placeholder="Причина добавления (отобразится в журнале)" />
       </div>
+      <button class="btn primary" type="button" id="btnAddSubmit" onclick="submitAdd()" style="margin-top:10px;">➕ Добавить на склад</button>
     </div>
 
-    <!-- Deduct part form (hidden until master selected) -->
+    <!-- Deduct via check -->
     <div id="deductForm" class="as-section" style="display:none;">
-      <h3>➖ Списать запчасть</h3>
-      <div class="as-form-row">
-        <div class="field">
-          <label>Артикул *</label>
-          <input id="deductCode" placeholder="Код запчасти" />
-        </div>
-        <div class="field">
-          <label>Кол-во *</label>
-          <input id="deductQty" type="number" value="1" min="1" />
-        </div>
-        <div class="as-form-actions">
-          <button class="btn ghost" type="button" onclick="manualDeduct()" style="color:#c62828;">➖ Списать</button>
-        </div>
-      </div>
-      <div class="as-legend">
-        <span class="l-add">Добавление</span>
-        <span class="l-deduct">Списание</span>
+      <h3>➖ Списать через чек</h3>
+      <p style="font-size:12px;color:var(--muted,#888);margin:0 0 10px;">Выберите позиции и нажмите «В чек». Запчасти автоматически попадут в чек, а инженер подставится из мастера.</p>
+      <div class="as-actions">
+        <button class="btn primary" id="batchCheckBtn" onclick="addSelectedToCheck()">☑️ Добавить видлене в чек</button>
+        <button class="btn ghost" onclick="loadMasterStock()">🔄 Обновить</button>
       </div>
     </div>
   </main>
@@ -185,9 +177,16 @@
   <button id="theme-btn-floating" class="theme-fab" type="button" title="Тема">☀️</button>
   <script src="/auth.js?v=20260713-1"></script>
   <script>
+    const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+    const PARTS_GID = 1099059228;
+    const PENDING_ITEMS_KEY = "surp_pending_items_v1";
+    const PENDING_ENGINEER_KEY = "surp_pending_engineer_v1";
+
     let currentMaster = null;
     let masterStock = [];
     let adminUser = null;
+    let partsCache = [];
+    let selectedParts = [];
 
     function getPwaKey() {
       let key = localStorage.getItem("surpresso_pwa_key");
@@ -231,6 +230,13 @@
       try { return new Date(d).toLocaleString("ru-RU", { day: "numeric", month: "short", year: "numeric" }); } catch { return String(d); }
     }
 
+    function formatCell(value) {
+      const s = String(value || "").trim();
+      if (!s) return "—";
+      const dateLike = s.match(/^(\d{1,2}[./-]\d{1,2})[./-]\d{4}$/);
+      return dateLike ? `${dateLike[1]}.2` : s;
+    }
+
     let toastTimer = null;
     function showToast(text, type) {
       type = type || "success";
@@ -243,27 +249,351 @@
       toastTimer = setTimeout(function() { el.classList.remove("show"); }, 2500);
     }
 
-    function populateMasters() {
-      const select = document.getElementById("masterSelect");
-      const users = (window.SurpAuth?.getUsers?.() || []);
-      var myLogin = String(adminUser?.login || "").toLowerCase();
+    // ===================== PARTS SEARCH =====================
 
-      var others = users.filter(function(u) {
-        return u.login && String(u.login).toLowerCase() !== myLogin;
-      });
-
-      others.sort(function(a, b) {
-        return String(a.name || a.login).localeCompare(String(b.name || b.login), "ru");
-      });
-
-      others.forEach(function(m) {
-        var opt = document.createElement("option");
-        opt.value = m.login;
-        var role = m.role ? " [" + m.role + "]" : "";
-        opt.textContent = (m.name || m.login) + " (" + m.login + ")" + role;
-        select.appendChild(opt);
-      });
+    async function fetchSheetCSV(sheetId, gid) {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&v=${Date.now()}`;
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return await resp.text();
     }
+
+    function cleanPrice(raw) {
+      if (!raw) return 0;
+      let v = String(raw).replace(/"/g, "").replace(/\u00A0|\u202F/g, "").replace(/\s+/g, "").replace(/грн|uah|₴/gi, "").trim();
+      v = v.replace(/[^0-9.,-]/g, "");
+      if (v.includes(",") && !v.includes(".")) v = v.replace(",", ".");
+      else if (v.includes(",") && v.includes(".")) v = v.replace(/,/g, "");
+      const num = parseFloat(v);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function normalizeRows(rows) {
+      const out = [];
+      rows.forEach(row => {
+        const lc = {};
+        for (const [k, v] of Object.entries(row || {})) {
+          if (!k) continue;
+          lc[String(k).trim().toLowerCase()] = v;
+        }
+        const pick = masks => {
+          for (const mask of masks) {
+            for (const [k, v] of Object.entries(lc)) {
+              if (k.includes(mask) && v !== "" && v !== undefined) return v;
+            }
+          }
+          return "";
+        };
+        const code = String(pick(["артикул", "код", "art", "article"]) || "").trim();
+        const name = String(pick(["наименование", "найменування", "название", "описание", "name"]) || "").trim();
+        const price = cleanPrice(pick(["цена", "ціна", "стоимость", "price", "грн"]));
+        const stock = pick(["залишок", "налич", "stock", "остат"]);
+        const cell = String(pick(["комірка", "ячейк", "cell", "shelf"]) || "").trim();
+        if (!code && !name) return;
+        if (!code && !price) return;
+        out.push({ code, name, price, stock: stock || "", cell });
+      });
+      return out;
+    }
+
+    function normalizeSearch(str) {
+      let s = String(str || "").toLowerCase();
+      s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+      s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+      s = s.replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
+      return s;
+    }
+
+    function tokenizeQuery(q) {
+      return String(q || "").toLowerCase().replace(/µf/g, "uf").replace(/мкф/g, "uf")
+        .split(/[\s,.;:|/\\()+\-_]+/g).map(t => t.trim()).filter(Boolean)
+        .map(t => normalizeSearch(t)).filter(Boolean);
+    }
+
+    function normalizeCell(cell) {
+      let s = String(cell || "").trim().toLowerCase();
+      s = s.replace(/\s+/g, "").replace(/,/g, ".");
+      s = s.split(".").map(seg => (/^\d+$/.test(seg) ? String(parseInt(seg, 10)) : seg)).join(".");
+      return s;
+    }
+
+    function looksLikeCellQuery(q) {
+      const s = String(q || "").trim();
+      if (!s) return false;
+      return /^\d+([.,\-\/]\d+)+$/.test(s);
+    }
+
+    function parseStockNum(stockRaw) {
+      if (stockRaw === null || stockRaw === undefined) return NaN;
+      const raw = String(stockRaw).replace(/\u00A0|\u202F/g, " ").trim().replace(",", ".");
+      const match = raw.match(/-?\d+(?:\.\d+)?/);
+      const n = parseFloat(match ? match[0] : raw);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function getPartsRequestStockValue(part) {
+      const stockRaw = String(part?.stock ?? "").replace(/\u00A0|\u202F/g, " ").trim().replace(",", ".");
+      if (!stockRaw || stockRaw === "—" || stockRaw === "-") return 0;
+      const stock = parseStockNum(stockRaw);
+      if (Number.isFinite(stock)) return stock;
+      const normalized = stockRaw.replace(/[^0-9.\-]/g, "");
+      if (!normalized) return 0;
+      if (/^0+(?:\.0+)?$/.test(normalized)) return 0;
+      return NaN;
+    }
+
+    function filterList(list, query, opts) {
+      if (!query || !String(query).trim()) return [];
+      const preferStock = !!(opts && opts.preferStock);
+      const qRaw = String(query).trim();
+      const q = qRaw.toLowerCase();
+
+      if (looksLikeCellQuery(qRaw)) {
+        const qCell = normalizeCell(qRaw);
+        return list.filter(item => normalizeCell(item.cell) === qCell).slice(0, 200);
+      }
+
+      const tokens = tokenizeQuery(qRaw);
+      const qNorm = normalizeSearch(qRaw);
+
+      const scored = list.map(item => {
+        const codeN = normalizeSearch(item.code || "");
+        const nameN = normalizeSearch(item.name || "");
+        const cellN = normalizeSearch(item.cell || "");
+        const hayN = codeN + nameN + cellN;
+
+        const exactCode = qNorm && (codeN === qNorm);
+        const prefixCode = qNorm && codeN.startsWith(qNorm);
+        const inclCode = qNorm && codeN.includes(qNorm);
+        const exactName = qNorm && (nameN === qNorm);
+        const prefixName = qNorm && nameN.startsWith(qNorm);
+        const inclName = qNorm && nameN.includes(qNorm);
+        const exactCell = qNorm && (cellN === qNorm);
+        const prefixCell = qNorm && cellN.startsWith(qNorm);
+        const inclCell = qNorm && cellN.includes(qNorm);
+
+        let score = 0;
+        let passes = false;
+
+        if (exactCode) { score += 10000; passes = true; }
+        if (prefixCode) { score += 6000; passes = true; }
+        if (inclCode) { score += 2500; passes = true; }
+        if (exactName) { score += 5000; passes = true; }
+        if (prefixName) { score += 2400; passes = true; }
+        if (inclName) { score += 900; passes = true; }
+        if (exactCell) { score += 3000; passes = true; }
+        if (prefixCell) { score += 1400; passes = true; }
+        if (inclCell) { score += 600; passes = true; }
+
+        let hitCount = 0;
+        for (const token of tokens) {
+          if (token && hayN.includes(token)) hitCount += 1;
+        }
+        score += hitCount * 250;
+
+        const stockOk = !Number.isNaN(getPartsRequestStockValue(item)) && getPartsRequestStockValue(item) > 0;
+        if (preferStock && stockOk) score += 80;
+
+        return { item, score, passes, stockOk, exactCode, prefixCode };
+      });
+
+      return scored
+        .filter(x => x.passes)
+        .sort((a, b) => {
+          if (a.exactCode !== b.exactCode) return a.exactCode ? -1 : 1;
+          if (a.prefixCode !== b.prefixCode) return a.prefixCode ? -1 : 1;
+          if (preferStock && a.stockOk !== b.stockOk) return a.stockOk ? -1 : 1;
+          return b.score - a.score;
+        })
+        .map(x => x.item)
+        .slice(0, 50);
+    }
+
+    function searchParts(query) {
+      return filterList(partsCache, query, { preferStock: true }).slice(0, 15);
+    }
+
+    function renderSearchResults(results) {
+      const suggest = document.getElementById("parts-suggest");
+      const input = document.getElementById("parts-input");
+      if (!suggest || !input) return;
+
+      const safeResults = Array.isArray(results) ? results.filter(Boolean) : [];
+      suggest.innerHTML = "";
+      if (!safeResults.length) {
+        suggest.style.display = "none";
+        return;
+      }
+
+      const ul = document.createElement("ul");
+      safeResults.forEach(item => {
+        const li = document.createElement("li");
+        li.dataset.code = item.code || "";
+        li.dataset.name = item.name || "";
+        li.dataset.cell = item.cell || "";
+        li.dataset.unit = "шт.";
+        li.dataset.stock = item.stock || "";
+        li.innerHTML = `
+          <div class="code">${escapeHtml(item.code || "")}</div>
+          <div class="name">${escapeHtml(item.name || "")}</div>
+          <div class="extra">📦 ${item.stock || "—"} &nbsp; | &nbsp; 🗄 ${formatCell(item.cell)}</div>
+        `;
+        ul.appendChild(li);
+      });
+
+      suggest.appendChild(ul);
+      suggest.style.display = "block";
+    }
+
+    async function loadParts() {
+      try {
+        const text = await fetchSheetCSV(PARTS_SHEET_ID, PARTS_GID);
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        partsCache = normalizeRows(parsed.data).map(p => ({
+          code: p.code, name: p.name, cell: p.cell, stock: p.stock, unit: "шт.", price: p.price || 0,
+        })).filter(p => p.code || p.name);
+      } catch (e) {
+        console.error("Parts load error:", e);
+      }
+    }
+
+    // ===================== ADD PARTS TABLE =====================
+
+    function renderAddTable() {
+      const tbody = document.getElementById("addTableBody");
+      const wrap = document.getElementById("addTableWrap");
+      if (!selectedParts.length) {
+        wrap.style.display = "none";
+        return;
+      }
+      wrap.style.display = "";
+      tbody.innerHTML = selectedParts.map((p, i) =>
+        `<tr>
+          <td>${i + 1}</td>
+          <td><strong>${escapeHtml(p.name)}</strong><br><span style="font-size:11px;color:var(--muted,#888);">${escapeHtml(p.code)}</span></td>
+          <td style="font-size:12px;">${formatCell(p.cell)}</td>
+          <td class="qty-cell"><input type="number" min="1" value="${p.qty}" onchange="updateAddPartQty(${i}, this.value)"></td>
+          <td style="font-size:12px;">${escapeHtml(p.unit)}</td>
+          <td><button class="btn ghost" style="padding:2px 8px;font-size:14px;" onclick="removeAddPart(${i})">×</button></td>
+        </tr>`
+      ).join("");
+    }
+
+    function addPartFromSearch() {
+      const input = document.getElementById("parts-input");
+      const qtyInput = document.getElementById("parts-qty") || { value: "1" };
+      const sCode = input.dataset.selectedCode;
+      const sName = input.dataset.selectedName || input.value.split("(")[0]?.trim() || input.value.trim();
+      if (!sName && !sCode) { showToast("Введите название запчасти", "warn"); return; }
+      const quantity = parseInt(qtyInput.value || 1) || 1;
+      selectedParts.push({
+        code: sCode || "",
+        name: sName,
+        cell: input.dataset.selectedCell || "",
+        unit: input.dataset.selectedUnit || "шт.",
+        qty: quantity
+      });
+      renderAddTable();
+      input.value = "";
+      input.dataset.selectedCode = "";
+      input.dataset.selectedName = "";
+      input.dataset.selectedCell = "";
+      input.dataset.selectedUnit = "";
+      qtyInput.value = "1";
+      document.getElementById("parts-info").textContent = "";
+    }
+
+    function addPartDirect(code, name, cell, unit, qty) {
+      if (code || name) {
+        selectedParts.push({ code: code || "", name: name || code || "", cell: cell || "", unit: unit || "шт.", qty: qty || 1 });
+        renderAddTable();
+      }
+    }
+
+    function removeAddPart(idx) {
+      selectedParts.splice(idx, 1);
+      renderAddTable();
+    }
+
+    function updateAddPartQty(idx, value) {
+      const qty = Math.max(1, parseInt(value) || 1);
+      if (selectedParts[idx]) selectedParts[idx].qty = qty;
+    }
+
+    // ===================== TEMPLATES =====================
+
+    async function loadTemplates() {
+      try {
+        const resp = await fetch("/api/warehouse-templates");
+        const data = await resp.json();
+        const templates = Array.isArray(data.items) ? data.items : [];
+        const card = document.getElementById("templatesCard");
+        const badges = document.getElementById("templateBadges");
+        if (!templates.length) { card.style.display = "none"; return; }
+        card.style.display = "";
+        badges.innerHTML = templates.map(t =>
+          `<button class="btn ghost" type="button" onclick="applyTemplate(${JSON.stringify(t).replace(/"/g, "'")})">📦 ${escapeHtml(t.name || "Без названия")}</button>`
+        ).join("");
+      } catch (e) {
+        console.error("Templates load error:", e);
+      }
+    }
+
+    function applyTemplate(tpl) {
+      if (!tpl || !Array.isArray(tpl.items)) return;
+      tpl.items.forEach(item => {
+        addPartDirect(item.code || "", item.name || item.code || "", item.cell || "", item.unit || "шт.", item.qty || 1);
+      });
+      showToast("✅ Шаблон применён: " + (tpl.name || ""), "success");
+    }
+
+    // ===================== SUBMIT ADD =====================
+
+    async function submitAdd() {
+      if (!currentMaster) return;
+      if (!selectedParts.length) { showToast("Добавьте хотя бы одну запчасть", "warn"); return; }
+
+      var adminName = adminUser?.name || adminUser?.login || "admin";
+      var comment = (document.getElementById("addComment").value || "").trim();
+      var syntheticRequestId = "admin-adjust-" + Date.now();
+
+      document.getElementById("btnAddSubmit").disabled = true;
+
+      try {
+        var resp = await apiFetch("/api/master-stock/return", {
+          method: "POST",
+          body: JSON.stringify({
+            masterLogin: currentMaster.login,
+            masterName: currentMaster.name || currentMaster.login,
+            equipmentId: "",
+            adminName: adminName,
+            comment: comment || "Ручное добавление (" + adminName + ")",
+            items: selectedParts.map(p => ({
+              requestId: syntheticRequestId,
+              partCode: p.code,
+              partName: p.name,
+              cell: p.cell,
+              unit: p.unit,
+              quantity: p.qty
+            }))
+          })
+        });
+        var out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "add_failed");
+
+        showToast("✅ Добавлено: " + selectedParts.length + " позиций", "success");
+        selectedParts = [];
+        renderAddTable();
+        document.getElementById("addComment").value = "";
+        await loadMasterStock();
+      } catch (e) {
+        showToast("❌ " + (e.message || "Ошибка"), "error");
+      } finally {
+        document.getElementById("btnAddSubmit").disabled = false;
+      }
+    }
+
+    // ===================== MASTER STOCK =====================
 
     async function loadMasterStock() {
       var content = document.getElementById("asContent");
@@ -299,11 +629,12 @@
 
       html += '<div class="as-table-wrap">';
       html += '<table class="as-table">';
-      html += '<thead><tr><th>Артикул</th><th>Название</th><th>Ячейка</th><th>Ед.</th><th>Кол-во</th><th>Заявка</th><th>Дата</th></tr></thead>';
+      html += '<thead><tr><th><input type="checkbox" id="toggleAllCb" onchange="toggleAllStock(this)"></th><th>Артикул</th><th>Название</th><th>Ячейка</th><th>Ед.</th><th>Кол-во</th><th>Заявка</th><th>Дата</th></tr></thead>';
       html += '<tbody>';
 
       masterStock.forEach(function(item) {
-        html += '<tr>';
+        html += '<tr data-code="' + escapeHtml(item.partCode) + '" data-request="' + escapeHtml(item.requestId) + '">';
+        html += '<td><input type="checkbox" class="stock-cb" data-code="' + escapeHtml(item.partCode) + '" data-request="' + escapeHtml(item.requestId) + '" data-qty="' + Number(item.quantityAvailable) + '" data-name="' + escapeHtml(item.partName) + '" data-cell="' + escapeHtml(item.cell || "") + '" data-unit="' + escapeHtml(item.unit || "шт.") + '"></td>';
         html += '<td style="font-size:11px;color:var(--muted,#888);">' + escapeHtml(item.partCode) + '</td>';
         html += '<td><strong>' + escapeHtml(item.partName) + '</strong></td>';
         html += '<td style="font-size:11px;">' + escapeHtml(item.cell || "—") + '</td>';
@@ -318,96 +649,103 @@
       content.innerHTML = html;
     }
 
-    async function manualAdd() {
-      if (!currentMaster) return;
-      var code = (document.getElementById("addCode").value || "").trim();
-      var name = (document.getElementById("addName").value || "").trim();
-      var cell = (document.getElementById("addCell").value || "").trim();
-      var unit = (document.getElementById("addUnit").value || "шт.").trim();
-      var qty = parseInt(document.getElementById("addQty").value) || 0;
-      var comment = (document.getElementById("addComment").value || "").trim();
+    function toggleAllStock(cb) {
+      document.querySelectorAll(".stock-cb").forEach(function(el) { el.checked = cb.checked; });
+    }
 
-      if (!code) { showToast("Укажите артикул", "warn"); return; }
-      if (!name) { showToast("Укажите название", "warn"); return; }
-      if (qty < 1) { showToast("Количество должно быть ≥ 1", "warn"); return; }
+    function getSelectedStockItems() {
+      const items = [];
+      document.querySelectorAll(".stock-cb:checked").forEach(function(cb) {
+        items.push({
+          partCode: cb.dataset.code,
+          requestId: cb.dataset.request,
+          quantity: Number(cb.dataset.qty),
+          partName: cb.dataset.name,
+          cell: cb.dataset.cell,
+          unit: cb.dataset.unit,
+        });
+      });
+      return items;
+    }
 
-      var adminName = adminUser?.name || adminUser?.login || "admin";
-      var syntheticRequestId = "admin-adjust-" + Date.now();
+    // ===================== ADD TO CHECK =====================
+
+    async function addSelectedToCheck() {
+      const selected = getSelectedStockItems();
+      if (!selected.length) { showToast("Выберите позиции", "warn"); return; }
+
+      var batchBtn = document.getElementById("batchCheckBtn");
+      if (batchBtn) { batchBtn.disabled = true; batchBtn.textContent = "⏳ Додається..."; }
+
+      var dedItems = selected.map(function(s) {
+        return { requestId: s.requestId, partCode: s.partCode, quantity: s.quantity };
+      });
 
       try {
-        var resp = await apiFetch("/api/master-stock/return", {
+        const resp = await apiFetch("/api/master-stock/deduct", {
           method: "POST",
-          body: JSON.stringify({
-            masterLogin: currentMaster.login,
-            masterName: currentMaster.name || currentMaster.login,
-            equipmentId: "",
-            adminName: adminName,
-            comment: comment || "Ручное добавление (" + adminName + ")",
-            items: [{
-              requestId: syntheticRequestId,
-              partCode: code,
-              partName: name,
-              cell: cell,
-              unit: unit,
-              quantity: qty
-            }]
-          })
+          body: JSON.stringify({ masterLogin: currentMaster.login, items: dedItems })
         });
-        var out = await resp.json();
-        if (!out.ok) throw new Error(out.error || "add_failed");
+        const out = await resp.json();
+        if (!out.ok) throw new Error(out.error || "deduct_failed");
 
-        showToast("✅ Добавлено: " + name + " × " + qty, "success");
-        document.getElementById("addCode").value = "";
-        document.getElementById("addName").value = "";
-        document.getElementById("addCell").value = "";
-        document.getElementById("addUnit").value = "шт.";
-        document.getElementById("addQty").value = "1";
-        document.getElementById("addComment").value = "";
-        await loadMasterStock();
+        // Save to pending items for check
+        var pending = selected.map(function(s) {
+          return { code: s.partCode, name: s.partName || "", qty: s.quantity, type: "part" };
+        });
+        try {
+          var existing = JSON.parse(localStorage.getItem(PENDING_ITEMS_KEY) || "[]");
+          localStorage.setItem(PENDING_ITEMS_KEY, JSON.stringify(existing.concat(pending)));
+        } catch (e) { console.warn("save pending failed", e); }
+
+        // Save engineer (master) for auto-fill in check
+        try {
+          localStorage.setItem(PENDING_ENGINEER_KEY, JSON.stringify({
+            login: currentMaster.login,
+            name: currentMaster.name || currentMaster.login
+          }));
+        } catch (e) { console.warn("save engineer failed", e); }
+
+        // Remove rows from DOM
+        selected.forEach(function(s) {
+          var selector = 'tr[data-code="' + CSS.escape(s.partCode) + '"][data-request="' + CSS.escape(s.requestId) + '"]';
+          var row = document.querySelector(selector);
+          if (row) {
+            row.classList.add("ms-row-removing");
+            setTimeout(function() { row.remove(); }, 300);
+          }
+        });
+
+        showToast("✅ Додано в чек: " + selected.length + " позицій. Инженер: " + (currentMaster.name || currentMaster.login), "success");
       } catch (e) {
-        showToast("❌ " + (e.message || "Ошибка"), "error");
+        showToast("❌ " + (e.message || "Помилка"), "error");
+      } finally {
+        if (batchBtn) { batchBtn.disabled = false; batchBtn.textContent = "☑️ Добавить видлене в чек"; }
       }
     }
 
-    async function manualDeduct() {
-      if (!currentMaster) return;
-      var code = (document.getElementById("deductCode").value || "").trim();
-      var qty = parseInt(document.getElementById("deductQty").value) || 0;
+    // ===================== INIT =====================
 
-      if (!code) { showToast("Укажите артикул", "warn"); return; }
-      if (qty < 1) { showToast("Количество должно быть ≥ 1", "warn"); return; }
+    function populateMasters() {
+      const select = document.getElementById("masterSelect");
+      const users = (window.SurpAuth?.getUsers?.() || []);
+      var myLogin = String(adminUser?.login || "").toLowerCase();
 
-      var match = masterStock.find(function(i) { return i.partCode === code; });
-      if (!match) { showToast("Артикул не найден на складе мастера", "warn"); return; }
-      if (qty > Number(match.quantityAvailable || 0)) {
-        showToast("Недостаточно на складе (доступно: " + match.quantityAvailable + ")", "warn");
-        return;
-      }
+      var others = users.filter(function(u) {
+        return u.login && String(u.login).toLowerCase() !== myLogin;
+      });
 
-      var syntheticRequestId = match.requestId || ("admin-adjust-" + Date.now());
+      others.sort(function(a, b) {
+        return String(a.name || a.login).localeCompare(String(b.name || b.login), "ru");
+      });
 
-      try {
-        var resp = await apiFetch("/api/master-stock/deduct", {
-          method: "POST",
-          body: JSON.stringify({
-            masterLogin: currentMaster.login,
-            items: [{
-              requestId: syntheticRequestId,
-              partCode: code,
-              quantity: qty
-            }]
-          })
-        });
-        var out = await resp.json();
-        if (!out.ok) throw new Error(out.error || "deduct_failed");
-
-        showToast("✅ Списано: " + (match.partName || code) + " × " + qty, "success");
-        document.getElementById("deductCode").value = "";
-        document.getElementById("deductQty").value = "1";
-        await loadMasterStock();
-      } catch (e) {
-        showToast("❌ " + (e.message || "Ошибка"), "error");
-      }
+      others.forEach(function(m) {
+        var opt = document.createElement("option");
+        opt.value = m.login;
+        var role = m.role ? " [" + m.role + "]" : "";
+        opt.textContent = (m.name || m.login) + " (" + m.login + ")" + role;
+        select.appendChild(opt);
+      });
     }
 
     document.getElementById("masterSelect").addEventListener("change", async function() {
@@ -416,6 +754,7 @@
         currentMaster = null;
         document.getElementById("addForm").style.display = "none";
         document.getElementById("deductForm").style.display = "none";
+        document.getElementById("templatesCard").style.display = "none";
         document.getElementById("asContent").innerHTML = '<div class="as-empty"><h2>👤 Выберите мастера</h2><p>Выберите мастера из списка выше для просмотра и управления его складом.</p></div>';
         return;
       }
@@ -426,7 +765,9 @@
 
       document.getElementById("addForm").style.display = "";
       document.getElementById("deductForm").style.display = "";
-      await loadMasterStock();
+      selectedParts = [];
+      renderAddTable();
+      await Promise.all([loadMasterStock(), loadTemplates()]);
     });
 
     window.addEventListener("load", async function() {
@@ -436,7 +777,7 @@
         if (!adminUser) return;
 
         var role = String(adminUser.role || "").toLowerCase();
-        if (role !== "admin" && role !== "manager" && role !== "admin" && role !== "менеджер") {
+        if (role !== "admin" && role !== "manager" && role !== "менеджер") {
           document.getElementById("appMain").innerHTML = '<div class="as-empty" style="padding:60px;"><h2>🚫 Доступ запрещён</h2><p style="margin:12px 0;">У вас нет прав для просмотра этой страницы.</p><button class="btn primary" onclick="window.location.href=\'/\';">На главную</button></div>';
           document.getElementById("appMain").style.display = "block";
           return;
@@ -454,6 +795,65 @@
           populateMasters();
           if (prev) select.value = prev;
         });
+
+        // Load parts in background
+        loadParts();
+
+        // Setup search
+        var partsInput = document.getElementById("parts-input");
+        var partsSuggest = document.getElementById("parts-suggest");
+
+        if (partsInput && partsSuggest) {
+          partsInput.addEventListener("input", function() {
+            var q = partsInput.value.trim();
+            var matches = searchParts(q);
+            renderSearchResults(matches);
+          });
+
+          partsSuggest.addEventListener("click", function(e) {
+            var li = e.target.closest("li[data-code]");
+            if (!li) return;
+            partsInput.value = li.dataset.name + " (" + li.dataset.code + ")";
+            partsInput.dataset.selectedCode = li.dataset.code;
+            partsInput.dataset.selectedName = li.dataset.name;
+            partsInput.dataset.selectedCell = li.dataset.cell;
+            partsInput.dataset.selectedUnit = li.dataset.unit;
+            renderSearchResults([]);
+            var stock = parseInt(li.dataset.stock);
+            var info = document.getElementById("parts-info");
+            info.textContent = li.dataset.cell ? formatCell(li.dataset.cell) + " — залишок: " + stock : "залишок: " + stock;
+            // Auto-add on select
+            addPartFromSearch();
+          });
+
+          document.addEventListener("click", function(e) {
+            if (!partsInput.contains(e.target) && !partsSuggest.contains(e.target)) {
+              renderSearchResults([]);
+            }
+          });
+
+          partsInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (partsSuggest.querySelector("li")) {
+                partsSuggest.querySelector("li").click();
+              } else {
+                addPartFromSearch();
+              }
+            }
+          });
+        }
+
+        var partsQty = document.getElementById("parts-qty");
+        if (partsQty) {
+          partsQty.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addPartFromSearch();
+            }
+          });
+        }
+
       } catch (e) {
         console.error("Admin stock init error:", e);
       }

@@ -1275,15 +1275,27 @@ function consumePendingKitForCheck() {
   }
 
   const pending = loadPendingItems();
-  if (!pending.length) return false;
+  const pendingEngineerRaw = localStorage.getItem("surp_pending_engineer_v1");
+  let pendingEngineer = null;
+  if (pendingEngineerRaw) {
+    try { pendingEngineer = JSON.parse(pendingEngineerRaw); } catch (e) {}
+    localStorage.removeItem("surp_pending_engineer_v1");
+  }
 
-  const merged = mergePendingItemsIntoCheck(pending);
-  clearPendingItems();
-  if (!merged) return false;
+  if (!pending.length && !pendingEngineer) return false;
+
+  if (pending.length) {
+    mergePendingItemsIntoCheck(pending);
+    clearPendingItems();
+  }
+
+  if (pendingEngineer && pendingEngineer.name) {
+    populateEngineerSelects(pendingEngineer.name);
+  }
 
   renderTable();
   scheduleCheckDraftSave();
-  warehouseAlert("Набор со склада перенесён в чек", "success", 2200);
+  warehouseAlert("Набор со склада перенесён в чек" + (pendingEngineer ? ". Инженер: " + pendingEngineer.name : ""), "success", 2200);
   return true;
 }
 
