@@ -420,8 +420,17 @@ export async function spareRequestAddItem(id, { partCode, partName, cell, unit, 
   const request = await p().spareRequest.findUnique({ where: { id } });
   if (!request) return { ok: false, error: 'request_not_found' };
 
-  const itemCount = await p().spareRequestItem.count({ where: { requestId: id } });
-  const itemId = id + '-' + String(itemCount + 1).padStart(3, '0');
+  const existing = await p().spareRequestItem.findMany({
+    where: { requestId: id },
+    select: { id: true },
+  });
+  let maxNum = 0;
+  for (const it of existing) {
+    const suffix = it.id.replace(id + '-', '');
+    const num = parseInt(suffix, 10);
+    if (!isNaN(num) && num > maxNum) maxNum = num;
+  }
+  const itemId = id + '-' + String(maxNum + 1).padStart(3, '0');
 
   await p().spareRequestItem.create({
     data: {
