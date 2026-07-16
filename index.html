@@ -2,34 +2,98 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>Surpresso Check</title>
+  <title>Surpresso Service</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="manifest" href="/manifest.json?v=1.1.4">
   <meta name="theme-color" content="#f2c94c" />
   <link rel="stylesheet" href="/style.css?v=1.1.4">
   <link rel="stylesheet" href="/gradient.css?v=1.1.4">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    .dash-search { padding: 0 12px 12px; }
+    .dash-search-box {
+      position: relative; display: flex; gap: 8px; align-items: center;
+      background: var(--g-card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 6px 12px; box-shadow: var(--shadow-md);
+    }
+    .dash-search-box input {
+      flex: 1; border: none; background: transparent; color: var(--text);
+      font-size: 15px; padding: 10px 4px; outline: none;
+    }
+    .dash-search-box input::placeholder { color: var(--text-3); }
+    .dash-search-box .search-icon { font-size: 18px; color: var(--text-3); flex-shrink: 0; }
+    .dash-search-results {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+      background: var(--surface-solid); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: var(--shadow-lg); max-height: 50vh; overflow-y: auto;
+      display: none; margin-top: 4px;
+    }
+    .dash-search-results.open { display: block; }
+    .dash-search-results li {
+      padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border);
+      list-style: none; transition: background 0.15s;
+    }
+    .dash-search-results li:last-child { border-bottom: none; }
+    .dash-search-results li:hover { background: var(--g-primary-soft); }
+    .dash-search-results .sr-code { font-weight: 700; font-size: 14px; color: var(--text); }
+    .dash-search-results .sr-name { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+    .dash-search-results .sr-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+    .dash-search-results .sr-empty { padding: 20px; text-align: center; color: var(--text-3); }
+
+    .nav-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+      padding: 0 12px 20px;
+    }
+    .nav-link {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 16px 8px; border-radius: 14px; text-decoration: none;
+      background: var(--g-card); border: 1px solid var(--border);
+      box-shadow: var(--shadow-md); transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer; color: var(--text); min-height: 80px;
+    }
+    .nav-link:active { transform: scale(0.97); }
+    .nav-link:hover { box-shadow: var(--glow); }
+    .nav-link .nav-icon { font-size: 26px; margin-bottom: 6px; }
+    .nav-link .nav-label { font-size: 13px; font-weight: 700; line-height: 1.2; }
+    .nav-link .nav-desc { font-size: 10px; color: var(--text-3); margin-top: 3px; line-height: 1.2; }
+
+    .nav-link.accent-check { border-color: rgba(242,201,76,0.3); }
+    .nav-link.accent-stock { border-color: rgba(34,197,94,0.3); }
+    .nav-link.accent-master { border-color: rgba(59,130,246,0.3); }
+    .nav-link.accent-equip { border-color: rgba(168,85,247,0.3); }
+    .nav-link.accent-manual { border-color: rgba(249,115,22,0.3); }
+    .nav-link.accent-scheme { border-color: rgba(236,72,153,0.3); }
+
+    .dash-greeting {
+      padding: 16px 12px 8px; font-size: 14px; color: var(--text-2);
+    }
+    .dash-greeting strong { color: var(--text); }
+
+    @media (max-width: 360px) {
+      .nav-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .nav-link { padding: 12px 6px; min-height: 72px; }
+      .nav-link .nav-icon { font-size: 22px; }
+      .nav-link .nav-label { font-size: 12px; }
+    }
+  </style>
 </head>
 <body data-page="dashboard">
   <header class="app-header">
     <div class="header-decor" aria-hidden="true">
       <img src="icons/branch-blossom.png" class="header-branch" alt="" />
     </div>
-
     <div class="header-branding">
       <div class="logo-brand">
         <img src="icons/logo-service.png" alt="Surpresso Service" />
       </div>
-
       <div class="app-title">
         <div class="app-name">
           <span>Surpresso</span>
           <span>Service</span>
         </div>
-        <div class="app-subtitle">Чеки на ремонт / сервис</div>
       </div>
     </div>
-
-    <button class="header-menu-btn" type="button" title="Навигация" onclick="if (document.getElementById('dashboard')) document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth' }); else window.location.href='/' ;">☰</button>
+    <button class="header-menu-btn" type="button" title="Тема" id="theme-btn-header">☀️</button>
   </header>
 
   <div id="login-screen" class="login-screen hidden">
@@ -42,97 +106,49 @@
     </div>
   </div>
 
-  <main class="app-main">
-    <section id="dashboard" class="dashboard-hero card page-shell">
-      <div class="page-header">
-        <p class="eyebrow">Рабочая панель</p>
-        <h1>Добро пожаловать в Surpresso</h1>
-        <p>Главная страница теперь отвечает только за навигацию между ключевыми разделами PWA.</p>
+  <main class="app-main" id="appMain" style="display:none;">
+    <div class="dash-greeting" id="dashGreeting"></div>
+
+    <div class="dash-search">
+      <div class="dash-search-box">
+        <span class="search-icon">🔍</span>
+        <input id="dash-search-input" type="text" autocomplete="off" placeholder="Поиск запчасти или раздела..." />
       </div>
+      <ul class="dash-search-results" id="dash-search-results"></ul>
+    </div>
 
-      <div class="section-grid">
-        <a class="section-card accent-check" href="/check">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Чек</h3>
-            <p>Открыть сервисный чек со всеми текущими функциями и обработчиками.</p>
-            <span class="status-badge">Отдельная страница</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-stock" href="/warehouse.html">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Склад</h3>
-            <p>Набор, переучет и контроль остатков.</p>
-            <span class="status-badge">Рабочий раздел</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-master-stock" href="/master-stock.html">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Мой склад</h3>
-            <p>Выданные запчасти по заявкам, списание в чек и возврат.</p>
-            <span class="status-badge">Личные остатки</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-admin-stock admin-only-card" href="/admin-stock.html" style="display:none;">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Склад мастеров</h3>
-            <p>Просмотр и корректировка остатков у мастеров.</p>
-            <span class="status-badge">Управление</span>
-          </div>
-        </a>
-
-        <button class="section-card accent-equipment" type="button" onclick="openEquipmentPage()">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Оборудование</h3>
-            <p>Карточки техники и обслуживание.</p>
-            <span class="status-badge">Сервисные карты</span>
-          </div>
-        </button>
-
-        <a class="section-card accent-manual" href="/manuals">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Мануалы</h3>
-            <p>PDF-база с поиском по названию, бренду и модели.</p>
-            <span class="status-badge">PDF viewer</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-diagrams" href="/diagrams">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Схемы</h3>
-            <p>Каталог DVG по производителям с быстрым переходом к схемам в новой вкладке.</p>
-            <span class="status-badge">DVG каталог</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-grinder" href="/grinder.html">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Помощник помола</h3>
-            <p>Простой интерактивный помощник для клиента по настройке шота.</p>
-            <span class="status-badge">Новый модуль</span>
-          </div>
-        </a>
-
-        <a class="section-card accent-miniapp-admin" href="/tg/admin">
-          <div class="section-overlay"></div>
-          <div class="section-content">
-            <h3>Админка Mini App</h3>
-            <p>Панель заявок, клиентов и сервисных задач Telegram Mini App.</p>
-            <span class="status-badge">/tg/admin</span>
-          </div>
-        </a>
-      </div>
-    </section>
+    <div class="nav-grid">
+      <a class="nav-link accent-check" href="/check">
+        <span class="nav-icon">🧾</span>
+        <span class="nav-label">Чек</span>
+        <span class="nav-desc">Сервисный чек</span>
+      </a>
+      <a class="nav-link accent-stock" href="/warehouse.html">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Склад</span>
+        <span class="nav-desc">Набор и переучет</span>
+      </a>
+      <a class="nav-link accent-master" href="/master-stock.html">
+        <span class="nav-icon">💼</span>
+        <span class="nav-label">Мой склад</span>
+        <span class="nav-desc">Остатки и списание</span>
+      </a>
+      <button class="nav-link accent-equip" type="button" onclick="openEquipmentPage()">
+        <span class="nav-icon">🔧</span>
+        <span class="nav-label">Оборудование</span>
+        <span class="nav-desc">Карточки техники</span>
+      </button>
+      <a class="nav-link accent-manual" href="/manuals">
+        <span class="nav-icon">📖</span>
+        <span class="nav-label">Мануалы</span>
+        <span class="nav-desc">PDF-база</span>
+      </a>
+      <a class="nav-link accent-scheme" href="/diagrams">
+        <span class="nav-icon">🗺</span>
+        <span class="nav-label">Схемы</span>
+        <span class="nav-desc">Каталог DVG</span>
+      </a>
+    </div>
   </main>
 
   <footer class="app-footer">
@@ -145,20 +161,161 @@
     <button id="hard-refresh-btn" class="footer-refresh">♻ Обновить</button>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="/auth.js"></script>
-  <script src="app.js"></script>
+  <script src="/app.js"></script>
   <script>
-    (async function() {
+    const PARTS_SHEET_ID = "1kHTj9-Hh5ZjR1iHKXEiAxKx6XSsd_RE2SDJq9eBqRZ8";
+    const PARTS_GID = 1099059228;
+    let partsCache = [];
+    let searchReady = false;
+
+    function normalizeSearch(str) {
+      let s = String(str || "").toLowerCase();
+      s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+      s = s.replace(/µf/g, "uf").replace(/мкф/g, "uf");
+      s = s.replace(/[^a-z0-9а-яёіїєґ]+/gi, "");
+      return s;
+    }
+
+    function normalizeRows(rows) {
+      const out = [];
+      rows.forEach(row => {
+        const lc = {};
+        for (const [k, v] of Object.entries(row || {})) {
+          if (!k) continue;
+          lc[String(k).trim().toLowerCase()] = v;
+        }
+        const pick = masks => {
+          for (const mask of masks) {
+            for (const [k, v] of Object.entries(lc)) {
+              if (k.includes(mask) && v !== "" && v !== undefined) return v;
+            }
+          }
+          return "";
+        };
+        const code = String(pick(["артикул", "код", "art", "article"]) || "").trim();
+        const name = String(pick(["наименование", "найменування", "название", "описание", "name"]) || "").trim();
+        const cell = String(pick(["комірка", "ячейк", "cell", "shelf"]) || "").trim();
+        const stock = pick(["залишок", "налич", "stock", "остат"]);
+        if (!code && !name) return;
+        out.push({ code, name, cell, stock: stock || "" });
+      });
+      return out;
+    }
+
+    async function loadPartsForSearch() {
+      try {
+        const url = `https://docs.google.com/spreadsheets/d/${PARTS_SHEET_ID}/export?format=csv&gid=${PARTS_GID}&v=${Date.now()}`;
+        const resp = await fetch(url, { cache: "no-store" });
+        if (!resp.ok) return;
+        const text = await resp.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        partsCache = normalizeRows(parsed.data).filter(p => p.code || p.name);
+        searchReady = true;
+      } catch (e) {
+        console.warn("Parts search load failed:", e);
+      }
+    }
+
+    function searchPartsLocal(query) {
+      if (!query || !searchReady) return [];
+      const q = normalizeSearch(query);
+      if (!q) return [];
+      const tokens = q.split(/\s+/).filter(Boolean);
+
+      const scored = partsCache.map(item => {
+        const codeN = normalizeSearch(item.code || "");
+        const nameN = normalizeSearch(item.name || "");
+        const cellN = normalizeSearch(item.cell || "");
+        let score = 0;
+        let passes = false;
+
+        if (codeN === q) { score += 10000; passes = true; }
+        else if (codeN.startsWith(q)) { score += 6000; passes = true; }
+        else if (codeN.includes(q)) { score += 2500; passes = true; }
+
+        if (nameN === q) { score += 5000; passes = true; }
+        else if (nameN.startsWith(q)) { score += 2400; passes = true; }
+        else if (nameN.includes(q)) { score += 900; passes = true; }
+
+        if (cellN.includes(q)) { score += 600; passes = true; }
+
+        for (const t of tokens) {
+          if ((codeN + nameN + cellN).includes(t)) score += 250;
+        }
+
+        return { item, score, passes };
+      });
+
+      return scored.filter(x => x.passes).sort((a, b) => b.score - a.score).map(x => x.item).slice(0, 20);
+    }
+
+    function renderSearchResults(results) {
+      const el = document.getElementById("dash-search-results");
+      if (!results.length) {
+        el.innerHTML = '<li class="sr-empty">Ничего не найдено</li>';
+        el.classList.add("open");
+        return;
+      }
+      el.innerHTML = results.map((r, i) =>
+        `<li onclick="pickSearchItem(${i})" data-idx="${i}">
+          <div class="sr-code">${escapeHtml(r.code || "")}</div>
+          <div class="sr-name">${escapeHtml(r.name || "")}</div>
+          <div class="sr-meta">🗄 ${r.cell || "—"} &nbsp;|&nbsp; 📦 ${r.stock || "—"}</div>
+        </li>`
+      ).join("");
+      el.classList.add("open");
+      el._results = results;
+    }
+
+    function pickSearchItem(idx) {
+      const el = document.getElementById("dash-search-results");
+      const r = el._results?.[idx];
+      if (!r) return;
+      document.getElementById("dash-search-input").value = r.code + " — " + r.name;
+      el.classList.remove("open");
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    window.addEventListener("load", async function() {
       try {
         await window.SurpAuth?.init?.();
         var user = window.SurpAuth?.getCurrentUser?.();
-        var role = String(user?.role || "").toLowerCase();
-        if (role === "admin" || role === "manager" || role === "менеджер") {
-          document.querySelectorAll(".admin-only-card").forEach(function(el) { el.style.display = ""; });
+        if (user) {
+          document.getElementById("dashGreeting").innerHTML = "👋 Привет, <strong>" + escapeHtml(user.name || user.login) + "</strong>";
         }
-      } catch (e) { /* ignore */ }
-    })();
+        document.getElementById("appMain").style.display = "block";
+      } catch (e) { document.getElementById("appMain").style.display = "block"; }
+
+      loadPartsForSearch();
+
+      var searchInput = document.getElementById("dash-search-input");
+      var resultsEl = document.getElementById("dash-search-results");
+
+      searchInput.addEventListener("input", function() {
+        var q = searchInput.value.trim();
+        if (q.length < 2) { resultsEl.classList.remove("open"); return; }
+        var results = searchPartsLocal(q);
+        renderSearchResults(results);
+      });
+
+      document.addEventListener("click", function(e) {
+        if (!searchInput.contains(e.target) && !resultsEl.contains(e.target)) {
+          resultsEl.classList.remove("open");
+        }
+      });
+
+      searchInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          var first = resultsEl.querySelector("li[data-idx]");
+          if (first) first.click();
+        }
+      });
+    });
   </script>
 </body>
 </html>
